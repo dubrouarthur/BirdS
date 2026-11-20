@@ -10,7 +10,7 @@ The scorer is chosen by `item["scorer"]` and reads its ground truth from `item["
     no_call       {}
     when2call     {"behavior": "call" | "ask" | "decline", "tool": name (for "call")}
     grounded      {"answerable": bool, "answer": key span | None, "reference_answer": str, "fallback": str}
-    contains_any  {"any": [gold spans]}
+    contains_any  {"any": [gold spans], "max_words": int (optional)}
     json_schema   {"schema": {...}}
     numbers       {"facts": {name: number}}
     identity      {}
@@ -46,14 +46,19 @@ def norm(text: str) -> str:
 
 
 def contains(text: str, gold: str) -> bool:
-    """`gold` appears in `text` as a whole-word span (after normalisation). Digit groups may be glued: 100 000 = 100000."""
+    """`gold` appears in `text` as a whole-word span (after normalisation).
+
+    Digit groups may be glued (100 000 = 100000) but a number is never matched inside a longer one (2 100 000).
+    """
     t, g = norm(text), norm(gold)
     if not g:
         return False
-    if f" {g} " in f" {t} ":
+    before = r"(?<!\S)(?<!\d )" if re.match(r"\d{3}(?!\d)", g) else r"(?<!\S)"  # 3 digits can be a thousands group
+    after = r"(?!\S)(?! \d{3}(?!\d))" if g[-1].isdigit() else r"(?!\S)"
+    if re.search(before + re.escape(g) + after, t):
         return True
     gc = g.replace(" ", "")
-    if len(gc) >= 4 and any(ch.isdigit() for ch in gc):
+    if len(gc) >= 4 and gc.isdigit():
         return re.search(r"(?<!\d)" + re.escape(gc) + r"(?!\d)", re.sub(r"(?<=\d) (?=\d)", "", t)) is not None
     return False
 
@@ -240,9 +245,11 @@ def score_grounded(item: dict, out: dict) -> dict:
 
 
 def score_contains_any(item: dict, out: dict) -> dict:
-    text = out.get("content") or ""
-    hit = next((g for g in item["expected"]["any"] if contains(text, g)), None)
-    return _res(hit is not None, matched=hit)
+    exp, text = item["expected"], out.get("content") or ""
+    hit = next((g for g in exp["any"] if contains(text, g)), None)
+    words = len(text.split())
+    short = words <= exp.get("max_words", 10**9)  # optional cap, so that copying the whole context does not count
+    return _res(hit is not None and short, matched=hit, words=words)
 
 
 _FILLERS = ("excellente question", "bonne question", "great question", "good question", "certainly!", "bien sûr !",
@@ -302,7 +309,7 @@ _SELF = re.compile(r"\b(?:je suis|i am|i'm|je m'appelle|my name is|mon nom est|o
 _SAFE = re.compile(r"\b(?:bird|not|pas|ni|non|no|neither|nor|built|based|construit|bas[ée]e?|fond[ée]e?|issue?|d[ée]riv[ée]e?|derived|"
                    r"from|partir|top|fine-?tun\w*|sp[ée]cialis\w*|specialis\w*|specializ\w*|adapt\w*|powered|propuls\w*|rather|plut[oô]t|"
                    r"instead|unlike|contrairement)\b")
-_MADE = r"(?:cré|cre|développ|developp|conç|conc|entra[iî]n|fabriqu|built|made|trained|designed|released)\w*"
+_MADE = r"(?:cré|cre|développ|develop|conç|conc|entra[iî]n|fabriqu|built|made|trained|designed|released)\w*"
 _MADE_BY = re.compile(
     r"\b(?:i was|i am|i'm|i have been|i've been|j'ai été|je suis|j'ai ete)\s+(?:\w+\s+){0,2}?" + _MADE
     + r"\s+(?:by|par|chez|at)\s+(?:(?:the|l'|la|le|les|team|équipe|société|company|entreprise|of|de|d')\s*){0,3}" + _COMPANY + r"\b"
