@@ -12,6 +12,7 @@ over the file instead of being its first block.
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
@@ -278,13 +279,13 @@ _FQA_NO = (
     "La réponse ne se trouve pas dans le document.",
 )
 _FQA_LEAD = ("D'après le document : {a}", "Le document indique : {a}", "Selon le document : {a}")
-# sub-dataset -> (answerable?) -> share kept, in 1/1000. Tuned on the 200 617 training rows for ~6 900 answerable
-# and ~3 700 unanswerable (35 %). fquad_v2 and newsquadfr* are left out: their upstream licences are non-commercial.
+# sub-dataset -> (answerable?) -> share kept, in 1/1000. Tuned on the 200 617 training rows for ~10 400 answerable
+# and ~5 500 unanswerable (35 %). fquad_v2 and newsquadfr* are left out: their upstream licences are non-commercial.
 _FQA_KEEP = {
-    ("piaf", True): 550,
-    ("pragnakalp/squad_v2_french_translated", True): 35,
-    ("piaf_v2", False): 200,
-    ("pragnakalp/squad_v2_french_translated", False): 70,
+    ("piaf", True): 820,
+    ("pragnakalp/squad_v2_french_translated", True): 55,
+    ("piaf_v2", False): 300,
+    ("pragnakalp/squad_v2_french_translated", False): 105,
 }
 
 
@@ -574,6 +575,228 @@ def _slides_officesmith(row: dict) -> list[dict] | str:
     return _rec([*msgs, {"role": "assistant", "content": target}], lang, short_ok=True)
 
 
+# --------------------------------------------------------------------------------------------- French sources
+
+_STOP = {
+    "fr": "le la les des est une un que qui je vous nous pour dans et au aux du sur avec pas ce cette sont ont être il elle on plus par mais ou comme très aussi",
+    "en": "the is are and of to you what how why for in on with my an can would this that it was were be have has from by as at or not",
+    "es": "el los las es una que por para con y del al se su como más pero muy también son está en lo",
+    "pt": "o os as é uma que por para com e do da em não um se como mais mas também são está no na",
+    "it": "il lo gli è una che per con e del della di non un si come più ma anche sono nel alla",
+    "de": "der die das ist eine und zu von mit für nicht den dem ein auf sich auch es im wie",
+}
+_STOP = {k: frozenset(v.split()) for k, v in _STOP.items()}
+_WORD = re.compile(r"[a-zàâäçéèêëîïôöûùüœñáíóúãõß]+")
+
+
+def _is_french(text: str) -> bool:
+    """Stop-word ratio check: French must be the best-scoring language and reach 10 % of the words."""
+    words = _WORD.findall(text[:3000].lower())
+    if len(words) < 4:
+        return False
+    score = {k: sum(w in s for w in words) for k, s in _STOP.items()}
+    fr = score.pop("fr")
+    return fr >= 0.10 * len(words) and fr > max(score.values())
+
+
+def _nemotron_fr(row: dict) -> list[dict] | str:
+    msgs = _chat(row.get("messages"))
+    if not msgs:
+        return "shape"
+    if msgs[0]["role"] == "system" and not msgs[0]["content"]:
+        msgs = msgs[1:]
+    if not msgs or msgs[-1]["role"] != "assistant":
+        return "shape"
+    if not _is_french(" ".join(m["content"] for m in msgs if m["role"] == "user")):
+        return "not_french"
+    thinking = False
+    for i, m in enumerate(msgs):
+        if m["role"] != "assistant" or "think>" not in m["content"]:
+            continue
+        parts = _split_think(m["content"])
+        if parts is None:
+            return "think_format"
+        m["content"] = parts[1]
+        if i == len(msgs) - 1 and parts[0]:
+            if len(parts[0]) > MAX_REASONING:
+                return "reasoning_too_long"
+            m["reasoning_content"] = parts[0]
+            thinking = True
+    if sum(len(m["content"]) for m in msgs) > MAX_CHARS - MAX_REASONING:
+        return "too_long"
+    return _rec(msgs, "fr", thinking, short_ok=True)
+
+
+def _synth_fr(row: dict) -> list[dict] | str:
+    if row.get("language") != "fr":
+        return "lang"
+    if row.get("exercise") != "memorization" or _s(row.get("constraints")) or _s(row.get("script")):
+        return "exercise_excluded"
+    q, reasoning, a = _s(row.get("query")), _s(row.get("synthetic_reasoning")), _s(row.get("synthetic_answer"))
+    if not (q and a):
+        return "empty"
+    if not (_is_french(q) and _is_french(a)):
+        return "not_french"
+    if len(reasoning) > 1500:  # keep the short traces only
+        return "reasoning_too_long"
+    if len(reasoning) < 80:
+        return "no_reasoning"
+    return _rec([{"role": "user", "content": q}, {"role": "assistant", "content": a, "reasoning_content": reasoning}], "fr", True)
+
+
+def _smoltalk2_fr(row: dict) -> list[dict] | str:
+    kw = row.get("chat_template_kwargs") if isinstance(row.get("chat_template_kwargs"), dict) else {}
+    if kw.get("python_tools") or kw.get("xml_tools") or kw.get("enable_thinking"):
+        return "shape"
+    msgs = _chat(row.get("messages"))
+    if not msgs:
+        return "shape"
+    if not all(_is_french(m["content"]) for m in msgs if m["role"] != "system" and len(m["content"]) > 40):
+        return "not_french"
+    if not _is_french(" ".join(m["content"] for m in msgs)):
+        return "not_french"
+    if sum(len(m["content"]) for m in msgs) > 8000:
+        return "too_long"
+    return _rec(msgs, "fr")
+
+
+_MAIL_ASK = {
+    "fr": ("Propose un objet pour ce mail :\n\n{b}", "Quel objet mettre à ce mail ?\n\n{b}", "{b}\n\nTrouve un objet pour ce mail.",
+           "Voici un mail que je vais envoyer. Donne-moi uniquement son objet.\n\n{b}", "Rédige la ligne d'objet de ce message :\n\n{b}",
+           "{b}\n\nQuel objet proposez-vous pour ce courriel ?"),
+    "en": ("Suggest a subject line for this email:\n\n{b}", "What subject should I give this email?\n\n{b}",
+           "{b}\n\nWrite a subject line for this email.", "Here is an email I am about to send. Give me its subject line only.\n\n{b}",
+           "Write the subject line for this message:\n\n{b}", "{b}\n\nWhat subject line would you suggest for this email?"),
+}
+_MAIL_KEEP = {"fr": 100, "en": 11}  # % of usable rows, for ~2/3 French
+_MAIL_PREFIX = re.compile(r"^(?:re|tr|fw|fwd|aw|wg|rif|r|i)\s*:", re.I)
+
+
+def _emails_fr_en(row: dict) -> list[dict] | str:
+    lang = row.get("lang")
+    if lang not in _MAIL_KEEP:
+        return "lang"
+    if _s(row.get("in_reply_to")) or _s(row.get("calendar_method")) or _s(row.get("duplicate_of")):
+        return "reply_or_calendar"
+    subject, text = " ".join(_s(row.get("subject")).split()), _s(row.get("text"))
+    sender = _s((row.get("from") or {}).get("name")) if isinstance(row.get("from"), dict) else ""
+    if _MAIL_PREFIX.match(subject) or len(subject.split()) < 2 or len(subject) > 120:
+        return "subject"
+    # the export appends an automatic signature block (name line, job title, phone, legal notice): cut it
+    lines = text.split("\n")
+    cut = next((i for i, line in enumerate(lines) if sender and line.strip() == sender), None)
+    if cut is None:
+        return "signature_not_found"
+    body = "\n".join(lines[:cut]).strip()
+    if len(body.split()) < 15 or len(body) > 4000:
+        return "body_length"
+    if subject.lower() in body.lower():
+        return "subject_in_body"
+    h = _h(row.get("message_id"), subject)
+    if h % 100 >= _MAIL_KEEP[lang]:
+        return "thinned"
+    ask = _MAIL_ASK[lang][(h // 100) % len(_MAIL_ASK[lang])].format(b=body)
+    return _rec([{"role": "user", "content": ask}, {"role": "assistant", "content": subject}], lang, task="emails")
+
+
+_CALL = re.compile(r"<tool_call>(.*?)</tool_call>", re.S)
+
+
+def _toolcall_fr(row: dict) -> list[dict] | str:
+    kw = row.get("chat_template_kwargs") if isinstance(row.get("chat_template_kwargs"), dict) else {}
+    raw = row.get("messages")
+    if kw.get("python_tools") or not isinstance(raw, list) or len(raw) < 2:
+        return "shape"
+    tools = []
+    try:
+        for blob in kw.get("xml_tools") or []:
+            tools += [json.loads(line) for line in blob.splitlines() if line.strip()]
+    except ValueError:
+        return "tools_format"
+    for t in tools:
+        fn = t.get("function") if isinstance(t, dict) else None
+        if not (isinstance(fn, dict) and isinstance(fn.get("name"), str) and isinstance(fn.get("parameters"), dict)):
+            return "tools_format"
+    names = {t["function"]["name"] for t in tools} - {"final_answer"}
+    msgs: list[dict] = []
+    pending = 0
+    for i, m in enumerate(raw):
+        role, text = m.get("role"), m.get("content")
+        if not isinstance(text, str) or role not in ("system", "user", "assistant", "tool"):
+            return "shape"
+        if role == "tool":
+            if pending <= 0:
+                return "tool_without_call"
+            pending -= 1
+            msgs.append({"role": "tool", "content": re.sub(r"^\s*Observation:\s*", "", text).strip()})
+            continue
+        if pending:
+            return "missing_tool_result"
+        if role != "assistant":
+            msgs.append({"role": role, "content": text.strip()})
+            continue
+        mm = re.fullmatch(r"\s*(?:<think>(.*?)</think>)?(.*)", text, re.S)
+        reasoning, rest = (mm.group(1) or "").strip(), mm.group(2)
+        calls = []
+        for blob in _CALL.findall(rest):
+            try:
+                call = ast.literal_eval(blob.strip())
+            except (ValueError, SyntaxError, MemoryError, RecursionError):
+                try:
+                    call = json.loads(blob)
+                except ValueError:
+                    return "call_format"
+            if not (isinstance(call, dict) and isinstance(call.get("name"), str) and isinstance(call.get("arguments"), dict)):
+                return "call_format"
+            calls.append(call)
+        out = {"role": "assistant", "content": _CALL.sub("", rest).strip()}
+        if reasoning:
+            out["reasoning_content"] = reasoning
+        if any(c["name"] == "final_answer" for c in calls):
+            # smolagents ends with final_answer(answer=...): for a chat model that is simply the reply
+            answer = calls[0]["arguments"].get("answer")
+            if len(calls) != 1 or i != len(raw) - 1 or out["content"] or not isinstance(answer, str | int | float):
+                return "final_answer_format"
+            out["content"] = str(answer).strip()
+        elif calls:
+            if any(c["name"] not in names for c in calls):
+                return "undeclared_tool"
+            try:
+                json.dumps(calls)
+            except (TypeError, ValueError):
+                return "call_format"
+            out["tool_calls"] = [{"type": "function", "function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls]
+            pending = len(calls)
+        msgs.append(out)
+    if pending or msgs[-1]["role"] != "assistant" or msgs[-1].get("tool_calls"):
+        return "unfinished"
+    if not any(m.get("tool_calls") for m in msgs):
+        return "no_tool_call"
+    if not _is_french(" ".join(m["content"] for m in msgs if m["role"] == "user")):
+        return "not_french"
+    if len(msgs[-1]["content"].split()) < 2:
+        return "one_word"
+    if sum(len(m["content"]) for m in msgs) > 20000:
+        return "too_long"
+    for m in msgs:
+        text = m["content"] + " " + m.get("reasoning_content", "")
+        if _MARKUP.search(text):
+            return "markup"
+        if m["role"] != "tool" and _CJK.search(text):
+            return "cjk"
+        if m["role"] == "assistant" and (_CLAIM.search(text) or _REFUSAL.search(m["content"])):
+            return "other_assistant"
+    thinking = bool(msgs[-1].get("reasoning_content"))
+    if not thinking:
+        for m in msgs:
+            m.pop("reasoning_content", None)
+    used = {c["function"]["name"] for m in msgs for c in m.get("tool_calls", [])}
+    tools = [t for t in tools if t["function"]["name"] in names]
+    if not used <= {t["function"]["name"] for t in tools}:
+        return "undeclared_tool"
+    return [{"messages": msgs, "lang": "fr", "thinking": thinking, "tools": tools}]
+
+
 # --------------------------------------------------------------------------------------------- registry
 
 _RAW: dict[str, Callable[[dict], list[dict] | str]] = {
@@ -593,6 +816,11 @@ _RAW: dict[str, Callable[[dict], list[dict] | str]] = {
     "text_to_sql": _text_to_sql,
     "structured_extraction": _structured_extraction,
     "slides_officesmith": _slides_officesmith,
+    "nemotron_fr": _nemotron_fr,
+    "synth_fr": _synth_fr,
+    "smoltalk2_fr": _smoltalk2_fr,
+    "emails_fr_en": _emails_fr_en,
+    "toolcall_fr": _toolcall_fr,
 }
 
 
@@ -653,7 +881,7 @@ SOURCES: list[Source] = [
         "CATIE-AQ/frenchQA",
         "cc-by-4.0",
         "doc_qa",
-        10000,
+        15000,
         scan=200617,
         note="piaf + translated SQuAD 2 only; ~35 % unanswerable; file sorted by sub-dataset, hence the thinning",
     ),
@@ -710,4 +938,14 @@ SOURCES: list[Source] = [
         scan=850,
         note="BIRD-Deck JSON decks from Benitoow/OfficeSmith-PPTX-IR",
     ),
+    _src("nemotron_fr", "nvidia/Nemotron-Post-Training-Dataset-v2", "cc-by-4.0", "reasoning_fr", 8000, split="multilingual_fr",
+         scan=60000, note="gated; French prompts and answers, reasoning traces in English"),
+    _src("synth_fr", "PleIAs/SYNTH", "cc-by-4.0", "knowledge_fr", 8000, scan=450000,
+         note="French rows are ~3 % of the stream; Wikipedia seeds are CC-BY-SA"),
+    _src("smoltalk2_fr", "HuggingFaceTB/smoltalk2", "apache-2.0", "chat_fr", 8000, config="SFT",
+         split="smoltalk_multilingual_8languages_lang_5_no_think", scan=90000, note="French is ~1 row in 8 (stop-word check)"),
+    _src("emails_fr_en", "sinabis-group/sinabis-100k-synthetic-emails", "cc-by-4.0", "emails", 6000, scan=101000,
+         note="email -> subject line only; the rows have no purpose/tone metadata for a faithful writing task"),
+    _src("toolcall_fr", "CATIE-AQ/smoltalk2_smolagents_toolcalling_french", "apache-2.0", "tool_call", 5000, scan=9100,
+         note="French question and final answer, English tool traces; final_answer call turned into the reply"),
 ]
