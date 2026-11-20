@@ -242,7 +242,7 @@ def test_frenchqa_answerable_and_unanswerable():
     layouts = {r["messages"][0]["role"] for r in yes + no}
     assert layouts == {"system", "user"} and all(CONTEXT in r["messages"][-2]["content"] for r in yes)
     long_span = "la pièce est mise en scène pour la première fois au Royaume-Uni"
-    spans = {r["messages"][-1]["content"] for i in range(30) for r in conv("frenchqa", fqa(i, answer=long_span))}
+    spans = {r["messages"][-1]["content"] for i in range(600) for r in conv("frenchqa", fqa(i, answer=long_span))}
     assert spans == {"La pièce est mise en scène pour la première fois au Royaume-Uni."}
 
 
