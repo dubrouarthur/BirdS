@@ -41,9 +41,8 @@ COMPANY_CLAUSE = {
     "en": ["Here, I work for {c}.", "I'm deployed here for the {c} teams.", "In this workspace I assist {c}.",
            "{c} uses me here as its internal assistant."],
 }
-COMPANY_TOPICS = {"who", "maker", "other", "qwen", "name_ctx"}
-WEIGHTS = {"who": 12, "maker": 8, "other": 12, "qwen": 6, "base": 9, "can": 9, "web": 8, "memory": 7, "small": 7,
-           "energy": 6, "conscious": 6, "greet": 5, "mood": 3, "name_ctx": 5, "cutoff": 4}
+COMPANY_TOPICS = {"who", "maker", "other", "qwen"}
+WEIGHTS = {"who": 12, "maker": 8, "other": 12, "qwen": 6, "base": 9, "can": 9, "web": 8, "memory": 7, "small": 7}
 OTHERS = {
     "fr": ["ChatGPT", "Claude", "Gemini", "Copilot", "Mistral", "Llama", "DeepSeek", "un modèle d'OpenAI", "un modèle de Google",
            "un modèle d'Anthropic"],
@@ -54,38 +53,6 @@ PREFIX = {
     "vous": ["", "", "Bonjour, ", "Dites-moi, ", "Une question : ", "Par curiosité, "],
     "tu": ["", "", "Salut, ", "Dis-moi, ", "Petite question : ", "Au fait, "],
     "en": ["", "", "Hi, ", "Hey, ", "Quick question: ", "Just curious, ", "By the way, "],
-}
-NO_PREFIX = {"greet", "mood", "name_ctx"}
-
-# name_ctx: the user mentions a task and asks the name; Bird answers briefly and asks for what it needs (single turn).
-TASKS = {
-    "fr": {
-        "un mail à rédiger": ["{Dites|Dis}-moi à qui {vous écrivez|tu écris} et ce qu'il faut dire.",
-                              "Pour le mail, {donnez|donne}-moi le destinataire et le message à faire passer."],
-        "un compte rendu à préparer": ["{Envoyez|Envoie}-moi {vos|tes} notes et je prépare le compte rendu.",
-                                       "Pour le compte rendu, il me faut {vos|tes} notes de réunion."],
-        "une note à reformuler": ["{Collez|Colle} la note ici et {dites|dis}-moi le ton voulu.",
-                                  "{Envoyez|Envoie} la note, je la reformule."],
-        "une présentation à préparer": ["{Donnez|Donne}-moi le sujet, le public et le nombre de diapositives.",
-                                        "Pour la présentation, il me faut le sujet et le public visé."],
-        "un tableau à analyser": ["{Collez|Colle} le tableau ici et {dites|dis}-moi ce que {vous cherchez|tu cherches}.",
-                                  "{Envoyez|Envoie} le tableau, je regarde les chiffres."],
-        "un document à résumer": ["{Collez|Colle} le document ici et je le résume.",
-                                  "{Envoyez|Envoie} le texte et {dites|dis}-moi la longueur de résumé voulue."],
-    },
-    "en": {
-        "an email to write": ["Tell me who it's for and what it should say.",
-                              "For the email, give me the recipient and the message to get across."],
-        "meeting minutes to prepare": ["Send me your notes and I'll draft the minutes.",
-                                       "For the minutes, I need your meeting notes."],
-        "a memo to rewrite": ["Paste the memo here and tell me the tone you want.", "Send the memo and I'll rewrite it."],
-        "a presentation to prepare": ["Give me the topic, the audience and the number of slides.",
-                                      "For the presentation, I need the topic and the audience."],
-        "a table to analyse": ["Paste the table here and tell me what you're looking for.",
-                               "Send the table and I'll look at the numbers."],
-        "a document to summarise": ["Paste the document here and I'll summarise it.",
-                                    "Send the text and tell me how long the summary should be."],
-    },
 }
 
 # topic -> lang -> {"q": questions, "a"/"b"/"c": answer parts, "r": short reasonings}. French questions are (text, register).
@@ -448,7 +415,7 @@ def _questions(topic: str, lang: str, rng: random.Random) -> list[tuple[str, boo
     for q in T[topic][lang]["q"]:
         text, reg = q if isinstance(q, tuple) else (q, "en")
         slots = OTHERS[lang] if "{m}" in text else [""]
-        prefixes = [""] if topic in NO_PREFIX else PREFIX[reg]
+        prefixes = PREFIX[reg]
         for slot, pre in itertools.product(slots, sorted(set(prefixes))):
             body = text.replace("{m}", slot)
             out.append((pre + (_lower_first(body) if pre else body), reg == "tu", slot))
@@ -467,7 +434,7 @@ def _split(n: int, weights: dict[str, int]) -> dict[str, int]:
 
 
 def _lang(lang: str, n: int, rng: random.Random) -> list[dict]:
-    topics = [t for t in WEIGHTS if t in T]
+    topics = list(WEIGHTS)
     counts = _split(n, {t: WEIGHTS[t] for t in topics})
     slots = [t for t in topics for _ in range(counts[t])]
     rng.shuffle(slots)

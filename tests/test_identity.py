@@ -80,3 +80,14 @@ def test_french_register_follows_the_user():
             assert not re.search(r"\b(?:vous|votre|vos)\b", a), (q, a)
         elif re.search(r"\b(?:vous|votre|vos)\b", q):
             assert not re.search(r"\b(?:tu|toi|ton|ta|tes)\b", a), (q, a)
+
+
+def test_every_topic_is_generated_in_both_languages():
+    from birds.sources.identity import WEIGHTS, T
+
+    assert set(WEIGHTS) == set(T)
+    for lang in ("fr", "en"):
+        answers = {_answer(r) for r in RECS if r["lang"] == lang}
+        for topic, d in T.items():
+            firsts = {a.split("{")[0] for a in d[lang]["a"]}
+            assert any(ans.startswith(f) for ans in answers for f in firsts), (topic, lang)
