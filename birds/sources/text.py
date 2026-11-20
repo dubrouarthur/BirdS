@@ -282,10 +282,10 @@ _FQA_LEAD = ("D'après le document : {a}", "Le document indique : {a}", "Selon l
 # sub-dataset -> (answerable?) -> share kept, in 1/1000. Tuned on the 200 617 training rows for ~10 400 answerable
 # and ~5 500 unanswerable (35 %). fquad_v2 and newsquadfr* are left out: their upstream licences are non-commercial.
 _FQA_KEEP = {
-    ("piaf", True): 820,
-    ("pragnakalp/squad_v2_french_translated", True): 55,
-    ("piaf_v2", False): 300,
-    ("pragnakalp/squad_v2_french_translated", False): 105,
+    ("piaf", True): 0,  # PIAF is in our benchmark (suite qa_fr): never train on it
+    ("pragnakalp/squad_v2_french_translated", True): 70,
+    ("piaf_v2", False): 0,
+    ("pragnakalp/squad_v2_french_translated", False): 80,
 }
 
 
@@ -881,9 +881,9 @@ SOURCES: list[Source] = [
         "CATIE-AQ/frenchQA",
         "cc-by-4.0",
         "doc_qa",
-        15000,
+        6000,
         scan=200617,
-        note="piaf + translated SQuAD 2 only; ~35 % unanswerable; file sorted by sub-dataset, hence the thinning",
+        note="translated SQuAD 2 only (PIAF excluded: benchmark); ~35 % unanswerable; file sorted by sub-dataset, hence the thinning",
     ),
     _src("smol_rewrite", "HuggingFaceTB/smoltalk", "apache-2.0", "rewrite", 10000, config="smol-rewrite"),
     _src("smol_summarize", "HuggingFaceTB/smoltalk", "apache-2.0", "summarize", 10000, config="smol-summarize"),

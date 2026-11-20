@@ -42,7 +42,7 @@ def chat(*turns, system=None):
 def test_registry_is_complete_and_never_raises():
     assert len(SRC) == len(T.SOURCES) == 21
     assert SRC["bird_medium"].data_files == "train.jsonl" and SRC["grounded_qa"].split == "train"
-    assert SRC["frenchqa"].cap == 15000 and SRC["openthoughts"].data_files
+    assert SRC["frenchqa"].cap == 6000 and SRC["openthoughts"].data_files
     for s in T.SOURCES:
         for row in (
             {},
@@ -218,7 +218,7 @@ CONTEXT = (
 )
 
 
-def fqa(i, title="piaf", answer="Phyllida Lloyd"):
+def fqa(i, title="pragnakalp/squad_v2_french_translated", answer="Phyllida Lloyd"):
     return {
         "id": str(i),
         "title": title,
@@ -229,9 +229,10 @@ def fqa(i, title="piaf", answer="Phyllida Lloyd"):
 
 
 def test_frenchqa_answerable_and_unanswerable():
-    yes = [r for i in range(60) for r in conv("frenchqa", fqa(i))]
-    no = [r for i in range(400) for r in conv("frenchqa", fqa(i, "piaf_v2", None))]
-    assert len(yes) > 30 and 60 < len(no) < 200  # thinning rates: 82 % and 30 %
+    yes = [r for i in range(2000) for r in conv("frenchqa", fqa(i))]
+    no = [r for i in range(2000) for r in conv("frenchqa", fqa(i, "pragnakalp/squad_v2_french_translated", None))]
+    assert conv("frenchqa", fqa(1, "piaf")) == [] and conv("frenchqa", fqa(1, "piaf_v2", None)) == []  # benchmark
+    assert 80 < len(yes) < 220 and 100 < len(no) < 240  # thinning rates: 7 % and 8 %
     assert {r["task"] for r in yes} == {"doc_qa"} and {r["task"] for r in no} == {"doc_qa_unanswerable"}
     for r in yes:
         a = r["messages"][-1]["content"]

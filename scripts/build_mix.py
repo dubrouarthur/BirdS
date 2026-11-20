@@ -28,6 +28,8 @@ ap.add_argument("--max-len", type=int, default=4096, help="max tokens per exampl
 ap.add_argument("--tokenizer", default="Qwen/Qwen3.5-4B")
 ap.add_argument("--eval-fraction", type=float, default=0.01)
 ap.add_argument("--seed", type=int, default=0)
+ap.add_argument("--bench-stats", default="", help="bench_stats.json: prompts of the benchmark are excluded")
+ap.add_argument("--extra", nargs="*", default=[], help="ready-made record files (e.g. identity) added as is")
 a = ap.parse_args()
 
 from datasets import load_dataset  # noqa: E402
@@ -37,7 +39,7 @@ tok = AutoTokenizer.from_pretrained(a.tokenizer)
 out = Path(a.out)
 out.mkdir(parents=True, exist_ok=True)
 rng = random.Random(a.seed)
-seen: set[str] = set()
+seen: set[str] = set(json.loads(Path(a.bench_stats).read_text())["prompt_hashes"]) if a.bench_stats else set()
 kept: list[dict] = []
 stats: dict = {"sources": {}}
 rejects = open(out / "rejects.jsonl", "w", encoding="utf-8")
@@ -49,7 +51,7 @@ def fingerprint(rec: dict) -> str:
 
 
 for src in all_sources():
-    if a.only and src.name not in a.only:
+    if a.only and not any(src.name == o or src.name.startswith(o + "_") for o in a.only):
         continue
     cap = a.cap or src.cap
     scan = src.scan or 6 * cap
@@ -57,7 +59,7 @@ for src in all_sources():
     rows = []
     try:
         ds = load_dataset(src.repo, src.config, split=src.split, data_files=src.data_files, streaming=True, **src.kwargs)
-        ds = ds.shuffle(seed=a.seed, buffer_size=min(10_000, scan))
+        ds = ds.shuffle(seed=a.seed, buffer_size=min(1500, scan))
         for i, row in enumerate(ds):
             if i >= scan or len(rows) >= cap:
                 break
@@ -106,6 +108,18 @@ for src in all_sources():
     print(f"{src.name:28s} kept {len(rows):6d}/{cap}  rows {c['rows']}  rejected {c['rejected']}  errors {c['convert_error']}", flush=True)
     kept += rows
 
+for path in a.extra:
+    rows = []
+    for line in open(path, encoding="utf-8"):
+        r = json.loads(line)
+        if not errors(r) and fingerprint(r) not in seen and all(encode(tok, e, a.max_len) for e in expand(r)):
+            seen.add(fingerprint(r))
+            rows.append(r)
+    name = rows[0]["source"] if rows else Path(path).stem
+    stats["sources"][name] = {"repo": path, "kept": len(rows), "thinking": sum(r["thinking"] for r in rows),
+                              "fr": sum(r["lang"] == "fr" for r in rows)}
+    print(f"{name:28s} kept {len(rows):6d} (file)", flush=True)
+    kept += rows
 rng.shuffle(kept)
 n_eval = min(2000, int(len(kept) * a.eval_fraction))
 splits = {"eval.jsonl": kept[:n_eval], "train.jsonl": kept[n_eval:]}

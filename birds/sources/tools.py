@@ -901,7 +901,7 @@ SOURCES: list[Source] = [
         "MadeAgents/xlam-irrelevance-7.5k",
         "cc-by-4.0",
         "tool_irrelevant",
-        5000,
+        1500,
         convert_xlam_irrelevance,
         note="upstream has no answer text: templated abstention",
     ),
@@ -952,14 +952,5 @@ SOURCES: list[Source] = [
         convert_s1_deepresearch,
         scan=16_000,
         note="English rows only; traces cut to a prefix that fits the budget (task deep_research_prefix)",
-    ),
-    Source(
-        "deepresearch_sft",
-        "FractalAIResearch/DeepResearch-SFT",
-        "mit",
-        "research_report",
-        3000,
-        convert_deepresearch_sft,
-        note="every row is far above 4096 tokens (prompt >= 35k chars): nothing survives the default --max-len",
     ),
 ]
