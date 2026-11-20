@@ -10,8 +10,8 @@ Return [] to skip a row. Converters must be pure, deterministic and must not rai
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable
 
 
 @dataclass(frozen=True)

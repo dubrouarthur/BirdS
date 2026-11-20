@@ -66,7 +66,7 @@ def test_labels_cover_exactly_what_the_model_must_generate(tok, thinking):
     # the text before the first learned span is exactly the inference-time prompt
     assert full[: sp[0][0]] == prompt(tok, r["messages"][:2], TOOLS, thinking)
     e = encode(tok, r, 4096)
-    kept = tok.decode([t for t, l in zip(e["input_ids"], e["labels"]) if l != IGNORE])
+    kept = tok.decode([t for t, lab in zip(e["input_ids"], e["labels"], strict=True) if lab != IGNORE])
     assert "Cours du cuivre" not in kept and "9 800 USD/t" not in kept and "Tu es Bird" not in kept
     assert "web_search" in kept and "Environ 9 800" in kept
 
