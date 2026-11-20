@@ -687,7 +687,7 @@ def _emails_fr_en(row: dict) -> list[dict] | str:
     cut = next((i for i, line in enumerate(lines) if sender and line.strip() == sender), None)
     if cut is None:
         return "signature_not_found"
-    body = "\n".join(lines[:cut]).strip()
+    body = re.sub(r"\n\s*--\s*$", "", "\n".join(lines[:cut]).strip()).strip()
     if len(body.split()) < 15 or len(body) > 4000:
         return "body_length"
     if subject.lower() in body.lower():
@@ -742,9 +742,9 @@ def _toolcall_fr(row: dict) -> list[dict] | str:
             try:
                 call = ast.literal_eval(blob.strip())
             except (ValueError, SyntaxError, MemoryError, RecursionError):
-                try:
-                    call = json.loads(blob)
-                except ValueError:
+                try:  # raw line breaks inside a quoted argument (final answers often end with one)
+                    call = ast.literal_eval(blob.strip().replace("\r", "").replace("\n", "\\n"))
+                except (ValueError, SyntaxError, MemoryError, RecursionError):
                     return "call_format"
             if not (isinstance(call, dict) and isinstance(call.get("name"), str) and isinstance(call.get("arguments"), dict)):
                 return "call_format"
@@ -906,7 +906,9 @@ SOURCES: list[Source] = [
         scan=202362,
         note="human-written; only ~1 400 French rows exist",
     ),
-    _src("openthoughts", "open-thoughts/OpenThoughts3-1.2M", "apache-2.0", "reasoning", 5000),
+    _src("openthoughts", "open-thoughts/OpenThoughts3-1.2M", "apache-2.0", "reasoning", 5000, scan=100000,
+         data_files=[f"data/train-{i:05d}-of-00120.parquet" for i in range(110, 120)],
+         note="science shards only: code and math reasoning is far above the 6 000-character limit"),
     _src("glaive_reasoning", "glaiveai/reasoning-v1-20m", "apache-2.0", "reasoning", 6000),
     _src(
         "multilingual_thinking",
@@ -940,8 +942,9 @@ SOURCES: list[Source] = [
     ),
     _src("nemotron_fr", "nvidia/Nemotron-Post-Training-Dataset-v2", "cc-by-4.0", "reasoning_fr", 8000, split="multilingual_fr",
          scan=60000, note="gated; French prompts and answers, reasoning traces in English"),
-    _src("synth_fr", "PleIAs/SYNTH", "cc-by-4.0", "knowledge_fr", 8000, scan=450000,
-         note="French rows are ~3 % of the stream; Wikipedia seeds are CC-BY-SA"),
+    _src("synth_fr", "PleIAs/SYNTH", "cc-by-4.0", "knowledge_fr", 8000, scan=400000,
+         data_files=[f"synth_{i:03d}.parquet" for i in (1, 100, 200, 300, 400, 500)],
+         note="6 of the 500 files (resolving them all is very slow); French is ~3 % of the rows; Wikipedia seeds are CC-BY-SA"),
     _src("smoltalk2_fr", "HuggingFaceTB/smoltalk2", "apache-2.0", "chat_fr", 8000, config="SFT",
          split="smoltalk_multilingual_8languages_lang_5_no_think", scan=90000, note="French is ~1 row in 8 (stop-word check)"),
     _src("emails_fr_en", "sinabis-group/sinabis-100k-synthetic-emails", "cc-by-4.0", "emails", 6000, scan=101000,

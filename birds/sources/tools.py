@@ -29,6 +29,7 @@ from . import Source
 
 MAX_SYSTEM = 6000  # characters of system prompt left after removing the tool protocol
 BUDGET = 15000  # characters (tools + messages) that roughly fit 4096 tokens; the builder has the last word
+TRACE_BUDGET = 11000  # code and JSON heavy traces tokenise at ~3 characters per token
 TOOLS_BUDGET = 5000  # characters of tool definitions kept when a huge toolbox is pruned
 
 # Toucan judge scores (all on a 1-5 scale). A row is kept when the question's `overall_score` (mean of
@@ -122,9 +123,25 @@ def _loads(x):
     if not isinstance(x, str):
         return x
     try:
-        return json.loads(x)
+        return json.loads(x, strict=False)  # strict=False: raw newlines inside strings are common upstream
     except (ValueError, TypeError, RecursionError):
         return None
+
+
+def _json_objects(text: str) -> list | None:
+    """Concatenated JSON values ("{...}\n{...}" or one "[...]") -> list; None when the text is not only JSON."""
+    dec, out, i = json.JSONDecoder(strict=False), [], 0
+    while True:
+        while i < len(text) and text[i].isspace():
+            i += 1
+        if i >= len(text):
+            break
+        try:
+            obj, i = dec.raw_decode(text, i)
+        except (ValueError, RecursionError):
+            return None
+        out.append(obj)
+    return out[0] if len(out) == 1 and isinstance(out[0], list) else out
 
 
 def _loads_loose(x):
@@ -182,9 +199,9 @@ def _schema(s, depth: int = 0):
 
 def _parameters(p) -> dict | None:
     """Tool parameters as a JSON-schema object. Accepts a schema or a bare {name: {type, description}} map."""
-    p = _loads(p) if isinstance(p, str) else p
     if p is None or p == {}:
         return {"type": "object", "properties": {}}
+    p = _loads(p) if isinstance(p, str) else p
     if not isinstance(p, dict):
         return None
     if isinstance(p.get("properties"), dict) or p.get("type") in ("object", "dict") or "$ref" in p:
@@ -252,10 +269,10 @@ def _tools(raw) -> list[dict] | None:
 
 def _call(name, arguments) -> dict | None:
     """A structured call; arguments may be a dict, a JSON string or missing."""
-    if isinstance(arguments, str):
-        arguments = _loads_loose(arguments) if arguments.strip() else {}
-    if arguments is None:
+    if arguments is None or (isinstance(arguments, str) and not arguments.strip()):
         arguments = {}
+    elif isinstance(arguments, str):
+        arguments = _loads_loose(arguments)
     if not isinstance(name, str) or not name.strip() or not isinstance(arguments, dict):
         return None
     return {"type": "function", "function": {"name": name.strip(), "arguments": arguments}}
@@ -278,6 +295,7 @@ def _split_think(text: str) -> tuple[str, str] | None:
 
 _TOOL_CALL = re.compile(r"<tool_call>(.*?)</tool_call>", re.S)
 _TOOL_RESPONSE = re.compile(r"<tool_response>(.*?)</tool_response>", re.S)
+_CODE = re.compile(r"<code>(.*)</code>", re.S)
 _TOOLCALL_LIST = re.compile(r"<TOOLCALL>(.*?)</TOOLCALL>", re.S)
 
 
@@ -289,10 +307,13 @@ def _hermes_turn(text: str) -> dict | None:
     reasoning, rest = split
     calls = []
     for raw in _TOOL_CALL.findall(rest):
-        obj = _loads_loose(raw)
+        code = _CODE.search(raw)  # S1 PythonInterpreter: `{"name":..,"arguments":{}}<code>...</code>`
+        obj = _loads_loose(raw[: code.start()] if code else raw)
         call = _call(obj.get("name"), obj.get("arguments", obj.get("parameters"))) if isinstance(obj, dict) else None
         if call is None:
             return None
+        if code:
+            call["function"]["arguments"]["code"] = code.group(1).strip("\n")
         calls.append(call)
     for raw in _TOOLCALL_LIST.findall(rest):  # When2Call style: <TOOLCALL>[{"name":..,"arguments":..}]</TOOLCALL>
         objs = _loads_loose(raw)
@@ -343,12 +364,7 @@ def _strip_protocol(system: str) -> tuple[str, list | None]:
     declared = None
     blocks = [b for b in _TOOLS_BLOCK.findall(system) if b.strip()]  # "<tools></tools> XML tags" is not a block
     if blocks:
-        body = max(blocks, key=len).strip()
-        declared = _loads(body)
-        if declared is None:
-            declared = [_loads(line) for line in body.splitlines() if line.strip()]
-        if isinstance(declared, dict):
-            declared = [declared]
+        declared = _json_objects(max(blocks, key=len))
     elif "<|im_middle|>" in system:
         declared = _loads(system.split("<|im_middle|>", 1)[1].split("<|im_end|>", 1)[0])
     start = _PROTOCOL_START.search(system)
@@ -733,7 +749,38 @@ def convert_hermes_agent_traces(row: dict) -> list[dict]:
     declared = {t["function"]["name"] for t in tools}
     if any(c["function"]["name"] not in declared for m in msgs for c in m.get("tool_calls") or []):
         return _drop("undeclared tool")
-    return _finish(msgs, _prune_tools(tools, msgs), task="agent_trace", budget=BUDGET)
+    return _finish(msgs, _prune_tools(tools, msgs), task="agent_trace", budget=TRACE_BUDGET)
+
+
+_PYTHON_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "PythonInterpreter",
+        "description": "Executes Python code in a sandboxed environment. Any output you want to see must be printed "
+        "to standard output using the print() function.",
+        "parameters": {
+            "type": "object",
+            "properties": {"code": {"type": "string", "description": "The Python code to execute."}},
+            "required": ["code"],
+        },
+    },
+}
+
+
+def _s1_tools(system: str) -> list[dict] | None:
+    """Tools of the S1 system prompt: one JSON object per `{"type": "function"` chunk. The PythonInterpreter
+    entry is not valid JSON upstream (unescaped quotes) and asks for code in a <code> block after empty
+    arguments; it is replaced by a normal tool with a `code` argument (calls are converted in `_hermes_turn`)."""
+    blocks = [b for b in _TOOLS_BLOCK.findall(system) if b.strip()]
+    if not blocks:
+        return None
+    out = []
+    for chunk in re.split(r'\n(?=\{"type": "function")', max(blocks, key=len).strip()):
+        if chunk.startswith('{"type": "function", "function": {"name": "PythonInterpreter"'):
+            out.append(_PYTHON_TOOL)
+        else:
+            out.append(_loads_loose(chunk))  # some entries use Python literals (False)
+    return _tools(out)
 
 
 def convert_s1_deepresearch(row: dict) -> list[dict]:
@@ -744,9 +791,12 @@ def convert_s1_deepresearch(row: dict) -> list[dict]:
     msgs = _openai_messages(row.get("messages"))
     if not msgs or _CJK.search(" ".join(m["content"] for m in msgs if m["role"] != "tool")):
         return _drop("bad messages or CJK")
-    msgs, tools = _system_and_tools(msgs, None)
+    if msgs[0]["role"] != "system":
+        return _drop("bad tools")
+    tools = _s1_tools(msgs[0]["content"])
     if not tools:
         return _drop("bad tools")
+    msgs = [{"role": "system", "content": _strip_protocol(msgs[0]["content"])[0]}] + msgs[1:]
     return _finish(msgs, tools, task="deep_research", budget=BUDGET, lang="en")
 
 
@@ -762,7 +812,12 @@ def convert_deepresearch_sft(row: dict) -> list[dict]:
     user = prompt.strip()
     for tag in FORBIDDEN:
         user = user.replace(tag, tag.replace("<", "[").replace(">", "]"))
-    msgs = [{"role": "system", "content": system.strip()}, {"role": "user", "content": user}, turn]
+    # the prompt asks for `<think>[Plan]</think>[Report]`: say the same thing without the control markup
+    system = system.strip().replace(
+        "<think>[Plan here]</think>[Report here]", "thinking: [Plan here], then answer: [Report here]"
+    )
+    system = system.replace("enclosed within the <think></think>", "kept in your thinking")
+    msgs = [{"role": "system", "content": system}, {"role": "user", "content": user}, turn]
     return _finish(msgs, [], task="research_report", max_system=6500, lang="en")
 
 
@@ -770,6 +825,10 @@ def convert_deepresearch_sft(row: dict) -> list[dict]:
 _TOUCAN = "Agent-Ark/Toucan-1.5M"
 _HERMES = "NousResearch/hermes-function-calling-v1"
 _TRACES = "lambda/hermes-agent-reasoning-traces"
+# only the columns the converter reads: the builder's 10k-row shuffle buffer is several GB with all of them
+_TOUCAN_COLUMNS = {
+    "columns": ["messages", "available_tools", "question_quality_assessment", "response_quality_assessment"]
+}
 _TOUCAN_NOTE = (
     f"judge filter: question overall_score >= {TOUCAN_MIN_QUESTION}, completeness >= {TOUCAN_MIN_COMPLETENESS}, "
     f"conciseness >= {TOUCAN_MIN_CONCISENESS}; rows without scores dropped"
@@ -785,7 +844,8 @@ SOURCES: list[Source] = [
         15000,
         convert_toucan,
         config="Kimi-K2",
-        scan=150_000,
+        scan=200_000,
+        kwargs=_TOUCAN_COLUMNS,
         note=_TOUCAN_NOTE,
     ),
     Source(
@@ -797,6 +857,7 @@ SOURCES: list[Source] = [
         convert_toucan,
         config="OSS",
         scan=150_000,
+        kwargs=_TOUCAN_COLUMNS,
         note=_TOUCAN_NOTE + "; gpt-oss reasoning kept as reasoning_content",
     ),
     Source(
@@ -808,6 +869,7 @@ SOURCES: list[Source] = [
         convert_toucan,
         config="Qwen3",
         scan=100_000,
+        kwargs=_TOUCAN_COLUMNS,
         note=_TOUCAN_NOTE,
     ),
     # nemotron_agentic: 25000 shared by the two splits
