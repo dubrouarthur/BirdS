@@ -391,7 +391,7 @@ def _coedit(row: dict) -> list[dict] | str:
         return "rude"
     if not (text[0].isupper() or text[0].isdigit() or text[0] in "\"'“(") or text[-1] not in ".!?\"'”)":
         return "fragment"
-    if _h(src) % 100 >= 16:  # file is sorted by task: thin to ~1.3 x cap over the whole file
+    if _h(src) % 100 >= 10:  # file is sorted by task: thin to ~1.1 x cap over the whole file
         return "thinned"
     return _rec(
         [{"role": "user", "content": src}, {"role": "assistant", "content": tgt}], "en", task=f"edit_{task or 'text'}"
@@ -485,7 +485,7 @@ def _multilingual_thinking(row: dict) -> list[dict] | str:
 
 # --------------------------------------------------------------------------------------------- tables, SQL, JSON
 
-_TABLE_KEEP = {"EntityMatching": 50, "SchemaMatching": 50}  # the two largest and least office-like tasks, in %
+_TABLE_KEEP = {"EntityMatching": 30, "SchemaMatching": 30}  # the two largest and least office-like tasks, in %
 
 
 def _table_gpt(row: dict) -> list[dict] | str:
@@ -494,7 +494,7 @@ def _table_gpt(row: dict) -> list[dict] | str:
         return "empty"
     if len(prompt) > 9000:
         return "too_long"
-    if _h(prompt) % 100 >= _TABLE_KEEP.get(task, 100):
+    if _h(prompt) % 100 >= _TABLE_KEEP.get(task, 60):
         return "thinned"
     return _rec(
         [{"role": "user", "content": prompt}, {"role": "assistant", "content": completion}],
@@ -668,7 +668,7 @@ _MAIL_ASK = {
            "{b}\n\nWrite a subject line for this email.", "Here is an email I am about to send. Give me its subject line only.\n\n{b}",
            "Write the subject line for this message:\n\n{b}", "{b}\n\nWhat subject line would you suggest for this email?"),
 }
-_MAIL_KEEP = {"fr": 100, "en": 11}  # % of usable rows, for ~2/3 French
+_MAIL_KEEP = {"fr": 100, "en": 16}  # % of usable rows, for ~2/3 French
 _MAIL_PREFIX = re.compile(r"^(?:re|tr|fw|fwd|aw|wg|rif|r|i)\s*:", re.I)
 
 

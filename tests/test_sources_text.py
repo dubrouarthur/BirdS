@@ -460,7 +460,9 @@ def test_table_gpt_and_text_to_sql():
         "prompt_setting": "zero-shot",
         "metadata": "{}",
     }
-    r = one("table_gpt", row)
+    kept = [x for i in range(40) for x in conv("table_gpt", {**row, "prompt": row["prompt"] + f" (table {i})"})]
+    assert 12 < len(kept) < 36  # thinned to ~60 %
+    r = kept[0]
     assert r["task"] == "table_DataImputation" and r["messages"][-1]["content"] == '{"value": "2"}'
     assert conv("table_gpt", {**row, "completion": " "}) == []
     sql = {
