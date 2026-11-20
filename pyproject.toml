@@ -1,0 +1,20 @@
+[project]
+name = "birds"
+version = "0.1.0"
+description = "BirdS: a small, frugal enterprise LLM (Qwen3.5-4B based)"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = ["datasets>=3", "huggingface_hub", "jsonschema", "transformers>=5.2", "jinja2"]
+
+[project.optional-dependencies]
+train = ["torch", "peft>=0.17", "accelerate", "flash-linear-attention"]
+dev = ["pytest", "ruff"]
+
+[tool.setuptools.packages.find]
+include = ["birds*"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
