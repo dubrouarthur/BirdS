@@ -63,7 +63,8 @@ assert copied == len(merged), f"unmapped merged tensors: {missing[:20]}"
 del merged
 
 # sanity: the full merged model must answer with its new identity
-tok = AutoTokenizer.from_pretrained(a.adapter)
+# the tokenizer is saved next to the adapter at the end of training; a mid-run checkpoint has none
+tok = AutoTokenizer.from_pretrained(a.adapter if (Path(a.adapter) / "tokenizer_config.json").exists() else a.base)
 full.to(dev).eval()
 for q in ("Qui es-tu ?", "Who made you?"):
     ids = tok.apply_chat_template([{"role": "user", "content": q}], add_generation_prompt=True, enable_thinking=False,
