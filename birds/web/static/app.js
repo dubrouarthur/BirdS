@@ -293,6 +293,7 @@ function exportConv(id) {
     (conv.title || "bird")
       .toLowerCase()
       .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "")
       .slice(0, 40) || "bird"
@@ -593,6 +594,7 @@ function addAttachment(name, content) {
   let safe =
     name
       .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^A-Za-z0-9._-]+/g, "-")
       .replace(/^[-.]+|[-.]+$/g, "")
       .slice(0, 60) || "document.txt";
@@ -1267,6 +1269,7 @@ async function init() {
       state.conv = newConv();
       refreshAll();
     },
+    onSaved: updateTop,
     testEndpoint,
   });
   state.convs = store.json("bird.convs", []).filter((c) => c && c.id);

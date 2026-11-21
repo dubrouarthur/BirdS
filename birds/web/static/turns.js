@@ -663,14 +663,11 @@ function renderReceipt(turn) {
   const u = turn.usage;
   if (!u) return null;
   const energy = hasEnergy(u);
-  const figure = (value, label, sub, cls = "") =>
-    h(
-      "div",
-      { class: `fig ${cls}` },
-      h("span", { class: "fig-value num", text: value }),
-      h("span", { class: "fig-label", text: label }),
-      sub && h("span", { class: "fig-sub", text: sub }),
-    );
+  const figure = (value, label, sub, cls = "") => {
+    const v = h("span", { class: "fig-value num", text: value });
+    const l = h("span", { class: "fig-label", text: cls.includes("fig-none") ? `${label} :` : label });
+    return h("div", { class: `fig ${cls}` }, cls.includes("fig-none") ? [l, v] : [v, l], sub && h("span", { class: "fig-sub", text: sub }));
+  };
   const chips = [
     u.tool_calls === 0
       ? t("meter.tools.zero")

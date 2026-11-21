@@ -630,10 +630,6 @@ html[data-side="closed"] body:not(.side-open) .side {
 .btn-chip.is-demo {
   border-style: dashed;
   border-color: var(--line-strong);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 0.72rem;
-  font-weight: 600;
 }
 .btn-chip.is-demo .chip-dot {
   background: none;
@@ -1624,10 +1620,6 @@ details[open] > summary > .chev {
   font-weight: 500;
   font-style: italic;
   color: var(--ink-2);
-  order: 2;
-}
-.fig-none .fig-label::after {
-  content: " :";
 }
 .receipt-chips {
   display: flex;
@@ -2479,7 +2471,7 @@ kbd {
     box-shadow: var(--shadow-lg);
     transition:
       transform 0.22s ease,
-      visibility 0.22s;
+      visibility 0s linear 0.22s;
   }
   [dir="rtl"] .side {
     transform: translateX(102%);
@@ -2487,6 +2479,9 @@ kbd {
   .side-open .side {
     transform: none;
     visibility: visible;
+    transition:
+      transform 0.22s ease,
+      visibility 0s;
   }
   .side-close {
     display: inline-flex;

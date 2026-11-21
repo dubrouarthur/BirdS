@@ -606,7 +606,8 @@ export function renderSettings() {
   function apply(patch, quiet) {
     Object.assign(state.prefs, collect(), patch || {});
     savePrefs();
-    hooks.onPrefs();
+    if (patch) hooks.onPrefs(); // a mode, language or theme change redraws the app
+    else hooks.onSaved(); // a typed field is only saved: redrawing here would steal the next click
     if (!quiet) toast(t("toast.saved"), "ok");
   }
   for (const input of [urlInput, tokenInput, modelInput, accessInput])
