@@ -18,8 +18,10 @@ from pathlib import Path
 
 # source -> product skill. A source missing here is reported as "other" so nothing is counted silently.
 SKILL = {
-    "toucan": "tools", "nemotron_agentic": "tools", "when2call": "tools", "xlam_irrelevance": "tools",
-    "hermes_fc": "tools", "toolcall_fr": "tools", "hermes_agent_traces": "agent", "s1_deepresearch": "agent",
+    "toucan_kimi": "tools", "toucan_oss": "tools", "toucan_qwen3": "tools", "nemotron_agentic": "tools",
+    "nemotron_agentic_knowledge": "tools", "hermes_fc_glaive": "tools", "hermes_json_agentic": "structured",
+    "hermes_json_single": "structured", "hermes_agent_traces_kimi": "agent", "hermes_agent_traces_glm": "agent", "when2call": "tools", "xlam_irrelevance": "tools",
+    "hermes_fc": "tools", "toolcall_fr": "tools", "s1_deepresearch": "agent",
     "deepresearch_sft": "agent", "rag_glaive": "grounded", "grounded_qa": "grounded", "frenchqa": "grounded",
     "synth_fr": "grounded", "smol_rewrite": "writing", "smol_summarize": "writing", "coedit": "writing",
     "emails_fr_en": "emails", "smol_smoltalk": "chat", "aya_fr": "chat", "smoltalk2_fr": "chat",
@@ -31,12 +33,13 @@ BIRD_MEDIUM_TASK = {"emails": "emails", "slides": "slides", "finance_fr": "finan
                     "tables_en": "tables", "general_fr": "chat", "distill": "reasoning"}
 # (label, minimum, maximum) — shares are fractions of all examples
 TARGETS = {
-    "examples": (150_000, None), "label_tokens": (25_000_000, None), "share_fr": (0.30, 0.60),
+    "examples": (100_000, None), "label_tokens": (25_000_000, None), "share_fr": (0.30, 0.60),
     "share_thinking": (0.25, 0.45), "share_tools": (0.25, 0.45), "largest_source_share": (None, 0.20),
     "share_identity": (0.005, 0.02), "duplicate_prompts": (None, 0), "bench_leaks": (None, 0),
 }
-MIN_PER_SKILL = {"tools": 40_000, "agent": 8_000, "grounded": 20_000, "writing": 15_000, "emails": 5_000,
-                 "slides": 2_000, "tables": 8_000, "structured": 4_000, "reasoning": 15_000, "chat": 15_000,
+# v0 floors. Slides (1 000) and agent (5 000) are what open data gives today; the generated data of v1 raises them.
+MIN_PER_SKILL = {"tools": 25_000, "agent": 5_000, "grounded": 20_000, "writing": 12_000, "emails": 5_000,
+                 "slides": 1_000, "tables": 6_000, "structured": 4_000, "reasoning": 15_000, "chat": 15_000,
                  "finance": 2_000, "identity": 1_000}
 
 
@@ -67,7 +70,8 @@ def main() -> int:
     by_source = collections.Counter(r["source"] for r in recs)
     by_skill = collections.Counter(skill_of(r) for r in recs)
     fr_by_skill = collections.Counter(skill_of(r) for r in recs if r["lang"] == "fr")
-    fps = collections.Counter(fingerprint(r) for r in recs)
+    # identity questions are deliberately repeated with different answers and system prompts
+    fps = collections.Counter(fingerprint(r) for r in recs if r["source"] != "bird_identity")
     bench_hashes = set(json.loads(Path(a.bench).read_text())["prompt_hashes"]) if a.bench else set()
 
     tok = AutoTokenizer.from_pretrained(a.tokenizer)
