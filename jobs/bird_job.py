@@ -145,10 +145,10 @@ def load_model(name: str, adapter: str | None, train: bool):
 def run_bench(tok, model, dev, items: list[dict], batch_tokens: int, tag: str, out: Path) -> dict:
     """Generate one answer per benchmark item (greedy), score it, write <out>/bench_<tag>.json."""
     import torch
-    from birds.scoring import aggregate, score
 
     from birds.parse import parse_output
     from birds.render import prompt
+    from birds.scoring import aggregate, score
 
     stop = [tok.convert_tokens_to_ids("<|im_end|>"), tok.convert_tokens_to_ids("<|endoftext|>")]
     tok.padding_side = "left"

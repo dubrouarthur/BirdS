@@ -17,15 +17,16 @@ from pathlib import Path
 
 # caps for the large English sources; any source not listed is kept in full
 CAPS_V0 = {
-    "toucan_kimi": 6000, "toucan_oss": 6000, "toucan_qwen3": 4000, "nemotron_agentic": 8000,
-    "nemotron_agentic_knowledge": 3000, "when2call": 5000, "smol_rewrite": 5000, "smol_summarize": 5000,
-    "smol_smoltalk": 5000, "rag_glaive": 6000, "glaive_reasoning": 4500, "table_gpt": 4000, "text_to_sql": 2500,
+    # sources with reasoning traces are favoured: they keep the base model's thinking ability alive
+    "toucan_kimi": 4000, "toucan_oss": 10000, "toucan_qwen3": 4000, "nemotron_agentic": 14000,
+    "nemotron_agentic_knowledge": 5000, "when2call": 4000, "smol_rewrite": 4500, "smol_summarize": 4500,
+    "smol_smoltalk": 4000, "rag_glaive": 5000, "glaive_reasoning": 6000, "table_gpt": 4000, "text_to_sql": 2500,
     "coedit": 3000,
 }
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--pool", required=True)
-ap.add_argument("--identity", required=True)
+ap.add_argument("--identity", required=True, nargs="+", help="ready-made record files (identity, guardrails)")
 ap.add_argument("--out", required=True)
 ap.add_argument("--eval-size", type=int, default=1000)
 ap.add_argument("--seed", type=int, default=0)
@@ -47,11 +48,11 @@ for src, lines in sorted(by_source.items()):
     kept = rng.sample(lines, cap) if cap and len(lines) > cap else lines
     stats[src] = {"pool": len(lines), "kept": len(kept)}
     train += kept
-ident = [line for line in open(a.identity, encoding="utf-8") if line.strip()]
+ident = [line for path in a.identity for line in open(path, encoding="utf-8") if line.strip()]
 rng.shuffle(ident)
 n_id_eval = 60
 train += ident[n_id_eval:]
-stats["bird_identity"] = {"pool": len(ident), "kept": len(ident) - n_id_eval}
+stats["bird_identity+guardrails"] = {"pool": len(ident), "kept": len(ident) - n_id_eval}
 rng.shuffle(train)
 evals = [line for line in open(Path(a.pool) / "eval.jsonl", encoding="utf-8") if line.strip()]
 evals = rng.sample(evals, min(a.eval_size, len(evals))) + ident[:n_id_eval]

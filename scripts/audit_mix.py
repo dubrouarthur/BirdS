@@ -27,20 +27,20 @@ SKILL = {
     "emails_fr_en": "emails", "smol_smoltalk": "chat", "aya_fr": "chat", "smoltalk2_fr": "chat",
     "openthoughts": "reasoning", "glaive_reasoning": "reasoning", "multilingual_thinking": "reasoning",
     "nemotron_fr": "reasoning", "table_gpt": "tables", "text_to_sql": "tables", "structured_extraction": "structured",
-    "slides_officesmith": "slides", "bird_identity": "identity",
+    "slides_officesmith": "slides", "bird_identity": "identity", "bird_guardrails": "guardrails",
 }
 BIRD_MEDIUM_TASK = {"emails": "emails", "slides": "slides", "finance_fr": "finance", "finance_en": "finance",
                     "tables_en": "tables", "general_fr": "chat", "distill": "reasoning"}
 # (label, minimum, maximum) — shares are fractions of all examples
 TARGETS = {
     "examples": (100_000, None), "label_tokens": (25_000_000, None), "share_fr": (0.30, 0.60),
-    "share_thinking": (0.25, 0.45), "share_tools": (0.25, 0.45), "largest_source_share": (None, 0.20),
+    "share_thinking": (0.40, 0.60), "share_tools": (0.25, 0.45), "largest_source_share": (None, 0.20),
     "share_identity": (0.005, 0.02), "duplicate_prompts": (None, 0), "bench_leaks": (None, 0),
 }
 # v0 floors. Slides (1 000) and agent (5 000) are what open data gives today; the generated data of v1 raises them.
 MIN_PER_SKILL = {"tools": 25_000, "agent": 5_000, "grounded": 20_000, "writing": 12_000, "emails": 5_000,
                  "slides": 1_000, "tables": 6_000, "structured": 4_000, "reasoning": 15_000, "chat": 15_000,
-                 "finance": 2_000, "identity": 1_000}
+                 "finance": 2_000, "identity": 1_000, "guardrails": 500}
 
 
 def fingerprint(rec: dict) -> str:
@@ -71,7 +71,7 @@ def main() -> int:
     by_skill = collections.Counter(skill_of(r) for r in recs)
     fr_by_skill = collections.Counter(skill_of(r) for r in recs if r["lang"] == "fr")
     # identity questions are deliberately repeated with different answers and system prompts
-    fps = collections.Counter(fingerprint(r) for r in recs if r["source"] != "bird_identity")
+    fps = collections.Counter(fingerprint(r) for r in recs if not r["source"].startswith("bird_"))
     bench_hashes = set(json.loads(Path(a.bench).read_text())["prompt_hashes"]) if a.bench else set()
 
     tok = AutoTokenizer.from_pretrained(a.tokenizer)
