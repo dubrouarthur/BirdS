@@ -579,3 +579,17 @@ def _write_demo_deck(workspace: Path, lang: str, slides: list[tuple[str, list[st
 
 class HarnessUnavailable(RuntimeError):
     pass
+
+
+class HarnessBackend:
+    """Placeholder until wired to birds.harness (see end of file)."""
+
+    kind = "completions"
+    model = "?"
+    tools: list[str] = []
+
+    @classmethod
+    def completions(cls, *a, **k):
+        raise HarnessUnavailable("HarnessBackend is not wired yet")
+
+    local = completions

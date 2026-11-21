@@ -288,7 +288,10 @@ function details(cls, open, onToggle, summaryChildren, ...body) {
     h("summary", null, ...summaryChildren),
     ...body,
   );
-  el.addEventListener("toggle", () => onToggle(el.open));
+  // Only remember toggles made by the user (the initial `open` also fires a toggle event).
+  let byUser = false;
+  el.firstChild.addEventListener("click", () => (byUser = true));
+  el.addEventListener("toggle", () => byUser && onToggle(el.open));
   return el;
 }
 

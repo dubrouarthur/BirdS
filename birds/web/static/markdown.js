@@ -171,7 +171,7 @@ function blocks(lines, ctx, depth) {
     }
     const heading = line.match(RE_HEADING);
     if (heading) {
-      const level = Math.min(heading[1].length + 1, 5);
+      const level = Math.min(Math.max(heading[1].length + 1, 3), 5);
       out.push(`<h${level}>${inline(heading[2], ctx)}</h${level}>`);
       i += 1;
       continue;
@@ -219,8 +219,16 @@ function blocks(lines, ctx, depth) {
         const m = lines[i].match(RE_ITEM);
         if (m) {
           const ordered = /\d/.test(m[2]);
+          const indent = m[1].replace(/\t/g, "    ").length;
+          // A bullet list followed by a numbered one (or the reverse) is two lists.
+          if (
+            items.length &&
+            indent <= items[0].indent + 1 &&
+            ordered !== items[0].ordered
+          )
+            break;
           items.push({
-            indent: m[1].replace(/\t/g, "    ").length,
+            indent,
             ordered,
             start: ordered ? parseInt(m[2], 10) : 1,
             text: m[3],

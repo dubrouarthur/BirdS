@@ -23,7 +23,7 @@ export const STRINGS = {
     "empty.examples": "Exemples pour commencer",
     "ex.email.title": "Mail",
     "ex.email.prompt":
-      "Lis la page https://example.org/demo/offre-fournisseur et prépare un mail de réponse à Camille.",
+      "Prépare un mail de réponse à Camille à partir de la page https://example.org/demo/offre-fournisseur.",
     "ex.minutes.title": "Compte rendu",
     "ex.minutes.prompt":
       "Rédige le compte rendu de notre réunion projet : décisions, actions, points ouverts.",
@@ -32,7 +32,7 @@ export const STRINGS = {
       "Prépare une présentation de 5 diapositives sur la sobriété numérique.",
     "ex.search.title": "Recherche web",
     "ex.search.prompt":
-      "Cherche sur le web pourquoi les petits modèles consomment moins d'énergie, et cite tes sources.",
+      "Cherche pourquoi les petits modèles consomment moins d'énergie, et cite tes sources.",
     "composer.label": "Votre message",
     "composer.placeholder": "Écrivez à Bird…",
     "composer.send": "Envoyer",
@@ -203,7 +203,7 @@ export const STRINGS = {
     "empty.examples": "Examples to get started",
     "ex.email.title": "Email",
     "ex.email.prompt":
-      "Read the page https://example.org/demo/offre-fournisseur and draft a reply email to Camille.",
+      "Draft a reply email to Camille from the page https://example.org/demo/offre-fournisseur.",
     "ex.minutes.title": "Meeting minutes",
     "ex.minutes.prompt":
       "Write the minutes of our project meeting: decisions, actions, open points.",
@@ -211,7 +211,7 @@ export const STRINGS = {
     "ex.slides.prompt": "Prepare a 5-slide deck on digital sobriety.",
     "ex.search.title": "Web research",
     "ex.search.prompt":
-      "Search the web for why small models use less energy, and cite your sources.",
+      "Search why small models use less energy, and cite your sources.",
     "composer.label": "Your message",
     "composer.placeholder": "Write to Bird…",
     "composer.send": "Send",
