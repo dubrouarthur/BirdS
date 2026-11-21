@@ -9,6 +9,7 @@ dependencies = ["datasets>=3", "huggingface_hub", "jsonschema", "transformers>=5
 [project.optional-dependencies]
 train = ["torch", "peft>=0.17", "accelerate", "flash-linear-attention"]
 dev = ["pytest", "ruff"]
+harness = ["httpx", "trafilatura", "pypdf", "python-docx", "openpyxl", "python-pptx"]
 
 [tool.setuptools.packages.find]
 include = ["birds*"]
