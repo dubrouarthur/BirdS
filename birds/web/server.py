@@ -244,6 +244,7 @@ def create_app(
         shown = server if server is not None else demo
         return {
             "model": shown.model,
+            "model_label": s.model_label,
             "backend": shown.kind,
             "tools": list(shown.tools),
             "thinking_default": False,
@@ -395,7 +396,7 @@ def create_app(
 
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon() -> FileResponse:
-        return FileResponse(STATIC_DIR / "bird.svg", media_type="image/svg+xml")
+        return FileResponse(STATIC_DIR / "brand" / "favicon.svg", media_type="image/svg+xml")
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, exc: HTTPException) -> JSONResponse:

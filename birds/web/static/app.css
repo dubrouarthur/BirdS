@@ -1,22 +1,31 @@
-/* Bird — paper, ink and one moss green. System fonts only, no external resource.
+/* Bird — system fonts only, no external resource.
    Logical properties throughout (inline/block), so the layout mirrors correctly in RTL. */
 
+/* Brand: navy ink + one blue accent, on calm paper. Blue is for interaction (links, focus, active states);
+   the restrained green is kept ONLY as the semantic colour of the footprint (leaf, receipt, eco charts). */
 :root {
-  --bg: #f5f3ea;
-  --surface: #fcfbf6;
-  --surface-2: #ebe8db;
-  --side: #efecdf;
-  --ink: #1c2420;
-  --ink-2: #414b44;
-  --muted: #5a645c;
-  --line: #dcd8c8;
-  --line-strong: #bfbaa5;
-  --accent: #2c6a4f;
-  --accent-strong: #1f5340;
+  --bg: #f6f5f0;
+  --surface: #fdfcf9;
+  --surface-2: #eceae2;
+  --side: #f0eee7;
+  --ink: #121a2e;
+  --ink-2: #39435c;
+  --muted: #586078;
+  --line: #dddbd1;
+  --line-strong: #bcbab0;
+  --brand: #0b1b3f;
+  --brand-sub: #1e5bd8;
+  --accent: #1e5bd8;
+  --accent-strong: #174bb5;
   --accent-ink: #ffffff;
-  --accent-soft: #dde9dc;
-  --link: #1f5340;
-  --user-bg: #e4e8d9;
+  --accent-soft: #e2e9f8;
+  --link: #1a50c4;
+  --primary: #0b1b3f;
+  --primary-hover: #17306b;
+  --primary-ink: #ffffff;
+  --user-bg: #e6e9f1;
+  --eco: #2c6a4f;
+  --eco-soft: #dde9dc;
   --warn-ink: #734700;
   --warn-bg: #f8ecc8;
   --warn-line: #e0cb8c;
@@ -25,21 +34,13 @@
   --danger-line: #e6b9af;
   --series-in: #c4953f;
   --series-out: #12764a;
-  --shadow:
-    0 1px 2px rgb(28 36 32 / 0.05), 0 8px 24px -12px rgb(28 36 32 / 0.18);
-  --shadow-lg:
-    0 2px 6px rgb(28 36 32 / 0.06), 0 24px 48px -20px rgb(28 36 32 / 0.3);
-  --backdrop: rgb(28 36 32 / 0.38);
+  --shadow: 0 1px 2px rgb(18 26 46 / 0.05), 0 8px 24px -12px rgb(18 26 46 / 0.18);
+  --shadow-lg: 0 2px 6px rgb(18 26 46 / 0.06), 0 24px 48px -20px rgb(18 26 46 / 0.3);
+  --backdrop: rgb(11 27 63 / 0.4);
 
-  --sans:
-    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans",
-    Arial, sans-serif;
-  --serif:
-    "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia,
-    "Times New Roman", serif;
-  --mono:
-    ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas,
-    "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --radius: 14px;
   --radius-s: 9px;
   --col: 46rem;
@@ -53,21 +54,28 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #111613;
-    --surface: #181f1a;
-    --surface-2: #222b25;
-    --side: #0d120f;
-    --ink: #e8ece5;
-    --ink-2: #c6cec5;
-    --muted: #a0aba1;
-    --line: #2a342d;
-    --line-strong: #435146;
-    --accent: #8fd0a9;
-    --accent-strong: #aadcbd;
-    --accent-ink: #0d1a12;
-    --accent-soft: #1c3226;
-    --link: #8fd0a9;
-    --user-bg: #232e27;
+    --bg: #0b1220;
+    --surface: #111a2c;
+    --surface-2: #1b2640;
+    --side: #080e1a;
+    --ink: #e9edf5;
+    --ink-2: #c5cddd;
+    --muted: #9ba6bc;
+    --line: #202b43;
+    --line-strong: #3a4763;
+    --brand: #f2f4f8;
+    --brand-sub: #8fb3ff;
+    --accent: #8fb3ff;
+    --accent-strong: #b0c9ff;
+    --accent-ink: #0b1220;
+    --accent-soft: #17274b;
+    --link: #8fb3ff;
+    --primary: #e9edf5;
+    --primary-hover: #ffffff;
+    --primary-ink: #0b1220;
+    --user-bg: #1a2540;
+    --eco: #8fd0a9;
+    --eco-soft: #173226;
     --warn-ink: #f0c56d;
     --warn-bg: #2d2510;
     --warn-line: #57471c;
@@ -78,26 +86,33 @@
     --series-out: #1a8256;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 28px -12px rgb(0 0 0 / 0.6);
     --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.4), 0 28px 56px -20px rgb(0 0 0 / 0.8);
-    --backdrop: rgb(0 0 0 / 0.55);
+    --backdrop: rgb(0 0 0 / 0.6);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #111613;
-  --surface: #181f1a;
-  --surface-2: #222b25;
-  --side: #0d120f;
-  --ink: #e8ece5;
-  --ink-2: #c6cec5;
-  --muted: #a0aba1;
-  --line: #2a342d;
-  --line-strong: #435146;
-  --accent: #8fd0a9;
-  --accent-strong: #aadcbd;
-  --accent-ink: #0d1a12;
-  --accent-soft: #1c3226;
-  --link: #8fd0a9;
-  --user-bg: #232e27;
+  --bg: #0b1220;
+  --surface: #111a2c;
+  --surface-2: #1b2640;
+  --side: #080e1a;
+  --ink: #e9edf5;
+  --ink-2: #c5cddd;
+  --muted: #9ba6bc;
+  --line: #202b43;
+  --line-strong: #3a4763;
+  --brand: #f2f4f8;
+  --brand-sub: #8fb3ff;
+  --accent: #8fb3ff;
+  --accent-strong: #b0c9ff;
+  --accent-ink: #0b1220;
+  --accent-soft: #17274b;
+  --link: #8fb3ff;
+  --primary: #e9edf5;
+  --primary-hover: #ffffff;
+  --primary-ink: #0b1220;
+  --user-bg: #1a2540;
+  --eco: #8fd0a9;
+  --eco-soft: #173226;
   --warn-ink: #f0c56d;
   --warn-bg: #2d2510;
   --warn-line: #57471c;
@@ -108,7 +123,7 @@
   --series-out: #1a8256;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 28px -12px rgb(0 0 0 / 0.6);
   --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.4), 0 28px 56px -20px rgb(0 0 0 / 0.8);
-  --backdrop: rgb(0 0 0 / 0.55);
+  --backdrop: rgb(0 0 0 / 0.6);
   color-scheme: dark;
 }
 
@@ -239,21 +254,12 @@ a {
   stroke: none;
 }
 .mark {
-  inline-size: 30px;
-  block-size: 30px;
+  inline-size: 32px;
+  block-size: 28px;
   flex: none;
 }
-.mark-body {
-  fill: var(--accent);
-}
-.mark-eye {
-  fill: var(--bg);
-}
-.mark-wing {
-  fill: none;
-  stroke: var(--bg);
-  stroke-width: 1.5;
-  stroke-linecap: round;
+.mark {
+  fill: var(--brand);
 }
 
 /* buttons */
@@ -298,11 +304,11 @@ a {
   flex: none;
 }
 .btn-primary {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--primary);
+  color: var(--primary-ink);
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-strong);
+  background: var(--primary-hover);
 }
 .btn-primary:disabled {
   background: var(--surface-2);
@@ -411,8 +417,15 @@ html[data-side="closed"] body:not(.side-open) .side {
   gap: 8px;
 }
 .wordmark {
-  font: 600 1.35rem/1 var(--serif);
-  letter-spacing: -0.01em;
+  font: 800 1.4rem/1 var(--sans);
+  letter-spacing: -0.035em;
+  color: var(--brand);
+}
+.wordmark-sub {
+  margin-inline-start: 2px;
+  font: 800 0.8rem/1 var(--sans);
+  letter-spacing: 0.01em;
+  color: var(--brand-sub);
 }
 .side-close {
   display: none;
@@ -627,7 +640,7 @@ html[data-side="closed"] body:not(.side-open) .side {
   border: 1.5px solid var(--muted);
 }
 .btn-footprint .icon {
-  color: var(--accent);
+  color: var(--eco);
 }
 .banner {
   margin: 12px var(--gutter) 0;
@@ -661,9 +674,9 @@ html[data-side="closed"] body:not(.side-open) .side {
   padding-block-start: clamp(0px, 4vh, 44px);
 }
 .mark-big {
-  inline-size: 48px;
-  block-size: 48px;
-  margin-inline-start: -6px;
+  inline-size: 60px;
+  block-size: 52px;
+  margin-inline-start: -4px;
 }
 .empty-title {
   margin-block-start: 6px;
@@ -1005,7 +1018,7 @@ details[open] > summary > .chev {
   white-space: nowrap;
 }
 .status-done {
-  color: var(--accent);
+  color: var(--eco);
 }
 .status-error,
 .status-denied {
@@ -1576,8 +1589,8 @@ details[open] > summary > .chev {
   block-size: 34px;
   flex: none;
   border-radius: 50%;
-  background: var(--accent-soft);
-  color: var(--link);
+  background: var(--eco-soft);
+  color: var(--eco);
 }
 .figs {
   display: flex;
@@ -1959,7 +1972,7 @@ details[open] > summary > .chev {
 }
 .panel-accent {
   border-color: transparent;
-  background: var(--accent-soft);
+  background: var(--eco-soft);
 }
 .panel-empty {
   color: var(--ink-2);
@@ -1984,8 +1997,8 @@ details[open] > summary > .chev {
   cursor: pointer;
 }
 .seg.is-on {
-  background: var(--accent);
-  color: var(--accent-ink);
+  background: var(--primary);
+  color: var(--primary-ink);
 }
 .stats {
   display: grid;
@@ -2332,7 +2345,7 @@ details[open] > summary > .chev {
 }
 .data-list .icon {
   margin-block-start: 4px;
-  color: var(--accent);
+  color: var(--link);
 }
 
 /* ------------------------------------------------------------ dialogs and toasts */
@@ -2663,4 +2676,36 @@ kbd {
     font: 0.8rem var(--serif);
     color: #555;
   }
+}
+
+/* brand lockups */
+.lockup {
+  display: block;
+  block-size: 132px;
+  inline-size: auto;
+}
+.only-dark {
+  display: none;
+}
+:root[data-theme="dark"] .only-dark {
+  display: block;
+}
+:root[data-theme="dark"] .only-light {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .only-dark {
+    display: block;
+  }
+  :root:not([data-theme="light"]) .only-light {
+    display: none;
+  }
+}
+.about-brand {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.about-brand .lockup {
+  block-size: 112px;
 }

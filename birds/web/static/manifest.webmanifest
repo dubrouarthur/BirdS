@@ -1,16 +1,17 @@
 {
-  "name": "Bird — assistant frugal",
+  "name": "Bird S 4B — assistant frugal",
   "short_name": "Bird",
   "description": "Un petit assistant de travail qui montre ce que coûte chaque réponse.",
   "lang": "fr",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f5f3ea",
-  "theme_color": "#f5f3ea",
+  "background_color": "#f6f5f0",
+  "theme_color": "#f6f5f0",
   "icons": [
-    { "src": "/static/bird.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/static/brand/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/static/brand/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/static/brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/static/brand/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

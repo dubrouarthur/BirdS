@@ -18,6 +18,7 @@ import {
   t,
   toast,
   toolLabel,
+  modelLabel,
 } from "./core.js";
 import { renderBlocks, safeUrl, stabilize } from "./markdown.js";
 
@@ -623,7 +624,7 @@ export function meterRows(usage) {
           "unavailable",
           energy ? "why.co2.nogrid" : "why.co2.noenergy",
         ],
-    ["row.model", String(usage.model || "?"), "configured", "why.model"],
+    ["row.model", `${modelLabel()} · ${String(usage.model || "?")}`, "configured", "why.model"],
     [
       "row.thinking",
       usage.thinking ? t("yes") : t("no"),
@@ -678,7 +679,7 @@ function renderReceipt(turn) {
         : t("meter.tools.many", { n: u.tool_calls }),
     u.bytes_fetched > 0 && t("meter.fetched", { v: fmtBytes(u.bytes_fetched) }),
     t(u.thinking ? "meter.thinking.on" : "meter.thinking.off"),
-    String(u.model || ""),
+    u.tokens_kind === "scripted" ? `${modelLabel()} (${t("demo.badge")})` : modelLabel(),
   ].filter(Boolean);
   return h(
     "section",

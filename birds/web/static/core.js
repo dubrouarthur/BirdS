@@ -69,6 +69,8 @@ export function activeMode() {
   return state.health?.default_mode || "demo";
 }
 export const isDemo = () => activeMode() === "demo";
+/** The product name shown to people (the technical name served by the endpoint stays in the details). */
+export const modelLabel = () => state.health?.model_label || "Bird S 4B";
 export function activeModel() {
   const mode = activeMode();
   if (mode === "demo") return state.health?.demo_model || "bird-demo";

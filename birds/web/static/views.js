@@ -18,8 +18,7 @@ import {
   state,
   store,
   t,
-  toast,
-} from "./core.js";
+  toast, modelLabel } from "./core.js";
 
 let hooks = {};
 export const setViewHooks = (value) => (hooks = value);
@@ -782,6 +781,13 @@ export function renderAbout() {
   const block = (title, ...children) =>
     h("section", { class: "panel" }, h("h3", { text: title }), ...children);
   $("view-about-body").replaceChildren(
+    h(
+      "div",
+      { class: "about-brand" },
+      h("img", { class: "lockup only-light", src: "/static/brand/logo-stacked.svg", alt: "Bird S 4B", width: "87", height: "112" }),
+      h("img", { class: "lockup only-dark", src: "/static/brand/logo-stacked-dark.svg", alt: "Bird S 4B", width: "87", height: "112" }),
+      h("p", { class: "page-lead", text: t("about.tagline") }),
+    ),
     block(t("about.what"), h("p", { text: t("about.what.p") })),
     block(t("about.deal"), h("p", { text: t("about.deal.p") })),
     block(t("about.built"), h("p", { text: t("about.built.p") })),

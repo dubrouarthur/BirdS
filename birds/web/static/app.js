@@ -18,6 +18,7 @@ import {
   t,
   toast,
   uid,
+  modelLabel,
 } from "./core.js";
 import {
   exportMarkdown,
@@ -364,10 +365,10 @@ function updateTop() {
   };
   $("top-title").textContent =
     titles[state.view] || state.conv?.title || t("side.untitled");
-  const model = activeModel();
-  $("model-name").textContent = isDemo() ? t("demo.badge") : model;
+  const model = isDemo() ? `${modelLabel()} · ${t("demo.badge")}` : modelLabel();
+  $("model-name").textContent = model;
   $("btn-model").classList.toggle("is-demo", isDemo());
-  const label = t("nav.model", { model: isDemo() ? t("mode.demo") : model });
+  const label = t("nav.model", { model: isDemo() ? model : `${model} (${activeModel()})` });
   $("btn-model").setAttribute("aria-label", label);
   $("btn-model").title = label;
   const s = totals(convUsages(state.conv));
@@ -390,7 +391,7 @@ function applyTheme() {
       window.matchMedia("(prefers-color-scheme: dark)").matches);
   document
     .querySelector('meta[name="theme-color"]')
-    .setAttribute("content", dark ? "#111613" : "#f5f3ea");
+    .setAttribute("content", dark ? "#0b1220" : "#f6f5f0");
 }
 
 function applyStrings() {

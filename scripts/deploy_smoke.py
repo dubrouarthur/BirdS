@@ -58,7 +58,9 @@ def main() -> int:
         checks["index_and_csp"] = (
             index.status_code == 200 and "default-src 'none'" in index.headers["content-security-policy"]
         )
-        checks["static"] = all(client.get(f"/static/{n}").status_code == 200 for n in ("app.js", "app.css", "bird.svg"))
+        checks["static"] = all(
+            client.get(f"/static/{n}").status_code == 200 for n in ("app.js", "app.css", "brand/favicon.svg")
+        )
         first = events(client.post("/api/chat", json=body))
         token = next(e for e in first if e["type"] == "confirm")["token"]
         slides = events(

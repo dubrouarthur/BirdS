@@ -106,6 +106,7 @@ def streamed(events: list[dict]) -> str:
 def test_health(client):
     data = client.get("/api/health").json()
     assert data["model"] == "bird-demo" and data["backend"] == "demo" and data["default_mode"] == "demo"
+    assert data["model_label"] == "Bird S 4B"
     assert data["modes"] == {"demo": True, "server": False, "user": False}
     assert set(data["tools"]) >= {"web_search", "read_page", "draft_email", "make_slides"}
     assert data["thinking_default"] is False and data["access_required"] is False
@@ -561,7 +562,16 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
     css = (STATIC_DIR / "app.css").read_text()
     assert "url(" not in css and "@import" not in css and "@font-face" not in css
     scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js"]
-    for name in [*scripts, "bird.svg", "icon-192.png", "icon-512.png"]:
+    brand = [
+        "mark.svg",
+        "mark-dark.svg",
+        "logo-horizontal.svg",
+        "logo-horizontal-dark.svg",
+        "logo-stacked.svg",
+        "logo-stacked-dark.svg",
+    ]
+    brand += ["favicon.svg", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png"]
+    for name in [*scripts, *(f"brand/{n}" for n in brand)]:
         assert client.get(f"/static/{name}").status_code == 200
     js = "".join((STATIC_DIR / n).read_text() for n in scripts)
     assert "eval(" not in js and "new Function" not in js and "document.write" not in js
@@ -571,7 +581,7 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
 
 
 def test_static_payload_budget():
-    files = [p for p in STATIC_DIR.iterdir() if p.is_file()]
+    files = [p for p in STATIC_DIR.rglob("*") if p.is_file()]
     total = sum(p.stat().st_size for p in files)
     assert total < 250_000, f"static payload is {total} bytes"
 

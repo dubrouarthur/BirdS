@@ -389,6 +389,7 @@ export const STRINGS = {
       "Effacer conversations, réglages, jeton et empreinte de ce navigateur ?",
     "set.save": "Enregistrer",
     "about.title": "À propos de Bird",
+    "about.tagline": "Bird S 4B : S pour small, 4B pour quatre milliards de paramètres. Un petit modèle, et il le dit.",
     "about.what": "Ce que c'est",
     "about.what.p":
       "Bird est un petit assistant de travail en français et en anglais : mails, comptes rendus, présentations, recherche avec sources. Il a 4 milliards de paramètres, bien moins que les modèles géants.",
@@ -841,6 +842,7 @@ export const STRINGS = {
       "Clear conversations, settings, token and footprint from this browser?",
     "set.save": "Save",
     "about.title": "About Bird",
+    "about.tagline": "Bird S 4B: S for small, 4B for four billion parameters. A small model, and it says so.",
     "about.what": "What it is",
     "about.what.p":
       "Bird is a small work assistant in French and English: emails, minutes, slides, research with sources. It has 4 billion parameters, far fewer than the giant models.",
