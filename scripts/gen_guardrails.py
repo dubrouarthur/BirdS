@@ -1,6 +1,6 @@
 """Write the guardrail training records and the held-out injection benchmark suite.
 
-  python scripts/gen_guardrails.py --out out/guardrails.jsonl --bench-out out/bench/injection.jsonl
+python scripts/gen_guardrails.py --out out/guardrails.jsonl --bench-out out/bench/injection.jsonl
 """
 
 import argparse

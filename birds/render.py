@@ -75,6 +75,9 @@ def encode(tok, rec: dict, max_len: int) -> dict | None:
 def prompt(tok, messages: list[dict], tools: list | None, thinking: bool) -> str:
     """Generation prompt for inference/benchmark."""
     return tok.apply_chat_template(
-        _clean(messages, thinking), tools=tools or None, enable_thinking=thinking, tokenize=False,
+        _clean(messages, thinking),
+        tools=tools or None,
+        enable_thinking=thinking,
+        tokenize=False,
         add_generation_prompt=True,
     )

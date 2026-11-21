@@ -29,5 +29,14 @@ with open(out, "w", encoding="utf-8") as f:
     for r in recs:
         f.write(json.dumps(r, ensure_ascii=False) + "\n")
 answers = {r["messages"][-1]["content"] for r in recs}
-print(json.dumps({"records": len(recs), "fr": sum(r["lang"] == "fr" for r in recs), "thinking": sum(r["thinking"] for r in recs),
-                  "unique_answers": round(len(answers) / max(1, len(recs)), 3), "out": str(out)}))
+print(
+    json.dumps(
+        {
+            "records": len(recs),
+            "fr": sum(r["lang"] == "fr" for r in recs),
+            "thinking": sum(r["thinking"] for r in recs),
+            "unique_answers": round(len(answers) / max(1, len(recs)), 3),
+            "out": str(out),
+        }
+    )
+)

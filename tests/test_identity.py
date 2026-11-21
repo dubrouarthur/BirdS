@@ -49,13 +49,22 @@ def test_facts_present():
         q = r["messages"][-2]["content"].lower()
         if "qwen" in q or "chatgpt" in q or "claude" in q or "gemini" in q:
             assert "Bird" in _answer(r)
-    company = [r for r in RECS if r["messages"][0]["role"] == "system" and r["messages"][0]["content"] not in DEFAULT_SYSTEM.values()]
-    named = [r for r in company if re.search(r"qui es-tu|qui êtes-vous|who are you", r["messages"][-2]["content"], re.I)]
+    company = [
+        r
+        for r in RECS
+        if r["messages"][0]["role"] == "system" and r["messages"][0]["content"] not in DEFAULT_SYSTEM.values()
+    ]
+    named = [
+        r for r in company if re.search(r"qui es-tu|qui êtes-vous|who are you", r["messages"][-2]["content"], re.I)
+    ]
     assert named and all("Bird" in _answer(r) for r in named)
 
 
 def test_forbidden_claims_absent():
-    claim = re.compile(r"\b(?:je suis|je m'appelle|i am|i'm|my name is)\s+(?:un modèle\s+)?(?:qwen|chatgpt|claude|gemini|gpt|bird-m)\b", re.I)
+    claim = re.compile(
+        r"\b(?:je suis|je m'appelle|i am|i'm|my name is)\s+(?:un modèle\s+)?(?:qwen|chatgpt|claude|gemini|gpt|bird-m)\b",
+        re.I,
+    )
     unit = re.compile(r"\d\s*(?:w|kw|kwh|wh|watts?|g|grammes?|grams?|kg|co2|%|joules?)\b", re.I)
     for r in RECS:
         for m in r["messages"]:

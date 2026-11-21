@@ -348,7 +348,8 @@ def test_smol_smoltalk_multi_turn_and_sources():
     assert conv("smol_smoltalk", {**row, "source": "longalign"}) == []
     assert (
         T.why(
-            "smol_smoltalk", {"messages": chat(LONG + LONG, "This is far too long.", "more", "And more again."), "source": "x"}
+            "smol_smoltalk",
+            {"messages": chat(LONG + LONG, "This is far too long.", "more", "And more again."), "source": "x"},
         )
         == "too_long"
     )

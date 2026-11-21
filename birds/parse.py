@@ -1,12 +1,12 @@
 """Parse model output: reasoning, answer text and tool calls in Qwen3.5's native format.
 
-    <tool_call>
-    <function=name>
-    <parameter=key>
-    value
-    </parameter>
-    </function>
-    </tool_call>
+<tool_call>
+<function=name>
+<parameter=key>
+value
+</parameter>
+</function>
+</tool_call>
 """
 
 from __future__ import annotations

@@ -146,7 +146,7 @@ function renderList(items, ctx) {
   return out;
 }
 
-function blocks(lines, ctx, depth) {
+function blockList(lines, ctx, depth) {
   const out = [];
   let i = 0;
   while (i < lines.length) {
@@ -210,7 +210,7 @@ function blocks(lines, ctx, depth) {
       const inner = [];
       while (i < lines.length && RE_QUOTE.test(lines[i]))
         inner.push(lines[i++].match(RE_QUOTE)[1]);
-      out.push(`<blockquote>${blocks(inner, ctx, depth + 1)}</blockquote>`);
+      out.push(`<blockquote>${blockList(inner, ctx, depth + 1).join("\n")}</blockquote>`);
       continue;
     }
     if (RE_ITEM.test(line)) {
@@ -263,21 +263,52 @@ function blocks(lines, ctx, depth) {
       para.push(lines[i++]);
     out.push(`<p>${para.map((l) => inline(l.trim(), ctx)).join("<br>")}</p>`);
   }
-  return out.join("\n");
+  return out;
 }
 
-/**
- * Render Markdown to an HTML string made only of tags written in this file.
- * options.cites: iterable of valid citation numbers; options.anchor: id prefix of the sources list.
- */
-export function renderMarkdown(source, options = {}) {
-  const ctx = {
+function context(options) {
+  return {
     cites: new Set(options.cites ?? []),
     anchor: String(options.anchor ?? "src").replace(/[^\w-]/g, ""),
     citeLabel: options.citeLabel ?? "Source {n}",
   };
-  const text = String(source ?? "")
+}
+
+const clean = (source) =>
+  String(source ?? "")
     .replace(/\u0000/g, "")
     .replace(/\r\n?/g, "\n");
-  return blocks(text.split("\n"), ctx, 0);
+
+/**
+ * Render Markdown to a list of top-level HTML blocks, each made only of tags written in this file.
+ * options.cites: iterable of valid citation numbers; options.anchor: id prefix of the sources list.
+ */
+export function renderBlocks(source, options = {}) {
+  return blockList(clean(source).split("\n"), context(options), 0);
+}
+
+export function renderMarkdown(source, options = {}) {
+  return renderBlocks(source, options).join("\n");
+}
+
+/**
+ * Make a partial (still streaming) answer safe to render without flashes of raw markup:
+ * hide an unfinished link or citation at the very end, and close emphasis or code left open on the last line.
+ */
+export function stabilize(partial) {
+  let text = clean(partial);
+  const fences = (text.match(/^\s{0,3}(```|~~~)/gm) || []).length;
+  if (fences % 2 === 1) return text.replace(/\n\s{0,3}[`~]{1,2}$/, ""); // inside a code block: literal text
+  text = text.replace(/\[[^\]\n]*\]\([^)\s]*$/, (m) => m.slice(1, m.indexOf("]"))); // [label](http…  -> label
+  text = text.replace(/\[[^\]\n]{0,60}$/, (m) => (/^\[\d{0,2}$/.test(m) ? "" : m.slice(1))); // "[1" or "[label" waiting for "]"
+  text = text.replace(/\[([^\]\n]{1,60})\]$/, (m, label) => (/^\d{1,2}$/.test(label) ? m : label)); // "[label]" before "("
+  text = text.replace(/[*_`~#>|-]{1,3}$/, (m) => (/\n$|^$/.test(text.slice(0, -m.length)) ? "" : m)); // marker alone on a new line
+  const cut = text.lastIndexOf("\n") + 1;
+  let last = text.slice(cut);
+  const odd = (str, re) => (str.match(re) || []).length % 2 === 1;
+  if (odd(last, /`/g)) last = last.endsWith("`") ? last.slice(0, -1) : last + "`";
+  const noCode = last.replace(/`[^`]*`/g, "");
+  if (odd(noCode, /\*\*/g)) last = /\*\*\*?$/.test(last) ? last.replace(/\*+$/, "") : last + "**";
+  else if (odd(noCode.replace(/\*\*/g, ""), /\*/g) && !/^\s*\*(\s|$)/.test(noCode)) last = last.endsWith("*") ? last.slice(0, -1) : last + "*";
+  return text.slice(0, cut) + last;
 }

@@ -129,8 +129,11 @@ def same_value(got, want) -> bool:
     if isinstance(want, str):
         return isinstance(got, str) and _std(got) == _std(want)
     if isinstance(want, list | tuple):
-        return isinstance(got, list | tuple) and len(got) == len(want) and all(
-            same_value(g, w) for g, w in zip(got, want, strict=True))
+        return (
+            isinstance(got, list | tuple)
+            and len(got) == len(want)
+            and all(same_value(g, w) for g, w in zip(got, want, strict=True))
+        )
     if isinstance(want, dict):
         if not isinstance(got, dict):
             return False
@@ -163,7 +166,7 @@ def _match_calls(pred: list[dict], exp: list[dict]) -> bool:
     first, rest = exp[0], exp[1:]
     for i, p in enumerate(pred):
         if p.get("name") == first["name"] and not args_problem(p.get("arguments"), first["arguments"]):
-            if _match_calls(pred[:i] + pred[i + 1:], rest):
+            if _match_calls(pred[:i] + pred[i + 1 :], rest):
                 return True
     return False
 
@@ -210,23 +213,47 @@ def score_first_tool(item: dict, out: dict) -> dict:
 
 # ---------------------------------------------------------------- grounded QA / extraction
 
-_REFUSAL = re.compile("|".join([
-    # French
-    r"pas (?:pu )?trouve", r"ne contien\w+ pas", r"ne contien\w+ aucun", r"pas d information", r"aucune information",
-    r"aucune (?:mention|indication|precision)", r"ne (?:le |la |les |en )?mentionn\w+ (?:pas|aucun)",
-    r"ne (?:le |la |les )?precis\w+ pas", r"ne (?:le |la |les )?indiqu\w+ pas", r"ne (?:le |la |les )?fourni\w+ pas",
-    r"ne (?:le |la |les )?donn\w+ pas", r"n (?:est|y est|en est|est nulle part) (?:pas |nullement )?(?:mentionn|precis|indiqu|fourni|communiqu|specifi)",
-    r"n est pas (?:disponible|present)", r"ne figure\w* (?:pas|nulle)", r"ne perme\w+ pas de", r"impossible de (?:repondre|determiner|le dire)",
-    r"je ne (?:sais|peux) pas (?:repondre|le dire|le determiner|vous|te)?", r"pas (?:de|la) reponse", r"ne dispose\w* pas",
-    r"n apparai\w+ pas", r"pas en mesure de",
-    # English
-    r"not contain", r"no information", r"(?:cannot|can t|could not|couldn t|can not|unable to|did not|didn t|not) find",
-    r"(?:does|do|did)(?: not|n t) (?:mention|specify|state|provide|say|include|give|indicate|list|cover|address)",
-    r"not (?:mentioned|stated|specified|provided|given|indicated|listed|available|included|covered|addressed)",
-    r"no mention", r"(?:cannot|can t|unable to|not able to|can not) (?:answer|determine|be determined|say|tell)",
-    r"not enough information", r"insufficient information", r"(?:not|isn t|aren t) (?:in|found in|present in|part of) the (?:provided |given )?(?:document|context|text|source)",
-    r"i don t know", r"no (?:answer|data|details?|figure|indication) ",
-]))
+_REFUSAL = re.compile(
+    "|".join(
+        [
+            # French
+            r"pas (?:pu )?trouve",
+            r"ne contien\w+ pas",
+            r"ne contien\w+ aucun",
+            r"pas d information",
+            r"aucune information",
+            r"aucune (?:mention|indication|precision)",
+            r"ne (?:le |la |les |en )?mentionn\w+ (?:pas|aucun)",
+            r"ne (?:le |la |les )?precis\w+ pas",
+            r"ne (?:le |la |les )?indiqu\w+ pas",
+            r"ne (?:le |la |les )?fourni\w+ pas",
+            r"ne (?:le |la |les )?donn\w+ pas",
+            r"n (?:est|y est|en est|est nulle part) (?:pas |nullement )?(?:mentionn|precis|indiqu|fourni|communiqu|specifi)",
+            r"n est pas (?:disponible|present)",
+            r"ne figure\w* (?:pas|nulle)",
+            r"ne perme\w+ pas de",
+            r"impossible de (?:repondre|determiner|le dire)",
+            r"je ne (?:sais|peux) pas (?:repondre|le dire|le determiner|vous|te)?",
+            r"pas (?:de|la) reponse",
+            r"ne dispose\w* pas",
+            r"n apparai\w+ pas",
+            r"pas en mesure de",
+            # English
+            r"not contain",
+            r"no information",
+            r"(?:cannot|can t|could not|couldn t|can not|unable to|did not|didn t|not) find",
+            r"(?:does|do|did)(?: not|n t) (?:mention|specify|state|provide|say|include|give|indicate|list|cover|address)",
+            r"not (?:mentioned|stated|specified|provided|given|indicated|listed|available|included|covered|addressed)",
+            r"no mention",
+            r"(?:cannot|can t|unable to|not able to|can not) (?:answer|determine|be determined|say|tell)",
+            r"not enough information",
+            r"insufficient information",
+            r"(?:not|isn t|aren t) (?:in|found in|present in|part of) the (?:provided |given )?(?:document|context|text|source)",
+            r"i don t know",
+            r"no (?:answer|data|details?|figure|indication) ",
+        ]
+    )
+)
 
 
 def is_refusal(text: str) -> bool:
@@ -252,8 +279,20 @@ def score_contains_any(item: dict, out: dict) -> dict:
     return _res(hit is not None and short, matched=hit, words=words)
 
 
-_FILLERS = ("excellente question", "bonne question", "great question", "good question", "certainly!", "bien sûr !",
-            "bien sûr!", "as an ai", "en tant qu'ia", "en tant qu'intelligence artificielle", "absolument !", "absolutely!")
+_FILLERS = (
+    "excellente question",
+    "bonne question",
+    "great question",
+    "good question",
+    "certainly!",
+    "bien sûr !",
+    "bien sûr!",
+    "as an ai",
+    "en tant qu'ia",
+    "en tant qu'intelligence artificielle",
+    "absolument !",
+    "absolutely!",
+)
 
 
 def score_concise(item: dict, out: dict) -> dict:
@@ -301,22 +340,40 @@ def score_numbers(item: dict, out: dict) -> dict:
 
 # ---------------------------------------------------------------- identity
 
-_OTHER = (r"(?:qwen|tongyi|chat ?gpt|gpt|openai|claude|anthropic|gemini|bard|google|alibaba|llama|meta ai|mistral|"
-          r"deepseek|copilot|microsoft|grok)(?![a-zà-ÿ])")
+_OTHER = (
+    r"(?:qwen|tongyi|chat ?gpt|gpt|openai|claude|anthropic|gemini|bard|google|alibaba|llama|meta ai|mistral|"
+    r"deepseek|copilot|microsoft|grok)(?![a-zà-ÿ])"
+)
 _COMPANY = r"(?:openai|alibaba(?: cloud)?|anthropic|google(?: deepmind)?|deepmind|meta|microsoft|mistral(?: ai)?|deepseek|qwen|tongyi)"
-_SELF = re.compile(r"\b(?:je suis|i am|i'm|je m'appelle|my name is|mon nom est|on m'appelle|call me|appelez-moi|appelle-moi)\b"
-                   r"([^.,;:!?\n()—–]{0,60})")
-_SAFE = re.compile(r"\b(?:bird|not|pas|ni|non|no|neither|nor|built|based|construit|bas[ée]e?|fond[ée]e?|issue?|d[ée]riv[ée]e?|derived|"
-                   r"from|partir|top|fine-?tun\w*|sp[ée]cialis\w*|specialis\w*|specializ\w*|adapt\w*|powered|propuls\w*|rather|plut[oô]t|"
-                   r"instead|unlike|contrairement)\b")
+_SELF = re.compile(
+    r"\b(?:je suis|i am|i'm|je m'appelle|my name is|mon nom est|on m'appelle|call me|appelez-moi|appelle-moi)\b"
+    r"([^.,;:!?\n()—–]{0,60})"
+)
+_SAFE = re.compile(
+    r"\b(?:bird|not|pas|ni|non|no|neither|nor|built|based|construit|bas[ée]e?|fond[ée]e?|issue?|d[ée]riv[ée]e?|derived|"
+    r"from|partir|top|fine-?tun\w*|sp[ée]cialis\w*|specialis\w*|specializ\w*|adapt\w*|powered|propuls\w*|rather|plut[oô]t|"
+    r"instead|unlike|contrairement)\b"
+)
 _MADE = r"(?:cré|cre|développ|develop|conç|conc|entra[iî]n|fabriqu|built|made|trained|designed|released)\w*"
 _MADE_BY = re.compile(
-    r"\b(?:i was|i am|i'm|i have been|i've been|j'ai été|je suis|j'ai ete)\s+(?:\w+\s+){0,2}?" + _MADE
-    + r"\s+(?:by|par|chez|at)\s+(?:(?:the|l'|la|le|les|team|équipe|société|company|entreprise|of|de|d')\s*){0,3}" + _COMPANY + r"\b"
-    r"|\b" + _COMPANY + r"\s+(?:qui\s+)?m'(?:a|ont)\s+" + _MADE
-    + r"|\b" + _COMPANY + r"\s+(?:has\s+|have\s+|who\s+|that\s+)?" + _MADE + r"\s+me\b"
+    r"\b(?:i was|i am|i'm|i have been|i've been|j'ai été|je suis|j'ai ete)\s+(?:\w+\s+){0,2}?"
+    + _MADE
+    + r"\s+(?:by|par|chez|at)\s+(?:(?:the|l'|la|le|les|team|équipe|société|company|entreprise|of|de|d')\s*){0,3}"
+    + _COMPANY
+    + r"\b"
+    r"|\b"
+    + _COMPANY
+    + r"\s+(?:qui\s+)?m'(?:a|ont)\s+"
+    + _MADE
+    + r"|\b"
+    + _COMPANY
+    + r"\s+(?:has\s+|have\s+|who\s+|that\s+)?"
+    + _MADE
+    + r"\s+me\b"
     r"|\b(?:my (?:creator|developer|maker)s?|mon (?:créateur|concepteur|développeur)|mes (?:créateurs|concepteurs))\s+(?:is|are|est|sont)\s+(?:\w+\s+){0,2}?"
-    + _COMPANY + r"\b")
+    + _COMPANY
+    + r"\b"
+)
 
 
 def identity_violation(text: str) -> str | None:
@@ -339,12 +396,16 @@ def score_identity(item: dict, out: dict) -> dict:
 
 # ---------------------------------------------------------------- language
 
-_FR = frozenset("le la les des du de un une et est en que qui pour dans pas vous nous je il elle sur au aux avec ce cette ces "
-                "sont votre vos notre nos se ne par ou mais être avoir à voici très sa ses mon mes leur leurs si comme tout "
-                "fait peut ont été l j qu n y dont où afin chez entre aussi cela ainsi donc bonjour merci cordialement".split())
-_EN = frozenset("the of and to is in that for it with as was are be this have from or by not you we your our will can at an i if "
-                "please thanks thank hi hello here there has would should their they been but which regards dear my do does "
-                "what when how these those its about into than then so also best".split())
+_FR = frozenset(
+    "le la les des du de un une et est en que qui pour dans pas vous nous je il elle sur au aux avec ce cette ces "
+    "sont votre vos notre nos se ne par ou mais être avoir à voici très sa ses mon mes leur leurs si comme tout "
+    "fait peut ont été l j qu n y dont où afin chez entre aussi cela ainsi donc bonjour merci cordialement".split()
+)
+_EN = frozenset(
+    "the of and to is in that for it with as was are be this have from or by not you we your our will can at an i if "
+    "please thanks thank hi hello here there has would should their they been but which regards dear my do does "
+    "what when how these those its about into than then so also best".split()
+)
 _WORD = re.compile(r"[a-zàâäçéèêëîïôöùûüœ]+")
 
 
@@ -366,9 +427,17 @@ def score_language(item: dict, out: dict) -> dict:
 # ---------------------------------------------------------------- dispatch and aggregation
 
 SCORERS = {
-    "tool_call": score_tool_call, "no_call": score_no_call, "when2call": score_when2call, "first_tool": score_first_tool,
-    "grounded": score_grounded, "contains_any": score_contains_any, "json_schema": score_json_schema,
-    "numbers": score_numbers, "identity": score_identity, "language": score_language, "concise": score_concise,
+    "tool_call": score_tool_call,
+    "no_call": score_no_call,
+    "when2call": score_when2call,
+    "first_tool": score_first_tool,
+    "grounded": score_grounded,
+    "contains_any": score_contains_any,
+    "json_schema": score_json_schema,
+    "numbers": score_numbers,
+    "identity": score_identity,
+    "language": score_language,
+    "concise": score_concise,
 }
 
 
@@ -385,6 +454,7 @@ def aggregate(results: list[dict]) -> dict:
     Each result needs "suite", "lang" and "score". `overall` is the macro-average over the main suites;
     the `*_think` copies are reported apart in `overall_think` so they do not count twice.
     """
+
     def mean(xs):
         return round(sum(xs) / len(xs), 4) if xs else None
 

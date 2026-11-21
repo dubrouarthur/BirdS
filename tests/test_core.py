@@ -5,25 +5,57 @@ from birds.parse import parse_output
 from birds.render import IGNORE, encode, expand, prompt, spans
 from birds.schema import errors
 
-TOOLS = [{"type": "function", "function": {"name": "web_search", "description": "Search the web",
-          "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]}}}]
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "web_search",
+            "description": "Search the web",
+            "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
+        },
+    }
+]
 
 
 def rec(**kw):
-    base = {"id": "t-1", "source": "test", "license": "apache-2.0", "lang": "fr", "task": "x", "thinking": False,
-            "messages": [{"role": "user", "content": "Bonjour"}, {"role": "assistant", "content": "Salut."}]}
+    base = {
+        "id": "t-1",
+        "source": "test",
+        "license": "apache-2.0",
+        "lang": "fr",
+        "task": "x",
+        "thinking": False,
+        "messages": [{"role": "user", "content": "Bonjour"}, {"role": "assistant", "content": "Salut."}],
+    }
     return {**base, **kw}
 
 
 def agent_rec(thinking):
-    return rec(thinking=thinking, tools=TOOLS, messages=[
-        {"role": "system", "content": "Tu es Bird."},
-        {"role": "user", "content": "Cours du cuivre ?"},
-        {"role": "assistant", "content": "", "reasoning_content": "Je dois chercher." if thinking else "",
-         "tool_calls": [{"type": "function", "function": {"name": "web_search", "arguments": {"query": "cours cuivre", "n": 3}}}]},
-        {"role": "tool", "content": "9 800 USD/t"},
-        {"role": "assistant", "content": "Environ 9 800 USD la tonne.", **({"reasoning_content": "Résultat clair."} if thinking else {})},
-    ])
+    return rec(
+        thinking=thinking,
+        tools=TOOLS,
+        messages=[
+            {"role": "system", "content": "Tu es Bird."},
+            {"role": "user", "content": "Cours du cuivre ?"},
+            {
+                "role": "assistant",
+                "content": "",
+                "reasoning_content": "Je dois chercher." if thinking else "",
+                "tool_calls": [
+                    {
+                        "type": "function",
+                        "function": {"name": "web_search", "arguments": {"query": "cours cuivre", "n": 3}},
+                    }
+                ],
+            },
+            {"role": "tool", "content": "9 800 USD/t"},
+            {
+                "role": "assistant",
+                "content": "Environ 9 800 USD la tonne.",
+                **({"reasoning_content": "Résultat clair."} if thinking else {}),
+            },
+        ],
+    )
 
 
 @pytest.fixture(scope="module")
@@ -36,17 +68,28 @@ def test_schema_accepts_and_rejects():
     assert errors(agent_rec(True)) == []
     assert errors(rec(lang="de"))
     assert errors(rec(messages=[{"role": "user", "content": "a"}]))
-    assert errors(rec(messages=[{"role": "user", "content": "a"}, {"role": "assistant", "content": "<think>x</think>b"}]))
+    assert errors(
+        rec(messages=[{"role": "user", "content": "a"}, {"role": "assistant", "content": "<think>x</think>b"}])
+    )
     bad = agent_rec(False)
     bad["tools"] = []
     assert any("undeclared" in e for e in errors(bad))
-    assert errors(rec(messages=[{"role": "user", "content": "a"},
-                                {"role": "assistant", "content": "b", "reasoning_content": "r"}]))
+    assert errors(
+        rec(
+            messages=[{"role": "user", "content": "a"}, {"role": "assistant", "content": "b", "reasoning_content": "r"}]
+        )
+    )
 
 
 def test_expand_one_example_per_query():
-    r = rec(messages=[{"role": "user", "content": "a"}, {"role": "assistant", "content": "b"},
-                      {"role": "user", "content": "c"}, {"role": "assistant", "content": "d"}])
+    r = rec(
+        messages=[
+            {"role": "user", "content": "a"},
+            {"role": "assistant", "content": "b"},
+            {"role": "user", "content": "c"},
+            {"role": "assistant", "content": "d"},
+        ]
+    )
     ex = expand(r)
     assert [len(e["messages"]) for e in ex] == [2, 4] and ex[0]["id"] != ex[1]["id"]
 
@@ -78,7 +121,7 @@ def test_encode_drops_too_long(tok):
 def test_parse_roundtrip_of_native_tool_call(tok):
     r = agent_rec(True)
     full, sp = spans(tok, r)
-    out = parse_output(full[sp[0][0]: sp[0][1]])
+    out = parse_output(full[sp[0][0] : sp[0][1]])
     assert out["reasoning"] == "Je dois chercher."
     assert out["tool_calls"] == [{"name": "web_search", "arguments": {"query": "cours cuivre", "n": 3}}]
     assert parse_output("Bonjour.<|im_end|>") == {"reasoning": "", "content": "Bonjour.", "tool_calls": []}

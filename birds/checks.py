@@ -14,9 +14,7 @@ import re
 _SEP = "   .,"
 _NUM_RE = re.compile(
     r"(?<![\d.,])[−\-–]?"
-    r"(?:\d{1,3}(?:["
-    + _SEP
-    + r"]\d{3}(?!\d))+|\d+)"  # integer part, optional thousands groups
+    r"(?:\d{1,3}(?:[" + _SEP + r"]\d{3}(?!\d))+|\d+)"  # integer part, optional thousands groups
     r"(?:[.,]\d{1,2}(?!\d))?"  # decimal part (max 2 digits)
 )
 
@@ -54,9 +52,7 @@ def numbers_check(
         if want is None or (isinstance(want, float) and math.isnan(want)):
             continue
         checked += 1
-        if not any(
-            math.isclose(v, want, rel_tol=rel_tol, abs_tol=abs_tol) for v in found
-        ):
+        if not any(math.isclose(v, want, rel_tol=rel_tol, abs_tol=abs_tol) for v in found):
             missing.append(name)
     return {
         "score": 1.0 if checked == 0 else (checked - len(missing)) / checked,

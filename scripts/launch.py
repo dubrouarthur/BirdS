@@ -26,9 +26,25 @@ a = ap.parse_args()
 rest = a.rest[1:] if a.rest[:1] == ["--"] else a.rest
 
 subprocess.run([sys.executable, str(ROOT / "scripts" / "build_job.py")], check=True)
-cmd = ["hf", "jobs", "uv", "run", "--flavor", a.flavor, "--timeout", a.timeout, "--detach",
-       "--name", f"bird-{a.mode}", "-e", "PYTHONUNBUFFERED=1",
-       "-v", f"hf://datasets/{a.user}/birds-bench:/bench:ro", "-v", f"hf://buckets/{a.user}/birds-runs:/out"]
+cmd = [
+    "hf",
+    "jobs",
+    "uv",
+    "run",
+    "--flavor",
+    a.flavor,
+    "--timeout",
+    a.timeout,
+    "--detach",
+    "--name",
+    f"bird-{a.mode}",
+    "-e",
+    "PYTHONUNBUFFERED=1",
+    "-v",
+    f"hf://datasets/{a.user}/birds-bench:/bench:ro",
+    "-v",
+    f"hf://buckets/{a.user}/birds-runs:/out",
+]
 if a.mode == "train":
     cmd += ["-v", f"hf://datasets/{a.user}/birds-sft:/dataset:ro"]
 if a.dry_run:

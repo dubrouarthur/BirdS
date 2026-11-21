@@ -66,6 +66,16 @@ class GpuMeter:
         return self.joules / 3600 if self.samples else None
 
 
+CHARS_PER_TOKEN = 4  # rough, for the labelled fallback only
+
+
+def _tokens(u: dict, side: str) -> int:
+    n = u.get(f"{side}_tokens")
+    if n is not None:
+        return int(n)
+    return -(-int(u.get(f"{side}_chars") or 0) // CHARS_PER_TOKEN)
+
+
 def report(
     usage: list[dict],
     *,
@@ -77,13 +87,16 @@ def report(
     calibration_source: str | None = None,
 ) -> dict:
     """Resource report for the UI. `energy_wh` is None unless it was measured or an explicit calibration is set."""
-    tin = sum(u.get("prompt_tokens") or 0 for u in usage)
-    tout = sum(u.get("completion_tokens") or 0 for u in usage)
+    # Token counts come from the model server. When it reports none, fall back to characters / 4 and say so.
+    exact = all(u.get("prompt_tokens") is not None and u.get("completion_tokens") is not None for u in usage)
+    tin = sum(_tokens(u, "prompt") for u in usage)
+    tout = sum(_tokens(u, "completion") for u in usage)
     out = {
         "prompt_tokens": tin,
         "completion_tokens": tout,
         "generations": len(usage),
-        "tokens_exact": all(u.get("prompt_tokens") is not None for u in usage),
+        "tokens_exact": exact,
+        "tokens_source": "model server" if exact else "estimated: characters / 4",
         "generation_seconds": round(sum(u.get("seconds") or 0 for u in usage), 3),
         "wall_seconds": round(wall_seconds, 3),
         "tool_calls": tool_calls,

@@ -41,7 +41,7 @@ class Config:
     )
     wh_per_1k_tokens: float | None = None  # explicit calibration; reported as "estimated"
     calibration_source: str | None = None
-    audit_file: str = "bird_audit.jsonl"
+    audit_file: str | None = "bird_audit.jsonl"  # None: audit lines go to stdout (serverless logs)
 
 
 @dataclass

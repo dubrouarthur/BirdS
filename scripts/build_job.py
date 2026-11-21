@@ -1,6 +1,6 @@
 """Build the self-contained job script: jobs/bird_job.py with the `birds` package embedded.
 
-  python scripts/build_job.py            # writes dist/bird_job.py
+python scripts/build_job.py            # writes dist/bird_job.py
 """
 
 import base64

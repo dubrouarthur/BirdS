@@ -58,7 +58,9 @@ for src in all_sources():
     c = collections.Counter()
     rows = []
     try:
-        ds = load_dataset(src.repo, src.config, split=src.split, data_files=src.data_files, streaming=True, **src.kwargs)
+        ds = load_dataset(
+            src.repo, src.config, split=src.split, data_files=src.data_files, streaming=True, **src.kwargs
+        )
         ds = ds.shuffle(seed=a.seed, buffer_size=min(1500, scan))
         for i, row in enumerate(ds):
             if i >= scan or len(rows) >= cap:
@@ -74,8 +76,13 @@ for src in all_sources():
             if not recs:
                 c["skipped"] += 1
             for j, r in enumerate(recs):
-                r = {"id": f"{src.name}-{i:07d}-{j}", "source": src.name, "license": src.license,
-                     "task": r.get("task") or src.task, **{k: v for k, v in r.items() if k != "task"}}
+                r = {
+                    "id": f"{src.name}-{i:07d}-{j}",
+                    "source": src.name,
+                    "license": src.license,
+                    "task": r.get("task") or src.task,
+                    **{k: v for k, v in r.items() if k != "task"},
+                }
                 errs = errors(r)
                 if not errs:
                     try:
@@ -89,7 +96,9 @@ for src in all_sources():
                     c["rejected"] += 1
                     c["why:" + errs[0].split(":")[0][:40]] += 1
                     if c["rejected"] <= 5:
-                        rejects.write(json.dumps({"source": src.name, "why": errs, "rec": r}, ensure_ascii=False)[:3000] + "\n")
+                        rejects.write(
+                            json.dumps({"source": src.name, "why": errs, "rec": r}, ensure_ascii=False)[:3000] + "\n"
+                        )
                     continue
                 seen.add(fingerprint(r))
                 rows.append(r)
@@ -105,7 +114,10 @@ for src in all_sources():
     c["fr"] = sum(r["lang"] == "fr" for r in rows)
     c["with_tools"] = sum(bool(r.get("tools")) for r in rows)
     stats["sources"][src.name] = {"repo": src.repo, "license": src.license, "cap": cap, **dict(c)}
-    print(f"{src.name:28s} kept {len(rows):6d}/{cap}  rows {c['rows']}  rejected {c['rejected']}  errors {c['convert_error']}", flush=True)
+    print(
+        f"{src.name:28s} kept {len(rows):6d}/{cap}  rows {c['rows']}  rejected {c['rejected']}  errors {c['convert_error']}",
+        flush=True,
+    )
     kept += rows
 
 for path in a.extra:
@@ -116,8 +128,12 @@ for path in a.extra:
             seen.add(fingerprint(r))
             rows.append(r)
     name = rows[0]["source"] if rows else Path(path).stem
-    stats["sources"][name] = {"repo": path, "kept": len(rows), "thinking": sum(r["thinking"] for r in rows),
-                              "fr": sum(r["lang"] == "fr" for r in rows)}
+    stats["sources"][name] = {
+        "repo": path,
+        "kept": len(rows),
+        "thinking": sum(r["thinking"] for r in rows),
+        "fr": sum(r["lang"] == "fr" for r in rows),
+    }
     print(f"{name:28s} kept {len(rows):6d} (file)", flush=True)
     kept += rows
 rng.shuffle(kept)
@@ -127,8 +143,12 @@ for name, rows in splits.items():
     with open(out / name, "w", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
-stats["total"] = {"train": len(splits["train.jsonl"]), "eval": n_eval,
-                  "thinking": sum(r["thinking"] for r in kept), "fr": sum(r["lang"] == "fr" for r in kept),
-                  "with_tools": sum(bool(r.get("tools")) for r in kept)}
+stats["total"] = {
+    "train": len(splits["train.jsonl"]),
+    "eval": n_eval,
+    "thinking": sum(r["thinking"] for r in kept),
+    "fr": sum(r["lang"] == "fr" for r in kept),
+    "with_tools": sum(bool(r.get("tools")) for r in kept),
+}
 (out / "stats.json").write_text(json.dumps(stats, indent=1, ensure_ascii=False))
 print(json.dumps(stats["total"]))

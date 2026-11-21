@@ -196,15 +196,21 @@ def validate_args(tool: str, args, allowed) -> tuple[dict, str | None]:
     return args, None
 
 
+PAUSE = "pause"  # what a confirm callback returns when it cannot answer now
+
+
 def gate(tool: str, args: dict, *, tainted: bool, side_effects: int, cfg, confirm) -> str:
-    """Decision for one call: 'allow', 'confirmed', 'denied_cap' or 'denied_unconfirmed'."""
+    """Decision for one call: 'allow', 'confirmed', 'denied_cap', 'denied_unconfirmed' or 'pause'."""
     if tool not in SIDE_EFFECT_TOOLS:
         return "allow"
     if side_effects >= cfg.max_side_effects:
         return "denied_cap"
     if not tainted:
         return "allow"
-    return "confirmed" if confirm is not None and confirm(tool, args) is True else "denied_unconfirmed"
+    answer = confirm(tool, args) if confirm is not None else False
+    if answer is PAUSE:
+        return "pause"  # a stateless front end asks the user and resumes the run later (Agent.run(resume=...))
+    return "confirmed" if answer is True else "denied_unconfirmed"
 
 
 # ---------------------------------------------------------------- secrets and audit
@@ -240,17 +246,27 @@ def redact(value):
 
 
 class Audit:
-    """Append-only JSON lines: one per tool call and one per run."""
+    """Append-only JSON lines: one per tool call and one per run. Secrets are redacted before writing.
 
-    def __init__(self, path: Path):
-        self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+    ``path=None`` writes to a stream instead (stdout by default): on a serverless host there is no durable
+    disk, and the platform collects stdout as logs.
+    """
+
+    def __init__(self, path: Path | None, stream=None):
+        self.path, self.stream = (Path(path) if path else None), stream
+        if self.path:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def log(self, event: str, **fields) -> None:
         rec = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "event": event, **fields}
         line = json.dumps(redact(rec), ensure_ascii=False, default=str)
-        with self.path.open("a", encoding="utf-8") as f:
-            f.write(line + "\n")
+        if self.path:
+            with self.path.open("a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        else:
+            import sys
+
+            print(line, file=self.stream or sys.stdout, flush=True)
 
 
 def short_args(args: dict, limit: int = 300) -> dict:

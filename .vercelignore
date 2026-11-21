@@ -1,0 +1,10 @@
+# Allowlist: nothing at the repository root is uploaded to Vercel except what the web app needs.
+# (training data, checkpoints, tests, jobs, scripts and docs stay out of the build and of the function)
+/*
+!app.py
+!birds
+!pyproject.toml
+!requirements.txt
+!vercel.json
+birds/synth
+**/__pycache__

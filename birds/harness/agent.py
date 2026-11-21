@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+import inspect
 import json
 import re
 import time
@@ -12,7 +14,7 @@ import httpx
 
 from birds.harness import guard, meter
 from birds.harness.config import Config, Context
-from birds.harness.llm import STOP
+from birds.harness.llm import STOP, EndpointError
 from birds.harness.tools import TOOLS, SearxngBackend
 from birds.parse import parse_output
 from birds.render import prompt as render_prompt
@@ -22,6 +24,11 @@ from birds.tools import BIRD_TOOLS
 FALLBACK = {
     "fr": "Je n'ai pas pu aboutir à une réponse fiable dans les limites fixées. Pouvez-vous reformuler ou préciser la demande ?",
     "en": "I could not reach a reliable answer within the set limits. Could you rephrase or narrow the request?",
+}
+OUT_OF_TIME = {
+    "fr": "Je n'ai pas eu le temps de terminer dans le délai fixé pour une requête. Relancez, ou découpez la demande "
+    "en étapes plus courtes.",
+    "en": "I ran out of the time allowed for one request. Try again, or split the request into shorter steps.",
 }
 DENIED = {
     "denied_unconfirmed": "Action not performed: this run read external content that looks like it contains instructions, "
@@ -45,6 +52,10 @@ def compact(messages: list[dict]) -> list[dict]:
     ]
 
 
+PAUSE = guard.PAUSE  # a confirm callback returns this to end the run with a pending action (see Agent.run)
+_TOOL_OPEN = "<tool_call>"
+
+
 @dataclass
 class Step:
     generation: int
@@ -56,6 +67,17 @@ class Step:
     flags: list[str] = field(default_factory=list)
     decision: str = "allow"
     chars: int = 0
+
+
+@dataclass
+class Hooks:
+    """Optional callbacks for a front end that shows a run while it happens. All are called from the run's thread."""
+
+    on_token: Callable[[str], None] | None = None  # visible answer text, as it is generated
+    on_reset: Callable[[], None] | None = None  # text already streamed turned out to precede tool calls: drop it
+    on_step_start: Callable[[int, str, dict], None] | None = None  # (index, tool, arguments)
+    on_step_end: Callable[[int, Step], None] | None = None
+    on_status: Callable[[str, dict], None] | None = None  # e.g. ("waking", {"attempt": 2, "retry_in": 5.0})
 
 
 @dataclass
@@ -72,9 +94,66 @@ class Run:
     flagged: bool = False  # some tool result looked like a prompt injection
     reasoning: str = ""
     messages: list[dict] = field(default_factory=list)  # full conversation, to continue a chat
+    pending: dict | None = None  # stop_reason "confirm": {"tool", "arguments"} waiting for the user's decision
+    state: dict | None = None  # stop_reason "confirm": JSON-serialisable loop state for Agent.run(resume=...)
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+class AnswerStream:
+    """Forwards generated text to ``emit`` only once it is certain to be visible answer text.
+
+    The reasoning block and tool-call markup never go through. Text is released at whitespace boundaries and
+    after secret redaction of everything shown so far, so a credential split across chunks is not leaked.
+    """
+
+    def __init__(self, emit: Callable[[str], None], thinking: bool):
+        self.emit, self.state, self.buf, self.shown = emit, ("think" if thinking else "lead"), "", ""
+
+    def feed(self, piece: str) -> None:
+        self.buf += piece
+        if self.state == "think":
+            end = self.buf.find("</think>")
+            if end < 0:
+                return
+            self.buf, self.state = self.buf[end + len("</think>") :], "lead"
+        if self.state == "lead":
+            text = self.buf.lstrip()
+            if text.startswith("<think>"):  # a reasoning block although none was asked for
+                self.buf, self.state = text[len("<think>") :], "think"
+                return self.feed("")
+            if not text or (len(text) < len(_TOOL_OPEN) and _TOOL_OPEN.startswith(text)):
+                return  # nothing yet, or it may still become a tool call
+            if text.startswith(_TOOL_OPEN):
+                self.state = "tool"
+                return
+            self.buf, self.state = text, "text"
+        if self.state == "text":
+            cut = self.buf.find(_TOOL_OPEN)
+            if cut >= 0:
+                self._release(self.buf[:cut])
+                self.state = "tool"
+                return
+            tail = max((n for n in range(1, len(_TOOL_OPEN)) if self.buf.endswith(_TOOL_OPEN[:n])), default=0)
+            safe = self.buf[: len(self.buf) - tail]
+            boundary = max(safe.rfind(" "), safe.rfind("\n"))
+            if boundary > 0:
+                self._release(safe[: boundary + 1])
+
+    def finish(self) -> None:
+        if self.state == "text":
+            self._release(self.buf)
+
+    def _release(self, text: str) -> None:
+        clean = guard.redact(text)
+        if clean.startswith(self.shown) and len(clean) > len(self.shown):
+            self.emit(clean[len(self.shown) :])
+            self.shown = clean
+
+    @property
+    def streamed(self) -> bool:
+        return bool(self.shown)
 
 
 class Agent:
@@ -84,16 +163,20 @@ class Agent:
         tok,
         config: Config,
         *,
-        confirm: Callable[[str, dict], bool] | None = None,
+        confirm: Callable[[str, dict], bool | str] | None = None,
         search=None,
         http: httpx.Client | None = None,
+        hooks: Hooks | None = None,
     ):
         self.llm, self.tok, self.cfg, self.confirm = llm, tok, config, confirm
+        self.hooks = hooks or Hooks()
         # trust_env=False: the fetch client ignores proxy variables unless the operator passes its own client
         self.http = http or httpx.Client(trust_env=False, follow_redirects=False)
         self.search = search or (SearxngBackend(config.searxng_url, self.http) if config.searxng_url else None)
-        self.audit = guard.Audit(config.workspace / config.audit_file)
+        self.audit = guard.Audit(config.workspace / config.audit_file if config.audit_file else None)
         self.tools = [t for t in BIRD_TOOLS if t["function"]["name"] in self._allowed()]
+        params = inspect.signature(llm.generate).parameters
+        self._llm_kwargs = any(p.kind is p.VAR_KEYWORD for p in params.values()) or "on_token" in params
 
     def _allowed(self) -> set[str]:
         """Tools shown to the model: the deployment allowlist, minus what is switched off or not configured."""
@@ -101,84 +184,195 @@ class Agent:
         off |= set() if self.search else {"web_search"}
         return set(self.cfg.allowed_tools) - off
 
+    def _generate(self, prompt: str, thinking: bool, deadline: float) -> tuple[dict, AnswerStream | None]:
+        hooks = self.hooks
+        if not self._llm_kwargs:
+            return self.llm.generate(prompt, self.cfg.max_tokens, STOP), None
+        stream = AnswerStream(hooks.on_token, thinking) if hooks.on_token else None
+        out = self.llm.generate(
+            prompt,
+            self.cfg.max_tokens,
+            STOP,
+            on_token=stream.feed if stream else None,
+            on_status=hooks.on_status,
+            deadline=deadline,
+        )
+        return out, stream
+
     def run(
         self,
-        user: str,
+        user: str = "",
         *,
         history: list[dict] | None = None,
         system: str | None = None,
         thinking: bool = False,
         lang: str | None = None,
+        resume: dict | None = None,
+        decision: bool | None = None,
     ) -> Run:
-        cfg, t0 = self.cfg, time.monotonic()
-        run = Run(lang=lang or detect_lang(user))
-        ctx = Context(config=cfg, http=self.http, search=self.search)
-        messages = list(history or [])
-        if not messages or messages[0]["role"] != "system":
-            messages.insert(0, {"role": "system", "content": system or DEFAULT_SYSTEM[run.lang]})
-        messages.append({"role": "user", "content": guard.defang(user)})
-        gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
-        seen: set[str] = set()
-        budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
+        """Run one user request, or continue one that stopped on a pending confirmation.
 
-        for gen in range(cfg.max_steps):
-            if time.monotonic() - t0 > cfg.timeout_s:
-                run.stop_reason = "timeout"
-                break
-            with gpu:
-                out = self.llm.generate(render_prompt(self.tok, messages, self.tools, thinking), cfg.max_tokens, STOP)
-            run.usage.append({k: out.get(k) for k in ("prompt_tokens", "completion_tokens", "seconds")})
-            text = out.get("text") or ""
-            if thinking and "</think>" not in text:
-                text = "<think>" + text + "</think>"  # ran out of budget while reasoning: there is no answer
-            parsed = parse_output(text)
-            content, run.reasoning = guard.redact(parsed["content"]), parsed["reasoning"]
-            calls = parsed["tool_calls"][: cfg.max_calls_per_step]
-            if not calls:
-                if "<tool_call>" in content:  # opened a call and never closed it
-                    content, run.stop_reason = content.split("<tool_call>", 1)[0].strip(), "malformed_output"
-                else:
-                    run.stop_reason = "answer" if content else "empty_output"
-                break
-            if gen == cfg.max_steps - 1:
-                run.stop_reason = "max_steps"  # the last allowed generation still asks for tools: they are not run
-                break
-            keys = [
-                c["name"] + " " + json.dumps(c["arguments"], sort_keys=True, ensure_ascii=False, default=str)
-                for c in calls
-            ]
-            if any(k in seen for k in keys) or len(set(keys)) < len(keys):
-                run.stop_reason = "loop"  # the same call with the same arguments again
-                break
-            seen.update(keys)
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": parsed["content"],
-                    "reasoning_content": parsed["reasoning"],
-                    "tool_calls": [{"type": "function", "function": dict(c)} for c in calls],
-                }
+        When the ``confirm`` callback returns ``PAUSE``, the run ends with ``stop_reason == "confirm"``,
+        ``run.pending`` (the action) and ``run.state``. Calling ``run(resume=state, decision=True|False)`` later,
+        possibly in another process, performs or refuses that action and carries on: nothing is generated twice.
+        The caller is responsible for the integrity of ``state`` between the two calls (the web app signs it).
+        """
+        cfg, t0, hooks = self.cfg, time.monotonic(), self.hooks
+        deadline = t0 + cfg.timeout_s
+        if resume is not None:
+            st = copy.deepcopy(resume)
+            thinking = bool(st["thinking"])
+            run = Run(lang=st["lang"], flagged=bool(st["flagged"]), reasoning=st.get("reasoning", ""))
+            run.steps = [Step(**s) for s in st["steps"]]
+            run.usage = list(st["usage"])
+            ctx = Context(
+                config=cfg,
+                http=self.http,
+                search=self.search,
+                sources=list(st["sources"]),
+                drafts=list(st["drafts"]),
+                files=list(st["files"]),
+                bytes_fetched=int(st["bytes_fetched"]),
             )
-            ok = 0
-            for c in calls:
-                step, result = self._call(c["name"], c["arguments"], gen, run, ctx, side_effects)
+            messages, seen, queue = st["messages"], set(st["seen"]), list(st["queue"])
+            budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
+            gen, ok, content = st["gen"], st["ok"], st.get("content", "")
+            forced = "confirmed" if decision is True else "denied_unconfirmed"
+        else:
+            run = Run(lang=lang or detect_lang(user))
+            ctx = Context(config=cfg, http=self.http, search=self.search)
+            messages = list(history or [])
+            if not messages or messages[0]["role"] != "system":
+                messages.insert(0, {"role": "system", "content": system or DEFAULT_SYSTEM[run.lang]})
+            messages.append({"role": "user", "content": guard.defang(user)})
+            seen, queue = set(), []
+            budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
+            gen, ok, forced = 0, 0, None
+        gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
+
+        while True:
+            if not queue:  # ---- ask the model
+                if gen >= cfg.max_steps:
+                    run.stop_reason = "max_steps"
+                    break
+                if time.monotonic() > deadline:
+                    run.stop_reason = "timeout"
+                    break
+                try:
+                    with gpu:
+                        out, stream = self._generate(
+                            render_prompt(self.tok, messages, self.tools, thinking), thinking, deadline
+                        )
+                except EndpointError as e:
+                    if e.kind != "timeout":
+                        raise
+                    run.stop_reason = "timeout"  # the endpoint was still answering when the budget ran out
+                    break
+                run.usage.append(
+                    {
+                        k: out.get(k)
+                        for k in ("prompt_tokens", "completion_tokens", "seconds", "prompt_chars", "completion_chars")
+                        if k in out
+                    }
+                )
+                text = out.get("text") or ""
+                if thinking and "</think>" not in text:
+                    text = "<think>" + text + "</think>"  # ran out of budget while reasoning: there is no answer
+                parsed = parse_output(text)
+                content, run.reasoning = guard.redact(parsed["content"]), parsed["reasoning"]
+                calls = parsed["tool_calls"][: cfg.max_calls_per_step]
+                if stream is not None:
+                    if calls or _TOOL_OPEN in content:
+                        if stream.streamed and hooks.on_reset:
+                            hooks.on_reset()  # some text was shown before the model called a tool
+                    else:
+                        stream.finish()
+                if not calls:
+                    if _TOOL_OPEN in content:  # opened a call and never closed it
+                        content, run.stop_reason = content.split(_TOOL_OPEN, 1)[0].strip(), "malformed_output"
+                    else:
+                        run.stop_reason = "answer" if content else "empty_output"
+                    break
+                if gen == cfg.max_steps - 1:
+                    run.stop_reason = "max_steps"  # the last allowed generation still asks for tools: they are not run
+                    break
+                keys = [
+                    c["name"] + " " + json.dumps(c["arguments"], sort_keys=True, ensure_ascii=False, default=str)
+                    for c in calls
+                ]
+                if any(k in seen for k in keys) or len(set(keys)) < len(keys):
+                    run.stop_reason = "loop"  # the same call with the same arguments again
+                    break
+                seen.update(keys)
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": parsed["content"],
+                        "reasoning_content": parsed["reasoning"],
+                        "tool_calls": [{"type": "function", "function": dict(c)} for c in calls],
+                    }
+                )
+                queue, ok = [dict(c) for c in calls], 0
+                gen += 1
+            # ---- run the tool calls of generation gen-1
+            paused = False
+            while queue:
+                c = queue[0]
+                step, result = self._call(c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced)
+                forced = None
+                if step.decision == "pause":
+                    paused = True
+                    break
+                queue.pop(0)
                 side_effects += step.decision in ("allow", "confirmed") and step.tool in guard.SIDE_EFFECT_TOOLS
                 ok += step.decision != "rejected"
                 result = guard.truncate(result, min(cfg.max_result_chars, budget))
                 budget = max(0, budget - len(result))
                 step.chars, step.result = len(result), result[:200]
                 run.steps.append(step)
+                if hooks.on_step_end:
+                    hooks.on_step_end(len(run.steps) - 1, step)
                 messages.append({"role": "tool", "content": result})
+            if paused:
+                run.stop_reason = "confirm"
+                run.pending = {"tool": step.tool, "arguments": step.arguments}
+                run.state = {
+                    "v": 1,
+                    "lang": run.lang,
+                    "thinking": thinking,
+                    "messages": messages,
+                    "seen": sorted(seen),
+                    "queue": queue,
+                    "budget": budget,
+                    "side_effects": side_effects,
+                    "bad_streak": bad_streak,
+                    "gen": gen,
+                    "ok": ok,
+                    "content": content,
+                    "flagged": run.flagged,
+                    "reasoning": run.reasoning,
+                    "steps": [asdict(s) for s in run.steps],
+                    "usage": run.usage,
+                    "sources": ctx.sources,
+                    "drafts": ctx.drafts,
+                    "files": ctx.files,
+                    "bytes_fetched": ctx.bytes_fetched,
+                }
+                break
             bad_streak = 0 if ok else bad_streak + 1
             if bad_streak >= 2:
                 run.stop_reason = "invalid_tool_calls"  # one retry after a malformed step, not more
                 break
-        else:
-            run.stop_reason = "max_steps"
 
-        run.answer = content if run.stop_reason == "answer" else (content or FALLBACK[run.lang])
-        if run.stop_reason == "answer":
+        if run.stop_reason == "confirm":
+            run.answer = ""
+        elif run.stop_reason == "answer":
+            run.answer = content
             messages.append({"role": "assistant", "content": content})
+        elif run.stop_reason == "timeout":
+            run.answer = OUT_OF_TIME[run.lang]
+        else:
+            run.answer = content or FALLBACK[run.lang]
         run.messages, run.sources, run.drafts, run.files = messages, ctx.sources, ctx.drafts, ctx.files
         run.report = meter.report(
             run.usage,
@@ -201,19 +395,32 @@ class Agent:
         )
         return run
 
-    def _call(self, name: str, raw_args, gen: int, run: Run, ctx: Context, side_effects: int) -> tuple[Step, str]:
-        """Validate, gate and execute one tool call. Returns the step record and the text given back to the model."""
+    def _call(
+        self, name: str, raw_args, gen: int, run: Run, ctx: Context, side_effects: int, forced: str | None = None
+    ) -> tuple[Step, str]:
+        """Validate, gate and execute one tool call. Returns the step record and the text given back to the model.
+
+        ``forced`` is the user's answer to a confirmation asked in an earlier call of ``run`` (resume).
+        """
         t0 = time.monotonic()
         step = Step(generation=gen, tool=name, arguments=raw_args if isinstance(raw_args, dict) else {})
         args, err = guard.validate_args(name, raw_args, self.cfg.allowed_tools)
+        if self.hooks.on_step_start and forced is None:
+            self.hooks.on_step_start(len(run.steps), str(name), step.arguments if err else args)
         if err:
             step.decision, step.error, result = "rejected", err, f"Error: {err} Correct the call or answer without it."
         else:
             step.arguments = args
             if name != "run_python" or self.cfg.allow_python:  # a switched-off tool only returns "not enabled"
-                step.decision = guard.gate(
-                    name, args, tainted=run.flagged, side_effects=side_effects, cfg=self.cfg, confirm=self.confirm
-                )
+                if forced is not None and name in guard.SIDE_EFFECT_TOOLS:
+                    capped = side_effects >= self.cfg.max_side_effects
+                    step.decision = "denied_cap" if capped else forced
+                else:
+                    step.decision = guard.gate(
+                        name, args, tainted=run.flagged, side_effects=side_effects, cfg=self.cfg, confirm=self.confirm
+                    )
+            if step.decision == "pause":
+                return step, ""
             if step.decision in DENIED:
                 step.error = step.decision
                 result = DENIED[step.decision]

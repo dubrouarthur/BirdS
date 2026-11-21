@@ -1,0 +1,13 @@
+# Run-time dependencies of the Bird web app + agent harness (no model, no transformers, no torch).
+# Mirror of [project].dependencies in pyproject.toml (tests/test_deploy.py checks they match).
+# Vercel reads pyproject.toml first; this file is for other hosts and for a quick clean install:
+#   uv venv /tmp/bird-venv && uv pip install --python /tmp/bird-venv/bin/python -r requirements.txt
+fastapi>=0.115
+httpx>=0.27
+jinja2>=3.1.6
+jsonschema>=4
+trafilatura>=2
+python-pptx>=1
+python-docx>=1.1
+openpyxl>=3.1
+pypdf>=5

@@ -1,201 +1,442 @@
-// Bird web chat. Vanilla ES modules, no framework, no build step.
-// The frontend depends only on the API contract: /api/health, /api/chat (SSE), /api/confirm, /files/{name}.
-import { makeT } from "./i18n.js";
-import { renderMarkdown, safeUrl } from "./markdown.js";
+// Bird web chat. Vanilla ES modules, no framework, no build step, no external request.
+// The frontend depends only on the API contract: /api/health, /api/chat (SSE), /api/endpoint/test.
+import {
+  $,
+  activeMode,
+  activeModel,
+  announce,
+  button,
+  download,
+  fmtDate,
+  fmtInt,
+  h,
+  icon,
+  isDemo,
+  savePrefs,
+  state,
+  store,
+  t,
+  toast,
+  uid,
+} from "./core.js";
+import {
+  exportMarkdown,
+  forgetRendered,
+  renderConversation,
+  setHandlers,
+  updateStream,
+  updateTurn,
+} from "./turns.js";
+import {
+  convUsages,
+  ledgerAdd,
+  openShortcuts,
+  openWelcome,
+  renderAbout,
+  renderFootprint,
+  renderSettings,
+  setViewHooks,
+  totals,
+} from "./views.js";
 
-const $ = (id) => document.getElementById(id);
-const store = {
-  get(key) {
-    try {
-      return localStorage.getItem(key);
-    } catch {
-      return null;
-    }
-  },
-  set(key, value) {
-    try {
-      if (value === null) localStorage.removeItem(key);
-      else localStorage.setItem(key, value);
-    } catch {
-      /* private mode or quota: persistence is optional */
-    }
-  },
-};
+const PASTE_AS_FILE = 3000; // characters: longer pasted text becomes an attached document
+const KEEP_FILE_B64 = 400_000; // larger generated files are not kept in localStorage
+const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|log|rst|yaml|yml)$/i;
 
-const state = {
-  lang: store.get("bird.lang") === "en" ? "en" : "fr",
-  thinking: false,
+// ------------------------------------------------------------------ conversations (localStorage)
+
+const newConv = () => ({
+  id: uid("c"),
+  title: "",
+  created: Date.now(),
+  updated: Date.now(),
   turns: [],
-  health: null,
-  busy: false,
-  abort: null,
-  confirm: null,
-  seq: 0,
-};
-const t = makeT(() => state.lang);
+  attachments: [],
+});
 
-// ------------------------------------------------------------------ DOM helpers
+function slim(conv) {
+  return {
+    ...conv,
+    turns: conv.turns
+      .filter((turn) => turn.role === "user" || turn.status !== "running")
+      .map((turn) => {
+        if (turn.role === "user") return turn;
+        const { ui, live, text, ...rest } = turn;
+        return {
+          ...rest,
+          files: (rest.files || []).map((f) =>
+            f.data && f.data.length > KEEP_FILE_B64 ? { ...f, data: null } : f,
+          ),
+        };
+      }),
+  };
+}
 
-function h(tag, attrs, ...children) {
-  const el = document.createElement(tag);
-  for (const [key, value] of Object.entries(attrs || {})) {
-    if (value === null || value === undefined || value === false) continue;
-    if (key === "class") el.className = value;
-    else if (key === "text") el.textContent = value;
-    else if (key.startsWith("on")) el.addEventListener(key.slice(2), value);
-    else el.setAttribute(key, value === true ? "" : value);
+function saveConv() {
+  const conv = state.conv;
+  if (!conv) return;
+  if (!conv.turns.length) {
+    store.set(`bird.conv.${conv.id}`, null);
+    state.convs = state.convs.filter((c) => c.id !== conv.id);
+  } else {
+    conv.updated = Date.now();
+    const entry = {
+      id: conv.id,
+      title: conv.title,
+      created: conv.created,
+      updated: conv.updated,
+      n: conv.turns.length,
+    };
+    state.convs = [entry, ...state.convs.filter((c) => c.id !== conv.id)];
+    let saved = store.set(`bird.conv.${conv.id}`, JSON.stringify(slim(conv)));
+    for (let i = 0; !saved && i < 6 && state.convs.length > 1; i++) {
+      const oldest = state.convs.pop(); // storage full: let the oldest conversation go
+      store.set(`bird.conv.${oldest.id}`, null);
+      saved = store.set(`bird.conv.${conv.id}`, JSON.stringify(slim(conv)));
+      if (i === 0) toast(t("toast.storage"), "error");
+    }
   }
-  for (const child of children.flat()) {
-    if (child === null || child === undefined || child === false) continue;
-    el.append(child.nodeType ? child : document.createTextNode(String(child)));
-  }
-  return el;
+  store.set("bird.convs", JSON.stringify(state.convs));
+  store.set("bird.current", conv.turns.length ? conv.id : null);
+  renderSidebar();
 }
 
-// Icons are constants defined here, never model output.
-const ICONS = {
-  web_search: '<circle cx="9" cy="9" r="5.2"/><path d="M13 13l4 4"/>',
-  read_page:
-    '<path d="M5.5 3h6l3.5 3.5V17h-9.500z"/><path d="M11.5 3v3.500H15M8 10.500h4.500M8 13.500h4.500"/>',
-  read_file:
-    '<path d="M5.5 3h6l3.5 3.500V17h-9.500z"/><path d="M11.500 3v3.500H15"/>',
-  draft_email:
-    '<rect x="3" y="5" width="14" height="10.500" rx="1.500"/><path d="M3.500 6.500l6.500 5 6.500-5"/>',
-  make_slides:
-    '<rect x="3" y="4" width="14" height="9" rx="1.200"/><path d="M10 13v3.500M7 16.500h6"/>',
-  make_document:
-    '<path d="M5.500 3h6l3.500 3.500V17h-9.500z"/><path d="M8 9h4.500M8 11.500h4.500M8 14h3"/>',
-  make_sheet:
-    '<rect x="3.500" y="4" width="13" height="12" rx="1.200"/><path d="M3.500 8h13M3.500 12h13M8 4v12"/>',
-  run_python:
-    '<rect x="4.500" y="3" width="11" height="14" rx="1.500"/><path d="M7.500 6.500h5M7.500 10.500h.01M10 10.500h.01M12.500 10.500h.01M7.500 13.500h.01M10 13.500h.01M12.500 13.500h.01"/>',
-  tool: '<circle cx="10" cy="10" r="2.200"/><circle cx="10" cy="10" r="6.500"/>',
-  check: '<path d="M4.500 10.500l3.500 3.500 7.500-8"/>',
-  cross: '<path d="M5.500 5.500l9 9M14.500 5.500l-9 9"/>',
-  ban: '<circle cx="10" cy="10" r="6.500"/><path d="M5.500 14.500l9-9"/>',
-  alert:
-    '<path d="M10 3.500l7 12.500H3z"/><path d="M10 8.500v3.500M10 14.200h.01"/>',
-  download: '<path d="M10 3.500v9M6 9l4 4 4-4M4 16.500h12"/>',
-  copy: '<rect x="7" y="7" width="9.500" height="9.500" rx="1.500"/><path d="M13 7V5a1.500 1.500 0 0 0-1.500-1.500H5A1.500 1.500 0 0 0 3.500 5v6.500A1.500 1.500 0 0 0 5 13h2"/>',
-  leaf: '<path d="M4 16c0-6.500 4.200-11 12-12 .2 7.600-3.600 12-9.600 12.400M4 16.600C6 12.500 8.600 10 12 8.200"/>',
-  chevron: '<path d="M7.500 5l5 5-5 5"/>',
-  file: '<path d="M5.500 3h6l3.500 3.500V17h-9.500z"/><path d="M11.500 3v3.500H15"/>',
-  retry: '<path d="M4.500 10a5.500 5.500 0 1 0 1.800-4.100M4.500 4v3h3"/>',
-};
-
-function icon(name, cls = "") {
-  const wrap = document.createElement("span");
-  wrap.className = "icon-wrap";
-  wrap.innerHTML = `<svg class="icon ${cls}" viewBox="0 0 20 20" aria-hidden="true" focusable="false">${ICONS[name] || ICONS.tool}</svg>`;
-  return wrap.firstChild;
-}
-
-// ------------------------------------------------------------------ formatting
-
-const nf = (options) =>
-  new Intl.NumberFormat(state.lang === "en" ? "en-GB" : "fr-FR", options);
-const fmtInt = (n) => nf({ maximumFractionDigits: 0 }).format(n || 0);
-const fmtSeconds = (s) =>
-  `${nf({ minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(s || 0)} ${t("unit.s")}`;
-const fmtSig = (v) => nf({ maximumSignificantDigits: 3 }).format(v);
-
-function fmtBytes(bytes) {
-  if (!bytes) return `0 ${t("unit.kb")}`;
-  if (bytes < 1000) return `${fmtInt(bytes)} ${t("unit.b")}`;
-  if (bytes < 1e6)
-    return `${nf({ maximumFractionDigits: bytes < 1e4 ? 1 : 0 }).format(bytes / 1000)} ${t("unit.kb")}`;
-  return `${nf({ maximumFractionDigits: 1 }).format(bytes / 1e6)} ${t("unit.mb")}`;
-}
-
-const hasEnergy = (u) =>
-  u &&
-  typeof u.energy_wh === "number" &&
-  (u.energy_kind === "measured" || u.energy_kind === "estimated");
-const fmtEnergy = (wh, kind) =>
-  `${kind === "estimated" ? "≈ " : ""}${fmtSig(wh)} Wh`;
-const fmtCo2 = (g, kind) =>
-  `${kind === "estimated" ? "≈ " : ""}${fmtSig(g)} g CO₂e`;
-const isDemo = () => state.health?.backend === "demo";
-const toolLabel = (tool) => {
-  const key = `tool.${tool}`;
-  const label = t(key);
-  return label === key ? tool : label;
-};
-
-function argsSummary(tool, args) {
-  const a = args && typeof args === "object" ? args : {};
-  const pick = (...keys) =>
-    keys.map((k) => a[k]).find((v) => typeof v === "string" && v.trim());
-  let text;
-  if (tool === "draft_email")
-    text = [pick("to"), pick("subject")].filter(Boolean).join(" — ");
-  else if (pick("url")) {
-    const url = safeUrl(pick("url"));
-    text = url
-      ? new URL(url).host + new URL(url).pathname.replace(/\/$/, "")
-      : pick("url");
-  } else
-    text = pick(
-      "query",
-      "q",
-      "title",
-      "path",
-      "name",
-      "filename",
-      "file",
-      "subject",
+function loadConv(id) {
+  const raw = store.json(`bird.conv.${id}`, null);
+  if (!raw || !Array.isArray(raw.turns)) return null;
+  raw.attachments = Array.isArray(raw.attachments) ? raw.attachments : [];
+  raw.turns = raw.turns
+    .filter((x) => x && (x.role === "user" || x.role === "assistant"))
+    .map((x) =>
+      x.role === "user"
+        ? {
+            role: "user",
+            content: String(x.content ?? ""),
+            attachments: x.attachments || [],
+          }
+        : { steps: [], files: [], ...x, ui: {} },
     );
-  if (!text) {
-    const first = Object.entries(a).find(
-      ([, v]) => typeof v === "string" || typeof v === "number",
-    );
-    text = first ? `${first[0]} : ${first[1]}` : "";
-  }
-  return String(text).replace(/\s+/g, " ").slice(0, 140);
+  return raw;
 }
 
-// ------------------------------------------------------------------ i18n + chrome
+function openConv(id) {
+  stop();
+  const conv = (id && loadConv(id)) || newConv();
+  state.conv = conv;
+  state.editing = false;
+  forgetRendered();
+  showView("chat");
+  renderChat();
+  renderSidebar();
+  scrollToEnd(true);
+  closeDrawer();
+}
+
+function autoTitle(text) {
+  const clean = String(text).replace(/\s+/g, " ").trim();
+  if (clean.length <= 52) return clean;
+  const cut = clean.slice(0, 52);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(" "), 24))}…`;
+}
+
+// ------------------------------------------------------------------ sidebar
+
+let search = "";
+let menuFor = null;
+let renaming = null;
+
+function renderSidebar() {
+  const list = $("conv-list");
+  const q = search.trim().toLowerCase();
+  const items = state.convs.filter(
+    (c) => !q || (c.title || "").toLowerCase().includes(q),
+  );
+  if (!items.length) {
+    list.replaceChildren(
+      h("p", {
+        class: "side-empty",
+        text: t(state.convs.length ? "side.none" : "side.empty"),
+      }),
+    );
+    $("btn-clear").hidden = !state.convs.length;
+    return;
+  }
+  const day = 86_400_000;
+  const start = new Date().setHours(0, 0, 0, 0);
+  const groups = [
+    ["side.today", items.filter((c) => c.updated >= start)],
+    [
+      "side.week",
+      items.filter((c) => c.updated < start && c.updated >= start - 7 * day),
+    ],
+    ["side.older", items.filter((c) => c.updated < start - 7 * day)],
+  ];
+  const row = (c) => {
+    const title = c.title || t("side.untitled");
+    const current = state.conv?.id === c.id;
+    if (renaming === c.id) {
+      const input = h("input", {
+        class: "rename",
+        type: "text",
+        value: title,
+        maxlength: "80",
+        "aria-label": t("side.rename.prompt"),
+      });
+      const done = (save) => {
+        if (renaming !== c.id) return;
+        renaming = null;
+        const value = input.value.trim();
+        if (save && value) {
+          c.title = value;
+          const conv = current ? state.conv : loadConv(c.id);
+          if (conv) {
+            conv.title = value;
+            store.set(`bird.conv.${c.id}`, JSON.stringify(slim(conv)));
+          }
+          store.set("bird.convs", JSON.stringify(state.convs));
+          updateTop();
+        }
+        renderSidebar();
+      };
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") done(true);
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          done(false);
+        }
+      });
+      input.addEventListener("blur", () => done(true));
+      window.setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 0);
+      return h("li", { class: "conv is-renaming" }, input);
+    }
+    const open = menuFor === c.id;
+    return h(
+      "li",
+      { class: `conv${current ? " is-current" : ""}`, "data-conv": c.id },
+      h(
+        "button",
+        {
+          class: "conv-open",
+          type: "button",
+          "aria-current": current ? "page" : null,
+          title: `${title} — ${fmtDate(c.updated)}`,
+          onclick: () => openConv(c.id),
+        },
+        h("span", { class: "conv-title", text: title }),
+      ),
+      h(
+        "button",
+        {
+          class: "btn btn-quiet btn-icon btn-small conv-more",
+          type: "button",
+          "aria-label": t("side.more", { title }),
+          "aria-expanded": String(open),
+          onclick: () => ((menuFor = open ? null : c.id), renderSidebar()),
+        },
+        icon("more"),
+      ),
+      open &&
+        h(
+          "div",
+          {
+            class: "conv-menu",
+            role: "group",
+            "aria-label": t("side.more", { title }),
+          },
+          button(
+            "btn-quiet btn-small",
+            "edit",
+            t("side.rename"),
+            () => ((renaming = c.id), (menuFor = null), renderSidebar()),
+            { "data-conv-act": "rename" },
+          ),
+          button(
+            "btn-quiet btn-small",
+            "download",
+            t("side.export"),
+            () => exportConv(c.id),
+            { "data-conv-act": "export" },
+          ),
+          button(
+            "btn-quiet btn-small btn-danger",
+            "trash",
+            t("side.delete"),
+            () => deleteConv(c.id, title),
+            { "data-conv-act": "delete" },
+          ),
+        ),
+    );
+  };
+  list.replaceChildren(
+    ...groups
+      .filter(([, g]) => g.length)
+      .map(([label, g]) =>
+        h(
+          "section",
+          null,
+          h("h3", { class: "eyebrow", text: t(label) }),
+          h("ul", null, g.map(row)),
+        ),
+      ),
+  );
+  $("btn-clear").hidden = false;
+}
+
+function exportConv(id) {
+  const conv = state.conv?.id === id ? state.conv : loadConv(id);
+  if (!conv) return;
+  const name = `${
+    (conv.title || "bird")
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 40) || "bird"
+  }.md`;
+  download(name, "text/markdown;charset=utf-8", exportMarkdown(conv));
+  menuFor = null;
+  renderSidebar();
+  toast(t("toast.exported"), "ok");
+}
+
+function deleteConv(id, title) {
+  if (!window.confirm(t("side.delete.confirm", { title }))) return;
+  store.set(`bird.conv.${id}`, null);
+  state.convs = state.convs.filter((c) => c.id !== id);
+  store.set("bird.convs", JSON.stringify(state.convs));
+  menuFor = null;
+  if (state.conv?.id === id) openConv(null);
+  else renderSidebar();
+  toast(t("toast.deleted"), "ok");
+}
+
+function clearAll() {
+  if (!window.confirm(t("side.clear.confirm"))) return;
+  for (const key of store.keys("bird.conv.")) store.set(key, null);
+  state.convs = [];
+  store.set("bird.convs", null);
+  store.set("bird.current", null);
+  openConv(null);
+  toast(t("toast.cleared"), "ok");
+}
+
+const isNarrow = () => window.matchMedia("(max-width: 900px)").matches;
+function setSidebar(open) {
+  document.body.classList.toggle("side-open", open);
+  document.body.classList.toggle("side-closed", !open);
+  delete document.documentElement.dataset.side;
+  $("btn-menu").setAttribute("aria-expanded", String(open));
+  $("backdrop").hidden = !(open && isNarrow());
+  $("sidebar").inert = !open;
+  if (!isNarrow()) store.set("bird.side", open ? "1" : "0");
+  if (open && isNarrow()) $("btn-new").focus();
+}
+const closeDrawer = () => isNarrow() && setSidebar(false);
+
+// ------------------------------------------------------------------ views and chrome
+
+function showView(view) {
+  state.view = view;
+  for (const name of ["chat", "footprint", "settings", "about"])
+    $(`view-${name}`).hidden = name !== view;
+  $("dock").hidden = view !== "chat";
+  $("btn-back").hidden = view === "chat";
+  if (view === "footprint") renderFootprint();
+  if (view === "settings") renderSettings();
+  if (view === "about") renderAbout();
+  updateTop();
+  if (view !== "chat") {
+    $("scroll").scrollTop = 0;
+    closeDrawer();
+    $(`view-${view}`).querySelector("h2").focus();
+  }
+  updateJump();
+}
+
+function updateTop() {
+  const titles = {
+    footprint: t("fp.title"),
+    settings: t("set.title"),
+    about: t("about.title"),
+  };
+  $("top-title").textContent =
+    titles[state.view] || state.conv?.title || t("side.untitled");
+  const model = activeModel();
+  $("model-name").textContent = isDemo() ? t("demo.badge") : model;
+  $("btn-model").classList.toggle("is-demo", isDemo());
+  const label = t("nav.model", { model: isDemo() ? t("mode.demo") : model });
+  $("btn-model").setAttribute("aria-label", label);
+  $("btn-model").title = label;
+  const s = totals(convUsages(state.conv));
+  $("footprint-total").textContent = s.n
+    ? `${fmtInt(s.prompt + s.completion)} tokens`
+    : t("nav.footprint");
+  document.title = state.conv?.title
+    ? `${state.conv.title} — Bird`
+    : t("app.title");
+}
+
+function applyTheme() {
+  const theme = state.prefs.theme;
+  if (theme === "light" || theme === "dark")
+    document.documentElement.dataset.theme = theme;
+  else delete document.documentElement.dataset.theme;
+  const dark =
+    theme === "dark" ||
+    (theme !== "light" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document
+    .querySelector('meta[name="theme-color"]')
+    .setAttribute("content", dark ? "#111613" : "#f5f3ea");
+}
 
 function applyStrings() {
-  document.documentElement.lang = state.lang;
-  document.title = t("app.title");
+  document.documentElement.lang = state.prefs.lang;
   for (const el of document.querySelectorAll("[data-i18n]"))
     el.textContent = t(el.dataset.i18n);
-  for (const el of document.querySelectorAll("[data-i18n-aria]"))
+  for (const el of document.querySelectorAll("[data-i18n-aria]")) {
     el.setAttribute("aria-label", t(el.dataset.i18nAria));
-  for (const el of document.querySelectorAll("[data-i18n-title]"))
-    el.title = t(el.dataset.i18nTitle);
+    if (el.classList.contains("btn-icon")) el.title = t(el.dataset.i18nAria);
+  }
   for (const el of document.querySelectorAll("[data-i18n-placeholder]"))
     el.placeholder = t(el.dataset.i18nPlaceholder);
-  $("btn-lang").textContent = state.lang === "fr" ? "EN" : "FR";
-  $("btn-lang").lang = state.lang === "fr" ? "en" : "fr";
-  updateThemeButton();
-  renderExamples();
 }
 
-const currentTheme = () =>
-  document.documentElement.dataset.theme ||
-  (window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light");
+function showBanner(text) {
+  $("banner").textContent = text || "";
+  $("banner").hidden = !text;
+}
 
-function updateThemeButton() {
-  const label = t(
-    currentTheme() === "dark" ? "nav.theme.light" : "nav.theme.dark",
+// ------------------------------------------------------------------ empty state and suggestions
+
+function renderEmpty() {
+  const empty = $("empty");
+  const turns = state.conv?.turns || [];
+  empty.hidden = turns.length > 0;
+  if (turns.length) return;
+  const withDoc = (state.conv?.attachments || []).length > 0;
+  const set = withDoc
+    ? [
+        ["doc.summary", "read_file"],
+        ["doc.minutes", "make_document"],
+        ["doc.email", "draft_email"],
+        ["doc.slides", "make_slides"],
+      ]
+    : [
+        ["email", "draft_email"],
+        ["minutes", "make_document"],
+        ["slides", "make_slides"],
+        ["search", "web_search"],
+      ];
+  $("examples-title").textContent = t(
+    withDoc ? "empty.examples.doc" : "empty.examples",
   );
-  $("btn-theme").setAttribute("aria-label", label);
-  $("btn-theme").title = label;
-}
-
-function renderExamples() {
-  const list = $("examples");
-  list.replaceChildren(
-    ...[
-      ["email", "draft_email"],
-      ["minutes", "make_document"],
-      ["slides", "make_slides"],
-      ["search", "web_search"],
-    ].map(([key, ico]) =>
+  $("demo-note").hidden = !isDemo();
+  $("examples").replaceChildren(
+    ...set.map(([key, ico]) =>
       h(
         "li",
         null,
@@ -205,6 +446,7 @@ function renderExamples() {
             class: "chip",
             type: "button",
             "data-example": key,
+            title: t(`ex.${key}.prompt`),
             onclick: () => send(t(`ex.${key}.prompt`)),
           },
           h("span", { class: "chip-icon" }, icon(ico)),
@@ -220,899 +462,273 @@ function renderExamples() {
   );
 }
 
-function announce(text) {
-  const live = $("live");
-  live.textContent = "";
-  window.setTimeout(() => (live.textContent = text), 30);
+function renderChat() {
+  renderEmpty();
+  renderConversation();
+  renderAttachments();
+  updateComposer();
+  updateTop();
 }
 
-function showBanner(text) {
-  $("banner").textContent = text || "";
-  $("banner").hidden = !text;
+// ------------------------------------------------------------------ scrolling
+
+let stick = true;
+const scroller = () => $("scroll");
+const nearBottom = () =>
+  scroller().scrollHeight - scroller().scrollTop - scroller().clientHeight <
+  120;
+function scrollToEnd(force) {
+  if (force) stick = true;
+  if (stick) scroller().scrollTop = scroller().scrollHeight;
+  updateJump();
+}
+function updateJump() {
+  $("btn-jump").hidden =
+    state.view !== "chat" || stick || !(state.conv?.turns || []).length;
 }
 
-// ------------------------------------------------------------------ turns
+// ------------------------------------------------------------------ composer
+
+const input = () => $("composer-input");
+
+function autosize() {
+  const el = input();
+  el.style.height = "auto";
+  el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+}
+
+function pendingConfirm() {
+  const turns = state.conv?.turns || [];
+  const last = turns[turns.length - 1];
+  return last && last.role === "assistant" && last.status === "confirm"
+    ? last
+    : null;
+}
+
+function updateComposer() {
+  const el = input();
+  const text = el.value;
+  const send = $("btn-send");
+  const pending = pendingConfirm();
+  const reason = !state.online
+    ? "composer.send.offline"
+    : state.busy
+      ? "composer.send.busy"
+      : pending
+        ? "composer.send.pending"
+        : !text.trim()
+          ? "composer.send.empty"
+          : "";
+  send.disabled = !!reason;
+  send.hidden = state.busy;
+  send.title = t(reason || "composer.send");
+  $("send-why").textContent = reason ? t(reason) : "";
+  $("btn-stop").hidden = !state.busy;
+  const count = $("composer-count");
+  if (text.length > 1200) {
+    count.hidden = false;
+    count.textContent = `${t("composer.count", { chars: fmtInt(text.length), tokens: fmtInt(Math.ceil(text.length / 4)) })}${text.length > 6000 ? ` — ${t("composer.count.long")}` : ""}`;
+    count.classList.toggle("is-long", text.length > 6000);
+  } else count.hidden = true;
+  $("editing").hidden = !state.editing;
+  $("btn-thinking").setAttribute("aria-checked", String(state.thinking));
+  updateSlash();
+}
+
+function renderAttachments() {
+  const list = state.conv?.attachments || [];
+  const box = $("attachments");
+  box.hidden = !list.length;
+  box.replaceChildren(
+    h(
+      "ul",
+      { class: "att-list" },
+      list.map((a, i) =>
+        h(
+          "li",
+          { class: "att" },
+          icon("file"),
+          h("span", { class: "att-name", text: a.name }),
+          h("span", { class: "att-size num", text: fmtInt(a.content.length) }),
+          h(
+            "button",
+            {
+              class: "att-remove",
+              type: "button",
+              "aria-label": t("composer.attach.remove", { name: a.name }),
+              onclick: () => (
+                state.conv.attachments.splice(i, 1),
+                renderAttachments(),
+                renderEmpty(),
+                saveIfStarted()
+              ),
+            },
+            icon("cross"),
+          ),
+        ),
+      ),
+    ),
+    h("p", { class: "att-note" }, icon("info"), t("composer.attach.note")),
+  );
+}
+const saveIfStarted = () => state.conv.turns.length && saveConv();
+
+function addAttachment(name, content) {
+  const limits = state.health?.limits || {};
+  const maxChars = limits.max_attachment_chars || 60_000;
+  const maxCount = limits.max_attachments || 4;
+  const list = state.conv.attachments;
+  if (list.length >= maxCount)
+    return toast(t("composer.attach.toomany", { max: maxCount }), "error");
+  if (content.length > maxChars)
+    return toast(
+      t("composer.attach.toolarge", {
+        name,
+        n: fmtInt(content.length),
+        max: fmtInt(maxChars),
+      }),
+      "error",
+    );
+  let safe =
+    name
+      .normalize("NFKD")
+      .replace(/[^A-Za-z0-9._-]+/g, "-")
+      .replace(/^[-.]+|[-.]+$/g, "")
+      .slice(0, 60) || "document.txt";
+  if (!/\.[A-Za-z0-9]{1,8}$/.test(safe)) safe += ".txt";
+  const stem = safe.replace(/(\.[^.]+)$/, "");
+  const ext = safe.slice(stem.length);
+  for (let n = 2; list.some((a) => a.name === safe); n++)
+    safe = `${stem}-${n}${ext}`;
+  list.push({ name: safe, content });
+  renderAttachments();
+  renderEmpty();
+  saveIfStarted();
+  return true;
+}
+
+async function onFiles(files) {
+  for (const file of files) {
+    if (
+      !(
+        TEXT_EXT.test(file.name) ||
+        /^text\//.test(file.type) ||
+        file.type === "application/json"
+      )
+    ) {
+      toast(t("composer.attach.type", { name: file.name }), "error");
+      continue;
+    }
+    if (file.size > 2_000_000) {
+      toast(
+        t("composer.attach.toolarge", {
+          name: file.name,
+          n: fmtInt(file.size),
+          max: fmtInt(state.health?.limits?.max_attachment_chars || 60_000),
+        }),
+        "error",
+      );
+      continue;
+    }
+    addAttachment(file.name, await file.text());
+  }
+  input().focus();
+}
+
+// slash-style quick actions
+const SLASH = [
+  ["mail", "draft_email"],
+  ["cr", "make_document"],
+  ["pres", "make_slides"],
+  ["search", "web_search"],
+];
+let slashIndex = 0;
+function slashMatches() {
+  const value = input().value;
+  if (!/^\/[^\s]*$/.test(value)) return null;
+  const q = value.slice(1).toLowerCase();
+  return SLASH.filter(
+    ([key]) =>
+      key.startsWith(q) || t(`slash.${key}`).toLowerCase().startsWith(q),
+  );
+}
+function updateSlash() {
+  const menu = $("slash-menu");
+  const matches = slashMatches();
+  const open = !!matches && matches.length > 0 && !state.busy;
+  menu.hidden = !open;
+  input().setAttribute("aria-expanded", String(open));
+  if (!open) return input().removeAttribute("aria-activedescendant");
+  slashIndex = Math.min(slashIndex, matches.length - 1);
+  menu.replaceChildren(
+    h("p", { class: "eyebrow", text: t("slash.title") }),
+    h(
+      "ul",
+      { role: "listbox", id: "slash-list", "aria-label": t("slash.title") },
+      matches.map(([key, ico], i) =>
+        h(
+          "li",
+          {
+            role: "option",
+            id: `slash-${key}`,
+            class: i === slashIndex ? "is-active" : "",
+            "aria-selected": String(i === slashIndex),
+            onmousedown: (e) => (e.preventDefault(), pickSlash(key)),
+          },
+          h("span", { class: "chip-icon" }, icon(ico)),
+          h("span", { class: "slash-name", text: `/${key}` }),
+          h("span", { class: "slash-title", text: t(`slash.${key}`) }),
+          h("span", { class: "slash-hint", text: t(`slash.${key}.hint`) }),
+        ),
+      ),
+    ),
+  );
+  input().setAttribute(
+    "aria-activedescendant",
+    `slash-${matches[slashIndex][0]}`,
+  );
+}
+function pickSlash(key) {
+  const el = input();
+  const tpl = t(`slash.${key}.tpl`);
+  el.value = tpl;
+  autosize();
+  updateComposer();
+  el.focus();
+  const firstBlank = tpl.search(/: ?$/m); // put the caret on the first field left to fill
+  const pos = firstBlank >= 0 ? tpl.indexOf("\n", firstBlank) : -1;
+  el.setSelectionRange(
+    pos >= 0 ? pos : tpl.length,
+    pos >= 0 ? pos : tpl.length,
+  );
+}
+
+// ------------------------------------------------------------------ chat engine
 
 function newAssistantTurn() {
   return {
     role: "assistant",
-    id: `a${Date.now().toString(36)}${state.seq++}`,
+    id: uid("a"),
     steps: [],
+    files: [],
     reasoning: "",
+    text: "",
     answer: null,
     usage: null,
     error: null,
+    confirm: null,
     status: "running",
+    thinking: state.thinking,
+    mode: activeMode(),
+    ts: Date.now(),
+    feedback: null,
     ui: {},
   };
 }
 
-function persist() {
-  const turns = state.turns.filter(
-    (turn) => turn.role === "user" || turn.status !== "running",
-  );
-  store.set(
-    "bird.conversation",
-    turns.length ? JSON.stringify({ v: 1, turns }) : null,
-  );
-}
-
-function restore() {
-  try {
-    const saved = JSON.parse(store.get("bird.conversation") || "null");
-    if (!saved || saved.v !== 1 || !Array.isArray(saved.turns)) return;
-    state.turns = saved.turns
-      .filter(
-        (turn) => turn && (turn.role === "user" || turn.role === "assistant"),
-      )
-      .map((turn) =>
-        turn.role === "user"
-          ? { role: "user", content: String(turn.content ?? "") }
-          : {
-              ...newAssistantTurn(),
-              ...turn,
-              steps: Array.isArray(turn.steps) ? turn.steps : [],
-              ui: {},
-              status: turn.status === "running" ? "stopped" : turn.status,
-            },
-      );
-  } catch {
-    state.turns = [];
-  }
-}
-
-function details(cls, open, onToggle, summaryChildren, ...body) {
-  const el = h(
-    "details",
-    { class: cls, open },
-    h("summary", null, ...summaryChildren),
-    ...body,
-  );
-  // Only remember toggles made by the user (the initial `open` also fires a toggle event).
-  let byUser = false;
-  el.firstChild.addEventListener("click", () => (byUser = true));
-  el.addEventListener("toggle", () => byUser && onToggle(el.open));
-  return el;
-}
-
-function renderSteps(turn) {
-  if (!turn.steps.length) return null;
-  const flagged = turn.steps.some((s) =>
-    (s.flags || []).includes("possible_injection"),
-  );
-  const total = turn.steps.reduce((sum, s) => sum + (s.seconds || 0), 0);
-  const open = turn.ui.steps ?? (turn.status === "running" || flagged);
-  const n = turn.steps.length;
-  const items = turn.steps.map((step) => {
-    const injection = (step.flags || []).includes("possible_injection");
-    const statusIcon = { done: "check", error: "cross", denied: "ban" }[
-      step.status
-    ];
-    return h(
-      "li",
-      { class: `step step-${step.status}${injection ? " step-flagged" : ""}` },
-      h("span", { class: "step-icon" }, icon(step.tool)),
-      h(
-        "div",
-        { class: "step-main" },
-        h(
-          "div",
-          { class: "step-head" },
-          h("span", { class: "step-label", text: toolLabel(step.tool) }),
-          injection &&
-            h(
-              "span",
-              { class: "badge badge-warn" },
-              icon("alert"),
-              t("steps.flagged"),
-            ),
-          h(
-            "span",
-            { class: "step-status" },
-            step.status === "running"
-              ? h("span", { class: "spinner", "aria-hidden": "true" })
-              : icon(statusIcon || "check", `status-${step.status}`),
-            h("span", { class: "sr-only", text: t(`status.${step.status}`) }),
-            step.status !== "running" &&
-              h("span", { class: "num", text: fmtSeconds(step.seconds) }),
-          ),
-        ),
-        h("p", {
-          class: "step-args",
-          text: argsSummary(step.tool, step.arguments),
-        }),
-        step.summary && h("p", { class: "step-summary", text: step.summary }),
-        injection &&
-          h("p", { class: "step-warning", text: t("steps.injection") }),
-      ),
-    );
-  });
-  return details(
-    "steps",
-    open,
-    (value) => (turn.ui.steps = value),
-    [
-      icon("chevron", "chev"),
-      h("span", {
-        class: "steps-count",
-        text: n === 1 ? t("steps.count.one") : t("steps.count.many", { n }),
-      }),
-      h("span", {
-        class: "steps-names",
-        text: [...new Set(turn.steps.map((s) => toolLabel(s.tool)))].join(", "),
-      }),
-      flagged &&
-        h(
-          "span",
-          { class: "badge badge-warn" },
-          icon("alert"),
-          t("steps.flagged"),
-        ),
-      turn.status !== "running" &&
-        h("span", { class: "num steps-time", text: fmtSeconds(total) }),
-    ],
-    h("ol", { class: "timeline" }, items),
-  );
-}
-
-function renderSources(turn) {
-  const sources = turn.answer?.sources || [];
-  if (!sources.length) return null;
-  return h(
-    "section",
-    { class: "sources", "aria-label": t("sources.title") },
-    h("h3", { class: "eyebrow", text: t("sources.title") }),
-    h(
-      "ol",
-      { class: "source-list" },
-      sources.map((source) => {
-        const url = safeUrl(source.url);
-        const title = String(source.title || source.url || "");
-        return h(
-          "li",
-          { id: `src-${turn.id}-${Number(source.n) || 0}`, tabindex: "-1" },
-          h("span", {
-            class: "source-n num",
-            text: String(Number(source.n) || ""),
-          }),
-          h(
-            "span",
-            { class: "source-body" },
-            url
-              ? h("a", {
-                  href: url,
-                  target: "_blank",
-                  rel: "noopener noreferrer",
-                  text: title,
-                })
-              : h("span", { text: title }),
-            url && h("span", { class: "source-host", text: new URL(url).host }),
-          ),
-        );
-      }),
-    ),
-  );
-}
-
-function renderFiles(turn) {
-  const files = (turn.answer?.files || []).filter(
-    (f) =>
-      typeof f?.url === "string" &&
-      /^\/files\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(f.url),
-  );
-  if (!files.length) return null;
-  return h(
-    "section",
-    { class: "files", "aria-label": t("files.title") },
-    files.map((file) => {
-      const name = String(file.name || file.url.slice(7));
-      const ext = (name.match(/\.([A-Za-z0-9]{1,5})$/) || [
-        ,
-        "",
-      ])[1].toUpperCase();
-      return h(
-        "a",
-        { class: "file-card", href: file.url, download: name },
-        h(
-          "span",
-          { class: "file-icon" },
-          icon("file"),
-          ext && h("span", { class: "file-ext", text: ext }),
-        ),
-        h(
-          "span",
-          { class: "file-meta" },
-          h("span", { class: "file-name", text: name }),
-          h(
-            "span",
-            { class: "file-action" },
-            icon("download"),
-            t("files.download"),
-          ),
-        ),
-      );
-    }),
-  );
-}
-
-async function copyText(text, button) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    const area = h("textarea", { class: "sr-only", "aria-hidden": "true" });
-    area.value = text;
-    document.body.append(area);
-    area.select();
-    try {
-      document.execCommand("copy");
-    } catch {
-      /* nothing else to try */
-    }
-    area.remove();
-  }
-  const label = button.querySelector(".btn-label");
-  const before = label.textContent;
-  label.textContent = t("email.copied");
-  announce(t("email.copied"));
-  window.setTimeout(() => (label.textContent = before), 1600);
-}
-
-function renderEmail(turn) {
-  const draft = turn.answer?.draft_email;
-  if (!draft || typeof draft !== "object") return null;
-  const to = String(draft.to ?? "");
-  const subject = String(draft.subject ?? "");
-  const body = String(draft.body ?? "");
-  const copyBtn = (key, text) =>
-    h(
-      "button",
-      {
-        class: "btn btn-outline btn-small",
-        type: "button",
-        onclick: (e) => copyText(text, e.currentTarget),
-      },
-      icon("copy"),
-      h("span", { class: "btn-label", text: t(key) }),
-    );
-  return h(
-    "section",
-    { class: "email-card", "aria-label": t("email.title") },
-    h(
-      "header",
-      { class: "email-head" },
-      h(
-        "span",
-        { class: "email-kicker" },
-        icon("draft_email"),
-        t("email.title"),
-      ),
-    ),
-    h(
-      "dl",
-      { class: "email-fields" },
-      h(
-        "div",
-        null,
-        h("dt", { text: t("email.to") }),
-        h("dd", { text: to || "—" }),
-      ),
-      h(
-        "div",
-        null,
-        h("dt", { text: t("email.subject") }),
-        h("dd", { class: "email-subject", text: subject || "—" }),
-      ),
-    ),
-    h("div", { class: "email-body", text: body }),
-    h(
-      "div",
-      { class: "email-actions" },
-      copyBtn("email.copy.subject", subject),
-      copyBtn("email.copy.body", body),
-      copyBtn(
-        "email.copy.all",
-        `${t("email.to")} : ${to}\n${t("email.subject")} : ${subject}\n\n${body}`,
-      ),
-    ),
-    h(
-      "p",
-      { class: "email-note" },
-      icon("ban"),
-      h("span", { text: t("email.notsent") }),
-    ),
-  );
-}
-
-// ------------------------------------------------------------------ resource meter
-
-function meterRows(usage) {
-  const demo = isDemo();
-  const gi = state.health?.grid_intensity_g_per_kwh;
-  const energy = hasEnergy(usage);
-  const rows = [
-    [
-      "row.prompt",
-      fmtInt(usage.prompt_tokens),
-      demo ? "scripted" : "counted",
-      demo ? "why.tokens.demo" : "why.prompt",
-    ],
-    [
-      "row.completion",
-      fmtInt(usage.completion_tokens),
-      demo ? "scripted" : "counted",
-      demo ? "why.tokens.demo" : "why.completion",
-    ],
-    [
-      "row.seconds",
-      fmtSeconds(usage.seconds),
-      "measured",
-      demo ? "why.seconds.demo" : "why.seconds",
-    ],
-    ["row.tools", fmtInt(usage.tool_calls), "counted", "why.tools"],
-    [
-      "row.fetched",
-      fmtBytes(usage.bytes_fetched),
-      demo ? "scripted" : "counted",
-      demo ? "why.fetched.demo" : "why.fetched",
-    ],
-    energy
-      ? [
-          "row.energy",
-          fmtEnergy(usage.energy_wh, usage.energy_kind),
-          usage.energy_kind,
-          `why.energy.${usage.energy_kind}`,
-        ]
-      : [
-          "row.energy",
-          t("meter.energy.none.long"),
-          "unavailable",
-          demo ? "why.energy.demo" : "why.energy.none",
-        ],
-    energy && typeof usage.co2_g === "number"
-      ? [
-          "row.co2",
-          fmtCo2(usage.co2_g, "estimated"),
-          "estimated",
-          "why.co2",
-          { gi: gi ?? "?" },
-        ]
-      : [
-          "row.co2",
-          t("co2.none"),
-          "unavailable",
-          energy ? "why.co2.nogrid" : "why.co2.noenergy",
-        ],
-    ["row.model", String(usage.model || "?"), "configured", "why.model"],
-    [
-      "row.thinking",
-      usage.thinking ? t("yes") : t("no"),
-      "configured",
-      usage.thinking ? "why.thinking.on" : "why.thinking.off",
-    ],
-  ];
-  return rows;
-}
-
-function renderMeter(turn) {
-  const u = turn.usage;
-  if (!u) return null;
-  const energy = hasEnergy(u);
-  const parts = [
-    h("span", {
-      class: "num",
-      "aria-label": t("meter.tokens.aria", {
-        in: fmtInt(u.prompt_tokens),
-        out: fmtInt(u.completion_tokens),
-      }),
-      text: t("meter.tokens", {
-        in: fmtInt(u.prompt_tokens),
-        out: fmtInt(u.completion_tokens),
-      }),
-    }),
-    h("span", { class: "num", text: fmtSeconds(u.seconds) }),
-    h("span", {
-      class: "num",
-      text:
-        u.tool_calls === 0
-          ? t("meter.tools.zero")
-          : u.tool_calls === 1
-            ? t("meter.tools.one")
-            : t("meter.tools.many", { n: u.tool_calls }),
-    }),
-    u.bytes_fetched > 0 &&
-      h("span", {
-        class: "num",
-        text: t("meter.fetched", { v: fmtBytes(u.bytes_fetched) }),
-      }),
-    energy
-      ? h("span", {
-          class: "num meter-energy",
-          text: fmtEnergy(u.energy_wh, u.energy_kind),
-        })
-      : h("span", { class: "meter-none", text: t("meter.energy.none") }),
-    energy &&
-      typeof u.co2_g === "number" &&
-      h("span", { class: "num", text: fmtCo2(u.co2_g, "estimated") }),
-    h("span", { class: "meter-model", text: String(u.model || "") }),
-    h("span", {
-      text: t(u.thinking ? "meter.thinking.on" : "meter.thinking.off"),
-    }),
-  ].filter(Boolean);
-  const table = h(
-    "table",
-    { class: "meter-table" },
-    h("caption", { class: "eyebrow", text: t("meter.how") }),
-    h(
-      "tbody",
-      null,
-      meterRows(u).map(([label, value, kind, why, vars]) =>
-        h(
-          "tr",
-          { class: `kind-${kind}` },
-          h("th", { scope: "row", text: t(label) }),
-          h(
-            "td",
-            { class: "meter-value" },
-            h("span", { class: "num", text: value }),
-            h("span", { class: `tag tag-${kind}`, text: t(`kind.${kind}`) }),
-          ),
-          h("td", { class: "meter-why", text: t(why, vars) }),
-        ),
-      ),
-    ),
-  );
-  return details(
-    "meter",
-    turn.ui.meter ?? false,
-    (value) => (turn.ui.meter = value),
-    [
-      h("span", { class: "meter-mark" }, icon("leaf")),
-      h("span", { class: "sr-only", text: `${t("meter.label")} : ` }),
-      h("span", { class: "meter-line" }, parts),
-      h(
-        "span",
-        { class: "meter-more" },
-        t("meter.detail"),
-        icon("chevron", "chev"),
-      ),
-    ],
-    table,
-  );
-}
-
-function sessionTotals() {
-  const usages = state.turns
-    .filter((turn) => turn.role === "assistant" && turn.usage)
-    .map((turn) => turn.usage);
-  const sum = (key) =>
-    usages.reduce((total, u) => total + (Number(u[key]) || 0), 0);
-  const withEnergy = usages.filter(hasEnergy);
-  const withCo2 = withEnergy.filter((u) => typeof u.co2_g === "number");
-  return {
-    usages,
-    n: usages.length,
-    prompt: sum("prompt_tokens"),
-    completion: sum("completion_tokens"),
-    seconds: sum("seconds"),
-    tools: sum("tool_calls"),
-    bytes: sum("bytes_fetched"),
-    energyN: withEnergy.length,
-    energy: withEnergy.reduce((total, u) => total + u.energy_wh, 0),
-    energyKind: withEnergy.some((u) => u.energy_kind === "estimated")
-      ? "estimated"
-      : "measured",
-    co2N: withCo2.length,
-    co2: withCo2.reduce((total, u) => total + u.co2_g, 0),
-  };
-}
-
-function updateSessionButton() {
-  const s = sessionTotals();
-  $("session-total").textContent = s.n
-    ? `${fmtInt(s.prompt + s.completion)} tokens`
-    : t("nav.session.short");
-  if ($("session-panel").open) renderSession();
-}
-
-const SVG_NS = "http://www.w3.org/2000/svg";
-function svg(tag, attrs, ...children) {
-  const el = document.createElementNS(SVG_NS, tag);
-  for (const [key, value] of Object.entries(attrs || {}))
-    el.setAttribute(key, value);
-  el.append(...children);
-  return el;
-}
-
-function topRounded(x, y, w, hgt, r) {
-  const rr = Math.min(r, hgt, w / 2);
-  return `M${x} ${y + hgt}V${y + rr}a${rr} ${rr} 0 0 1 ${rr}-${rr}h${w - 2 * rr}a${rr} ${rr} 0 0 1 ${rr} ${rr}V${y + hgt}z`;
-}
-
-function renderChart(usages) {
-  const barW = 16;
-  const gap = 8;
-  const height = 104;
-  const plot = height - 8;
-  const max = Math.max(
-    1,
-    ...usages.map((u) => u.prompt_tokens + u.completion_tokens),
-  );
-  const width = Math.max(usages.length * (barW + gap) + gap, 120);
-  const readout = h("p", {
-    class: "chart-readout num",
-    text: t("session.chart.hint"),
-  });
-  const chart = svg("svg", {
-    class: "chart",
-    viewBox: `0 0 ${width} ${height}`,
-    width,
-    height,
-    role: "group",
-    "aria-label": t("session.chart"),
-  });
-  chart.append(
-    svg("line", {
-      class: "chart-axis",
-      x1: 0,
-      x2: width,
-      y1: height - 0.5,
-      y2: height - 0.5,
-    }),
-  );
-  usages.forEach((u, i) => {
-    const x = gap + i * (barW + gap);
-    const hIn = Math.max(
-      u.prompt_tokens > 0 ? 2 : 0,
-      (u.prompt_tokens / max) * plot,
-    );
-    const hOut = Math.max(
-      u.completion_tokens > 0 ? 2 : 0,
-      (u.completion_tokens / max) * plot,
-    );
-    const label = t("session.bar", {
-      i: i + 1,
-      in: fmtInt(u.prompt_tokens),
-      out: fmtInt(u.completion_tokens),
-    });
-    const group = svg("g", {
-      class: "chart-bar",
-      tabindex: "0",
-      role: "img",
-      "aria-label": label,
-    });
-    group.append(
-      svg("rect", {
-        class: "chart-hit",
-        x: x - gap / 2,
-        y: 0,
-        width: barW + gap,
-        height,
-      }),
-      svg("rect", {
-        class: "series-in",
-        x,
-        y: height - 1 - hIn,
-        width: barW,
-        height: hIn,
-      }),
-      svg("path", {
-        class: "series-out",
-        d: topRounded(x, height - 1 - hIn - 2 - hOut, barW, hOut, 4),
-      }),
-    );
-    const show = () => (readout.textContent = label);
-    group.addEventListener("mouseenter", show);
-    group.addEventListener("focus", show);
-    chart.append(group);
-  });
-  return h(
-    "figure",
-    { class: "chart-figure" },
-    h(
-      "figcaption",
-      null,
-      h("span", { class: "eyebrow", text: t("session.chart") }),
-      h(
-        "span",
-        { class: "legend" },
-        h(
-          "span",
-          { class: "legend-item" },
-          h("span", { class: "swatch swatch-in" }),
-          t("session.legend.in"),
-        ),
-        h(
-          "span",
-          { class: "legend-item" },
-          h("span", { class: "swatch swatch-out" }),
-          t("session.legend.out"),
-        ),
-      ),
-    ),
-    h("div", { class: "chart-scroll" }, chart),
-    readout,
-    h(
-      "details",
-      { class: "chart-table" },
-      h("summary", null, icon("chevron", "chev"), t("session.table")),
-      h(
-        "table",
-        null,
-        h(
-          "thead",
-          null,
-          h(
-            "tr",
-            null,
-            h("th", { scope: "col", text: t("session.col.answer") }),
-            h("th", { scope: "col", text: t("row.prompt") }),
-            h("th", { scope: "col", text: t("row.completion") }),
-          ),
-        ),
-        h(
-          "tbody",
-          null,
-          usages.map((u, i) =>
-            h(
-              "tr",
-              null,
-              h("th", { scope: "row", class: "num", text: String(i + 1) }),
-              h("td", { class: "num", text: fmtInt(u.prompt_tokens) }),
-              h("td", { class: "num", text: fmtInt(u.completion_tokens) }),
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-function renderSession() {
-  const s = sessionTotals();
-  const body = $("session-body");
-  if (!s.n) {
-    body.replaceChildren(
-      h("p", { class: "panel-empty", text: t("session.empty") }),
-      isDemo() && h("p", { class: "demo-note", text: t("demo.note") }),
-      h("p", { class: "hint", text: t("session.note") }),
-    );
-    return;
-  }
-  const partial = (k) => (k < s.n ? t("session.partial", { k, n: s.n }) : "");
-  const stat = (label, value, sub, cls = "") =>
-    h(
-      "div",
-      { class: `stat ${cls}` },
-      h("dt", { text: label }),
-      h(
-        "dd",
-        null,
-        h("span", { class: "stat-value num", text: value }),
-        sub && h("span", { class: "stat-sub", text: sub }),
-      ),
-    );
-  body.replaceChildren(
-    h(
-      "dl",
-      { class: "stats" },
-      stat(
-        t("session.tokens"),
-        fmtInt(s.prompt + s.completion),
-        t("session.tokens.split", {
-          in: fmtInt(s.prompt),
-          out: fmtInt(s.completion),
-        }),
-        "stat-wide",
-      ),
-      stat(t("session.answers"), fmtInt(s.n)),
-      stat(t("session.time"), fmtSeconds(s.seconds)),
-      stat(t("session.tools"), fmtInt(s.tools)),
-      stat(t("session.fetched"), fmtBytes(s.bytes)),
-      s.energyN
-        ? stat(
-            t("session.energy"),
-            fmtEnergy(s.energy, s.energyKind),
-            [t(`kind.${s.energyKind}`), partial(s.energyN)]
-              .filter(Boolean)
-              .join(" · "),
-            "stat-wide",
-          )
-        : stat(
-            t("session.energy"),
-            t("meter.energy.none.long"),
-            t(isDemo() ? "why.energy.demo" : "why.energy.none"),
-            "stat-wide stat-none",
-          ),
-      s.co2N
-        ? stat(
-            t("session.co2"),
-            fmtCo2(s.co2, "estimated"),
-            [t("kind.estimated"), partial(s.co2N)].filter(Boolean).join(" · "),
-            "stat-wide",
-          )
-        : stat(
-            t("session.co2"),
-            t("co2.none"),
-            t(s.energyN ? "why.co2.nogrid" : "why.co2.noenergy"),
-            "stat-wide stat-none",
-          ),
-    ),
-    renderChart(s.usages),
-    isDemo() && h("p", { class: "demo-note", text: t("demo.note") }),
-    h("p", { class: "hint", text: t("session.note") }),
-  );
-}
-
-// ------------------------------------------------------------------ conversation rendering
-
-function renderUser(turn) {
-  return h(
-    "article",
-    { class: "turn turn-user" },
-    h("h2", { class: "sr-only", text: t("turn.you") }),
-    h("div", { class: "bubble", text: turn.content }),
-  );
-}
-
-function fillAssistant(el, turn) {
-  const children = [
-    h(
-      "header",
-      { class: "byline" },
-      h("h2", { class: "byline-name", text: t("turn.bird") }),
-      isDemo() &&
-        h("span", {
-          class: "badge badge-demo",
-          title: t("demo.title"),
-          text: t("demo.badge"),
-        }),
-    ),
-    renderSteps(turn),
-  ];
-  if (turn.reasoning) {
-    children.push(
-      details(
-        "reasoning",
-        turn.ui.reasoning ?? false,
-        (value) => (turn.ui.reasoning = value),
-        [icon("chevron", "chev"), t("reasoning.title")],
-        h("div", { class: "reasoning-body", text: turn.reasoning }),
-      ),
-    );
-  }
-  if (turn.answer) {
-    const md = h("div", { class: "md" });
-    // Safe by construction: renderMarkdown escapes all model text before emitting its own tags.
-    md.innerHTML = renderMarkdown(turn.answer.content, {
-      cites: (turn.answer.sources || []).map((s) => Number(s.n)),
-      anchor: `src-${turn.id}`,
-      citeLabel: `${t("sources.title")} {n}`,
-    });
-    children.push(
-      md,
-      renderSources(turn),
-      renderFiles(turn),
-      renderEmail(turn),
-    );
-  }
-  if (turn.status === "running" && !turn.answer) {
-    children.push(
-      h(
-        "p",
-        { class: "working" },
-        h(
-          "span",
-          { class: "dots", "aria-hidden": "true" },
-          h("i"),
-          h("i"),
-          h("i"),
-        ),
-        h("span", { text: t("turn.working") }),
-      ),
-    );
-  }
-  if (turn.error) {
-    children.push(
-      h(
-        "div",
-        { class: "error-box", role: "alert" },
-        icon("alert"),
-        h(
-          "div",
-          null,
-          h("strong", { text: t("turn.error") }),
-          h("p", { text: turn.error }),
-        ),
-        !state.busy &&
-          turn === state.turns[state.turns.length - 1] &&
-          h(
-            "button",
-            {
-              class: "btn btn-outline btn-small",
-              type: "button",
-              onclick: retry,
-            },
-            icon("retry"),
-            h("span", { text: t("turn.retry") }),
-          ),
-      ),
-    );
-  }
-  if (turn.status === "stopped")
-    children.push(h("p", { class: "stopped", text: t("turn.stopped") }));
-  children.push(renderMeter(turn));
-  el.replaceChildren(...children.filter(Boolean));
-}
-
-function renderAll() {
-  const root = $("conversation");
-  root.replaceChildren(
-    ...state.turns.map((turn) => {
-      if (turn.role === "user") return renderUser(turn);
-      const el = h("article", {
-        class: "turn turn-bird",
-        "data-turn": turn.id,
-      });
-      fillAssistant(el, turn);
-      return el;
-    }),
-  );
-  $("empty").hidden = state.turns.length > 0;
-  updateSessionButton();
-}
-
-function updateTurn(turn) {
-  const el = document.querySelector(`[data-turn="${turn.id}"]`);
-  if (el) fillAssistant(el, turn);
-}
-
-const nearBottom = () =>
-  window.innerHeight + window.scrollY >=
-  document.documentElement.scrollHeight - 160;
-function scrollDown(force) {
-  if (force || nearBottom())
-    window.scrollTo({
-      top: document.documentElement.scrollHeight,
-      behavior: "instant",
-    });
-}
-
-// ------------------------------------------------------------------ chat
-
-function setBusy(busy) {
-  state.busy = busy;
-  $("btn-stop").hidden = !busy;
-  $("btn-send").hidden = busy;
-  updateSendButton();
-}
-
-function updateSendButton() {
-  $("btn-send").disabled = state.busy || !$("composer-input").value.trim();
-}
-
 function apiMessages() {
   const messages = [];
-  for (const turn of state.turns) {
+  for (const turn of state.conv.turns) {
     if (turn.role === "user")
       messages.push({ role: "user", content: turn.content });
     else if (turn.answer?.content)
@@ -1124,17 +740,98 @@ function apiMessages() {
   return messages;
 }
 
+function requestHeaders() {
+  const p = state.prefs;
+  const mode = activeMode();
+  const headers = {
+    "Content-Type": "application/json",
+    "X-Bird-Mode": mode,
+    "X-Bird-Lang": p.lang,
+  };
+  if (mode !== "demo" && p.access) headers["X-Bird-Access"] = p.access;
+  if (mode === "user") {
+    headers["X-Bird-Endpoint"] = p.endpoint;
+    if (p.token) headers["X-Bird-Token"] = p.token;
+    if (p.model) headers["X-Bird-Model"] = p.model;
+  }
+  return headers;
+}
+
+async function testEndpoint() {
+  try {
+    const response = await fetch("/api/endpoint/test", {
+      method: "POST",
+      headers: requestHeaders(),
+      body: JSON.stringify({ lang: state.prefs.lang }),
+    });
+    const data = await response.json();
+    if (!response.ok)
+      return {
+        ok: false,
+        status: data?.detail?.code || "server",
+        message: httpMessage(response.status, data?.detail),
+      };
+    return data;
+  } catch {
+    return { ok: false, status: "network", message: t("error.network") };
+  }
+}
+
+function httpMessage(status, detail) {
+  const code = detail?.code || "";
+  if (code === "access_code") return t("error.access");
+  if (code === "rate_limited") return t("error.rate");
+  if (code === "confirm_invalid") return t("confirm.expired");
+  if (status === 413) return t("error.toolong");
+  return detail?.message || `HTTP ${status}`;
+}
+
+let painting = false;
+function paintSoon(turn) {
+  if (painting) return;
+  painting = true;
+  requestAnimationFrame(() => {
+    painting = false;
+    updateStream(turn);
+    scrollToEnd(false);
+  });
+}
+
 function handleEvent(turn, event) {
   switch (event.type) {
+    case "delta":
+      turn.text += String(event.content ?? "");
+      turn.live = null;
+      return paintSoon(turn);
+    case "delta_reset":
+      turn.text = "";
+      break;
+    case "status":
+      turn.live = event.state === "waking" ? event : null;
+      if (event.state === "waking" && (event.attempt || 1) === 1)
+        announce(t("live.waking"));
+      break;
     case "step": {
       const i = turn.steps.findIndex((s) => s.index === event.index);
       if (i >= 0) turn.steps[i] = event;
       else turn.steps.push(event);
-      if (event.status === "running") announce(`${toolLabel(event.tool)}…`);
+      turn.live = null;
+      if (event.status === "running")
+        announce(
+          `${t(`live.${event.tool}`) === `live.${event.tool}` ? t("live.tool") : t(`live.${event.tool}`)}…`,
+        );
       break;
     }
     case "confirm":
-      openConfirm(event);
+      turn.confirm = {
+        tool: event.tool,
+        arguments: event.arguments,
+        reason: event.reason,
+        token: event.token,
+      };
+      turn.files.push(...(event.files || []));
+      turn.status = "confirm";
+      announce(t("live.confirm"));
       break;
     case "reasoning":
       turn.reasoning +=
@@ -1144,43 +841,67 @@ function handleEvent(turn, event) {
       turn.answer = {
         content: String(event.content ?? ""),
         sources: event.sources || [],
-        files: event.files || [],
         draft_email: event.draft_email || null,
+        stop_reason: event.stop_reason || "answer",
       };
+      turn.files.push(...(event.files || []));
+      turn.text = "";
       announce(t("live.answer"));
       break;
     case "usage":
       turn.usage = event;
       break;
     case "error":
-      turn.error = String(event.message || t("turn.error"));
+      turn.error = {
+        code: event.code || "internal",
+        message: String(event.message || t("turn.error")),
+      };
       turn.status = "error";
       break;
     default:
       break;
   }
+  updateTurn(turn);
+  scrollToEnd(false);
 }
 
-async function runTurn(turn) {
+async function runTurn(turn, extra = {}) {
   const controller = new AbortController();
   state.abort = controller;
-  setBusy(true);
+  state.busy = true;
+  turn.status = "running";
+  turn.error = null;
+  updateComposer();
+  updateTurn(turn);
+  let finished = false;
   try {
+    const body = {
+      messages: apiMessages(),
+      thinking: !!turn.thinking,
+      lang: state.prefs.lang,
+      attachments: state.conv.attachments,
+      ...extra,
+    };
     const response = await fetch("/api/chat", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "text/event-stream",
-      },
-      body: JSON.stringify({
-        messages: apiMessages(),
-        thinking: state.thinking,
-        lang: state.lang,
-      }),
+      headers: { ...requestHeaders(), Accept: "text/event-stream" },
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
-    if (!response.ok || !response.body)
-      throw new Error(`HTTP ${response.status}`);
+    if (!response.ok || !response.body) {
+      let detail = null;
+      try {
+        detail = (await response.json()).detail;
+      } catch {
+        /* not JSON */
+      }
+      turn.error = {
+        code: detail?.code || `http_${response.status}`,
+        message: httpMessage(response.status, detail),
+      };
+      turn.status = "error";
+      return;
+    }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -1194,7 +915,7 @@ async function runTurn(turn) {
         buffer = buffer.slice(cut + 2);
         const data = frame
           .split("\n")
-          .filter((line) => line.startsWith("data:"))
+          .filter((line) => line.startsWith("data:")) // lines starting with ":" are heartbeats
           .map((line) => line.slice(5).trimStart())
           .join("\n");
         if (!data) continue;
@@ -1204,198 +925,300 @@ async function runTurn(turn) {
         } catch {
           continue;
         }
-        if (event.type === "done") continue;
-        const stick = nearBottom();
-        handleEvent(turn, event);
-        updateTurn(turn);
-        if (stick) scrollDown(true);
+        if (event.type === "done") finished = true;
+        else handleEvent(turn, event);
       }
     }
-    if (turn.status === "running") turn.status = "done";
+    if (!finished && turn.status === "running") {
+      turn.status = "error"; // the stream closed without its final event: proxy timeout, function killed, network
+      turn.error = { code: "dropped", message: t("error.dropped") };
+    } else if (turn.status === "running")
+      turn.status = turn.answer ? "done" : "error";
+    if (turn.status === "error" && !turn.error)
+      turn.error = { code: "dropped", message: t("error.dropped") };
   } catch (error) {
     if (controller.signal.aborted) turn.status = "stopped";
     else {
       turn.status = "error";
-      turn.error = `${t("error.network")} (${error?.message || error})`;
+      turn.error = {
+        code: state.online ? "network" : "offline",
+        message: finished
+          ? String(error?.message || error)
+          : t(state.online ? "error.dropped" : "toast.offline"),
+      };
+      if (!turn.text && !turn.steps.length)
+        turn.error.message = t(
+          state.online ? "error.network" : "toast.offline",
+        );
     }
   } finally {
     state.abort = null;
-    closeConfirm();
-    for (const step of turn.steps)
-      if (step.status === "running")
-        step.status = turn.status === "stopped" ? "denied" : "error";
-    setBusy(false);
-    updateTurn(turn);
-    updateSessionButton();
-    persist();
+    state.busy = false;
+    turn.live = null;
+    if (turn.status !== "confirm")
+      for (const step of turn.steps)
+        if (step.status === "running")
+          step.status = turn.status === "stopped" ? "denied" : "error";
+    if (turn.status === "stopped" && turn.text && !turn.answer)
+      turn.answer = {
+        content: turn.text,
+        sources: [],
+        draft_email: null,
+        stop_reason: "stopped",
+      };
+    if (turn.usage && turn.status === "done" && !turn.counted) {
+      turn.counted = true;
+      ledgerAdd(turn.usage, state.conv.id);
+    }
+    renderConversation(); // the last-turn actions (regenerate, edit) depend on the busy state
+    updateComposer();
+    updateTop();
+    saveConv();
+    scrollToEnd(false);
+    const sheet = document.querySelector("[data-confirm-deny]");
+    if (turn.status === "confirm" && sheet) sheet.focus();
   }
 }
 
 function send(text) {
   const content = String(text ?? "").trim();
-  if (!content || state.busy) return;
+  if (!content || state.busy || pendingConfirm() || !state.online) return;
+  const conv = state.conv;
+  if (state.editing) {
+    while (
+      conv.turns.length &&
+      conv.turns[conv.turns.length - 1].role !== "user"
+    )
+      conv.turns.pop();
+    conv.turns.pop();
+    state.editing = false;
+  }
+  if (!conv.turns.length) conv.title = autoTitle(content);
   const turn = newAssistantTurn();
-  state.turns.push({ role: "user", content }, turn);
-  const input = $("composer-input");
-  input.value = "";
+  conv.turns.push(
+    { role: "user", content, attachments: conv.attachments.map((a) => a.name) },
+    turn,
+  );
+  input().value = "";
   autosize();
-  renderAll();
-  scrollDown(true);
+  renderChat();
+  scrollToEnd(true);
   announce(t("live.sent"));
-  input.focus();
+  input().focus();
   runTurn(turn);
 }
 
-function retry() {
+function regenerate() {
   if (state.busy) return;
-  const last = state.turns[state.turns.length - 1];
-  if (!last || last.role !== "assistant") return;
+  const turns = state.conv.turns;
+  if (!turns.length || turns[turns.length - 1].role !== "assistant") return;
   const turn = newAssistantTurn();
-  state.turns[state.turns.length - 1] = turn;
-  renderAll();
+  turns[turns.length - 1] = turn;
+  renderChat();
+  scrollToEnd(true);
   runTurn(turn);
+}
+
+function editLast() {
+  if (state.busy) return;
+  const lastUser = [...state.conv.turns]
+    .reverse()
+    .find((x) => x.role === "user");
+  if (!lastUser) return;
+  state.editing = true;
+  input().value = lastUser.content;
+  autosize();
+  updateComposer();
+  input().focus();
+}
+
+function answerConfirm(turn, allow) {
+  if (state.busy || turn.status !== "confirm" || !turn.confirm) return;
+  const token = turn.confirm.token;
+  turn.confirm.decision = allow;
+  turn.confirm.token = null; // one use: the server continues the paused run from this token
+  input().focus();
+  runTurn(turn, allow ? { approved: [token] } : { denied: [token] });
 }
 
 function stop() {
   state.abort?.abort();
 }
 
-function newConversation() {
-  stop();
-  state.turns = [];
-  persist();
-  renderAll();
-  window.scrollTo({ top: 0 });
-  $("composer-input").focus();
-}
-
-// ------------------------------------------------------------------ confirm dialog
-
-function openConfirm(event) {
-  state.confirm = { id: String(event.id) };
-  $("confirm-tool").textContent = toolLabel(event.tool);
-  $("confirm-reason").textContent = String(event.reason || "");
-  const args =
-    event.arguments && typeof event.arguments === "object"
-      ? event.arguments
-      : {};
-  const names = {
-    to: t("email.to"),
-    subject: t("email.subject"),
-    body: t("email.body"),
-  };
-  $("confirm-args").replaceChildren(
-    ...Object.entries(args).map(([key, value]) =>
-      h(
-        "div",
-        null,
-        h("dt", { text: names[key] || key }),
-        h("dd", {
-          class: key === "body" ? "kv-long" : "",
-          text: typeof value === "string" ? value : JSON.stringify(value),
-        }),
-      ),
-    ),
-  );
-  const dialog = $("confirm-dialog");
-  if (!dialog.open) dialog.showModal();
-  $("confirm-deny").focus();
-  announce(t("live.confirm"));
-}
-
-function closeConfirm() {
-  state.confirm = null;
-  const dialog = $("confirm-dialog");
-  if (dialog.open) dialog.close();
-}
-
-async function answerConfirm(allow) {
-  const pending = state.confirm;
-  closeConfirm();
-  $("composer-input").focus();
-  if (!pending) return;
-  try {
-    await fetch("/api/confirm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: pending.id, allow }),
-    });
-  } catch {
-    /* the stream reports the outcome */
-  }
-}
-
 // ------------------------------------------------------------------ wiring
 
-function autosize() {
-  const input = $("composer-input");
-  input.style.height = "auto";
-  input.style.height = `${Math.min(input.scrollHeight, 220)}px`;
-  updateSendButton();
-}
-
-function setThinking(on) {
-  state.thinking = on;
-  $("btn-thinking").setAttribute("aria-checked", String(on));
-}
-
 function bind() {
-  const input = $("composer-input");
+  const el = input();
   $("composer").addEventListener("submit", (e) => {
     e.preventDefault();
-    send(input.value);
+    send(el.value);
   });
-  input.addEventListener("input", autosize);
-  input.addEventListener("keydown", (e) => {
+  el.addEventListener("input", () => {
+    slashIndex = 0;
+    autosize();
+    updateComposer();
+  });
+  el.addEventListener("keydown", (e) => {
+    const matches = !$("slash-menu").hidden && slashMatches();
+    if (matches && matches.length) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        slashIndex =
+          (slashIndex + (e.key === "ArrowDown" ? 1 : matches.length - 1)) %
+          matches.length;
+        return updateSlash();
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        return pickSlash(matches[slashIndex][0]);
+      }
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        el.value = "";
+        return updateComposer();
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
-      send(input.value);
+      send(el.value);
     }
   });
+  el.addEventListener("paste", (e) => {
+    const text = e.clipboardData?.getData("text/plain") || "";
+    if (text.length < PASTE_AS_FILE) return;
+    e.preventDefault(); // a long paste becomes a document chip instead of flooding the message
+    const n =
+      state.conv.attachments.filter((a) =>
+        a.name.startsWith(t("composer.pasted.name")),
+      ).length + 1;
+    if (addAttachment(`${t("composer.pasted.name")}-${n}.txt`, text) === true)
+      toast(t("composer.attach.pasted"), "ok");
+  });
+  $("btn-attach").addEventListener("click", () => $("file-input").click());
+  $("file-input").addEventListener("change", (e) => {
+    onFiles([...e.target.files]);
+    e.target.value = "";
+  });
   $("btn-stop").addEventListener("click", stop);
-  $("btn-thinking").addEventListener("click", () =>
-    setThinking(!state.thinking),
+  $("btn-thinking").addEventListener("click", () => {
+    state.thinking = !state.thinking;
+    updateComposer();
+  });
+  $("editing-cancel").addEventListener("click", () => {
+    state.editing = false;
+    el.value = "";
+    autosize();
+    updateComposer();
+  });
+  $("btn-new").addEventListener("click", () => openConv(null) || el.focus());
+  $("btn-new-top").addEventListener(
+    "click",
+    () => openConv(null) || el.focus(),
   );
-  $("btn-new").addEventListener("click", newConversation);
-  $("btn-lang").addEventListener("click", () => {
-    state.lang = state.lang === "fr" ? "en" : "fr";
-    store.set("bird.lang", state.lang);
-    applyStrings();
-    renderAll();
-  });
-  $("btn-theme").addEventListener("click", () => {
-    const next = currentTheme() === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
-    store.set("bird.theme", next);
-    updateThemeButton();
-  });
-  $("btn-session").addEventListener("click", () => {
-    renderSession();
-    $("session-panel").showModal();
-  });
-  $("session-close").addEventListener("click", () =>
-    $("session-panel").close(),
+  $("btn-menu").addEventListener("click", () =>
+    setSidebar(!document.body.classList.contains("side-open")),
   );
-  $("session-panel").addEventListener("click", (e) => {
-    if (e.target === e.currentTarget) e.currentTarget.close(); // click on the backdrop
+  $("btn-side-close").addEventListener("click", () => setSidebar(false));
+  $("backdrop").addEventListener("click", () => setSidebar(false));
+  $("btn-clear").addEventListener("click", clearAll);
+  $("conv-search").addEventListener("input", (e) => {
+    search = e.target.value;
+    renderSidebar();
   });
-  $("confirm-allow").addEventListener("click", () => answerConfirm(true));
-  $("confirm-deny").addEventListener("click", () => answerConfirm(false));
-  $("confirm-dialog").addEventListener("cancel", (e) => {
-    e.preventDefault(); // Escape means "deny", never a silent dismissal
-    answerConfirm(false);
+  $("btn-back").addEventListener("click", () => showView("chat") || el.focus());
+  $("btn-model").addEventListener("click", () => showView("settings"));
+  $("btn-footprint").addEventListener("click", () => showView("footprint"));
+  for (const [id, view] of [
+    ["nav-footprint", "footprint"],
+    ["nav-settings", "settings"],
+    ["nav-about", "about"],
+  ])
+    $(id).addEventListener("click", () => showView(view));
+  $("nav-shortcuts").addEventListener("click", openShortcuts);
+  $("btn-jump").addEventListener("click", () => scrollToEnd(true));
+  scroller().addEventListener(
+    "scroll",
+    () => {
+      stick = nearBottom(); // the user scrolled up: stop following the stream until they come back down
+      updateJump();
+    },
+    { passive: true },
+  );
+  for (const id of ["welcome", "shortcuts"]) {
+    $(id).addEventListener(
+      "click",
+      (e) => e.target === e.currentTarget && e.currentTarget.close(),
+    );
+    $(`${id}-close`)?.addEventListener("click", () => $(id).close());
+  }
+  $("welcome").addEventListener("close", () => {
+    state.prefs.welcomed = true;
+    savePrefs();
+    el.focus();
+  });
+  $("welcome-start").addEventListener("click", () => $("welcome").close());
+  $("welcome-about").addEventListener("click", () => {
+    $("welcome").close();
+    showView("about");
   });
   // Citation links move focus to the source entry.
   $("conversation").addEventListener("click", (e) => {
     const link = e.target.closest?.(".cite a");
     if (!link) return;
-    const target = document.getElementById(link.getAttribute("href").slice(1));
-    if (target) {
+    const targetEl = document.getElementById(
+      link.getAttribute("href").slice(1),
+    );
+    if (targetEl) {
       e.preventDefault();
-      target.focus();
-      target.scrollIntoView({ block: "center" });
+      targetEl.focus();
+      targetEl.scrollIntoView({ block: "center" });
     }
   });
+  document.addEventListener("keydown", (e) => {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(
+      document.activeElement?.tagName || "",
+    );
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      openConv(null);
+      el.focus();
+    } else if (mod && e.key.toLowerCase() === "b") {
+      e.preventDefault();
+      setSidebar(!document.body.classList.contains("side-open"));
+    } else if (e.key === "Escape") {
+      if (document.querySelector("dialog[open]")) return;
+      if (state.busy) stop();
+      else if (isNarrow() && document.body.classList.contains("side-open"))
+        setSidebar(false);
+      else if (state.view !== "chat") showView("chat");
+    } else if (!typing && !mod && !e.altKey && e.key === "/") {
+      e.preventDefault();
+      if (state.view !== "chat") showView("chat");
+      el.focus();
+    } else if (!typing && !mod && e.key === "?") {
+      e.preventDefault();
+      openShortcuts();
+    }
+  });
+  window.addEventListener("online", () => {
+    state.online = true;
+    toast(t("toast.online"), "ok");
+    updateComposer();
+  });
+  window.addEventListener("offline", () => {
+    state.online = false;
+    toast(t("toast.offline"), "error");
+    updateComposer();
+  });
+  window
+    .matchMedia("(prefers-color-scheme: dark)")
+    .addEventListener("change", applyTheme);
+  window
+    .matchMedia("(max-width: 900px)")
+    .addEventListener("change", () =>
+      setSidebar(!isNarrow() && store.get("bird.side") !== "0"),
+    );
 }
 
 async function loadHealth() {
@@ -1408,20 +1231,59 @@ async function loadHealth() {
     state.health = null;
     showBanner(t("error.health"));
   }
-  const demo = isDemo();
-  $("demo-badge").hidden = !demo;
-  $("demo-note").hidden = !demo;
-  if (state.health?.thinking_default) setThinking(true);
+}
+
+function refreshAll() {
+  applyTheme();
+  applyStrings();
+  forgetRendered();
+  renderSidebar();
+  renderChat();
+  if (state.view === "footprint") renderFootprint();
+  if (state.view === "settings") renderSettings();
+  if (state.view === "about") renderAbout();
+  updateTop();
 }
 
 async function init() {
-  restore();
+  setHandlers({
+    onConfirm: answerConfirm,
+    onRegenerate: regenerate,
+    onRetry: regenerate,
+    onEdit: editLast,
+    onChange: (turn) => (updateTurn(turn), saveConv()),
+    onOpenFootprint: () => showView("footprint"),
+    onOpenSettings: () => showView("settings"),
+  });
+  setViewHooks({
+    onPrefs: () => {
+      state.thinking = !!state.prefs.thinking;
+      refreshAll();
+    },
+    onReset: () => {
+      state.convs = [];
+      state.thinking = false;
+      state.conv = newConv();
+      refreshAll();
+    },
+    testEndpoint,
+  });
+  state.convs = store.json("bird.convs", []).filter((c) => c && c.id);
+  const current = store.get("bird.current");
+  state.conv = (current && loadConv(current)) || newConv();
   bind();
+  applyTheme();
   applyStrings();
-  renderAll();
+  setSidebar(!isNarrow() && store.get("bird.side") !== "0");
+  renderSidebar();
+  renderChat();
   await loadHealth();
-  renderAll();
+  renderChat();
   autosize();
+  scrollToEnd(true);
+  document.body.classList.add("ready");
+  if (!state.prefs.welcomed) openWelcome();
+  else input().focus();
 }
 
 init();

@@ -641,7 +641,11 @@ def _synth_fr(row: dict) -> list[dict] | str:
         return "reasoning_too_long"
     if len(reasoning) < 80:
         return "no_reasoning"
-    return _rec([{"role": "user", "content": q}, {"role": "assistant", "content": a, "reasoning_content": reasoning}], "fr", True)
+    return _rec(
+        [{"role": "user", "content": q}, {"role": "assistant", "content": a, "reasoning_content": reasoning}],
+        "fr",
+        True,
+    )
 
 
 def _smoltalk2_fr(row: dict) -> list[dict] | str:
@@ -661,12 +665,22 @@ def _smoltalk2_fr(row: dict) -> list[dict] | str:
 
 
 _MAIL_ASK = {
-    "fr": ("Propose un objet pour ce mail :\n\n{b}", "Quel objet mettre à ce mail ?\n\n{b}", "{b}\n\nTrouve un objet pour ce mail.",
-           "Voici un mail que je vais envoyer. Donne-moi uniquement son objet.\n\n{b}", "Rédige la ligne d'objet de ce message :\n\n{b}",
-           "{b}\n\nQuel objet proposez-vous pour ce courriel ?"),
-    "en": ("Suggest a subject line for this email:\n\n{b}", "What subject should I give this email?\n\n{b}",
-           "{b}\n\nWrite a subject line for this email.", "Here is an email I am about to send. Give me its subject line only.\n\n{b}",
-           "Write the subject line for this message:\n\n{b}", "{b}\n\nWhat subject line would you suggest for this email?"),
+    "fr": (
+        "Propose un objet pour ce mail :\n\n{b}",
+        "Quel objet mettre à ce mail ?\n\n{b}",
+        "{b}\n\nTrouve un objet pour ce mail.",
+        "Voici un mail que je vais envoyer. Donne-moi uniquement son objet.\n\n{b}",
+        "Rédige la ligne d'objet de ce message :\n\n{b}",
+        "{b}\n\nQuel objet proposez-vous pour ce courriel ?",
+    ),
+    "en": (
+        "Suggest a subject line for this email:\n\n{b}",
+        "What subject should I give this email?\n\n{b}",
+        "{b}\n\nWrite a subject line for this email.",
+        "Here is an email I am about to send. Give me its subject line only.\n\n{b}",
+        "Write the subject line for this message:\n\n{b}",
+        "{b}\n\nWhat subject line would you suggest for this email?",
+    ),
 }
 _MAIL_KEEP = {"fr": 100, "en": 16}  # % of usable rows, for ~2/3 French
 _MAIL_PREFIX = re.compile(r"^(?:re|tr|fw|fwd|aw|wg|rif|r|i)\s*:", re.I)
@@ -746,7 +760,9 @@ def _toolcall_fr(row: dict) -> list[dict] | str:
                     call = ast.literal_eval(blob.strip().replace("\r", "").replace("\n", "\\n"))
                 except (ValueError, SyntaxError, MemoryError, RecursionError):
                     return "call_format"
-            if not (isinstance(call, dict) and isinstance(call.get("name"), str) and isinstance(call.get("arguments"), dict)):
+            if not (
+                isinstance(call, dict) and isinstance(call.get("name"), str) and isinstance(call.get("arguments"), dict)
+            ):
                 return "call_format"
             calls.append(call)
         out = {"role": "assistant", "content": _CALL.sub("", rest).strip()}
@@ -765,7 +781,9 @@ def _toolcall_fr(row: dict) -> list[dict] | str:
                 json.dumps(calls)
             except (TypeError, ValueError):
                 return "call_format"
-            out["tool_calls"] = [{"type": "function", "function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls]
+            out["tool_calls"] = [
+                {"type": "function", "function": {"name": c["name"], "arguments": c["arguments"]}} for c in calls
+            ]
             pending = len(calls)
         msgs.append(out)
     if pending or msgs[-1]["role"] != "assistant" or msgs[-1].get("tool_calls"):
@@ -906,9 +924,16 @@ SOURCES: list[Source] = [
         scan=202362,
         note="human-written; only ~1 400 French rows exist",
     ),
-    _src("openthoughts", "open-thoughts/OpenThoughts3-1.2M", "apache-2.0", "reasoning", 5000, scan=100000,
-         data_files=[f"data/train-{i:05d}-of-00120.parquet" for i in range(110, 120)],
-         note="science shards only: code and math reasoning is far above the 6 000-character limit"),
+    _src(
+        "openthoughts",
+        "open-thoughts/OpenThoughts3-1.2M",
+        "apache-2.0",
+        "reasoning",
+        5000,
+        scan=100000,
+        data_files=[f"data/train-{i:05d}-of-00120.parquet" for i in range(110, 120)],
+        note="science shards only: code and math reasoning is far above the 6 000-character limit",
+    ),
     _src("glaive_reasoning", "glaiveai/reasoning-v1-20m", "apache-2.0", "reasoning", 6000),
     _src(
         "multilingual_thinking",
@@ -940,15 +965,53 @@ SOURCES: list[Source] = [
         scan=850,
         note="BIRD-Deck JSON decks from Benitoow/OfficeSmith-PPTX-IR",
     ),
-    _src("nemotron_fr", "nvidia/Nemotron-Post-Training-Dataset-v2", "cc-by-4.0", "reasoning_fr", 8000, split="multilingual_fr",
-         scan=60000, note="gated; French prompts and answers, reasoning traces in English"),
-    _src("synth_fr", "PleIAs/SYNTH", "cc-by-4.0", "knowledge_fr", 8000, scan=400000,
-         data_files=[f"synth_{i:03d}.parquet" for i in (1, 100, 200, 300, 400, 500)],
-         note="6 of the 500 files (resolving them all is very slow); French is ~3 % of the rows; Wikipedia seeds are CC-BY-SA"),
-    _src("smoltalk2_fr", "HuggingFaceTB/smoltalk2", "apache-2.0", "chat_fr", 8000, config="SFT",
-         split="smoltalk_multilingual_8languages_lang_5_no_think", scan=90000, note="French is ~1 row in 8 (stop-word check)"),
-    _src("emails_fr_en", "sinabis-group/sinabis-100k-synthetic-emails", "cc-by-4.0", "emails", 6000, scan=101000,
-         note="email -> subject line only; the rows have no purpose/tone metadata for a faithful writing task"),
-    _src("toolcall_fr", "CATIE-AQ/smoltalk2_smolagents_toolcalling_french", "apache-2.0", "tool_call", 5000, scan=9100,
-         note="French question and final answer, English tool traces; final_answer call turned into the reply"),
+    _src(
+        "nemotron_fr",
+        "nvidia/Nemotron-Post-Training-Dataset-v2",
+        "cc-by-4.0",
+        "reasoning_fr",
+        8000,
+        split="multilingual_fr",
+        scan=60000,
+        note="gated; French prompts and answers, reasoning traces in English",
+    ),
+    _src(
+        "synth_fr",
+        "PleIAs/SYNTH",
+        "cc-by-4.0",
+        "knowledge_fr",
+        8000,
+        scan=400000,
+        data_files=[f"synth_{i:03d}.parquet" for i in (1, 100, 200, 300, 400, 500)],
+        note="6 of the 500 files (resolving them all is very slow); French is ~3 % of the rows; Wikipedia seeds are CC-BY-SA",
+    ),
+    _src(
+        "smoltalk2_fr",
+        "HuggingFaceTB/smoltalk2",
+        "apache-2.0",
+        "chat_fr",
+        8000,
+        config="SFT",
+        split="smoltalk_multilingual_8languages_lang_5_no_think",
+        scan=90000,
+        note="French is ~1 row in 8 (stop-word check)",
+    ),
+    _src(
+        "emails_fr_en",
+        "sinabis-group/sinabis-100k-synthetic-emails",
+        "cc-by-4.0",
+        "emails",
+        6000,
+        scan=101000,
+        note="email -> subject line only; the rows have no purpose/tone metadata for a faithful writing task",
+    ),
+    _src(
+        "toolcall_fr",
+        "CATIE-AQ/smoltalk2_smolagents_toolcalling_french",
+        "apache-2.0",
+        "tool_call",
+        5000,
+        scan=9100,
+        note="French question and final answer, English tool traces; final_answer call turned into the reply",
+    ),
 ]
