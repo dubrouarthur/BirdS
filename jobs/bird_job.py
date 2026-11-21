@@ -286,24 +286,38 @@ def encode_file(tok, path, max_len: int, limit: int, seed: int) -> tuple[list[di
     return out, stats
 
 
-def evaluate(model, eval_batches, pad_id, dev) -> dict:
-    """Mean loss per label token, overall and per source."""
+def label_losses(model, ids, lab, att):
+    """Loss of every label token of the batch: (losses, row index of each).
+
+    The vocabulary has 248k entries, so logits are computed only where there is something to learn
+    (the hidden state just before each label token), not for every position of the batch.
+    """
     import torch
 
     from birds.render import IGNORE
+
+    core = model.get_base_model() if hasattr(model, "get_base_model") else model
+    hidden = core.model(input_ids=ids, attention_mask=att).last_hidden_state
+    keep = lab[:, 1:] != IGNORE
+    rows = keep.nonzero()[:, 0]
+    logits = core.lm_head(hidden[:, :-1][keep])
+    return torch.nn.functional.cross_entropy(logits.float(), lab[:, 1:][keep], reduction="none"), rows
+
+
+def evaluate(model, eval_batches, pad_id, dev) -> dict:
+    """Mean loss per label token, overall and per source."""
+    import torch
 
     model.eval()
     tot, n, per = 0.0, 0, {}
     with torch.no_grad():
         for g in eval_batches:
             ids, lab, att = collate(g, pad_id, dev)
-            logits = model(input_ids=ids, attention_mask=att).logits.float()
-            loss = torch.nn.functional.cross_entropy(
-                logits[:, :-1].transpose(1, 2), lab[:, 1:], ignore_index=IGNORE, reduction="none"
-            )
-            cnt = (lab[:, 1:] != IGNORE).sum(1)
+            losses, rows = label_losses(model, ids, lab, att)
+            sums = torch.zeros(len(g), device=losses.device).index_add_(0, rows, losses)
+            cnts = torch.bincount(rows, minlength=len(g))
             for i, e in enumerate(g):
-                s, c = loss[i].sum().item(), cnt[i].item()
+                s, c = sums[i].item(), cnts[i].item()
                 tot, n = tot + s, n + c
                 a = per.setdefault(e["source"], [0.0, 0])
                 a[0], a[1] = a[0] + s, a[1] + c
@@ -335,7 +349,7 @@ def train(a):
         lora_alpha=a.lora_alpha,
         lora_dropout=a.lora_dropout,
         target_modules=LORA_TARGETS,
-        use_rslora=True,
+        use_rslora=False,
         task_type="CAUSAL_LM",
     )
     model = get_peft_model(model, cfg)
@@ -384,7 +398,7 @@ def train(a):
                     epoch_batches, bi = make_batches(train_ex, a.batch_tokens, rng), 0
                 ids, lab, att = collate(epoch_batches[bi], tok.pad_token_id, dev)
                 bi += 1
-                loss = model(input_ids=ids, attention_mask=att, labels=lab).loss
+                loss = label_losses(model, ids, lab, att)[0].mean()
                 (loss / a.grad_accum).backward()
                 run_loss, run_n, seen_tokens = run_loss + loss.item(), run_n + 1, seen_tokens + int(att.sum())
             torch.nn.utils.clip_grad_norm_(params, a.max_grad_norm)
@@ -456,17 +470,17 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--tag", default="run")
     ap.add_argument("--epochs", type=float, default=1.0)
-    ap.add_argument("--lr", type=float, default=1e-4)
+    ap.add_argument("--lr", type=float, default=2e-4)
     ap.add_argument("--min-lr-ratio", type=float, default=0.1)
-    ap.add_argument("--warmup", type=float, default=0.03)
-    ap.add_argument("--weight-decay", type=float, default=0.0)
+    ap.add_argument("--warmup", type=float, default=0.05)
+    ap.add_argument("--weight-decay", type=float, default=0.01)
     ap.add_argument("--max-grad-norm", type=float, default=1.0)
     ap.add_argument("--lora-r", type=int, default=32)
-    ap.add_argument("--lora-alpha", type=float, default=16, help="with rsLoRA the scale is alpha / sqrt(r)")
-    ap.add_argument("--lora-dropout", type=float, default=0.05)
+    ap.add_argument("--lora-alpha", type=float, default=32, help="alpha = r (scale 1), the community default for Qwen3.5")
+    ap.add_argument("--lora-dropout", type=float, default=0.0)
     ap.add_argument("--max-len", type=int, default=4096)
-    ap.add_argument("--batch-tokens", type=int, default=16384, help="padded tokens per forward pass")
-    ap.add_argument("--grad-accum", type=int, default=2)
+    ap.add_argument("--batch-tokens", type=int, default=8192, help="padded tokens per forward pass")
+    ap.add_argument("--grad-accum", type=int, default=4)
     ap.add_argument("--no-grad-checkpointing", dest="grad_checkpointing", action="store_false")
     ap.add_argument("--max-steps", type=int, default=-1)
     ap.add_argument("--max-examples", type=int, default=0)
