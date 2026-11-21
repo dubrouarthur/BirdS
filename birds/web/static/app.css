@@ -2426,7 +2426,7 @@ kbd {
 }
 .toasts {
   position: fixed;
-  inset-block-end: calc(18px + var(--safe-b));
+  inset-block-start: 66px;
   inset-inline: 0;
   z-index: 70;
   display: grid;
@@ -2515,8 +2515,15 @@ kbd {
     inline-size: 34px;
     padding: 0;
   }
-  .btn-chip {
-    max-inline-size: 8.5rem;
+  #model-name {
+    display: none;
+  }
+  #btn-model {
+    inline-size: 34px;
+    padding: 0;
+  }
+  .dock-note .keys {
+    display: none;
   }
   .thinking-hint {
     display: none;

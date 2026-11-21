@@ -21,6 +21,8 @@ import {
   toast, modelLabel } from "./core.js";
 
 let hooks = {};
+// replaceChildren would print null/false as text: drop them first
+const put = (el, ...children) => el.replaceChildren(...children.flat().filter((c) => c !== null && c !== undefined && c !== false));
 export const setViewHooks = (value) => (hooks = value);
 
 // ------------------------------------------------------------------ footprint ledger (all-time, local)
@@ -398,7 +400,7 @@ export function renderFootprint() {
       h("p", { class: "hint", text: t("fp.method", { gi: fmtSig(gi) }) }),
   );
   if (!s.n) {
-    body.replaceChildren(
+    put(body, 
       head,
       h("p", { class: "panel panel-empty", text: t("fp.empty") }),
       demo && h("p", { class: "demo-note", text: t("demo.note") }),
@@ -456,7 +458,7 @@ export function renderFootprint() {
           }),
         )
       : null;
-  body.replaceChildren(
+  put(body, 
     head,
     h(
       "dl",
@@ -637,7 +639,7 @@ export function renderSettings() {
   const hosts = (hl.endpoint_hosts || ["*.endpoints.huggingface.cloud"]).join(
     ", ",
   );
-  body.replaceChildren(
+  put(body, 
     h(
       "section",
       {
@@ -781,7 +783,7 @@ export function renderSettings() {
 export function renderAbout() {
   const block = (title, ...children) =>
     h("section", { class: "panel" }, h("h3", { text: title }), ...children);
-  $("view-about-body").replaceChildren(
+  put($("view-about-body"), 
     h(
       "div",
       { class: "about-brand" },
@@ -842,7 +844,7 @@ export function openWelcome() {
         h("p", { text }),
       ),
     );
-  $("welcome-body").replaceChildren(
+  put($("welcome-body"), 
     h(
       "ul",
       { class: "welcome-list" },
@@ -870,7 +872,7 @@ export function openShortcuts() {
       ),
       h("dd", { text: label }),
     );
-  $("shortcuts-body").replaceChildren(
+  put($("shortcuts-body"), 
     h(
       "dl",
       { class: "keys" },
