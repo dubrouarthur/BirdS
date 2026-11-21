@@ -1654,6 +1654,7 @@ dialog::backdrop {
   }
   .meter-table caption {
     display: block;
+    padding: 10px 12px 2px;
   }
   .meter-table tr {
     padding: 9px 12px;
@@ -1702,4 +1703,9 @@ dialog::backdrop {
   .series-out {
     fill: Highlight;
   }
+}
+.btn-primary:disabled {
+  background: var(--surface-2);
+  color: var(--muted);
+  opacity: 1;
 }

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -32,6 +33,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="G_PER_KWH",
         help="grid carbon intensity in g CO2e/kWh; without it no CO2 figure is shown",
     )
+    p.add_argument(
+        "--tokenizer", default="Qwen/Qwen3.5-4B", help="tokenizer used to render the prompt (--base-url mode)"
+    )
+    p.add_argument(
+        "--measure-gpu", action="store_true", help="sample nvidia-smi during generation (model on this machine)"
+    )
+    p.add_argument("--wh-per-1k-tokens", type=float, default=None, help="your own calibration; shown as an estimate")
+    p.add_argument("--calibration-source", default=None, help="where that calibration comes from")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8000)
     args = p.parse_args(argv)
@@ -47,14 +56,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return args
 
 
-def build_backend(args: argparse.Namespace):
+def build_backend(args: argparse.Namespace, workspace: Path | None = None):
     from birds.web.backends import DemoBackend, HarnessBackend
 
     if args.demo:
         return DemoBackend()
+    config = {
+        "searxng_url": args.searxng,
+        "measure_gpu": args.measure_gpu,
+        "wh_per_1k_tokens": args.wh_per_1k_tokens,
+        "calibration_source": args.calibration_source,
+    }
     if args.base_url:
-        return HarnessBackend.completions(args.base_url, args.model, api_key=args.api_key, searxng=args.searxng)
-    return HarnessBackend.local(args.local, adapter=args.adapter, searxng=args.searxng)
+        return HarnessBackend.completions(
+            args.base_url, args.model, workspace=workspace, api_key=args.api_key, tokenizer=args.tokenizer, **config
+        )
+    return HarnessBackend.local(args.local, workspace=workspace, adapter=args.adapter, **config)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -63,8 +80,10 @@ def main(argv: list[str] | None = None) -> None:
 
     from birds.web.server import create_app
 
-    backend = build_backend(args)
-    app = create_app(backend, workspace=args.workspace, grid_intensity=args.grid_intensity)
+    workspace = Path(args.workspace or tempfile.mkdtemp(prefix="bird-workspace-")).resolve()
+    workspace.mkdir(parents=True, exist_ok=True)
+    backend = build_backend(args, workspace)
+    app = create_app(backend, workspace=workspace, grid_intensity=args.grid_intensity)
     print(f"Bird [{backend.kind}: {backend.model}]  http://{args.host}:{args.port}  workspace={app.state.workspace}")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 

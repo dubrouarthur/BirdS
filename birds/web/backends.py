@@ -7,6 +7,7 @@ layer in ``server.py`` never needs to know which backend is in use.
 
 from __future__ import annotations
 
+import json
 import re
 import threading
 import time
@@ -15,6 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlsplit
 
 Event = dict[str, Any]
 
@@ -582,14 +584,172 @@ class HarnessUnavailable(RuntimeError):
 
 
 class HarnessBackend:
-    """Placeholder until wired to birds.harness (see end of file)."""
+    """Adapter over ``birds.harness`` (agent loop, tools, guardrails, meter).
 
-    kind = "completions"
-    model = "?"
-    tools: list[str] = []
+    The harness loop is blocking and returns a ``Run`` at the end. To show steps while they happen, a thin
+    ``Agent`` subclass wraps the per-call hook; whatever happens, the steps of the final ``Run`` are re-emitted
+    at the end, so the timeline is correct even if that hook changes.
+    """
+
+    files_subdir = "bird_out"  # the harness writes generated files there; only that folder is served
+
+    def __init__(self, llm, tok, config, *, kind: str, model: str, http=None) -> None:
+        try:
+            from birds.harness import Agent
+        except ImportError as exc:  # pragma: no cover - depends on the optional install
+            raise HarnessUnavailable(_HARNESS_HELP) from exc
+        self.llm, self.tok, self.config, self.http = llm, tok, config, http
+        self.kind, self.model = kind, model
+        self.tools = [t["function"]["name"] for t in Agent(llm, tok, config, http=http).tools]
+        self._lock = threading.Lock()  # one generation at a time: a small model on one machine
+
+    # -- constructors used by scripts/serve.py
+    @classmethod
+    def completions(
+        cls,
+        base_url: str,
+        model: str,
+        *,
+        workspace: Path,
+        api_key: str | None = None,
+        tokenizer: str = "Qwen/Qwen3.5-4B",
+        **config,
+    ) -> HarnessBackend:
+        """Model behind an OpenAI-compatible ``/v1/completions`` endpoint. Only the tokenizer is loaded here."""
+        try:
+            from transformers import AutoTokenizer
+
+            from birds.harness import CompletionsClient, Config
+        except ImportError as exc:
+            raise HarnessUnavailable(_HARNESS_HELP) from exc
+        cfg = Config(workspace=Path(workspace).resolve(), **config)
+        llm = CompletionsClient(base_url, model, api_key)
+        return cls(llm, AutoTokenizer.from_pretrained(tokenizer), cfg, kind="completions", model=model)
 
     @classmethod
-    def completions(cls, *a, **k):
-        raise HarnessUnavailable("HarnessBackend is not wired yet")
+    def local(cls, model: str, *, workspace: Path, adapter: str | None = None, **config) -> HarnessBackend:
+        """Model loaded in this process with transformers (needs the ``train`` extras and, realistically, a GPU)."""
+        try:
+            from birds.harness import Config, LocalClient
+        except ImportError as exc:
+            raise HarnessUnavailable(_HARNESS_HELP) from exc
+        cfg = Config(workspace=Path(workspace).resolve(), **config)
+        llm = LocalClient(model, adapter)
+        return cls(llm, llm.tok, cfg, kind="local", model=Path(adapter or model).name)
 
-    local = completions
+    # -- one chat turn
+    def run(self, request: ChatRequest, ctx: RunContext) -> None:
+        from birds.harness import Agent
+
+        lang = "en" if request.lang == "en" else "fr"
+        backend = self
+        live: dict[int, int] = {}  # id(step) -> index, for steps already announced
+
+        def confirm(tool: str, arguments: dict) -> bool:
+            return ctx.confirm(tool, _plain(arguments), _t(lang, _CONFIRM_REASON["fr"], _CONFIRM_REASON["en"]))
+
+        class StreamingAgent(Agent):
+            def _call(self, name, raw_args, gen, run, hctx, side_effects):
+                ctx.check()  # stop between two tool calls when the user pressed stop
+                index = len(run.steps)
+                shown = raw_args if isinstance(raw_args, dict) else {}
+                ctx.emit(step_event(index, str(name), _plain(shown), "running"))
+                step, result = super()._call(name, raw_args, gen, run, hctx, side_effects)
+                live[id(step)] = index
+                ctx.emit(backend._step_event(index, step, len(result), lang))
+                return step, result
+
+        *history, last = request.messages
+        with self._lock:
+            ctx.check()
+            agent = StreamingAgent(self.llm, self.tok, self.config, confirm=confirm, http=self.http)
+            # lang=None: the harness answers in the language of the user's message, not of the interface.
+            run = agent.run(last["content"], history=history or None, thinking=request.thinking)
+        ctx.check()
+        for index, step in enumerate(run.steps):
+            if live.get(id(step)) != index:  # the live hook did not fire for this step: report it now
+                ctx.emit(self._step_event(index, step, step.chars, lang))
+        if request.thinking and run.reasoning:
+            ctx.emit({"type": "reasoning", "content": str(run.reasoning)})
+        draft = run.drafts[-1] if run.drafts else None
+        ctx.emit(
+            {
+                "type": "answer",
+                "content": str(run.answer),
+                "sources": [
+                    {"n": n, "title": _source_title(url), "url": str(url)} for n, url in enumerate(run.sources, 1)
+                ],
+                "files": [_file_entry(path) for path in run.files],
+                "draft_email": None
+                if draft is None
+                else {
+                    "to": ", ".join(map(str, draft.get("to") or []))
+                    if isinstance(draft.get("to"), list | tuple)
+                    else str(draft.get("to") or ""),
+                    "subject": str(draft.get("subject") or ""),
+                    "body": str(draft.get("body") or ""),
+                },
+            }
+        )
+        report = run.report or {}
+        ctx.emit(
+            usage_event(
+                model=self.model,
+                thinking=request.thinking,
+                prompt_tokens=report.get("prompt_tokens") or 0,
+                completion_tokens=report.get("completion_tokens") or 0,
+                seconds=report.get("wall_seconds") or 0.0,
+                tool_calls=report.get("tool_calls") or len(run.steps),
+                bytes_fetched=report.get("bytes_fetched") or 0,
+                energy_wh=report.get("energy_wh"),
+                energy_kind=report.get("energy_kind"),
+            )
+        )
+
+    @staticmethod
+    def _step_event(index: int, step, chars: int, lang: str) -> Event:
+        decision = str(getattr(step, "decision", "allow"))
+        if decision.startswith("denied"):
+            status = "denied"
+            summary = _t(lang, *_DENIED_SUMMARY.get(decision, _DENIED_SUMMARY["denied_unconfirmed"]))
+        elif step.error:
+            status, summary = "error", str(step.error)[:200]
+        else:
+            status = "done"
+            summary = _t(lang, f"{chars} caractères rendus au modèle", f"{chars} characters returned to the model")
+        return step_event(index, step.tool, _plain(step.arguments), status, summary, step.seconds, step.flags)
+
+
+_HARNESS_HELP = (
+    "The agent harness is not installed. Install it with: "
+    'uv pip install --python .venv/bin/python -e ".[harness,web]" (or run the scripted demo with --demo).'
+)
+_CONFIRM_REASON = {
+    "fr": "Un contenu externe lu pendant cette requête semblait contenir des instructions. Bird veut maintenant "
+    "effectuer cette action : vérifiez qu'elle correspond bien à votre demande.",
+    "en": "External content read during this request looked like it contained instructions. Bird now wants to "
+    "perform this action: check that it matches what you asked for.",
+}
+_DENIED_SUMMARY = {
+    "denied_unconfirmed": ("Non confirmé : action non effectuée", "Not confirmed: action not performed"),
+    "denied_cap": ("Limite d'actions par requête atteinte", "Limit of actions per request reached"),
+}
+
+
+def _plain(value: Any) -> Any:
+    """JSON-safe copy of tool arguments for the UI."""
+    try:
+        return json.loads(json.dumps(value, ensure_ascii=False, default=str))
+    except (TypeError, ValueError):
+        return {}
+
+
+def _source_title(url: str) -> str:
+    parts = urlsplit(str(url))
+    path = parts.path.rstrip("/")
+    return (parts.netloc + path) if parts.netloc else str(url)
+
+
+def _file_entry(path: str) -> dict[str, str]:
+    name = Path(str(path)).name
+    return {"name": name, "url": f"/files/{name}"}

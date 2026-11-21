@@ -74,10 +74,15 @@ def create_app(
     root = Path(workspace) if workspace else Path(tempfile.mkdtemp(prefix="bird-workspace-"))
     root.mkdir(parents=True, exist_ok=True)
     root = root.resolve()
+    # Folder whose files are downloadable. The harness writes into a sub-folder, so that its audit log and the
+    # user's own documents in the workspace are never served.
+    files_root = (root / getattr(backend, "files_subdir", "")).resolve()
+    files_root.mkdir(parents=True, exist_ok=True)
 
     app = FastAPI(title="Bird", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.backend = backend
     app.state.workspace = root
+    app.state.files_root = files_root
     app.state.confirms = ConfirmRegistry()
 
     @app.middleware("http")
@@ -158,8 +163,8 @@ def create_app(
     def files(name: str) -> FileResponse:
         if not SAFE_NAME.match(name) or ".." in name:
             raise HTTPException(404, "not found")
-        path = (root / name).resolve()
-        if path.parent != root or not path.is_file():
+        path = (files_root / name).resolve()
+        if path.parent != files_root or not path.is_file():
             raise HTTPException(404, "not found")
         return FileResponse(path, filename=name, headers={"Cache-Control": "no-store"})
 
