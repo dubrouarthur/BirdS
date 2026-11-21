@@ -59,6 +59,7 @@ def main() -> int:
     ap.add_argument("--mix", required=True)
     ap.add_argument("--bench", default="")
     ap.add_argument("--tokenizer", default="Qwen/Qwen3.5-4B")
+    ap.add_argument("--floor-scale", type=float, default=1.0, help="scale the volume floors (budget-sized mixes)")
     ap.add_argument("--sample", type=int, default=4000, help="examples tokenised to estimate lengths")
     a = ap.parse_args()
     from transformers import AutoTokenizer
@@ -102,13 +103,17 @@ def main() -> int:
     print(f"{'check':24s} {'value':>14s}   target")
     for k, (lo, hi) in TARGETS.items():
         v = m[k]
+        if k in ("examples", "label_tokens"):
+            lo = lo * a.floor_scale
+        if k == "share_identity" and a.floor_scale < 1:
+            hi = 0.04  # identity keeps its absolute size in a smaller mix
         good = (lo is None or v >= lo) and (hi is None or v <= hi)
         ok &= good
         val = f"{v:.3f}" if isinstance(v, float) else f"{v:,}"
         print(f"{k:24s} {val:>14s}   {'≥ ' + str(lo) if lo is not None else ''} {'≤ ' + str(hi) if hi is not None else ''}  {'ok' if good else 'FAIL'}")
     print(f"\n{'skill':12s} {'records':>8s} {'share':>6s} {'fr':>6s}   minimum")
     for k in sorted(set(MIN_PER_SKILL) | set(by_skill)):
-        need = MIN_PER_SKILL.get(k, 0)
+        need = int(MIN_PER_SKILL.get(k, 0) * (1.0 if k in ("identity", "guardrails") else a.floor_scale))
         good = by_skill[k] >= need and k != "other"
         ok &= good or (k == "other" and by_skill[k] == 0)
         print(f"{k:12s} {by_skill[k]:8d} {by_skill[k] / n:6.1%} {fr_by_skill[k] / max(1, by_skill[k]):6.0%}   ≥ {need}  {'ok' if good else 'FAIL'}")
