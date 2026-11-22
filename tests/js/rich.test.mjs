@@ -353,3 +353,15 @@ test("pros/cons need real pros and cons labels", () => {
   for (const s of ["Pour\n- a\n\nContre\n- b", "Avantages\n- a\n\nRisques\n- b", "Points forts\n- a\n\nLimites\n- b"])
     assert.match(md(s), /md-proscons/, s);
 });
+
+test("key numbers: dates, phone numbers and years are not figures", () => {
+  for (const s of [
+    "- Dépôt du dossier : 15 mars 2025\n- Instruction : 2 avril 2025\n- Décision : 30 juin 2025",
+    "- Téléphone : 01 23 45 67 89\n- Fax : 01 23 45 67 90\n- Poste : 0612345678",
+    "- Création : 1998\n- Rachat : 2012\n- Introduction en bourse : 2021",
+    "- Salles : 3\n- Étages : 2\n- Bureaux : 14",
+  ])
+    assert.doesNotMatch(md(s), /md-kpis/, s);
+  assert.match(md("- CA : 412 000 €\n- Marge : 38 %\n- Clients : 14"), /md-kpis/);
+  assert.match(md("- Visiteurs : 12 400\n- Inscrits : 860\n- Abonnés : 95"), /md-kpis/);
+});

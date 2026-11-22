@@ -366,6 +366,17 @@ const figureOf = (text) => {
     : null;
 };
 
+const RE_MONTH =
+  /^(?:janv|févr|fevr|mars|avr|mai|juin|juil|août|aout|sept|oct|nov|déc|dec|jan|feb|mar|apr|may|jun|jul|aug|sep)/i;
+const RE_PHONE = /^(?:0\d(?:[\s.\u00a0\u202f]?\d{2}){4}|\+\d{2,3}(?:[\s.\u00a0\u202f]?\d{1,2}){4,5})$/;
+const RE_UNIT = /(?:%|€|k€|M€|Md€|\$|h|j|jours|ans|pts?|points?|clients|°C)$/;
+const bigNumber = (v) => Number(v.replace(/[^\d,.]/g, "").replace(/[.,](?=\d{3}(?:\D|$))/g, "").replace(",", ".")) >= 1000;
+/** A figure that is a date ("15 mars 2025"), a phone number or a bare year is not a key number. */
+const isMetric = (f) =>
+  !RE_MONTH.test(f.tail) &&
+  !RE_PHONE.test(f.value.trim()) &&
+  !(/^(?:19|20)\d{2}$/.test(f.value.trim()) && !f.tail);
+
 // "Avantages", "Avantages courants", "Points forts du leasing": the keyword opens a label of at most 5 words.
 // "Pour" and "Contre" count only alone ("Pour vos salariés" is not a list of pros), and "Risques" pairs only with
 // a clear "Avantages" / "Points forts" label.
@@ -489,7 +500,9 @@ function keyNumbers(nodes, ctx) {
   )
     return null;
   const figs = leaves.map((n) => figureOf(n.item.text));
-  if (figs.some((f) => !f)) return null;
+  if (figs.some((f) => !f || !isMetric(f))) return null;
+  // at least one real measure: a unit, or a number in the thousands
+  if (!figs.some((f) => RE_UNIT.test(f.value) || bigNumber(f.value))) return null;
   const cap = caption ? `<figcaption>${inline(caption, ctx)}</figcaption>` : "";
   const cells = figs
     .map(
