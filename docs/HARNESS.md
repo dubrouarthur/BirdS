@@ -118,9 +118,35 @@ Le modèle est servi derrière un point d'accès standard (`/v1/chat/completions
 
 Limite à dire clairement : ces clients envoient **leurs propres invites système et leurs propres schémas d'outils**, souvent longs et nombreux. Bird n'a pas été entraîné dessus. Il faut s'attendre à des appels d'outils moins fiables, à un contexte vite saturé et à la perte du gain énergétique. Surtout, **aucun des garde-fous ci-dessus ne s'applique** dans ce cas : la sécurité est alors celle du client. Cette compatibilité est à tester, pas à promettre ; le chemin pris en charge est ce harnais.
 
+## 9. Historique de conversation et cache de préfixe
+
+Référence : docs/HISTORY_SPEC.md. Code : `birds/harness/history.py`, `birds/web/backends.py` (`prepare_turn`, `conv_lang`, `run_lang`, `cache_salt`).
+
+- **Budget** : `BIRD_HISTORY_TOKENS` (6 000 tokens estimés, longueur / 3,5) pour les tours précédents ; chaque message passé est plafonné à `BIRD_HISTORY_MSG_TOKENS` (3 168 : 2/3 du début + 1/3 de la fin), de la même façon quelle que soit sa position.
+- **Coupe à hystérésis** : quand l'historique dépasse le budget, les tours les plus anciens sont retirés **entiers** jusqu'à la moitié du budget. La coupe est rejouée depuis le début de la conversation (fonction pure, serveur sans état) et ne bouge qu'environ une fois par demi-budget : entre deux coupes, le prompt du tour N+1 commence exactement par les octets du tour N, ce que le cache de préfixe de vLLM réutilise. Les tours retirés sont résumés sans appel au modèle (première ligne de chaque demande, fichiers et sources produits), à la fin du message système.
+- **Mémo d'outils** : chaque réponse garde un mémo déterministe (outils et arguments clés, titres et URL des résultats de recherche, pages lues, fichiers créés, objet du brouillon), jamais le texte brut des outils. Il est rendu à la fin de la réponse correspondante dans l'historique. Le modèle a parfois recopié ce format à la fin d'une réponse : cet écho est retiré (`strip_memo`).
+- **Texte exact** : le serveur envoie au navigateur, par un événement `user`, le texte exact que le modèle a reçu (transcriptions d'images plafonnées à 2 400 caractères et précédées de la mention « donnée externe », notes de pièces jointes) ; le navigateur le renvoie tel quel aux tours suivants. Les images ne sont jamais renvoyées.
+- **Langue** : fixée par le navigateur au premier message (`conv_lang`), jamais détectée ; une requête n'est traitée dans l'autre langue que si elle en porte au moins 3 marqueurs, deux fois plus que l'autre.
+- **Réponses interrompues** (`finish_reason = length` ou arrêt) : marquées « [réponse interrompue] ».
+- **Isolation du cache** : `cache_salt` par conversation (sha256 d'un UUID aléatoire du navigateur). Vérifié sur l'endpoint réel : même sel → 1 056 tokens servis par le cache sur un prompt de 1 396 tokens ; autre sel → 0. Taille de bloc observée : 528. `BIRD_CACHE_SALT=off` partage le cache entre conversations (meilleur taux, moins de confidentialité).
+- **Écarts assumés par rapport à la spécification** : (1) l'outil `read_file` est toujours proposé (bloc d'outils stable), mais le routage du § 2 bis retire les outils web sur les demandes de fichier, ce qui change le bloc d'outils de ces tours : mesuré, sans routage le modèle a fait des recherches au lieu de créer le document, le tableur et le mail (3 échecs sur 3 dans une conversation de 8 tours) ; avec routage il les crée (voir ci-dessous). (2) Pas de sonde `cache_salt` au démarrage : sur Vercel elle réveillerait l'endpoint à chaque démarrage à froid ; l'acceptation a été vérifiée à la main. (3) Le contrôle de gabarit `BIRD_TOKENIZER` (§ 3.9) n'est pas fait. (4) `cached_tokens` par génération n'est pas disponible : l'endpoint n'a pas `--enable-prompt-tokens-details` (réglage de l'endpoint, non modifié ici) ; seuls les compteurs de `/metrics` ont servi.
+
+**Mesure réelle** (22/11/2026, endpoint vLLM, une conversation française de 8 tours : recherche, « la deuxième source », note Word, ajout d'une section, tableur, ajout d'une colonne, mail, résumé ; compteurs `vllm:prefix_cache_queries_total` / `hits_total` lus avant et après chaque tour, en séquence, sans autre trafic connu) :
+
+| Version | Tokens de prompt (8 tours) | Tokens servis par le cache | Premier token (médiane) | Fichiers / brouillons créés quand demandés |
+| --- | --- | --- | --- | --- |
+| Avant (historique complet, sans mémo, sans sel) | 17 960 | 12 672 (71 %) | 0,20 s | note, tableur, mail (les « mises à jour » sont annoncées sans être refaites) |
+| Après (fenêtre, mémo, texte exact, sel par conversation) | 23 692 | 12 672 (53 %) | 0,37 s | note ; tableur et mail rédigés dans la réponse sans outil |
+
+Lecture franche : le mémo et les résultats de recherche rendent « la deuxième source » vérifiable (réponse identique sur ces deux runs, la source étant hors sujet : Wikipédia renvoie « Noms des jours de la semaine »), mais coûtent des tokens ; le sel par conversation supprime le partage du préfixe système + outils entre conversations, d'où un taux de cache plus bas. Sur des conversations plus longues que le budget, la fenêtre borne le prompt (le naïf grossit sans limite jusqu'au refus 413). Les demandes de modification de fichier (« ajoute une colonne et refais-le ») ne sont pas refaites par le modèle dans les deux versions : limite du modèle, pas du harnais.
+
+## 10. Essais réels (22/11/2026, endpoint vLLM, Bird S 4B)
+
+`out/ops/e2e_web.py` (API web, mode serveur) : recherche → Wikipédia, réponse correcte (5,3 s, ≈ 0,085 Wh estimés) ; présentation → .pptx de 4 diapositives (7,9 s) ; compte rendu → .docx (5,0 s) ; tableur avec formule de total → .xlsx (5,9 s) ; mail → brouillon « Réunion décalée au vendredi 10 h » ; question TVA sans outil → 1 440 € TTC (2,5 s) ; image de facture → « Total TTC 1 320,00 € » exact (9,3 s). Avant les corrections : recherche « non configurée », présentation refusée (liste écrite en texte JSON), puis présentation jamais créée après une recherche en boucle.
+
 ## 8. Ce qui reste à vérifier
 
-- Aucun essai n'a encore été fait avec le vrai modèle : la boucle est testée avec des sorties scriptées. La qualité des appels d'outils, le taux de relance et le comportement face aux injections sont à mesurer sur le modèle entraîné.
+- Essais réels faits (§ 9 et § 10), mais sur quelques dizaines de requêtes seulement. Le comportement face à une page piégée (injection) n'a pas été testé en réel : aucune page piégée n'a été hébergée.
 - La ligne d'avertissement placée devant les résultats d'outils n'existe pas dans les données d'entraînement actuelles (`birds/sources/guardrails.py`). Il faut soit l'y ajouter, soit vérifier qu'elle ne dégrade pas les réponses.
 - Le client local (`LocalClient`) et la mesure `nvidia-smi` n'ont pas été exécutés sur GPU.
 - Les serveurs (llama.cpp, vLLM, Ollama) n'ont pas été testés en vrai ; seul le format de la requête l'est.

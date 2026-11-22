@@ -217,7 +217,10 @@ TOOL_TEXT = {  # why a tool is on or off on this deployment, for the "available 
         "Switched off (BIRD_SEARCH_DEFAULT=none)",
     ),
     "read_page": ("Lit une page publique (http/https, adresses publiques, 2 Mo au plus)", "Reads a public page"),
-    "read_file": ("Actif quand vous joignez un fichier texte au message", "Active when you attach a text file"),
+    "read_file": (
+        "Actif quand vous joignez un document (texte, PDF, Word, Excel, PowerPoint) ou une image",
+        "Active when you attach a document (text, PDF, Word, Excel, PowerPoint) or an image",
+    ),
     "read_file_ws": ("Lit les fichiers du dossier de travail du serveur", "Reads files in the server workspace"),
     "draft_email": ("Prépare un brouillon ; rien n'est envoyé", "Prepares a draft; nothing is sent"),
     "make_slides": ("Crée un .pptx, téléchargeable ici", "Creates a .pptx, downloadable here"),

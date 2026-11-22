@@ -43,6 +43,8 @@ Ce que le dépôt contient pour cela :
 | `BIRD_SEARCH_DEFAULT`                                                   | non                                         | `none`                                                   | Par défaut `wikipedia` : sans clé, la recherche passe par l'API de Wikipédia. `none` masque l'outil de recherche.                   |
 | `BIRD_CONTACT`                                                          | conseillé                                   | `https://bird.exemple.org` ou une adresse mail            | Contact mis dans le User-Agent envoyé à Wikipédia (exigé par sa politique). Par défaut : l'adresse de production Vercel.            |
 | `BIRD_HISTORY_TOKENS`                                                   | non                                         | `6000`                                                   | Budget (estimé) des tours précédents renvoyés au modèle à chaque message. Voir docs/HARNESS.md § 9.                                 |
+| `BIRD_HISTORY_MSG_TOKENS`                                               | non                                         | `3168`                                                   | Plafond d'un message passé (début et fin gardés).                                                                                   |
+| `BIRD_CACHE_SALT`                                                       | non                                         | `off`                                                    | Par défaut, un sel de cache par conversation (le préfixe d'une conversation n'est jamais réutilisé par une autre). `off` : cache partagé. |
 | `BIRD_MAX_TOKENS`                                                       | non                                         | `1536`                                                   | Tokens par génération (une présentation complète demande de la place).                                                              |
 | `BIRD_GPU_WATTS`, `BIRD_GPU_LABEL`                                      | non                                         | `72`, `NVIDIA L4 (72 W TDP)`                             | Puissance nominale du GPU de l'endpoint, pour l'**estimation** d'énergie (borne haute). `0` : pas d'estimation.                     |
 | `BIRD_PUE`                                                              | non                                         | `1.2`                                                    | Facteur d'efficacité du centre de données. Par défaut `1.0` = GPU seul, et l'interface le dit.                                       |
@@ -115,6 +117,13 @@ Protection contre le détournement (l'adresse saisie est appelée par notre serv
 1. `…/api/health` : `"backend": "completions"`, `"default_mode": "server"`, et `tools_info` liste les outils actifs (avec `web_search` et le moteur qui répond).
 2. Réglages → Modèle → « Tester la connexion ».
 3. Une question simple, puis une demande de mail : la réponse doit s'écrire au fil de l'eau.
+
+## 4 bis. Ce que l'exploitant doit et peut régler
+
+- **À régler** : `BIRD_BASE_URL`, `BIRD_API_KEY` (et `BIRD_MODEL` si le nom servi diffère), `BIRD_SIGNING_SECRET`, `BIRD_ACCESS_CODE` sur une adresse publique, `BIRD_CONTACT` (contact du User-Agent envoyé à Wikipédia ; sinon l'adresse de production Vercel).
+- **Recherche** : `BIRD_BRAVE_API_KEY` (déjà en place chez vous), puis `BIRD_SEARXNG_URL` quand SearXNG sera prêt : il passera devant Brave sans autre changement.
+- **Énergie** : `BIRD_GPU_WATTS` si l'endpoint change de GPU, `BIRD_PUE`, `BIRD_GRID_INTENSITY` pour le CO₂.
+- **Côté endpoint** (pas dans Vercel) : `--enable-prompt-tokens-details` dans vLLM rendrait mesurable, par réponse, la part du prompt servie par le cache.
 
 ## 5. Limites à connaître
 
