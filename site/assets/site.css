@@ -941,6 +941,14 @@ figcaption {
   color: var(--ink-2);
   font-size: 0.9375rem;
 }
+@media (min-width: 1100px) {
+  .steps.steps-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.steps .eyebrow {
+  margin: 0;
+}
 .tag-intent {
   display: inline-block;
   font-size: 0.75rem;

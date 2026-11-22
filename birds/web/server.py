@@ -650,13 +650,39 @@ def create_app(
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     if SITE_DIR.is_dir():
-        from fastapi.responses import RedirectResponse
+        import mimetypes
+        import re as _re
+
+        from fastapi.responses import RedirectResponse, Response
+
+        site_root = SITE_DIR.resolve()
+        # the site is written for its own domain (links like "/demarche", "/assets/site.css"): under /a-propos/
+        # those root-relative links are rewritten on the fly, and clean URLs map to their .html file
+        root_link = _re.compile(r'((?:href|src|action|content)=")/(?!/)')
+
+        def site_file(path: str) -> Path | None:
+            target = (site_root / path).resolve()
+            if site_root not in target.parents and target != site_root:
+                return None
+            for cand in (target, target.with_suffix(".html") if not target.suffix else None, target / "index.html"):
+                if cand is not None and cand.is_file():
+                    return cand
+            return None
 
         @app.get("/a-propos", include_in_schema=False)
         def about_site() -> RedirectResponse:
             return RedirectResponse("/a-propos/", status_code=308)
 
-        app.mount("/a-propos", StaticFiles(directory=SITE_DIR, html=True), name="site")
+        @app.get("/a-propos/{path:path}", include_in_schema=False)
+        def about_page(path: str = ""):
+            f = site_file(path.strip("/"))
+            if f is None:
+                raise HTTPException(status_code=404)
+            if f.suffix == ".html":
+                html = root_link.sub(r"\1/a-propos/", f.read_text(encoding="utf-8"))
+                return Response(html, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-cache"})
+            kind = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
+            return FileResponse(f, media_type=kind, headers={"Cache-Control": "public, max-age=3600"})
     return app
 
 
