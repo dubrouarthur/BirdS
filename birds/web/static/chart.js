@@ -610,50 +610,115 @@ export function toCsv(spec, lang) {
   return lines.join("\n");
 }
 
-function standaloneSvg(svg) {
-  // copy the computed colours and fonts onto a clone: the PNG is drawn without our stylesheet
-  const clone = svg.cloneNode(true);
+/** Computed light-theme styles of ``els``: the export is always light (it goes into documents), whatever the
+ * screen shows. The theme attribute is switched and restored synchronously, so nothing is ever painted. */
+function lightStyles(els, props, tokens) {
+  const root = document.documentElement;
+  const prev = root.dataset.theme;
+  root.dataset.theme = "light";
+  try {
+    const rootCs = getComputedStyle(root);
+    return {
+      els: els.map((el) => {
+        const cs = getComputedStyle(el);
+        return Object.fromEntries(props.map((p) => [p, cs.getPropertyValue(p)]));
+      }),
+      tokens: Object.fromEntries(
+        tokens.map((k) => [k, rootCs.getPropertyValue(k).trim()]),
+      ),
+    };
+  } finally {
+    if (prev === undefined) delete root.dataset.theme;
+    else root.dataset.theme = prev;
+  }
+}
+
+function standaloneSvg(svg, { title = "", foot = "", legend = [] } = {}) {
+  // a standalone, light SVG: title on top, the plot, its legend, then the source line; colours and fonts are
+  // copied from the computed styles, because the PNG is drawn without our stylesheet
+  const props = ["fill", "stroke", "stroke-width", "opacity", "font-size", "font-weight"];
   const src = [svg, ...svg.querySelectorAll("*")];
-  const dst = [clone, ...clone.querySelectorAll("*")];
-  src.forEach((el, i) => {
-    const cs = getComputedStyle(el);
-    const out = dst[i];
-    for (const p of [
-      "fill",
-      "stroke",
-      "stroke-width",
-      "opacity",
-      "font-size",
-      "font-weight",
-    ]) {
-      const v = cs.getPropertyValue(p);
-      if (v) out.setAttribute(p, v);
-    }
+  const swatches = legend.map(([, k]) => {
+    const el = document.createElement("span");
+    el.className = `series-bg-${k}`;
+    document.body.append(el);
+    return el;
+  });
+  const { els, tokens } = lightStyles(
+    [...src, ...swatches],
+    [...props, "background-color"],
+    ["--surface", "--ink", "--muted", "--line"],
+  );
+  swatches.forEach((el) => el.remove());
+  const plot = svg.cloneNode(true);
+  const dst = [plot, ...plot.querySelectorAll("*")];
+  dst.forEach((out, i) => {
+    for (const p of props) if (els[i][p]) out.setAttribute(p, els[i][p]);
     out.removeAttribute("class");
   });
+  for (const r of plot.querySelectorAll("rect")) r.remove(); // hit areas
   const vb = svg.viewBox.baseVal;
-  clone.setAttribute("xmlns", NS);
+  const pad = 16;
+  const ink = tokens["--ink"] || "#1a1a1a";
+  const muted = tokens["--muted"] || "#666666";
+  const titleLines = wrapLabel(title, (vb.width - 2 * pad) * 0.75).filter(Boolean); // 16px text
+  const head = 14 + titleLines.length * 20;
+  // legend: swatch + name, wrapped to the width
+  const items = [];
+  let lx = pad;
+  let ly = 0;
+  legend.forEach(([name, k], i) => {
+    const label = fitText(name, vb.width - 2 * pad - 16);
+    const w = 16 + textWidth(label) + 14;
+    if (lx > pad && lx + w > vb.width - pad) {
+      lx = pad;
+      ly += 18;
+    }
+    items.push(
+      s("rect", { x: lx, y: ly - 9, width: 10, height: 10, rx: 2, fill: els[src.length + i]["background-color"] }),
+      s("text", { x: lx + 16, y: ly, "font-size": 12, fill: ink }, label),
+    );
+    lx += w;
+  });
+  const legendH = legend.length ? ly + 26 : 0;
+  const footLines = [foot]
+    .flat()
+    .filter(Boolean)
+    .flatMap((line) => wrapLabel(line, (vb.width - 2 * pad) * (12 / 11)).filter(Boolean)); // 11px text
+  const H = head + vb.height + legendH + 10 + footLines.length * 16 + 10;
   const k = Math.max(2, 1280 / vb.width); // at least 1280 px wide, whatever the screen it was drawn for
-  clone.setAttribute("width", String(Math.round(vb.width * k)));
-  clone.setAttribute("height", String(Math.round(vb.height * k)));
-  clone.setAttribute("font-family", "system-ui, sans-serif");
-  const bg =
-    getComputedStyle(document.documentElement)
-      .getPropertyValue("--surface")
-      .trim() || "#ffffff";
-  clone.insertBefore(
-    s("rect", { x: 0, y: 0, width: vb.width, height: vb.height, fill: bg }),
-    clone.firstChild,
+  const out = s(
+    "svg",
+    {
+      xmlns: NS,
+      viewBox: `0 0 ${vb.width} ${H}`,
+      width: Math.round(vb.width * k),
+      height: Math.round(H * k),
+      "font-family": "system-ui, sans-serif",
+    },
+    s("rect", { x: 0, y: 0, width: vb.width, height: H, fill: tokens["--surface"] || "#ffffff" }),
+    titleLines.map((line, i) =>
+      s("text", { x: pad, y: 24 + i * 20, "font-size": 16, "font-weight": 650, fill: ink }, line),
+    ),
+    s("g", { transform: `translate(0 ${head})` }, ...plot.childNodes),
+    legend.length && s("g", { transform: `translate(0 ${head + vb.height + 18})` }, items),
+    footLines.map((line, i) =>
+      s(
+        "text",
+        { x: pad, y: head + vb.height + legendH + 22 + i * 16, "font-size": 11, fill: muted },
+        line,
+      ),
+    ),
   );
   return {
-    text: new XMLSerializer().serializeToString(clone),
+    text: new XMLSerializer().serializeToString(out),
     w: Math.round(vb.width * k),
-    h: Math.round(vb.height * k),
+    h: Math.round(H * k),
   };
 }
 
-function exportPng(svg, title) {
-  const { text, w, h: hh } = standaloneSvg(svg);
+function exportPng(svg, title, meta) {
+  const { text, w, h: hh } = standaloneSvg(svg, { title, ...meta });
   const url = URL.createObjectURL(new Blob([text], { type: "image/svg+xml" }));
   const img = new Image();
   img.onload = () => {
@@ -998,6 +1063,12 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
   ]
     .filter(Boolean)
     .join(" · ");
+  const reshapedNote =
+    Array.isArray(spec.reshaped) && spec.reshaped.length > 0
+      ? t("chart.reshaped", {
+          notes: spec.reshaped.map(reshapedText).join(lang === "en" ? "; " : " ; "),
+        })
+      : "";
   let xlsxBusy = false;
   const xlsxBtn = button(
     "btn-outline btn-small",
@@ -1037,16 +1108,8 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
     plot,
     h("p", { id: `${uid}-sum`, class: "sr-only", text: summary }),
     legend,
-    Array.isArray(spec.reshaped) &&
-      spec.reshaped.length > 0 &&
-      h(
-        "p",
-        { class: "chart-note" },
-        icon("info"),
-        t("chart.reshaped", {
-          notes: spec.reshaped.map(reshapedText).join(lang === "en" ? "; " : " ; "),
-        }),
-      ),
+    reshapedNote &&
+      h("p", { class: "chart-note" }, icon("info"), reshapedNote),
     table,
     h(
       "div",
@@ -1055,7 +1118,19 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
         "btn-outline btn-small",
         "download",
         t("chart.png"),
-        () => (hide(), exportPng(svg, spec.title)),
+        () => {
+          hide();
+          exportPng(svg, spec.title, {
+            legend: legendItems,
+            // the honesty label travels with the image: where the numbers come from, or "not verified"
+            foot: [
+              [t(`chart.type.${type}`), spec.unit || "", t(`chart.source.${source}`), "Bird"]
+                .filter(Boolean)
+                .join(" · "),
+              reshapedNote,
+            ],
+          });
+        },
         { "data-act": "chart-png" },
       ),
       button(
