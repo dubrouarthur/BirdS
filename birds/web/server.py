@@ -666,6 +666,8 @@ def create_app(
         # the site is written for its own domain (links like "/demarche", "/assets/site.css"): under /a-propos/
         # those root-relative links are rewritten on the fly, and clean URLs map to their .html file
         root_link = _re.compile(r'((?:href|src|action|content)=")/(?!/)')
+        # only what a page needs: README.md, COPY.md, vercel.json and other internal files stay private
+        site_types = {".html", ".css", ".js", ".webp", ".png", ".svg", ".ico", ".woff2"}
 
         def site_file(path: str) -> Path | None:
             target = (site_root / path).resolve()
@@ -673,7 +675,7 @@ def create_app(
                 return None
             for cand in (target, target.with_suffix(".html") if not target.suffix else None, target / "index.html"):
                 if cand is not None and cand.is_file():
-                    return cand
+                    return cand if cand.suffix.lower() in site_types else None
             return None
 
         @app.get("/a-propos", include_in_schema=False)

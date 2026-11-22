@@ -1043,6 +1043,7 @@ def test_about_site_route(tmp_path, monkeypatch):
     assert r.status_code == 200 and "Bird" in r.text
     assert c.get("/api/health").json().get("site_url") == "/a-propos/"
 
+
 def _forged_resume(tmp_path, monkeypatch, files, second_outputs):
     """A real harness confirm token, re-signed with the test secret after its state.files was changed."""
     monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
