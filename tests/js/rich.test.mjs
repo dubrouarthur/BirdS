@@ -300,3 +300,17 @@ test("labels with a qualifier still pair up, and a title glued to its paragraph 
     assert.doesNotMatch(md(s), /md-ph/, s);
   assert.doesNotMatch(md("Avantages fiscaux du leasing pour les petites entreprises\n- a\n\nInconvénients\n- b"), /md-proscons/);
 });
+
+test("salutations and closings are never headings", () => {
+  for (const s of [
+    "Bonjour Madame Martin\nJe me permets de revenir vers vous au sujet de votre commande du 3 mars, livrée hier.",
+    "Madame, Monsieur\nNous avons bien reçu votre dossier et nous vous en remercions vivement par avance.",
+    "Merci pour votre retour.\n\nCordialement\n- Paul Durand\n- Service client",
+    "**Bonjour Camille**\n- point 1\n- point 2",
+    "Chère cliente\n- a\n- b",
+    "Dear Mr Smith\nThank you for your letter of 3 March, which we received yesterday morning.",
+    "Point d'étape, semaine 12\nLe projet avance bien et les équipes ont livré les deux premiers lots prévus.",
+  ])
+    assert.doesNotMatch(md(s), /<h4/, s);
+  assert.match(md("Sécurité\n- a\n- b"), /<h4 class="md-ph">Sécurité/); // still a heading
+});

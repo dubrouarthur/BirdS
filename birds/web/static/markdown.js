@@ -253,9 +253,14 @@ const norm = (s) =>
 
 // ------------------------------------------------------------------ detectors (rich mode)
 
+// Letter and email openings and closings: never a heading, and they put the answer in "letter mode" (no callouts)
+const RE_SALUTE =
+  /^(?:bonjour|bonsoir|madame|monsieur|mesdames|messieurs|mademoiselle|cher|chère|chers|chères|cordialement|bien cordialement|bien à vous|salutations|sincères salutations|meilleures salutations|respectueusement|bonne journée|hello|hi|dear|regards|best regards|kind regards|sincerely)(?=$|[\s,.!])/iu;
+
 /** A short bare line (or a bold-only line) that introduces a list, a table or code: the text of a heading, or null. */
 function pseudoHeading(raw) {
   let text = raw.trim();
+  if (RE_SALUTE.test(text.replace(/^\*\*/, ""))) return null;
   const bold = text.match(/^\*\*([^*\n]+)\*\*\s*:?$/);
   if (bold) text = bold[1].trim();
   else if (/[`[\]*_]|https?:/.test(text)) return null;
@@ -277,7 +282,7 @@ function pseudoHeading(raw) {
 function leadHeading(para) {
   const first = para[0].trim();
   const rest = para.slice(1).join(" ").trim();
-  if (first.length > 40 || first.split(/\s+/).length > 5 || /:/.test(first) || !/^\p{Lu}/u.test(first)) return null;
+  if (first.length > 40 || first.split(/\s+/).length > 5 || /[:,]/.test(first) || !/^\p{Lu}/u.test(first)) return null;
   if (rest.length < 60 || !/[.!?…)]$/.test(rest)) return null;
   return pseudoHeading(first);
 }
