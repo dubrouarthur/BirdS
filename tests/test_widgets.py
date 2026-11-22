@@ -737,3 +737,14 @@ def test_live_zoom_swaps_image_and_pins_together():
     )
     assert got["during"] == [True, True, True, "true"]
     assert got["after"] == [True, False, "false"]
+
+
+@needs_node
+def test_company_card_formats_and_marks_the_shown_candidate():
+    w = demo_widget("find_company", {"name": "Airbus"})
+    assert len(w["candidates"]) > 1
+    got = run_js("const el = render(data.w); out({ text: el.textContent, cur: el.querySelectorAll('[aria-current]')"
+                 ".map((x) => x.textContent), f: [W.fmtSiren('38347481400100'), W.fmtSiren('383474814')] });", w=w)  # fmt: skip
+    assert got["f"] == ["383 474 814 00100", "383 474 814"]
+    assert "383 474 814 00100" in got["text"] and "383474814" not in got["text"]
+    assert len(got["cur"]) == 1 and "fiche affichée" in got["cur"][0]

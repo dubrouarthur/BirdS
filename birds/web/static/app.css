@@ -4446,9 +4446,7 @@ button.att-card {
   font-size: 0.86rem;
 }
 .widget-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25em;
+  display: inline; /* the external icon follows the last word when the label wraps */
   color: var(--link);
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -4457,6 +4455,11 @@ button.att-card {
 .btn .icon.ext {
   inline-size: 0.9em;
   block-size: 0.9em;
+}
+.widget-link .icon.ext {
+  display: inline-block;
+  vertical-align: -0.1em;
+  margin-inline-start: 0.25em;
 }
 .widget-source {
   font-size: 0.78rem;
@@ -4777,11 +4780,25 @@ button.att-card {
 }
 .company-kv > div {
   grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: baseline;
 }
 .num-row {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
+}
+/* the copy button must not set the row's height (label and value on one baseline) */
+.num-row .btn {
+  align-self: center;
+  margin-block: -8px;
+}
+.company-candidates li.is-current {
+  color: var(--ink-2);
+}
+.company-candidates li.is-current .pill {
+  margin-inline-start: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
 }
 .pill {
   display: inline-block;
@@ -4805,6 +4822,7 @@ button.att-card {
 }
 .kpi {
   display: grid;
+  grid-template-rows: 1fr auto; /* tiles of a row share a height: the values sit on one line */
   gap: 2px;
   padding: 10px 12px;
   border-radius: var(--radius-s);

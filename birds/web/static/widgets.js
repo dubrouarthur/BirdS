@@ -575,6 +575,15 @@ function renderPlaces(w, turn) {
 
 // ------------------------------------------------------------------ company
 
+/** "383 474 814" (SIREN), "383 474 814 00100" (SIRET): the groups used by the register. */
+export function fmtSiren(v) {
+  const d = String(v || "");
+  if (/^\d{9}$/.test(d)) return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
+  if (/^\d{14}$/.test(d))
+    return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 9)} ${d.slice(9)}`;
+  return d;
+}
+
 function renderCompany(w) {
   const official = safeUrl(w.source?.url || "");
   if (w.public === false)
@@ -585,10 +594,7 @@ function renderCompany(w) {
       footer(ext(official, t("company.official"))),
     );
   const siren = String(w.siren || "");
-  const sirenFmt =
-    siren.length === 9
-      ? `${siren.slice(0, 3)} ${siren.slice(3, 6)} ${siren.slice(6)}`
-      : siren;
+  const sirenFmt = fmtSiren(siren);
   const fmtDate = (d) => {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(d || ""));
     return m
@@ -610,7 +616,10 @@ function renderCompany(w) {
         ),
       ),
     ],
-    w.siret && ["company.siret", h("span", { class: "num", text: w.siret })],
+    w.siret && [
+      "company.siret",
+      h("span", { class: "num", text: fmtSiren(w.siret) }),
+    ],
     w.legal_form && ["company.legalForm", w.legal_form],
     w.naf && [
       "company.activity",
@@ -698,13 +707,22 @@ function renderCompany(w) {
         h(
           "ul",
           null,
-          w.candidates.map((c) =>
-            h(
+          w.candidates.map((c) => {
+            const shown = String(c.siren) === siren;
+            const label = [c.name, fmtSiren(c.siren), c.commune]
+              .filter(Boolean)
+              .join(" · ");
+            return h(
               "li",
-              null,
-              ext(safeUrl(c.url), `${c.name} · ${c.siren} · ${c.commune}`),
-            ),
-          ),
+              shown ? { "aria-current": "true", class: "is-current" } : null,
+              shown
+                ? [
+                    h("span", { text: label }),
+                    h("span", { class: "pill", text: t("company.shown") }),
+                  ]
+                : ext(safeUrl(c.url), label),
+            );
+          }),
         ),
       ),
     h(
