@@ -89,8 +89,15 @@ def _tail(lang: str) -> str:
 
 def _none(q: str, lang: str) -> str:
     if lang == "fr":
-        return f"Aucun lieu trouvé pour « {q} » sur OpenStreetMap. Dis-le ; n'invente pas d'adresse."
-    return f"No place found for '{q}' on OpenStreetMap. Say so; do not guess an address."
+        return (
+            f"Aucun lieu trouvé pour « {q} » sur OpenStreetMap. Si une page lue donne son adresse ou le lieu qui "
+            "l'abrite (un aéroport, un centre commercial…), appelle find_places avec cette adresse ; sinon dis-le, "
+            "et n'invente pas d'adresse."
+        )
+    return (
+        f"No place found for '{q}' on OpenStreetMap. If a page you read gives its address or the place that hosts it "
+        "(an airport, a mall…), call find_places with that address; otherwise say so, and do not guess an address."
+    )
 
 
 def _fold(text: str) -> str:

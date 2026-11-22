@@ -110,7 +110,8 @@ _RX_ROUTE1 = re.compile(
     re.I,
 )
 _RX_WHERE = re.compile(
-    r"^(?:o[uù]\s+(?:se\s+trouve(?:nt)?|se\s+situe(?:nt)?|est|sont)|c'est\s+o[uù]|"
+    # typed fast on a phone: « ou es la boutique… », « c est ou le siège… » (never « où en est le projet »)
+    r"^(?:o[uù]\s+(?:se\s+trouve(?:nt)?|se\s+situe(?:nt)?|est|es|ets|sont|son)|c'?\s?est\s+o[uù]|"
     r"(?:quelle\s+est\s+)?l?'?adresse\s+(?:de\s+|du\s+|des\s+|d')|localise(?:-moi)?|"
     r"(?:une\s+)?carte\s+(?:de\s+|du\s+|des\s+|d')|(?:un\s+)?plan\s+(?:d'accès|de\s+situation)\s+(?:de\s+|du\s+|d'|des\s+)?|"
     r"where(?:\s+is|'s|\s+are)|(?:the\s+)?address\s+of|(?:a\s+)?map\s+of|locate)(?:\s+|(?<=[\s']))"
@@ -212,7 +213,10 @@ def _placey(q: str) -> bool:
 
     if looks_like_address(q) or _LANDMARK.search(q) or _kind_in(q):
         return True
-    return any(w[:1].isupper() for w in re.findall(r"[\wÀ-ÿ'-]+", q))
+    if any(w[:1].isupper() for w in re.findall(r"[\wÀ-ÿ'-]+", q)):
+        return True
+    # typed all lowercase on a phone: « boutique du pilote a toussus », « garage martin à saint-cyr »
+    return bool(re.search(r"\s(?:à|a|au|aux|in|near|pr[eè]s\s+de)\s+[a-zà-ÿ][\wà-ÿ'-]{2,}(?:[\s-][\wà-ÿ'-]+){0,3}$", q))
 
 
 def _kind_in(q: str) -> bool:
