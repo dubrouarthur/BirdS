@@ -116,6 +116,9 @@ POLICY = Policy()
 def get_json(ctx, url: str, *, xml: bool = False, cache_ttl: float = TTL_HIT, miss=lambda v: not v, count=True):
     """Cached, rate-limited GET of a fixed service URL. Upstream requests count against the per-run cap."""
     cfg = ctx.config
+    recorded = getattr(ctx, "recorded", None)  # the scripted demo: recorded provider answers, no network at all
+    if recorded is not None:
+        return recorded(url)
     key = Policy.key("get", url)
     cached = POLICY.get(key, getattr(cfg, "geo_cache_dir", None))
     if cached is not None:

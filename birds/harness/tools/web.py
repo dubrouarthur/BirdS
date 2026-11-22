@@ -31,6 +31,14 @@ class StaticBackend:
         return self.results[:n]
 
 
+def _short(text, n: int) -> str:
+    t = " ".join(str(text or "").split())
+    if len(t) <= n:
+        return t
+    cut = t[:n].rsplit(" ", 1)[0]
+    return (cut or t[:n]).rstrip(" ,;:.") + "…"
+
+
 def web_search(args: dict, ctx) -> str:
     if ctx.search is None:
         raise ToolError("web search is not configured on this deployment")
@@ -60,9 +68,15 @@ def web_search(args: dict, ctx) -> str:
     else:
         label = backend.label_for(ctx.lang) if hasattr(backend, "label_for") else getattr(backend, "label", "")
         ctx.step_info = {"backend": getattr(backend, "name", "?"), "label": label}
-    # titles and URLs only (never snippets): the memo of the turn keeps them for follow-ups ("the second source")
+    # the memo of the turn keeps titles and URLs only (follow-ups: "the second source"); the short snippet and the
+    # date are for the source cards of the UI (birds.web.widgets.enrich_sources), never for the memo
     ctx.step_info["results"] = [
-        {"title": " ".join(str(r.get("title") or "").split())[:150], "url": str(r.get("url") or "")}
+        {
+            "title": " ".join(str(r.get("title") or "").split())[:150],
+            "url": str(r.get("url") or ""),
+            "snippet": _short(r.get("snippet"), 160),
+            "date": str(r.get("date") or "")[:32],
+        }
         for r in results[:5]
     ]
     for r in results:

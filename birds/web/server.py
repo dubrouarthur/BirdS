@@ -10,6 +10,7 @@ import asyncio
 import hmac
 import json
 import re
+import tempfile
 import threading
 import time
 from collections import deque
@@ -23,6 +24,7 @@ from pydantic import BaseModel, Field
 
 from . import endpoint as ep
 from . import tokens
+from . import widgets as widgets_mod
 from .backends import Backend, Cancelled, ChatRequest, DemoBackend, Event, HarnessBackend, RunContext, sanitize_filename
 from .settings import Settings
 
@@ -82,6 +84,7 @@ class ChatBody(BaseModel):
     conversation_id: str | None = Field(
         default=None, pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     )
+    tz: str | None = Field(default=None, max_length=64)  # Intl.DateTimeFormat().resolvedOptions().timeZone
 
 
 class TestBody(BaseModel):
@@ -165,6 +168,14 @@ def harness_config(s: Settings) -> dict:
         "max_calls_per_step": s.max_calls_per_step,
         "max_tokens": s.max_tokens,
         "timeout_s": s.max_seconds,
+        "widgets": s.geo,
+        "geo_user_agent": s.geo_user_agent,
+        "geo_cache_dir": s.geo_cache_dir,
+        **{
+            k: getattr(s, k)
+            for k in ("nominatim_url", "photon_url", "ban_url", "company_url", "fx_url")
+            if getattr(s, k, None)
+        },
     }
 
 
@@ -233,6 +244,9 @@ TOOL_TEXT = {  # why a tool is on or off on this deployment, for the "available 
     "make_slides": ("Crée un .pptx, téléchargeable ici", "Creates a .pptx, downloadable here"),
     "make_document": ("Crée un .docx, téléchargeable ici", "Creates a .docx, downloadable here"),
     "make_sheet": ("Crée un .xlsx, téléchargeable ici", "Creates a .xlsx, downloadable here"),
+    "find_places": ("Cherche des lieux et adresses (OpenStreetMap)", "Finds places and addresses (OpenStreetMap)"),
+    "find_company": ("Consulte l'annuaire officiel des entreprises", "Looks up the official French company register"),
+    "convert_currency": ("Convertit une somme au taux BCE du jour", "Converts an amount at the ECB rate of the day"),
     "run_python": (
         "Désactivé : exécuter du code demande un vrai bac à sable, absent de ce déploiement",
         "Off: running code needs a real sandbox, which this deployment does not have",
@@ -242,12 +256,12 @@ TOOL_TEXT = {  # why a tool is on or off on this deployment, for the "available 
 
 def tools_info(s: Settings, backend) -> dict:
     """Which tools the model may use here, which are off, and why. Also which search backend answers."""
-    from birds.tools import BIRD_TOOL_NAMES
+    from birds.tools import PRODUCT_TOOL_NAMES
 
     offered = set(getattr(backend, "tools", []) or [])
     search = getattr(backend, "search_info", None) or {}
     out = []
-    for name in BIRD_TOOL_NAMES:
+    for name in PRODUCT_TOOL_NAMES:
         state = "on" if name in offered else "off"
         key = name
         if name == "read_file" and s.workspace is None and getattr(backend, "kind", "") != "demo":
@@ -289,6 +303,8 @@ def create_app(
             response.headers["Cache-Control"] = "public, max-age=0, s-maxage=86400, must-revalidate"
         elif path == "/" or path == "/manifest.webmanifest":
             response.headers["Cache-Control"] = "no-cache"
+        elif path in ("/api/map", "/api/icon") and response.status_code == 200:
+            pass  # same-origin images: "private, max-age=86400" set by birds.web.mapimg
         elif path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
         return response
@@ -580,6 +596,7 @@ def create_app(
             images,
             conv_lang=body.conv_lang,
             conversation_id=body.conversation_id,
+            tz=str(widgets_mod.tz_or_default(body.tz)),
         )
 
         loop = asyncio.get_running_loop()
@@ -593,7 +610,20 @@ def create_app(
         def sign(payload: dict) -> str:
             return tokens.sign({**payload, "conv": conv, "bind": binding}, s.signing_secret, s.confirm_ttl)
 
-        ctx = RunContext(emit, cancel, sign, time.monotonic() + s.max_seconds, s.max_inline_file_bytes)
+        ctx = RunContext(
+            emit,
+            cancel,
+            sign,
+            time.monotonic() + s.max_seconds,
+            s.max_inline_file_bytes,
+            secret=s.signing_secret,
+            geo={
+                "on": s.geo,
+                "layer": s.tile_layer,
+                "holiday_url": s.holiday_url if s.geo else None,
+                "holiday_zone": s.holiday_zone,
+            },
+        )
 
         def worker() -> None:
             from birds.harness import guard
@@ -665,6 +695,14 @@ def create_app(
     async def not_found(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse({"detail": {"code": "not_found", "message": "not found"}}, status_code=404)
 
+    from . import mapimg
+
+    def _geo_cfg():
+        from birds.harness import Config
+
+        return Config(workspace=Path(tempfile.gettempdir()), audit_file=None, **harness_config(s))
+
+    app.include_router(mapimg.make_router(s, _geo_cfg))
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     if SITE_DIR.is_dir():
         import mimetypes

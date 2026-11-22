@@ -102,6 +102,21 @@ class Settings:
     local_llm: object | None = None  # scripts/serve.py --local
     local_tok: object | None = None
     tokenizer: str | None = None  # scripts/serve.py --tokenizer: real tokenizer instead of the vendored template
+    # rich results (places, maps, company register, ECB rates, holidays): BIRD_GEO=off switches all of it off
+    geo: bool = True
+    geo_user_agent: str = "BirdHarness/0.1 (+geo)"  # generic: never a person's name or e-mail
+    nominatim_url: str | None = None
+    photon_url: str | None = None
+    ban_url: str | None = None
+    company_url: str | None = None
+    fx_url: str | None = None
+    holiday_url: str = "https://calendrier.api.gouv.fr/jours-feries/{zone}/{year}.json"
+    holiday_zone: str = "metropole"
+    tile_url: str | None = None  # default https://tile.openstreetmap.org/{z}/{x}/{y}.png
+    tile_layer: str = "osm"  # "ign": IGN Plan v2 tiles from the Géoplateforme
+    tile_cache_dir: str | None = None
+    geo_cache_dir: str | None = None
+    map_rate_limit: int = 30
 
     @property
     def server_configured(self) -> bool:
@@ -197,4 +212,16 @@ class Settings:
             signing_secret=key,
             signing=signing,
             demo_delay=_num(get("BIRD_DEMO_DELAY"), 1.0, float, 0.0),
+            geo=_flag(get("BIRD_GEO"), default=True),
+            geo_user_agent=get("BIRD_GEO_USER_AGENT") or "BirdHarness/0.1 (+geo)",
+            nominatim_url=get("BIRD_NOMINATIM_URL"),
+            photon_url=get("BIRD_PHOTON_URL"),
+            ban_url=get("BIRD_BAN_URL"),
+            company_url=get("BIRD_COMPANY_URL"),
+            fx_url=get("BIRD_FX_URL"),
+            holiday_zone=(get("BIRD_HOLIDAY_ZONE") or "metropole").lower(),
+            tile_url=get("BIRD_TILE_URL"),
+            tile_layer="ign" if (get("BIRD_TILE_LAYER") or "").lower() == "ign" else "osm",
+            tile_cache_dir=get("BIRD_TILE_CACHE_DIR"),
+            geo_cache_dir=get("BIRD_GEO_CACHE_DIR"),
         )

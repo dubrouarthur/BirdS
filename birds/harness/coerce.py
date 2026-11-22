@@ -190,8 +190,58 @@ def coerce_args(tool: str, args: dict, schema: dict) -> tuple[dict, list[str]]:
         key = _ALIASES[tool][0]
         if key in out:  # second pass: renamed values (e.g. "content" text -> bullets list) get their types fixed
             out[key] = coerce(out[key], props[key], key, notes)
+    if tool in _FLAT_ALIASES:
+        _flat(out, tool, notes)
     if tool == "make_sheet":
         _sheet_rows(out, notes)
         if isinstance(out.get("rows"), list):
             out["rows"] = coerce(out["rows"], props["rows"], "rows", notes)
     return out, notes
+
+
+_FLAT_ALIASES = {  # routed widget tools: flat arguments a small model names differently
+    "find_places": {
+        "query": ["q", "place", "location", "address", "adresse", "lieu", "name", "search"],
+        "near": ["around", "near_to", "location_near", "autour", "pres_de", "close_to"],
+    },
+    "find_company": {"name": ["query", "company", "siren", "siret", "q", "nom", "entreprise"]},
+    "convert_currency": {
+        "from": ["from_currency", "source", "base", "currency_from", "de"],
+        "to": ["to_currency", "target", "quote", "currency_to", "en", "vers"],
+        "amount": ["value", "montant", "somme", "quantity"],
+    },
+}
+
+
+def _flat(args: dict, tool: str, notes: list[str]) -> None:
+    for want, alts in _FLAT_ALIASES[tool].items():
+        if want in args:
+            continue
+        alt = next((a for a in alts if a in args), None)
+        if alt is not None:
+            args[want] = args.pop(alt)
+            notes.append(f"'{alt}' read as '{want}'")
+    if tool == "find_places" and isinstance(args.get("query"), str) and not args.get("near"):
+        from birds.harness.intents import split_near
+
+        pair = split_near(args["query"])
+        if pair:
+            args["query"], args["near"] = pair
+            notes.append("query 'X near Y' split into query and near")
+    if tool == "convert_currency":
+        from birds.harness.intents import currency_code, parse_amount
+
+        for k in ("from", "to"):
+            v = args.get(k)
+            if isinstance(v, str) and len(v) != 3:
+                code = currency_code(v)
+                if code:
+                    args[k], _ = code, notes.append(f"{k}: '{v}' read as {code}")
+            elif isinstance(v, str) and v != v.upper():
+                args[k] = v.upper()
+        v = args.get("amount")
+        if isinstance(v, str):
+            amt = parse_amount(re.sub(r"[^\d.,  kKmM]", "", v))
+            if amt is not None:
+                args["amount"] = amt
+                notes.append(f"amount: '{v}' read as {amt:g}")

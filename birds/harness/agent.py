@@ -14,14 +14,14 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from birds.harness import guard, meter
+from birds.harness import guard, intents, meter
 from birds.harness.config import Config, Context
 from birds.harness.llm import STOP, EndpointError, accepts
 from birds.harness.tools import TOOLS, make_search
 from birds.parse import parse_output
 from birds.render import prompt as render_prompt
 from birds.sources.identity import DEFAULT_SYSTEM  # same text as docs/PERSONA.md
-from birds.tools import BIRD_TOOLS
+from birds.tools import EXTRA_TOOL_NAMES, PRODUCT_TOOLS
 
 FALLBACK = {
     "fr": "Je n'ai pas pu aboutir à une réponse fiable dans les limites fixées. Pouvez-vous reformuler ou préciser la demande ?",
@@ -273,7 +273,7 @@ class Agent:
         # the host's proxy settings (unlike read_page, whose target the model chooses).
         self.search = search if search is not None else make_search(config, http or httpx.Client(timeout=15.0))
         self.audit = guard.Audit(config.workspace / config.audit_file if config.audit_file else None)
-        self.tools = [t for t in BIRD_TOOLS if t["function"]["name"] in self._allowed()]
+        self.tools = [t for t in PRODUCT_TOOLS if t["function"]["name"] in self._allowed()]
         params = inspect.signature(llm.generate).parameters
         self._llm_kwargs = any(p.kind is p.VAR_KEYWORD for p in params.values()) or "on_token" in params
 
@@ -281,6 +281,7 @@ class Agent:
         """Tools shown to the model: the deployment allowlist, minus what is switched off or not configured."""
         off = set() if self.cfg.allow_python else {"run_python"}
         off |= set() if self.search else {"web_search"}
+        off |= set() if getattr(self.cfg, "widgets", True) else set(EXTRA_TOOL_NAMES)
         return set(self.cfg.allowed_tools) - off
 
     def _generate(self, prompt: str, thinking: bool, deadline: float) -> tuple[dict, AnswerStream | None]:
@@ -350,6 +351,7 @@ class Agent:
             routed = set(st.get("routed", []))
             gen, ok, content = st["gen"], st["ok"], st.get("content", "")
             forced = "confirmed" if decision is True else "denied_unconfirmed"
+            auto_calls = 0
         else:
             run = Run(lang=lang or detect_lang(user))
             ctx = Context(
@@ -362,9 +364,27 @@ class Agent:
             messages.append({"role": "user", "content": guard.defang(user)})
             seen, queue = set(), []
             budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
-            routed = route(user if request_text is None else request_text, attached) if cfg.route_tools else set()
+            req = user if request_text is None else request_text
+            routed = route(req, attached) if cfg.route_tools else set()
+            # widget tools (find_places, find_company, convert_currency) are offered only when the user's own words
+            # ask for them: an ordinary turn keeps the trained tool block byte for byte (see intents.py)
+            found = intents.detect(req, attached, run.lang) if getattr(cfg, "widgets", True) else []
+            routed |= set(EXTRA_TOOL_NAMES) - {i.tool for i in found}
+            prefill = next((i for i in found if i.args), None)
+            if prefill and not prefill.keep_web and (prefill.tool == "convert_currency" or not _NEEDS_WEB.search(req)):
+                routed |= {"web_search", "read_page"}
             nudged, withdrawn, file_nudged = False, set(routed), False
             gen, ok, forced = 0, 0, None
+            auto_calls = 0
+            if prefill and prefill.tool in self._allowed():
+                # "prefill": the harness makes the call the parser is sure of, before the first generation, on the
+                # same path as a model call (validation, gate, injection scan); the step is tagged auto for the UI
+                call = {"name": prefill.tool, "arguments": dict(prefill.args)}
+                messages.append(
+                    {"role": "assistant", "content": "", "tool_calls": [{"type": "function", "function": dict(call)}]}
+                )
+                seen.add(call["name"] + " " + json.dumps(call["arguments"], sort_keys=True, ensure_ascii=False))
+                queue, gen, auto_calls = [call], 1, 1
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
 
         while True:
@@ -506,6 +526,8 @@ class Agent:
                     c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced, routed
                 )
                 forced = None
+                if auto_calls:
+                    step.info["auto"], auto_calls = True, 0
                 if step.decision == "pause":
                     paused = True
                     break
