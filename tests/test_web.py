@@ -694,7 +694,7 @@ for (let i = 1; i <= text.length; i++) prefixes.push(renderBlocks(stabilize(text
 console.log(JSON.stringify({ out, prefixes, full: renderBlocks(text, { cites: [1], anchor: "src-t" }) }));
 """
 ALLOWED_TAG = re.compile(
-    r"</?(?:p|br|strong|em|code|pre|ul|ol|li|h[2-5]|hr|blockquote|table|thead|tbody|tr|th|td|sup|div|a)(?:\s[^<>]*)?>"
+    r"</?(?:p|br|strong|em|code|pre|ul|ol|li|h[2-5]|hr|blockquote|table|thead|tbody|tr|th|td|sup|div|a|span|button)(?:\s[^<>]*)?>"
 )
 
 

@@ -846,6 +846,8 @@ function paintMarkdown(turn, entry) {
     cites,
     anchor: `src-${turn.id}`,
     citeLabel: `${t("sources.title")} {n}`,
+    copyCode: t("code.copy.label"),
+    copyText: t("code.copy"),
   });
   const md = entry.md;
   let first = 0;
@@ -864,7 +866,12 @@ function paintMarkdown(turn, entry) {
 
 export function plainText(turn) {
   const md = cache.get(turn.id)?.md;
-  return md ? md.innerText.trim() : String(turn.answer?.content || "");
+  if (!md) return String(turn.answer?.content || "");
+  const heads = [...md.querySelectorAll(".code-head")]; // the language label and "Copy" are not part of the answer
+  for (const el of heads) el.hidden = true;
+  const text = md.innerText.trim();
+  for (const el of heads) el.hidden = false;
+  return text;
 }
 
 function renderActions(turn, isLast) {

@@ -6,6 +6,7 @@ import {
   activeModel,
   announce,
   button,
+  copyText,
   download,
   fmtDate,
   fmtInt,
@@ -1658,6 +1659,13 @@ function bind() {
     (target || el).focus();
   });
 
+  // Code blocks: copy only the code (read at click time, so a block redrawn while streaming copies its latest text).
+  $("conversation").addEventListener("click", (e) => {
+    const btn = e.target.closest?.("[data-copy-code]");
+    if (!btn) return;
+    const code = btn.closest(".code-block")?.querySelector("pre code");
+    if (code) copyText(code.textContent, t("code.copied"));
+  });
   // Citation links move focus to the source entry.
   $("conversation").addEventListener("click", (e) => {
     const link = e.target.closest?.(".cite a");

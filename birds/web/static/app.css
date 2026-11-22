@@ -4,6 +4,7 @@
 /* Brand: navy ink + one blue accent, on calm paper. Blue is for interaction (links, focus, active states);
    the restrained green is kept ONLY as the semantic colour of the footprint (leaf, receipt, eco charts). */
 :root {
+  --scroll-shade: rgba(11, 27, 63, 0.18);
   --bg: #f6f5f0;
   --surface: #fdfcf9;
   --surface-2: #eceae2;
@@ -54,6 +55,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    --scroll-shade: rgba(0, 0, 0, 0.6);
     --bg: #0b1220;
     --surface: #111a2c;
     --surface-2: #1b2640;
@@ -91,6 +93,7 @@
   }
 }
 :root[data-theme="dark"] {
+  --scroll-shade: rgba(0, 0, 0, 0.6);
   --bg: #0b1220;
   --surface: #111a2c;
   --surface-2: #1b2640;
@@ -1305,9 +1308,63 @@ details[open] > summary > .chev {
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: var(--radius-s);
-  background: var(--surface);
+  /* scroll shadows: an edge darkens while more code hides beyond it */
+  background:
+    linear-gradient(to right, var(--surface) 30%, transparent) left / 28px 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 30%, transparent) right / 28px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--scroll-shade), transparent) left / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--scroll-shade), transparent) right / 12px 100% no-repeat scroll,
+    var(--surface);
   overflow-x: auto;
   line-height: 1.5;
+}
+.code-block {
+  margin-block: 0;
+}
+.code-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px 2px 14px;
+  border: 1px solid var(--line);
+  border-block-end: 0;
+  border-radius: var(--radius-s) var(--radius-s) 0 0;
+  background: var(--surface-2);
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.code-lang {
+  font-family: var(--mono, ui-monospace, monospace);
+}
+.code-copy {
+  min-block-size: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-2);
+  font: 600 0.78rem var(--sans);
+  cursor: pointer;
+}
+.code-copy:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+.code-copy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+@media (pointer: coarse) {
+  .code-copy {
+    min-block-size: 44px;
+    min-inline-size: 44px;
+  }
+}
+.md .code-block pre {
+  margin-block-start: 0;
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
 }
 .md pre code {
   padding: 0;

@@ -196,8 +196,14 @@ function blockList(lines, ctx, depth) {
       )
         body.push(lines[i++]);
       i += 1;
-      const lang = fence[2] ? ` data-lang="${escapeHtml(fence[2])}"` : "";
-      out.push(`<pre${lang}><code>${escapeHtml(body.join("\n"))}</code></pre>`);
+      const name = escapeHtml(fence[2] || "");
+      const lang = name ? ` data-lang="${name}"` : "";
+      const label = escapeHtml(ctx.copyCode.replace("{lang}", fence[2] || "").replace(/\s+/g, " ").trim());
+      out.push(
+        `<div class="code-block"><div class="code-head"><span class="code-lang">${name || "code"}</span>` +
+          `<button type="button" class="code-copy" data-copy-code aria-label="${label}">${escapeHtml(ctx.copyText)}</button></div>` +
+          `<pre${lang}><code>${escapeHtml(body.join("\n"))}</code></pre></div>`,
+      );
       continue;
     }
     const heading = line.match(RE_HEADING);
@@ -305,6 +311,8 @@ function context(options) {
     cites: new Set(options.cites ?? []),
     anchor: String(options.anchor ?? "src").replace(/[^\w-]/g, ""),
     citeLabel: options.citeLabel ?? "Source {n}",
+    copyCode: String(options.copyCode ?? "Copier le code {lang}"),
+    copyText: String(options.copyText ?? "Copier"),
   };
 }
 
