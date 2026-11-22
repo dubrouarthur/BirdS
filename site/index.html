@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bird Models — Petit par conviction</title>
-<meta name="description" content="Bird Models conçoit de tout petits modèles d’IA, performants et sobres. Bird S 4B, assistant de travail en français et en anglais, montre ce que coûte chaque réponse.">
+<title>Bird Models — Petit modèle, grand travail</title>
+<meta name="description" content="Bird S 4B, l’assistant de travail conçu en France : 4 milliards de paramètres, environ 100 fois plus petit que les modèles géants, et jusqu’à 8 fois moins d’électricité par requête courte qu’une requête ChatGPT moyenne.">
 <meta name="theme-color" content="#F6F5F0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#081230" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#070F26" media="(prefers-color-scheme: dark)">
 <meta name="color-scheme" content="light dark">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<meta property="og:title" content="Bird Models — Petit par conviction">
-<meta property="og:description" content="Bird Models conçoit de tout petits modèles d’IA, performants et sobres. Bird S 4B, assistant de travail en français et en anglais, montre ce que coûte chaque réponse.">
+<meta property="og:title" content="Bird Models — Petit modèle, grand travail">
+<meta property="og:description" content="Bird S 4B, l’assistant de travail conçu en France : 4 milliards de paramètres, environ 100 fois plus petit que les modèles géants, et jusqu’à 8 fois moins d’électricité par requête courte qu’une requête ChatGPT moyenne.">
 <meta property="og:type" content="website">
 <link rel="alternate" hreflang="fr" href="/">
 <link rel="alternate" hreflang="en" href="/en/">
@@ -21,7 +21,7 @@
 <script src="/config.js"></script>
 <script src="/assets/site.js"></script>
 </head>
-<body>
+<body class="p-home">
 <a class="skip" href="#main">Aller au contenu</a>
 <header class="site-header">
   <div class="wrap bar">
@@ -33,7 +33,7 @@
       <button class="icon-btn menu-btn" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 8h16M4 16h16"/></svg></button>
     </div>
     <nav class="nav" id="nav" aria-label="Navigation principale">
-      <ul><li><a href="/" aria-current="page">La philosophie</a></li><li><a href="/demarche">Notre démarche</a></li><li><a href="/empreinte">Empreinte</a></li><li><a href="#contact">Contact</a></li></ul>
+      <ul><li><a href="/" aria-current="page">Accueil</a></li><li><a href="/demarche">Notre démarche</a></li><li><a href="/empreinte">Sobriété</a></li><li><a href="#contact">Contact</a></li></ul>
     </nav>
   </div>
 </header>
@@ -41,125 +41,88 @@
 <section class="hero" aria-labelledby="hero-h">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <p class="eyebrow">Bird Models · conçu en France</p>
-      <h1 class="display" id="hero-h">Petit <em>par</em> conviction.</h1>
+      <p class="pill"><span class="pill-dot" aria-hidden="true"></span>Bird S 4B · Conçu en France</p>
+      <h1 class="display" id="hero-h"><span class="line">Petit modèle.</span> <span class="line"><em>Grand</em> travail.</span></h1>
       <p class="lede">Nous créons de tout petits modèles, performants et sobres, plutôt que toujours plus gros.</p>
-      <p class="hero-text">Bird S 4B est un assistant de travail de 4 milliards de paramètres. Il rédige, il cherche, il prépare vos fichiers. Et il vous dit ce que ça a coûté.</p>
-      <div class="cta-row"><a class="btn" href="#essayer" data-try>Essayer Bird</a><a class="link-arrow" href="/demarche">Lire notre démarche <span aria-hidden="true">→</span></a></div>
+      <p class="hero-text">Bird S 4B rédige vos mails, prépare vos présentations, lit vos documents et cherche sur le web pour vous. Avec environ 100 fois moins de paramètres que les modèles géants.</p>
+      <div class="cta-row"><a class="btn btn-lg" href="#essayer" data-try>Essayer Bird <span aria-hidden="true">→</span></a><a class="link-arrow" href="/empreinte">Découvrir sa sobriété <span aria-hidden="true">→</span></a></div>
+      <p class="hero-chip"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8 5-13 15-14-.5 9.5-5.5 14.5-13.5 14.5"/><path d="M5 19c3-4 6-6.5 10-8.5"/></g></svg></span><span><span class="chip-v">Jusqu’à 8× moins d’électricité</span><span class="chip-k">par requête courte, face à une requête ChatGPT moyenne<sup class="fn"><a href="#note-2" aria-label="note 2">2</a>,<a href="#note-4" aria-label="note 4">4</a></sup></span></span></p>
     </div>
-    <div class="hero-visual"><svg class="hero-mark" viewBox="0 0 64 56" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg><figure><div class="shot"><div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="/assets/img/welcome.webp" alt="Écran d’accueil de Bird S 4B : « Petit, et fait pour ça. », quatre exemples pour commencer et la mention « Bird est un petit modèle : il peut se tromper. »" width="819" height="900" fetchpriority="high" decoding="async"></div><figcaption>L’accueil de Bird S 4B. Capture réelle.</figcaption></figure></div>
-  </div>
-</section>
-
-<section class="section" aria-labelledby="pb-h">
-  <div class="wrap split">
-    <div><p class="eyebrow">Le problème</p><h2 class="h2" id="pb-h">Toujours plus gros. Pour quoi faire ?</h2></div>
-    <div class="reveal"><div class="prose"><p>La course dominante de l’IA va vers toujours plus gros : plus de paramètres, plus de calcul.</p><p>Pourtant, l’essentiel de nos journées tient en tâches simples. Répondre à un mail. Mettre une facture dans un tableau. Préparer cinq diapositives. Trouver une source.</p><p><strong>Pour ça, on n’a pas besoin d’un géant. On a besoin d’un outil juste.</strong></p></div></div>
-  </div>
-</section>
-
-<section class="section band" aria-labelledby="an-h">
-  <div class="wrap split">
-    <div class="reveal">
-      <p class="eyebrow">Notre réponse</p>
-      <h2 class="h2" id="an-h">La bonne taille, pas la plus grande.</h2>
-      <div class="prose"><p>Bird S 4B part d’un modèle ouvert sous licence Apache 2.0. Nous l’avons spécialisé pour le travail de bureau, en français et en anglais.</p><p>Le calcul nécessaire pour écrire un mot croît avec la taille du modèle. Avec 4 milliards de paramètres actifs contre environ 400 milliards pour un grand modèle dense, Bird demande <strong>en théorie environ 100 fois moins de calcul par mot généré</strong>.</p><p>En théorie seulement : ça ne se traduit pas un pour un en énergie. Nous le disons, et nous mesurons le reste.</p></div>
-    </div>
-    <figure class="reveal" aria-labelledby="dots-cap">
-      <p class="eyebrow" id="dots-cap">Calcul par token généré, en théorie</p>
-      <div class="dots">
-        <div><svg class="d-one one" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="4.2"/></svg><p class="dot-label"><strong>Bird S 4B</strong>4 milliards de paramètres actifs</p></div>
-        <div><svg class="d-big" viewBox="0 0 120 120" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="4.2"/><circle cx="18" cy="6" r="4.2"/><circle cx="30" cy="6" r="4.2"/><circle cx="42" cy="6" r="4.2"/><circle cx="54" cy="6" r="4.2"/><circle cx="66" cy="6" r="4.2"/><circle cx="78" cy="6" r="4.2"/><circle cx="90" cy="6" r="4.2"/><circle cx="102" cy="6" r="4.2"/><circle cx="114" cy="6" r="4.2"/><circle cx="6" cy="18" r="4.2"/><circle cx="18" cy="18" r="4.2"/><circle cx="30" cy="18" r="4.2"/><circle cx="42" cy="18" r="4.2"/><circle cx="54" cy="18" r="4.2"/><circle cx="66" cy="18" r="4.2"/><circle cx="78" cy="18" r="4.2"/><circle cx="90" cy="18" r="4.2"/><circle cx="102" cy="18" r="4.2"/><circle cx="114" cy="18" r="4.2"/><circle cx="6" cy="30" r="4.2"/><circle cx="18" cy="30" r="4.2"/><circle cx="30" cy="30" r="4.2"/><circle cx="42" cy="30" r="4.2"/><circle cx="54" cy="30" r="4.2"/><circle cx="66" cy="30" r="4.2"/><circle cx="78" cy="30" r="4.2"/><circle cx="90" cy="30" r="4.2"/><circle cx="102" cy="30" r="4.2"/><circle cx="114" cy="30" r="4.2"/><circle cx="6" cy="42" r="4.2"/><circle cx="18" cy="42" r="4.2"/><circle cx="30" cy="42" r="4.2"/><circle cx="42" cy="42" r="4.2"/><circle cx="54" cy="42" r="4.2"/><circle cx="66" cy="42" r="4.2"/><circle cx="78" cy="42" r="4.2"/><circle cx="90" cy="42" r="4.2"/><circle cx="102" cy="42" r="4.2"/><circle cx="114" cy="42" r="4.2"/><circle cx="6" cy="54" r="4.2"/><circle cx="18" cy="54" r="4.2"/><circle cx="30" cy="54" r="4.2"/><circle cx="42" cy="54" r="4.2"/><circle cx="54" cy="54" r="4.2"/><circle cx="66" cy="54" r="4.2"/><circle cx="78" cy="54" r="4.2"/><circle cx="90" cy="54" r="4.2"/><circle cx="102" cy="54" r="4.2"/><circle cx="114" cy="54" r="4.2"/><circle cx="6" cy="66" r="4.2"/><circle cx="18" cy="66" r="4.2"/><circle cx="30" cy="66" r="4.2"/><circle cx="42" cy="66" r="4.2"/><circle cx="54" cy="66" r="4.2"/><circle cx="66" cy="66" r="4.2"/><circle cx="78" cy="66" r="4.2"/><circle cx="90" cy="66" r="4.2"/><circle cx="102" cy="66" r="4.2"/><circle cx="114" cy="66" r="4.2"/><circle cx="6" cy="78" r="4.2"/><circle cx="18" cy="78" r="4.2"/><circle cx="30" cy="78" r="4.2"/><circle cx="42" cy="78" r="4.2"/><circle cx="54" cy="78" r="4.2"/><circle cx="66" cy="78" r="4.2"/><circle cx="78" cy="78" r="4.2"/><circle cx="90" cy="78" r="4.2"/><circle cx="102" cy="78" r="4.2"/><circle cx="114" cy="78" r="4.2"/><circle cx="6" cy="90" r="4.2"/><circle cx="18" cy="90" r="4.2"/><circle cx="30" cy="90" r="4.2"/><circle cx="42" cy="90" r="4.2"/><circle cx="54" cy="90" r="4.2"/><circle cx="66" cy="90" r="4.2"/><circle cx="78" cy="90" r="4.2"/><circle cx="90" cy="90" r="4.2"/><circle cx="102" cy="90" r="4.2"/><circle cx="114" cy="90" r="4.2"/><circle cx="6" cy="102" r="4.2"/><circle cx="18" cy="102" r="4.2"/><circle cx="30" cy="102" r="4.2"/><circle cx="42" cy="102" r="4.2"/><circle cx="54" cy="102" r="4.2"/><circle cx="66" cy="102" r="4.2"/><circle cx="78" cy="102" r="4.2"/><circle cx="90" cy="102" r="4.2"/><circle cx="102" cy="102" r="4.2"/><circle cx="114" cy="102" r="4.2"/><circle cx="6" cy="114" r="4.2"/><circle cx="18" cy="114" r="4.2"/><circle cx="30" cy="114" r="4.2"/><circle cx="42" cy="114" r="4.2"/><circle cx="54" cy="114" r="4.2"/><circle cx="66" cy="114" r="4.2"/><circle cx="78" cy="114" r="4.2"/><circle cx="90" cy="114" r="4.2"/><circle cx="102" cy="114" r="4.2"/><circle cx="114" cy="114" r="4.2"/></svg><p class="dot-label"><strong>Grand modèle dense</strong>environ 400 milliards de paramètres actifs</p></div>
-      </div>
-      <figcaption class="dots-note">Un point = 4 milliards de paramètres actifs. Ratio théorique de calcul par token ; il ne se traduit pas un pour un en énergie.</figcaption>
+    <figure class="hero-visual">
+      <div class="shot hero-shot"><div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="/assets/img/real-slides.webp" alt="Bird S 4B crée une présentation PowerPoint de cinq diapositives, avec un aperçu des diapositives avant téléchargement." width="960" height="966" fetchpriority="high" decoding="async"></div>
+      <div class="hero-phone"><img src="/assets/img/mobile-photo.webp" alt="Bird S 4B sur téléphone : prendre une photo ou choisir une image pour poser une question." width="520" height="885" decoding="async"></div>
+      <figcaption class="visually-hidden">Captures réelles du produit.</figcaption>
     </figure>
   </div>
 </section>
 
-<section class="section" aria-labelledby="pr-h">
-  <div class="wrap">
-    <div class="section-head"><p class="eyebrow">Nos principes</p><h2 class="h2" id="pr-h">Cinq principes. Une preuve pour chacun.</h2></div>
-    <ol class="principles"><li class="reveal"><span class="p-num" aria-hidden="true">1</span><div><h3 class="p-title"><span class="visually-hidden">1. </span>Petit d’abord.</h3><p>On commence par le plus petit modèle qui fait le travail.</p></div><p class="proof"><b>Preuve</b>4 milliards de paramètres. Le dernier entraînement a consommé 1,8 kWh mesurés sur un seul GPU.</p></li><li class="reveal"><span class="p-num" aria-hidden="true">2</span><div><h3 class="p-title"><span class="visually-hidden">2. </span>Chaque réponse a un prix, et on l’affiche.</h3><p>Pas de dépense invisible.</p></div><p class="proof"><b>Preuve</b>Sous chaque réponse, Bird montre les tokens, le temps de calcul et une estimation d’énergie, présentée comme une borne haute.</p></li><li class="reveal"><span class="p-num" aria-hidden="true">3</span><div><h3 class="p-title"><span class="visually-hidden">3. </span>Rien de superflu par défaut.</h3><p>Réflexion : coupée tant que vous ne l’activez pas.</p></div><p class="proof"><b>Preuve</b>Le mode Réflexion est coupé par défaut ; le serveur se met en veille quand personne ne l’utilise.</p></li><li class="reveal"><span class="p-num" aria-hidden="true">4</span><div><h3 class="p-title"><span class="visually-hidden">4. </span>Vous gardez la main.</h3><p>Bird propose. Vous décidez.</p></div><p class="proof"><b>Preuve</b>Il rédige vos mails mais ne les envoie jamais. Il demande votre accord avant d’agir après un contenu suspect.</p></li><li class="reveal"><span class="p-num" aria-hidden="true">5</span><div><h3 class="p-title"><span class="visually-hidden">5. </span>On dit ce qu’on ne sait pas.</h3><p>Un petit modèle se trompe plus qu’un très grand. Nous préférons l’écrire ici que vous le laisser découvrir.</p></div><p class="proof"><b>Preuve</b>Le produit l’écrit en clair : Bird est un petit modèle, il peut se tromper. Relisez ce qui compte.</p></li></ol>
-  </div>
+<section class="stats-band" aria-label="Bird S 4B en chiffres">
+  <div class="wrap"><ul class="stats"><li class="stat"><span class="stat-v num">4 Md</span><span class="stat-k">de paramètres</span></li><li class="stat"><span class="stat-v num">≈ 100×</span><span class="stat-k">plus petit qu’un grand modèle dense<sup class="fn"><a href="#note-1" aria-label="note 1">1</a></sup></span></li><li class="stat"><span class="stat-v num">≤ 0,13 Wh</span><span class="stat-k">par requête courte<sup class="fn"><a href="#note-2" aria-label="note 2">2</a></sup></span></li><li class="stat"><span class="stat-v num">1,8 kWh</span><span class="stat-k">pour spécialiser la version actuelle<sup class="fn"><a href="#note-3" aria-label="note 3">3</a></sup></span></li><li class="stat"><span class="stat-v num">Conçu en France</span><span class="stat-k">par une équipe française</span></li></ul></div>
 </section>
 
-<section class="section" aria-labelledby="ft-h">
+<section class="section" id="comparaison" aria-labelledby="cmp-h">
   <div class="wrap">
-    <div class="section-head"><p class="eyebrow">Ce que fait Bird</p><h2 class="h2" id="ft-h">Ce que Bird fait aujourd’hui.</h2><p class="prose">Tout ce qui suit fonctionne dans le produit. Captures réelles.</p></div>
-    <div class="trio"><figure class="tile reveal"><div class="shot"><div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="/assets/img/real-slides.webp" alt="Bird génère une présentation PowerPoint de cinq diapositives, avec aperçu." width="960" height="966" loading="lazy" decoding="async"></div><figcaption><strong>Des présentations, prêtes à ouvrir.</strong>PowerPoint, Word ou Excel, avec un aperçu avant de télécharger.</figcaption></figure><figure class="tile reveal"><div class="shot"><div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="/assets/img/image.webp" alt="Bird transforme la photo d’une facture en tableau, avec ses étapes et sa source." width="960" height="979" loading="lazy" decoding="async"></div><figcaption><strong>Une photo de facture devient un tableau.</strong>Bird montre ses étapes et cite le fichier source.</figcaption></figure><figure class="tile reveal"><div class="phone"><img src="/assets/img/mobile-photo.webp" alt="Bird sur téléphone, à partir d’une photo." width="520" height="885" loading="lazy" decoding="async"></div><figcaption><strong>Dans la poche aussi.</strong>Prenez une photo, posez la question.</figcaption></figure></div>
-    <p class="also">Et aussi : des notes et comptes rendus en vrais fichiers Word, et vos pièces jointes lues, résumées, interrogées.</p>
-    <div class="cards"><article class="card reveal"><span class="card-ico" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21" stroke-linecap="round"/></g></svg></span><h3 class="h3">Le web, avec ses sources.</h3><p>Bird cherche en ligne et cite d’où vient l’information. S’il repère des instructions cachées dans une page, il le signale et vous demande confirmation avant d’agir.</p></article><article class="card reveal"><span class="card-ico" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></g></svg></span><h3 class="h3">Des mails, jamais envoyés à votre place.</h3><p>Bird rédige. Vous relisez, vous envoyez.</p></article></div>
-  </div>
-</section>
-
-<section class="section limits" aria-labelledby="li-h">
-  <div class="wrap split">
-    <div><p class="eyebrow">Nos limites, sans détour</p></div>
-    <div class="reveal">
-      <h2 class="quote" id="li-h">Bird est petit. Il fait plus d’erreurs que les très grands modèles.</h2>
-      <div class="prose"><p>Il peut se tromper sur un calcul. Il lui arrive d’inventer un détail, comme un lien.</p><p>Alors relisez ce qui compte. C’est vrai pour tout assistant. Chez nous, c’est écrit.</p></div>
-      <p class="flag-row"><span class="flag">Bird est un petit modèle : il peut se tromper.</span><span class="flag-note">Tel qu’affiché dans le produit.</span></p>
+    <div class="section-head center"><p class="eyebrow">Une requête, deux empreintes</p><h2 class="h2" id="cmp-h">Moins d’électricité. Beaucoup moins d’eau.</h2><p class="section-sub">Une requête courte sur Bird, face à une requête ChatGPT moyenne.<sup class="fn"><a href="#note-2" aria-label="note 2">2</a></sup></p></div>
+    <div class="cmp">
+      <article class="cmp-card">
+        <h3 class="cmp-k"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M13 3L5 13.5h6L10 21l8.5-11H12.5z"/></svg></span>Électricité</h3>
+        <p class="cmp-ratio"><span class="cmp-pre">jusqu’à</span><span class="cmp-x num">8×</span><span class="cmp-post">moins d’électricité qu’une requête ChatGPT moyenne</span></p>
+        <ul class="bars"><li class="bar-row them"><span class="bar-label">ChatGPT · requête moyenne<sup class="fn"><a href="#note-4" aria-label="note 4">4</a></sup></span><span class="track" aria-hidden="true"><i class="fill them w100"></i></span><span class="bar-val num">0,34 Wh</span></li><li class="bar-row bird"><span class="bar-label">Bird S 4B</span><span class="track" aria-hidden="true"><i class="fill bird w38"><i class="fill-min w31"></i></i></span><span class="bar-val num">0,04 à 0,13 Wh</span></li></ul>
+        <p class="cmp-foot">La même tâche, une fraction de l’énergie.</p>
+      </article>
+      <article class="cmp-card">
+        <h3 class="cmp-k"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8 5-13 15-14-.5 9.5-5.5 14.5-13.5 14.5"/><path d="M5 19c3-4 6-6.5 10-8.5"/></g></svg></span>Eau</h3>
+        <p class="cmp-ratio"><span class="cmp-pre">environ</span><span class="cmp-x num">15×</span><span class="cmp-post">moins d’eau qu’une requête ChatGPT moyenne</span></p>
+        <ul class="bars"><li class="bar-row them"><span class="bar-label">ChatGPT · requête moyenne<sup class="fn"><a href="#note-4" aria-label="note 4">4</a></sup></span><span class="track" aria-hidden="true"><i class="fill them w100"></i></span><span class="bar-val num">0,32 mL</span></li><li class="bar-row bird"><span class="bar-label">Bird S 4B</span><span class="track" aria-hidden="true"><i class="fill bird w6"><i class="fill-min w100"></i></i></span><span class="bar-val num">≈ 0,02 mL</span></li></ul>
+        <p class="cmp-foot">Une goutte, littéralement.</p>
+      </article>
     </div>
+    <p class="center-link"><a class="link-arrow" href="/empreinte">Tous nos chiffres <span aria-hidden="true">→</span></a></p>
   </div>
 </section>
 
-<section class="section" aria-labelledby="em-h">
+<section class="section section-alt" id="fonctions" aria-labelledby="ft-h">
   <div class="wrap">
-    <div class="section-head"><p class="eyebrow">Empreinte</p><h2 class="h2" id="em-h">Ce que coûte une réponse.</h2></div>
-    <div class="split em-grid">
-      <div class="figs reveal">
-        <div class="fig"><p class="fig-k">Une réponse courte · estimation haute</p><p class="fig-v num">0,04–0,13<small>Wh</small></p><p class="fig-m">Méthode : 72 W (puissance de la carte GPU) × 1,7 à 5,5 s de calcul × PUE 1,15. GPU pendant le calcul uniquement.</p></div>
-        <div class="fig"><p class="fig-k">Génération · pour 1 000 tokens générés</p><p class="fig-v num">0,36<small>Wh</small></p><p class="fig-m">Notre banc de mesure. GPU seul, NVIDIA A10G, requêtes groupées.</p></div>
-      </div>
-      <div class="em-col">
-        <figure class="reveal meter-fig"><div class="shot"><img src="/assets/img/meter.webp" alt="Compteur affiché sous une réponse de Bird : 2 930 tokens (2 592 lus, 338 écrits), 13,8 s, environ 0,275 Wh, estimation, borne haute." width="720" height="176" loading="lazy" decoding="async"></div><figcaption>Sous chaque réponse : tokens, durée, énergie estimée en borne haute. Capture réelle.</figcaption></figure>
-        <div class="reveal others-block">
-          <p class="h3">Pour situer, chiffres publiés par d’autres :</p>
-          <ul class="others"><li><strong>OpenAI</strong> : environ 0,34 Wh par requête ChatGPT moyenne (Sam Altman, « The Gentle Singularity », juin 2025 ; méthode non publiée).</li><li><strong>Google</strong> : 0,24 Wh pour la requête texte médiane de Gemini (août 2025, <a href="https://arxiv.org/abs/2508.15734" rel="noopener">arxiv.org/abs/2508.15734</a>).</li></ul>
-          <p class="prose">Ces chiffres ne se comparent pas ligne à ligne. Notre borne haute ne couvre que le GPU pendant le calcul (× PUE 1,15) : ni le temps où le GPU attend, ni le CPU ou la mémoire de l’hôte, que Google inclut.</p>
-          <a class="link-arrow" href="/empreinte">Voir la méthode complète <span aria-hidden="true">→</span></a>
-        </div>
-      </div>
-    </div>
+    <div class="section-head"><p class="eyebrow">Ce que fait Bird</p><h2 class="h2" id="ft-h">Votre assistant de travail, au complet.</h2><p class="section-sub">Disponible dès aujourd’hui, dans votre navigateur.</p></div>
+    <div class="trio"><figure class="tile reveal"><div class="shot "><div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="/assets/img/real-slides.webp" alt="Bird S 4B génère une présentation PowerPoint de cinq diapositives, avec aperçu et bouton de téléchargement." width="960" height="966" loading="lazy" decoding="async"></div><figcaption><strong>De vraies présentations PowerPoint.</strong>Cartes de chiffres clés, frises chronologiques, aperçu avant de télécharger.</figcaption></figure><figure class="tile reveal"><div class="shot "><div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="/assets/img/image.webp" alt="Bird S 4B transforme la photo d’une facture en tableau, en indiquant ses étapes et le fichier source." width="960" height="979" loading="lazy" decoding="async"></div><figcaption><strong>Une facture en photo, un tableau Excel.</strong>Bird lit vos photos et vos PDF scannés, puis range les données.</figcaption></figure><figure class="tile tile-phone reveal"><div class="phone"><img src="/assets/img/mobile-photo.webp" alt="Bird S 4B sur téléphone : prendre une photo ou choisir une image pour poser une question." width="520" height="885" loading="lazy" decoding="async"></div><figcaption><strong>Dans votre poche.</strong>Prenez une photo, posez votre question.</figcaption></figure></div>
+    <div class="cards"><article class="card reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="M3.5 7l8.5 6 8.5-6"/></g></svg></span><h3 class="h3">Des mails prêts à partir.</h3><p>Bird rédige, vous relisez, vous envoyez. Rien n’est jamais envoyé à votre place.</p></article><article class="card reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6" stroke-linecap="round"/></g></svg></span><h3 class="h3">Comptes rendus et documents Word.</h3><p>Décisions, actions, points ouverts : un vrai fichier Word, prêt à partager.</p></article><article class="card reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" d="M20 11.5l-7.8 7.8a4.6 4.6 0 0 1-6.5-6.5L13.5 5a3 3 0 0 1 4.3 4.3l-7.6 7.6a1.5 1.5 0 0 1-2.1-2.1l7-7"/></svg></span><h3 class="h3">Vos fichiers, interrogés.</h3><p>Joignez un document : Bird le résume et répond à vos questions dessus.</p></article><article class="card reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21" stroke-linecap="round"/></g></svg></span><h3 class="h3">Le web, sources à l’appui.</h3><p>Bird cherche en ligne et cite chacune de ses sources.</p></article><article class="card reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/><path d="M8.8 12.2l2.2 2.2 4.3-4.4" stroke-linecap="round"/></g></svg></span><h3 class="h3">À l’abri des pièges.</h3><p>Une page web cache des instructions ? Bird les repère et vous demande avant d’agir.</p></article><article class="card reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></g></svg></span><h3 class="h3">Bilingue, et discret.</h3><p>Français et anglais. Vos conversations restent dans votre navigateur.</p></article></div>
   </div>
 </section>
 
-<section class="section" aria-labelledby="en-h">
+<section class="section" id="pourquoi" aria-labelledby="why-h">
   <div class="wrap">
-    <div class="section-head"><p class="eyebrow">Énergie</p><h2 class="h2" id="en-h">Petit d’abord, propre ensuite.</h2><p><span class="tag-intent">Nos objectifs, état actuel compris</span></p></div>
-    <ol class="steps steps-3 reveal"><li><p class="eyebrow">Aujourd’hui</p><h3 class="h3">Un GPU loué.</h3><p>Bird tourne sur un seul GPU chez un hébergeur cloud, sur un réseau électrique ordinaire. Nous n’affichons aucun label vert que nous n’avons pas.</p></li><li><p class="eyebrow">Prochaine étape</p><h3 class="h3">Des datacenters décarbonés.</h3><p>Faire tourner Bird dans des centres de données alimentés par une électricité bas carbone.</p></li><li><p class="eyebrow">Objectif 2030</p><h3 class="h3">100 % renouvelable.</h3><p>Bird sur notre propre infrastructure, alimentée par des énergies renouvelables.</p></li></ol>
+    <div class="section-head"><p class="eyebrow">Pourquoi petit</p><h2 class="h2" id="why-h">Petit, c’est plus malin.</h2></div>
+    <ul class="whys"><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8 5-13 15-14-.5 9.5-5.5 14.5-13.5 14.5"/><path d="M5 19c3-4 6-6.5 10-8.5"/></g></svg></span><h3 class="why-h">Sobre.</h3><p>Cent fois plus petit qu’un grand modèle dense : moins de calcul à chaque mot et, par requête courte, jusqu’à 8 fois moins d’électricité qu’une requête ChatGPT moyenne.</p></li><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M13 3L5 13.5h6L10 21l8.5-11H12.5z"/></svg></span><h3 class="why-h">Léger.</h3><p>Le serveur se met en veille quand personne ne l’utilise, et le mode Réflexion reste coupé tant que vous ne l’activez pas.</p></li><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke-linejoin="round"/><circle cx="12" cy="12" r="3"/></g></svg></span><h3 class="why-h">Transparent.</h3><p>Sous chaque réponse, Bird affiche ses tokens, son temps de calcul et l’énergie estimée. Bird vous montre ce que chaque réponse a coûté.</p></li></ul>
   </div>
 </section>
 
-<section class="section" aria-labelledby="ns-h">
+<section class="section section-follow" id="objectifs" aria-labelledby="go-h">
   <div class="wrap">
-    <div class="section-head"><p class="eyebrow">Prochaines étapes</p><h2 class="h2" id="ns-h">Plus petit encore.</h2><p><span class="tag-intent">Intentions, pas promesses datées</span></p></div>
-    <ul class="steps reveal"><li><h3 class="h3">Encore plus petit.</h3><p>Un modèle plus léger pour les tâches simples.</p></li><li><h3 class="h3">Chez vous.</h3><p>Une version quantifiée, capable de tourner en local.</p></li><li><h3 class="h3">Plus de français métier.</h3><p>Davantage de données d’entreprise en français.</p></li><li><h3 class="h3">Une meilleure recherche.</h3><p>Des recherches web plus solides, toujours citées.</p></li></ul>
+    <div class="section-head"><p class="eyebrow eyebrow-leaf">Nos objectifs</p><h2 class="h2" id="go-h">Petit aujourd’hui. Renouvelable demain.</h2><p class="section-sub">La sobriété commence par la taille du modèle. La suite se joue sur l’énergie qui l’alimente.</p></div>
+    <ol class="goals"><li class="goal reveal"><p class="goal-k">Prochaine étape</p><h3 class="h3">Des datacenters bas carbone.</h3><p>Faire tourner Bird dans des centres de données alimentés par une électricité bas carbone.</p></li><li class="goal reveal"><p class="goal-k">Objectif 2030</p><h3 class="h3">100 % renouvelable.</h3><p>Bird sur notre propre infrastructure, alimentée par des énergies renouvelables.</p></li><li class="goal reveal"><p class="goal-k">Objectif</p><h3 class="h3">Encore plus petit.</h3><p>Des modèles plus légers encore, dédiés aux tâches simples.</p></li><li class="goal reveal"><p class="goal-k">Objectif</p><h3 class="h3">Chez vous.</h3><p>Une version de Bird qui tourne en local, sur votre machine.</p></li></ol>
   </div>
 </section>
 
-<section class="section band final" id="essayer" aria-labelledby="fc-h">
-  <div class="wrap">
+<section class="notes" id="notes" aria-labelledby="notes-h">
+  <div class="wrap"><h2 class="notes-h" id="notes-h">Sources et méthode</h2><ol class="notes-list"><li id="note-1">Taille : Bird S 4B compte 4 milliards de paramètres ; un grand modèle dense en compte environ 400 milliards. En théorie, le calcul par mot généré suit le nombre de paramètres.</li><li id="note-2">Estimation haute pour une requête courte : 72 W (puissance de la carte GPU) × jusqu’à 5,5 s de calcul × PUE 1,15 ; environ 0,04 Wh pour les requêtes les plus brèves. Eau : 0,13 Wh × 0,15 L/kWh, l’efficacité d’usage de l’eau publiée par le fournisseur cloud.</li><li id="note-3">Entraînement de spécialisation de la version actuelle, mesuré (5&nbsp;h&nbsp;26).</li><li id="note-4">Requête ChatGPT moyenne : environ 0,34 Wh et 0,32 mL (Sam Altman, « The Gentle Singularity », juin 2025). Chiffres issus de méthodes et de périmètres différents. <a href="/empreinte#methode">Méthode complète</a></li></ol></div>
+</section>
+<section class="section final" id="essayer" aria-labelledby="fc-h">
+  <div class="wrap final-inner">
     <svg class="final-mark" viewBox="0 0 64 56" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>
-    <h2 class="display" id="fc-h">Essayez la bonne taille.</h2>
-    <p class="prose">Bird S 4B est prêt pour vos mails, vos fichiers et vos recherches. Vous verrez ce que chaque réponse coûte.</p>
-    <div class="cta-row"><a class="btn" href="#essayer" data-try>Essayer Bird</a></div>
+    <h2 class="display" id="fc-h">Rejoignez le mouvement.</h2>
+    <p class="final-p">L’IA à la bonne taille, c’est maintenant. Essayez Bird S 4B sur vos mails, vos fichiers et vos recherches.</p>
+    <div class="cta-row"><a class="btn btn-lg" href="#essayer" data-try>Essayer Bird <span aria-hidden="true">→</span></a></div>
   </div>
 </section>
-<section class="section" id="contact" aria-labelledby="contact-h">
-  <div class="wrap split">
-    <div>
-      <p class="eyebrow">Contact</p>
-      <h2 class="h2" id="contact-h">Parlons-en.</h2>
-    </div>
-    <div class="reveal">
-      <p class="prose">Une question, une idée, une méthode plus juste ? Écrivez-nous.</p>
-      <p><a class="contact-mail" href="mailto:contact@birdmodels.example">contact@birdmodels.example</a></p>
-      <p><span class="todo">[À REMPLACER : adresse de contact provisoire]</span></p>
+<section class="section contact" id="contact" aria-labelledby="contact-h">
+  <div class="wrap contact-grid">
+    <div><p class="eyebrow">Contact</p><h2 class="h2" id="contact-h">Parlons-en.</h2></div>
+    <div class="contact-body">
+      <p class="prose">Entreprises, partenaires, presse : écrivez-nous.</p>
+      <p><a class="contact-mail" href="mailto:contact@birdmodels.example" data-contact>contact@birdmodels.example</a></p>
     </div>
   </div>
 </section>
-
 </main>
 <footer class="site-footer">
   <div class="wrap">
@@ -167,18 +130,18 @@
       <div>
         <p class="footer-brand"><svg viewBox="0 0 64 56" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>Bird Models</p>
         <p class="footer-sign">Petit par conviction.</p>
-        <p class="footer-meta">Bird Models · Équipe française · Bird S 4B conçu en France</p>
+        <p class="footer-meta">Bird Models · Une équipe française · Bird S 4B, conçu en France</p>
       </div>
       <nav class="footer-nav" aria-label="Le site">
         <p class="footer-k">Le site</p>
-        <ul><li><a href="/">La philosophie</a></li><li><a href="/demarche">Notre démarche</a></li><li><a href="/empreinte">Empreinte</a></li><li><a href="#contact">Contact</a></li></ul>
+        <ul><li><a href="/">Accueil</a></li><li><a href="/demarche">Notre démarche</a></li><li><a href="/empreinte">Sobriété</a></li><li><a href="#contact">Contact</a></li></ul>
       </nav>
       <div class="footer-nav">
         <p class="footer-k">Bird</p>
         <ul><li><a href="#essayer" data-try>Essayer Bird</a></li><li><a href="/empreinte">Nos chiffres</a></li><li><a href="/en/">English</a></li></ul>
       </div>
     </div>
-    <div class="weight"><p class="weight-fig"><span class="weight-lead">Cette page pèse</span> <strong class="weight-num">205&nbsp;Ko</strong> <span class="weight-lead">Mesuré, pas estimé.</span></p><p class="weight-note">Images comprises, 10 requêtes, favicon comprise (1&nbsp;Ko = 1&nbsp;000&nbsp;octets). Environ 164&nbsp;Ko une fois les fichiers texte compressés en gzip.</p><p class="weight-note">Aucun traceur, aucune police externe, aucun cookie.</p></div>
+    <div class="weight"><p class="weight-fig"><span class="weight-lead">Cette page pèse</span> <strong class="weight-num">163&nbsp;Ko</strong></p><p class="weight-note">Mesuré : images comprises, 8 requêtes. Aucun traceur, aucune police externe, aucun cookie.</p></div>
   </div>
 </footer>
 </body>

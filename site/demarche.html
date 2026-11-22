@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Notre démarche — Bird Models</title>
-<meta name="description" content="Petits modèles, mesures réelles, honnêteté sur les limites et une base ouverte : comment Bird Models construit Bird S 4B.">
+<meta name="description" content="Petit, exprès : comment Bird Models conçoit et entraîne Bird S 4B avec frugalité. 1,8 kWh pour spécialiser la version actuelle.">
 <meta name="theme-color" content="#F6F5F0" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#081230" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#070F26" media="(prefers-color-scheme: dark)">
 <meta name="color-scheme" content="light dark">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta property="og:title" content="Notre démarche — Bird Models">
-<meta property="og:description" content="Petits modèles, mesures réelles, honnêteté sur les limites et une base ouverte : comment Bird Models construit Bird S 4B.">
+<meta property="og:description" content="Petit, exprès : comment Bird Models conçoit et entraîne Bird S 4B avec frugalité. 1,8 kWh pour spécialiser la version actuelle.">
 <meta property="og:type" content="website">
 <link rel="alternate" hreflang="fr" href="/demarche">
 <link rel="alternate" hreflang="en" href="/en/approach">
@@ -21,7 +21,7 @@
 <script src="/config.js"></script>
 <script src="/assets/site.js"></script>
 </head>
-<body>
+<body class="p-approach">
 <a class="skip" href="#main">Aller au contenu</a>
 <header class="site-header">
   <div class="wrap bar">
@@ -33,72 +33,70 @@
       <button class="icon-btn menu-btn" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 8h16M4 16h16"/></svg></button>
     </div>
     <nav class="nav" id="nav" aria-label="Navigation principale">
-      <ul><li><a href="/">La philosophie</a></li><li><a href="/demarche" aria-current="page">Notre démarche</a></li><li><a href="/empreinte">Empreinte</a></li><li><a href="#contact">Contact</a></li></ul>
+      <ul><li><a href="/">Accueil</a></li><li><a href="/demarche" aria-current="page">Notre démarche</a></li><li><a href="/empreinte">Sobriété</a></li><li><a href="#contact">Contact</a></li></ul>
     </nav>
   </div>
 </header>
 <main id="main">
 <section class="page-hero" aria-labelledby="page-h">
   <div class="wrap">
-    <p class="eyebrow">Notre démarche</p>
-    <h1 class="display" id="page-h">Construire petit, sérieusement.</h1>
-    <p class="lede">Construire petit demande plus de rigueur, pas moins. Voici comment nous travaillons.</p>
-    <ul class="toc"><li><a href="#petits">Petits modèles</a></li><li><a href="#mesurer">Mesurer</a></li><li><a href="#limites">Limites</a></li><li><a href="#ouvert">Base ouverte</a></li><li><a href="#sobre">Sobre par défaut</a></li></ul>
+    <p class="pill"><span class="pill-dot" aria-hidden="true"></span>Notre démarche</p>
+    <h1 class="display" id="page-h">Petit, <em>exprès</em>.</h1>
+    <p class="lede">Le secteur grossit par réflexe. Nous réduisons par choix : la plus petite IA qui fait vraiment le travail.</p>
+    <ul class="toc"><li><a href="#taille">La taille juste</a></li><li><a href="#entrainement">Un entraînement frugal</a></li><li><a href="#tests">Testé</a></li><li><a href="#defaut">Sobre par défaut</a></li><li><a href="#controle">Vous gardez la main</a></li></ul>
   </div>
 </section>
-<section class="section" id="petits" aria-labelledby="petits-h">
+<section class="section chapter-sec" id="taille" aria-labelledby="taille-h">
   <div class="wrap chapter">
-    <p class="chapter-k"><span aria-hidden="true">1</span>Des petits modèles, choisis exprès</p>
-    <div class="chapter-body reveal"><h2 class="h2" id="petits-h">Partir du besoin, pas de la taille.</h2><p class="prose">On ne se demande pas « quel est le plus gros modèle possible ? ». On se demande « quel est le plus petit qui fait bien ce travail ? ».</p><p class="prose">Bird S 4B compte 4 milliards de paramètres. Il est spécialisé pour le travail courant : rédiger, résumer, chercher, produire des fichiers. En français et en anglais.</p><p class="prose">Un modèle plus petit demande moins de calcul à chaque mot écrit. C’est un levier direct sur le calcul ; l’énergie dépend aussi du matériel et de l’usage.</p></div>
+    <p class="chapter-k"><span aria-hidden="true">01</span>La taille juste</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="taille-h">Partir du travail, pas de la taille.</h2><p class="prose">Nos journées tiennent en tâches précises : répondre à un mail, préparer cinq diapositives, mettre une facture dans un tableau, trouver une source.</p><p class="prose">Pour ça, inutile de mobiliser un géant. Avec 4 milliards de paramètres, Bird S 4B est taillé pour ce travail, en français et en anglais.</p><figure class="dots-fig">
+      <div class="dots"><div><svg class="d-one" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="4.2"/></svg><p class="dot-label"><strong>Bird S 4B</strong>4 milliards de paramètres</p></div>
+      <div><svg class="d-big" viewBox="0 0 120 120" aria-hidden="true" focusable="false"><circle cx="6" cy="6" r="4.2"/><circle cx="18" cy="6" r="4.2"/><circle cx="30" cy="6" r="4.2"/><circle cx="42" cy="6" r="4.2"/><circle cx="54" cy="6" r="4.2"/><circle cx="66" cy="6" r="4.2"/><circle cx="78" cy="6" r="4.2"/><circle cx="90" cy="6" r="4.2"/><circle cx="102" cy="6" r="4.2"/><circle cx="114" cy="6" r="4.2"/><circle cx="6" cy="18" r="4.2"/><circle cx="18" cy="18" r="4.2"/><circle cx="30" cy="18" r="4.2"/><circle cx="42" cy="18" r="4.2"/><circle cx="54" cy="18" r="4.2"/><circle cx="66" cy="18" r="4.2"/><circle cx="78" cy="18" r="4.2"/><circle cx="90" cy="18" r="4.2"/><circle cx="102" cy="18" r="4.2"/><circle cx="114" cy="18" r="4.2"/><circle cx="6" cy="30" r="4.2"/><circle cx="18" cy="30" r="4.2"/><circle cx="30" cy="30" r="4.2"/><circle cx="42" cy="30" r="4.2"/><circle cx="54" cy="30" r="4.2"/><circle cx="66" cy="30" r="4.2"/><circle cx="78" cy="30" r="4.2"/><circle cx="90" cy="30" r="4.2"/><circle cx="102" cy="30" r="4.2"/><circle cx="114" cy="30" r="4.2"/><circle cx="6" cy="42" r="4.2"/><circle cx="18" cy="42" r="4.2"/><circle cx="30" cy="42" r="4.2"/><circle cx="42" cy="42" r="4.2"/><circle cx="54" cy="42" r="4.2"/><circle cx="66" cy="42" r="4.2"/><circle cx="78" cy="42" r="4.2"/><circle cx="90" cy="42" r="4.2"/><circle cx="102" cy="42" r="4.2"/><circle cx="114" cy="42" r="4.2"/><circle cx="6" cy="54" r="4.2"/><circle cx="18" cy="54" r="4.2"/><circle cx="30" cy="54" r="4.2"/><circle cx="42" cy="54" r="4.2"/><circle cx="54" cy="54" r="4.2"/><circle cx="66" cy="54" r="4.2"/><circle cx="78" cy="54" r="4.2"/><circle cx="90" cy="54" r="4.2"/><circle cx="102" cy="54" r="4.2"/><circle cx="114" cy="54" r="4.2"/><circle cx="6" cy="66" r="4.2"/><circle cx="18" cy="66" r="4.2"/><circle cx="30" cy="66" r="4.2"/><circle cx="42" cy="66" r="4.2"/><circle cx="54" cy="66" r="4.2"/><circle cx="66" cy="66" r="4.2"/><circle cx="78" cy="66" r="4.2"/><circle cx="90" cy="66" r="4.2"/><circle cx="102" cy="66" r="4.2"/><circle cx="114" cy="66" r="4.2"/><circle cx="6" cy="78" r="4.2"/><circle cx="18" cy="78" r="4.2"/><circle cx="30" cy="78" r="4.2"/><circle cx="42" cy="78" r="4.2"/><circle cx="54" cy="78" r="4.2"/><circle cx="66" cy="78" r="4.2"/><circle cx="78" cy="78" r="4.2"/><circle cx="90" cy="78" r="4.2"/><circle cx="102" cy="78" r="4.2"/><circle cx="114" cy="78" r="4.2"/><circle cx="6" cy="90" r="4.2"/><circle cx="18" cy="90" r="4.2"/><circle cx="30" cy="90" r="4.2"/><circle cx="42" cy="90" r="4.2"/><circle cx="54" cy="90" r="4.2"/><circle cx="66" cy="90" r="4.2"/><circle cx="78" cy="90" r="4.2"/><circle cx="90" cy="90" r="4.2"/><circle cx="102" cy="90" r="4.2"/><circle cx="114" cy="90" r="4.2"/><circle cx="6" cy="102" r="4.2"/><circle cx="18" cy="102" r="4.2"/><circle cx="30" cy="102" r="4.2"/><circle cx="42" cy="102" r="4.2"/><circle cx="54" cy="102" r="4.2"/><circle cx="66" cy="102" r="4.2"/><circle cx="78" cy="102" r="4.2"/><circle cx="90" cy="102" r="4.2"/><circle cx="102" cy="102" r="4.2"/><circle cx="114" cy="102" r="4.2"/><circle cx="6" cy="114" r="4.2"/><circle cx="18" cy="114" r="4.2"/><circle cx="30" cy="114" r="4.2"/><circle cx="42" cy="114" r="4.2"/><circle cx="54" cy="114" r="4.2"/><circle cx="66" cy="114" r="4.2"/><circle cx="78" cy="114" r="4.2"/><circle cx="90" cy="114" r="4.2"/><circle cx="102" cy="114" r="4.2"/><circle cx="114" cy="114" r="4.2"/></svg><p class="dot-label"><strong>Grand modèle dense</strong>environ 400 milliards de paramètres</p></div></div>
+      <figcaption>Un point = 4 milliards de paramètres. Bird S 4B est environ 100 fois plus petit.</figcaption>
+    </figure></div>
   </div>
 </section>
-<section class="section" id="mesurer" aria-labelledby="mesurer-h">
+<section class="section chapter-sec" id="entrainement" aria-labelledby="entrainement-h">
   <div class="wrap chapter">
-    <p class="chapter-k"><span aria-hidden="true">2</span>Mesurer, puis publier</p>
-    <div class="chapter-body reveal"><h2 class="h2" id="mesurer-h">Ce qu’on ne mesure pas, on ne le promet pas.</h2><ul class="list"><li><strong>Entraînement</strong> : la version actuelle a consommé 1,8 kWh, mesurés sur le GPU (1 × NVIDIA L40S, 5 h 26).</li><li><strong>Génération</strong> : 0,36 Wh pour 1 000 tokens générés sur notre banc (GPU seul, NVIDIA A10G, requêtes groupées).</li><li><strong>Dans le produit</strong> : chaque réponse affiche ses tokens, son temps et une estimation d’énergie en borne haute.</li></ul><p class="prose">Nous testons aussi la qualité. Notre banc d’essai interne compte 1 369 cas automatiques, notés de 0 à 1 :</p><div class="table-wrap"><table class="stack bench"><caption>Banc d’essai interne · 1 369 cas automatiques · scores de 0 à 1</caption><thead><tr><th scope="col">Ce qu’on teste</th><th scope="col" class="bar-cell"><span class="visually-hidden">Barre</span></th><th scope="col" class="score">Score</th></tr></thead><tbody><tr><th scope="row">Appel d’outils</th><td class="bar-cell" aria-hidden="true"><div class="meter"><i class="w89"></i></div></td><td class="score" data-label="Score">0,89</td></tr><tr><th scope="row">Sortie JSON valide</th><td class="bar-cell" aria-hidden="true"><div class="meter"><i class="w98"></i></div></td><td class="score" data-label="Score">0,98</td></tr><tr><th scope="row">Concision</th><td class="bar-cell" aria-hidden="true"><div class="meter"><i class="w97"></i></div></td><td class="score" data-label="Score">0,97</td></tr><tr><th scope="row">Résistance aux instructions cachées</th><td class="bar-cell" aria-hidden="true"><div class="meter"><i class="w100"></i></div></td><td class="score" data-label="Score">1,00</td></tr><tr><th scope="row">Réponse dans la langue de l’utilisateur</th><td class="bar-cell" aria-hidden="true"><div class="meter"><i class="w100"></i></div></td><td class="score" data-label="Score">1,00</td></tr></tbody></table></div><p class="note">Banc d’essai interne. Ces scores mesurent nos cas, pas tous les usages.</p></div>
+    <p class="chapter-k"><span aria-hidden="true">02</span>Un entraînement frugal</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="entrainement-h">Spécialisé avec 1,8&nbsp;kWh.</h2><p class="prose">Plutôt que de tout réentraîner, nous spécialisons Bird pour le travail de bureau. La version actuelle l’a été en 5&nbsp;h&nbsp;26 : la frugalité commence là.</p><ul class="kpis"><li><span class="kpi-v num">1,8 kWh</span><span class="kpi-k">mesurés au GPU</span></li><li><span class="kpi-v num">4 Md</span><span class="kpi-k">de paramètres</span></li><li><span class="kpi-v num">5&nbsp;h&nbsp;26</span><span class="kpi-k">de spécialisation</span></li></ul></div>
   </div>
 </section>
-<section class="section" id="limites" aria-labelledby="limites-h">
+<section class="section chapter-sec" id="tests" aria-labelledby="tests-h">
   <div class="wrap chapter">
-    <p class="chapter-k"><span aria-hidden="true">3</span>Honnêtes sur les limites</p>
-    <div class="chapter-body reveal"><h2 class="h2" id="limites-h">Un petit modèle se trompe plus. On le dit.</h2><p class="prose">Bird fait plus d’erreurs que les très grands modèles. Il peut se tromper sur un calcul ou inventer un détail.</p><p class="prose">Nous ne le cachons pas : le produit l’écrit en clair, « Bird est un petit modèle : il peut se tromper ». Et le produit est conçu pour que vous gardiez la main :</p><ul class="list"><li>il montre ses étapes ;</li><li>il cite ses sources ;</li><li>il rédige les mails sans jamais les envoyer ;</li><li>il signale les instructions cachées dans une page web et demande confirmation avant d’agir.</li></ul></div>
+    <p class="chapter-k"><span aria-hidden="true">03</span>Testé, cas par cas</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="tests-h">Mis à l’épreuve, cas par cas.</h2><p class="prose">Testé sur notre banc d’essai interne : appels d’outils, fichiers, langue, résistance aux pièges.</p></div>
   </div>
 </section>
-<section class="section" id="ouvert" aria-labelledby="ouvert-h">
+<section class="section chapter-sec" id="defaut" aria-labelledby="defaut-h">
   <div class="wrap chapter">
-    <p class="chapter-k"><span aria-hidden="true">4</span>Une base ouverte</p>
-    <div class="chapter-body reveal"><h2 class="h2" id="ouvert-h">Construit sur l’ouvert.</h2><p class="prose">Bird S 4B part d’un modèle ouvert, publié sous licence Apache 2.0. Nous l’avons ensuite spécialisé.</p><p class="prose">Partir d’une base ouverte, c’est éviter de refaire un entraînement complet. C’est aussi s’appuyer sur un travail que d’autres peuvent examiner.</p></div>
+    <p class="chapter-k"><span aria-hidden="true">04</span>Sobre par défaut</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="defaut-h">Le réglage économe est le réglage d’origine.</h2><ul class="list"><li>4 milliards de paramètres : moins de calcul à chaque mot.</li><li>Le serveur se met en veille quand personne ne l’utilise.</li><li>Le mode Réflexion, plus gourmand, est coupé par défaut.</li><li>Chaque réponse affiche ses tokens, son temps et son énergie estimée.</li></ul></div>
   </div>
 </section>
-<section class="section" id="sobre" aria-labelledby="sobre-h">
+<section class="section chapter-sec" id="controle" aria-labelledby="main-h">
   <div class="wrap chapter">
-    <p class="chapter-k"><span aria-hidden="true">5</span>Sobre par défaut</p>
-    <div class="chapter-body reveal"><h2 class="h2" id="sobre-h">Le réglage le plus économe est le réglage d’origine.</h2><ul class="list"><li>Le mode « Réflexion » est coupé par défaut, parce qu’il coûte plus.</li><li>Le serveur se met en veille quand personne ne l’utilise.</li><li>Vos conversations restent dans votre navigateur.</li></ul></div>
+    <p class="chapter-k"><span aria-hidden="true">05</span>Vous gardez la main</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="main-h">Bird propose. Vous décidez.</h2><ul class="list"><li>Il rédige vos mails, il ne les envoie jamais à votre place.</li><li>Il repère les instructions cachées dans une page web et vous demande avant d’agir.</li><li>Il cite ses sources et montre ses étapes.</li><li>Vos conversations restent dans votre navigateur.</li></ul></div>
   </div>
 </section>
-
-<section class="section band final" id="essayer" aria-labelledby="fc-h">
-  <div class="wrap">
+<section class="section final" id="essayer" aria-labelledby="fc-h">
+  <div class="wrap final-inner">
     <svg class="final-mark" viewBox="0 0 64 56" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>
-    <h2 class="display" id="fc-h">Une équipe française.</h2>
-    <p class="prose">Bird Models est une équipe française. Bird S 4B est conçu en France.</p>
-    <div class="cta-row"><a class="btn" href="#essayer" data-try>Essayer Bird</a></div>
+    <h2 class="display" id="fc-h">Rejoignez le mouvement.</h2>
+    <p class="final-p">L’IA à la bonne taille, c’est maintenant. Essayez Bird S 4B sur vos mails, vos fichiers et vos recherches.</p>
+    <div class="cta-row"><a class="btn btn-lg" href="#essayer" data-try>Essayer Bird <span aria-hidden="true">→</span></a></div>
   </div>
 </section>
-<section class="section" id="contact" aria-labelledby="contact-h">
-  <div class="wrap split">
-    <div>
-      <p class="eyebrow">Contact</p>
-      <h2 class="h2" id="contact-h">Parlons-en.</h2>
-    </div>
-    <div class="reveal">
-      <p class="prose">Une question, une idée, une méthode plus juste ? Écrivez-nous.</p>
-      <p><a class="contact-mail" href="mailto:contact@birdmodels.example">contact@birdmodels.example</a></p>
-      <p><span class="todo">[À REMPLACER : adresse de contact provisoire]</span></p>
+<section class="section contact" id="contact" aria-labelledby="contact-h">
+  <div class="wrap contact-grid">
+    <div><p class="eyebrow">Contact</p><h2 class="h2" id="contact-h">Parlons-en.</h2></div>
+    <div class="contact-body">
+      <p class="prose">Entreprises, partenaires, presse : écrivez-nous.</p>
+      <p><a class="contact-mail" href="mailto:contact@birdmodels.example" data-contact>contact@birdmodels.example</a></p>
     </div>
   </div>
 </section>
-
 </main>
 <footer class="site-footer">
   <div class="wrap">
@@ -106,18 +104,18 @@
       <div>
         <p class="footer-brand"><svg viewBox="0 0 64 56" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>Bird Models</p>
         <p class="footer-sign">Petit par conviction.</p>
-        <p class="footer-meta">Bird Models · Équipe française · Bird S 4B conçu en France</p>
+        <p class="footer-meta">Bird Models · Une équipe française · Bird S 4B, conçu en France</p>
       </div>
       <nav class="footer-nav" aria-label="Le site">
         <p class="footer-k">Le site</p>
-        <ul><li><a href="/">La philosophie</a></li><li><a href="/demarche">Notre démarche</a></li><li><a href="/empreinte">Empreinte</a></li><li><a href="#contact">Contact</a></li></ul>
+        <ul><li><a href="/">Accueil</a></li><li><a href="/demarche">Notre démarche</a></li><li><a href="/empreinte">Sobriété</a></li><li><a href="#contact">Contact</a></li></ul>
       </nav>
       <div class="footer-nav">
         <p class="footer-k">Bird</p>
         <ul><li><a href="#essayer" data-try>Essayer Bird</a></li><li><a href="/empreinte">Nos chiffres</a></li><li><a href="/en/">English</a></li></ul>
       </div>
     </div>
-    <div class="weight"><p class="weight-fig"><span class="weight-lead">Cette page pèse</span> <strong class="weight-num">46&nbsp;Ko</strong> <span class="weight-lead">Mesuré, pas estimé.</span></p><p class="weight-note">Images comprises, 5 requêtes, favicon comprise (1&nbsp;Ko = 1&nbsp;000&nbsp;octets). Environ 13&nbsp;Ko une fois les fichiers texte compressés en gzip.</p><p class="weight-note">Aucun traceur, aucune police externe, aucun cookie.</p></div>
+    <div class="weight"><p class="weight-fig"><span class="weight-lead">Cette page pèse</span> <strong class="weight-num">53&nbsp;Ko</strong></p><p class="weight-note">Mesuré : images comprises, 5 requêtes. Aucun traceur, aucune police externe, aucun cookie.</p></div>
   </div>
 </footer>
 </body>

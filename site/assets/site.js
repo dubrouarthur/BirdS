@@ -1,4 +1,4 @@
-/* Bird Models — script unique (thème, menu, liens « Essayer », apparitions). */
+/* Bird Models — script unique (thème, menu, liens « Essayer », contact, apparitions). */
 (function () {
   "use strict";
   var root = document.documentElement;
@@ -25,6 +25,13 @@
     for (var i = 0; i < tries.length; i++) {
       tries[i].setAttribute("href", url);
       if (/^https?:/i.test(url)) tries[i].setAttribute("rel", "noopener");
+    }
+
+    // Adresse de contact : une seule constante dans /config.js.
+    var mail = typeof cfg.CONTACT_EMAIL === "string" && /^[^\s@]+@[^\s@]+$/.test(cfg.CONTACT_EMAIL) ? cfg.CONTACT_EMAIL : "";
+    if (mail) {
+      var cs = document.querySelectorAll("[data-contact]");
+      for (var c = 0; c < cs.length; c++) { cs[c].setAttribute("href", "mailto:" + mail); cs[c].textContent = mail; }
     }
 
     // Bouton de thème.

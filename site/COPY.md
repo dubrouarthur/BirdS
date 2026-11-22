@@ -1,3 +1,5 @@
+> **Obsolète (refonte promotionnelle, novembre 2026)** : les pages HTML font foi ; ce fichier décrit l'ancienne version du site. Règles éditoriales à jour : voir README.md.
+
 > Note : le texte publié fait foi (pages HTML). Ce fichier reprend les corrections de relecture principales ; titres, sections « Ce que fait Bird », limites et précautions d'Empreinte ont été resserrés dans les pages.
 
 # Bird Models — copy du site corporate
