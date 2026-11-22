@@ -1629,6 +1629,35 @@ details[open] > summary > .chev {
   font-size: 0.8rem;
   color: var(--muted);
 }
+/* a file card leads with the file, not its name: two lines of title at most (the whole title on hover), one
+   line of meta; on a phone the download button is an icon (the deck bar has its own) */
+.file-card .card-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: break-word;
+}
+.file-card .card-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+@media (max-width: 640px) {
+  .file-card .card-head {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .file-card .card-dl {
+    flex: none;
+    inline-size: 40px;
+    padding: 0;
+  }
+  .file-card .card-dl .btn-label {
+    display: none;
+  }
+}
 .card-preview {
   border-block-start: 1px solid var(--line);
 }

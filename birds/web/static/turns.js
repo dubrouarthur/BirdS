@@ -631,7 +631,7 @@ function renderFiles(turn) {
           h(
             "div",
             { class: "card-title" },
-            h("p", { class: "card-name", text: p.title || name }),
+            h("p", { class: "card-name", text: p.title || name, title: p.title || name }),
             h("p", {
               class: "card-meta",
               text: [ext, meta, file.size ? fmtBytes(file.size) : ""]
@@ -639,7 +639,11 @@ function renderFiles(turn) {
                 .join(" · "),
             }),
           ),
-          save ? button("btn-primary btn-small", "download", t("files.download"), save) : null,
+          save
+            ? button("btn-primary btn-small card-dl", "download", t("files.download"), save, {
+                "aria-label": t("files.download"), // the label is hidden on a phone, the name stays
+              })
+            : null,
         ),
         !file.data &&
           h(
