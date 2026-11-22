@@ -1371,17 +1371,7 @@ function fillAssistant(el, turn, isLast) {
   if (hasText) paintMarkdown(turn, entry);
   const mode = turn.mode || activeMode();
   const children = [
-    h(
-      "header",
-      { class: "byline" },
-      h("h2", { class: "byline-name", text: t("turn.bird") }),
-      mode === "demo" &&
-        h("span", {
-          class: "badge badge-demo",
-          title: t("demo.note"),
-          text: t("demo.badge"),
-        }),
-    ),
+    byline(entry, turn, mode),
     renderSteps(turn),
     turn.reasoning &&
       details(
@@ -1426,8 +1416,59 @@ function fillAssistant(el, turn, isLast) {
     renderActions(turn, isLast),
     renderReceipt(turn, isLast),
   ];
-  el.replaceChildren(...children.filter(Boolean));
+  const kids = children.filter(Boolean);
+  if (kids[0] === entry.byline && el.firstChild === entry.byline) {
+    // the header stays attached (its wing animation keeps running); only what follows it is replaced
+    while (el.lastChild !== entry.byline) el.lastChild.remove();
+    el.append(...kids.slice(1));
+  } else {
+    el.replaceChildren(...kids);
+  }
   el.setAttribute("aria-busy", String(turn.status === "running"));
+}
+
+// The bird mark next to « Bird »: body and two wings as separate paths, so the wings can beat while an answer is
+// being prepared (CSS .byline.is-flying). A constant drawn here, never model output.
+const SVG_NS = "http://www.w3.org/2000/svg";
+const MARK_PATHS = [
+  ["body", "M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z"],
+  ["wing-back", "M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z"],
+  ["wing-front", "M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"],
+];
+// Kept across re-renders of the turn (one per streamed chunk): a new header would restart the wing animation.
+function byline(entry, turn, mode) {
+  if (!entry.byline || entry.bylineMode !== mode) {
+    entry.bylineMode = mode;
+    entry.byline = h(
+      "header",
+      { class: "byline" },
+      birdMark(),
+      h("h2", { class: "byline-name", text: t("turn.bird") }),
+      mode === "demo" &&
+        h("span", {
+          class: "badge badge-demo",
+          title: t("demo.note"),
+          text: t("demo.badge"),
+        }),
+    );
+  }
+  entry.byline.classList.toggle("is-flying", turn.status === "running");
+  return entry.byline;
+}
+
+function birdMark() {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("class", "byline-mark");
+  svg.setAttribute("viewBox", "0 0 64 56");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  for (const [part, d] of MARK_PATHS) {
+    const p = document.createElementNS(SVG_NS, "path");
+    p.setAttribute("class", `mark-${part}`);
+    p.setAttribute("d", d);
+    svg.appendChild(p);
+  }
+  return svg;
 }
 
 function renderUser(turn, isLastUser) {

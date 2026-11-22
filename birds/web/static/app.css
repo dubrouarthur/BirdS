@@ -926,12 +926,53 @@ html[data-side="closed"] body:not(.side-open) .side {
   align-items: center;
   gap: 8px;
 }
-.byline::before {
-  content: "";
-  inline-size: 8px;
-  block-size: 8px;
-  border-radius: 50%;
-  background: var(--accent);
+/* the bird mark next to « Bird »; its wings beat gently while an answer is being prepared */
+.byline-mark {
+  inline-size: 22px;
+  block-size: 19px;
+  flex: none;
+  fill: var(--ink);
+  overflow: visible;
+}
+.byline-mark .mark-wing-back,
+.byline-mark .mark-wing-front {
+  transform-box: view-box;
+  transform-origin: 42px 31px;
+}
+.byline.is-flying .byline-mark {
+  fill: var(--accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .byline.is-flying .byline-mark {
+    animation: bird-glide 1.6s ease-in-out infinite;
+  }
+  .byline.is-flying .mark-wing-back {
+    animation: bird-wing-back 0.8s ease-in-out infinite;
+  }
+  .byline.is-flying .mark-wing-front {
+    animation: bird-wing-front 0.8s ease-in-out infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .byline.is-flying .byline-mark {
+    animation: bird-breathe 1.8s ease-in-out infinite;
+  }
+}
+@keyframes bird-glide {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@keyframes bird-wing-back {
+  0%, 100% { transform: rotate(0deg) scaleY(1); }
+  50% { transform: rotate(18deg) scaleY(0.55); }
+}
+@keyframes bird-wing-front {
+  0%, 100% { transform: rotate(0deg) scaleY(1); }
+  50% { transform: rotate(-16deg) scaleY(0.6); }
+}
+@keyframes bird-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 }
 .byline-name {
   font: 600 1.02rem/1.2 var(--serif);
