@@ -1,0 +1,240 @@
+"""Rich result widgets of an answer: ``build_widgets`` (places, company, fx, event) and ``enrich_sources`` (link
+previews). Widget data come from tool results (``Step.info["widget"]``) or from the user's own words, never from the
+model's text: a hallucination cannot become a map pin, a SIREN or a rate.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from datetime import datetime
+from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
+
+from birds.harness import geo, when
+
+from . import mapimg
+
+MAX_WIDGET_BYTES = 8_000
+MAX_TOTAL_BYTES = 24_000
+DEFAULT_TZ = "Europe/Paris"
+
+_TITLE = re.compile(
+    r"\b(?P<noun>r[ée]union|rdv|rendez-vous|call|point|d[ée]jeuner|d[îi]ner|meeting|visio|entretien|atelier|lunch|"
+    r"dinner)\s+(?:avec|with)\s+(?P<who>[^,.;:!?\n]{2,40}?)(?=\s+(?:le|la|les|demain|aujourd|après|lundi|mardi|"
+    r"mercredi|jeudi|vendredi|samedi|dimanche|next|this|on|at|à|a|au|de|du|dans|in|pour|for|et|and|tomorrow|today|"
+    r"\d)\b|[,.;:!?\n]|$)",
+    re.I,
+)
+_NOUN = re.compile(
+    r"\b(r[ée]union|rendez-vous|rdv|meeting|call|visio|entretien|d[ée]jeuner|d[îi]ner|webinaire|webinar|"
+    r"s[ée]minaire|formation|atelier|lunch|dinner)\b",
+    re.I,
+)
+_LOC = re.compile(
+    r"\b(?:r[ée]union|rdv|d[ée]jeuner|d[îi]ner|meeting|lunch|dinner|point|atelier|formation|s[ée]minaire)\b[^.;\n]{0,60}?"
+    r"\b(?:chez|at|au|à la|à l')\s+(?P<loc>[A-ZÀ-Ý][^,.;:!?\n]{2,50}?)(?=\s+(?:le|à|a|de|à\s+\d|demain|lundi|mardi|"
+    r"mercredi|jeudi|vendredi|et|and|on|at)\b|[,.;:!?\n]|$)"
+)
+_VISIO = re.compile(r"\b(?:visio\w*|teams|zoom|google meet|meet|call|webinaire|webinar)\b", re.I)
+_TITLES_FR = {"rdv": "Rendez-vous", "rendez-vous": "Rendez-vous", "call": "Appel", "visio": "Visio",
+              "lunch": "Déjeuner", "dinner": "Dîner", "meeting": "Réunion"}  # fmt: skip
+
+
+def _size(w: dict) -> int:
+    return len(json.dumps(w, ensure_ascii=False, separators=(",", ":")))
+
+
+def tz_or_default(name: str | None) -> ZoneInfo:
+    try:
+        return ZoneInfo(name) if name and len(name) <= 64 and re.fullmatch(r"[A-Za-z0-9_+\-/]+", name) else ZoneInfo(
+            DEFAULT_TZ)  # fmt: skip
+    except (ValueError, KeyError, OSError):
+        return ZoneInfo(DEFAULT_TZ)
+
+
+def _title(text: str, lang: str) -> str:
+    m = _TITLE.search(text)
+    if m:
+        noun = m["noun"].lower()
+        label = (_TITLES_FR.get(noun) or noun.capitalize()) if lang == "fr" else {
+            "réunion": "Meeting", "reunion": "Meeting", "rdv": "Appointment", "rendez-vous": "Appointment",
+            "déjeuner": "Lunch", "dejeuner": "Lunch", "dîner": "Dinner", "diner": "Dinner"}.get(noun, noun.capitalize())  # fmt: skip
+        who = m["who"].strip()
+        return f"{label} {'avec' if lang == 'fr' else 'with'} {who}"[:80]
+    m = _NOUN.search(text)
+    if m:
+        noun = m.group(1).lower()
+        return (_TITLES_FR.get(noun) or noun.capitalize()) if lang == "fr" else noun.capitalize()
+    return "Réunion" if lang == "fr" else "Meeting"
+
+
+def event_widget(text: str, now: datetime, lang: str, *, draft: dict | None = None, place: dict | None = None,
+                 holidays=None) -> dict | None:  # fmt: skip
+    """The event card for an ask such as « réunion avec Paul jeudi à 14h », or None (no day written: no card)."""
+    words = " ".join((text or "").split())
+    if not when.event_words(words):
+        return None
+    got = when.event_ask(words, now, lang)
+    if got is None and draft and when.parse(words, now, lang) is None:
+        # the draft's subject and body as a second source; the user's words win
+        got = when.parse(f"{draft.get('subject', '')} {draft.get('body', '')}", now, lang)
+    if got is None:
+        return None
+    location = ""
+    if place:
+        location = ", ".join(x for x in (place.get("name"), place.get("address")) if x)[:120]
+    else:
+        m = _LOC.search(words)
+        if m:
+            location = m["loc"].strip()[:80]
+        elif _VISIO.search(words):
+            location = "Visio" if lang == "fr" else "Video call"
+    desc = ""
+    if draft and draft.get("to"):
+        to = draft["to"] if isinstance(draft["to"], str) else ", ".join(map(str, draft["to"]))
+        desc = (("Participants : " if lang == "fr" else "Participants: ") + to)[:300]
+    day = got["start"].date()
+    warnings = []
+    if day.weekday() >= 5:
+        warnings.append({"kind": "weekend", "label": "samedi" if day.weekday() == 5 else "dimanche"}
+                        if lang == "fr" else {"kind": "weekend", "label": day.strftime("%A")})  # fmt: skip
+    table: dict[str, str] = {}
+    if holidays:
+        for year in sorted({day.year, day.year + 1 if day.month == 12 else day.year}):
+            try:
+                names = holidays(year) or {}
+            except Exception:  # noqa: BLE001 - a missing holiday list only removes a warning
+                names = {}
+            table.update({str(k): str(v)[:60] for k, v in names.items() if re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(k))})
+        if day.isoformat() in table:
+            warnings.append({"kind": "holiday", "label": table[day.isoformat()], "date": day.isoformat()})
+    for w in warnings:
+        w.setdefault("date", day.isoformat())
+    return {
+        "type": "event",
+        "v": 1,
+        "title": _title(words, lang),
+        "start": got["start"].isoformat(),
+        "end": got["end"].isoformat(),
+        "all_day": got["all_day"],
+        "tz": str(now.tzinfo),
+        "location": location,
+        "description": desc,
+        "assumptions": got["assumptions"],
+        "warnings": warnings,
+        "holidays": table,  # the card re-checks the day when the user changes it
+        "matched": got["matched"][:120],
+    }
+
+
+def _map_for(points: list[tuple[float, float]], secret: bytes, single_kind: str = "", layer: str = "osm") -> dict:
+    center, z = geo.fit(points, w=mapimg.MAP_W, h=mapimg.MAP_H, single=geo.single_zoom(single_kind))
+    return mapimg.map_src(secret, center, z, layer)
+
+
+def build_widgets(steps, request_text: str, lang: str, now: datetime, secret: bytes, *, draft: dict | None = None,
+                  holidays=None, layer: str = "osm", geo_on: bool = True) -> list[dict]:  # fmt: skip
+    out: list[dict] = []
+    for s in steps:
+        info = getattr(s, "info", None) or {}
+        w = info.get("widget")
+        if getattr(s, "error", None) or not isinstance(w, dict):
+            continue
+        w = json.loads(json.dumps(w))  # a copy, plain JSON
+        if info.get("auto"):
+            w["auto"] = True
+        if w.get("type") == "places" and geo_on:
+            pts = [(p["lat"], p["lon"]) for p in w.get("places", [])]
+            if w.get("center") and w.get("mode") in ("near", "route"):
+                pts.append((w["center"]["lat"], w["center"]["lon"]))
+            w["map"] = _map_for(pts, secret, w.get("single_kind", ""), layer) if pts else None
+        elif w.get("type") == "company":
+            ok = geo_on and w.get("lat") is not None and not w.get("natural_person")
+            w["map"] = _map_for([(w["lat"], w["lon"])], secret, "", layer) if ok else None
+        elif w.get("type") != "fx":
+            continue
+        out.append(w)
+    place = next((p for w in out if w["type"] == "places" for p in w.get("places", [])[:1]), None)
+    ev = event_widget(request_text, now, lang, draft=draft, place=place, holidays=holidays)
+    if ev:
+        out.append(ev)
+    kept, total = [], 0
+    for w in out:  # caps of the history: each widget <= 8 KB, all <= 24 KB
+        n = _size(w)
+        while n > MAX_WIDGET_BYTES and w.get("places") and len(w["places"]) > 1:
+            w["places"] = w["places"][:-1]
+            n = _size(w)
+        if n <= MAX_WIDGET_BYTES and total + n <= MAX_TOTAL_BYTES:
+            kept.append(w)
+            total += n
+    return kept
+
+
+# ---------------------------------------------------------------- link previews
+
+_GOV = re.compile(r"(?:^|\.)(?:gouv\.fr|gouv|europa\.eu|service-public\.fr|data\.gouv\.fr|insee\.fr)$")
+
+
+def source_kind(host: str) -> str:
+    if _GOV.search(host):
+        return "gov"
+    if host.endswith("wikipedia.org"):
+        return "wiki"
+    if host.endswith("openstreetmap.org"):
+        return "osm"
+    return "web"
+
+
+def enrich_sources(sources: list[dict], steps, secret: bytes, icons: bool = True) -> list[dict]:
+    """Add ``domain``, ``kind``, ``icon`` (signed same-origin favicon URL), and for URLs that came from
+    web_search the result's ``date`` and short ``snippet`` (never page text)."""
+    found = {}
+    for s in steps:
+        if getattr(s, "tool", "") != "web_search":
+            continue
+        for r in (getattr(s, "info", None) or {}).get("results", []) or []:
+            if r.get("url"):
+                found.setdefault(str(r["url"]), r)
+    out = []
+    for src in sources:
+        src = dict(src)
+        try:
+            host = (urlsplit(str(src.get("url"))).hostname or "").lower()
+        except ValueError:
+            host = ""
+        if host and str(src.get("url", "")).startswith(("http://", "https://")):
+            domain = host[4:] if host.startswith("www.") else host
+            src["domain"] = domain
+            src["kind"] = source_kind(host)
+            if icons and mapimg._HOST.match(host):
+                src["icon"] = mapimg.icon_src(secret, host)
+            r = found.get(str(src.get("url")))
+            if r:
+                if r.get("snippet"):
+                    src["snippet"] = str(r["snippet"])[:161]
+                if r.get("date"):
+                    src["date"] = str(r["date"])[:32]
+        out.append(src)
+    return out
+
+
+# ---------------------------------------------------------------- holidays (calendrier.api.gouv.fr)
+
+
+def holiday_lookup(ctx_factory, url_template: str, zone: str):
+    """A function year -> {iso date: name}, cached 30 days, through the egress guard; failures give {}."""
+
+    def lookup(year: int) -> dict:
+        from birds.harness.guard import Blocked, ToolError
+
+        if not re.fullmatch(r"[a-z-]{3,40}", zone or "") or not 2000 <= year <= 2100:
+            return {}
+        try:
+            data = geo.get_json(ctx_factory(), url_template.format(zone=zone, year=year), cache_ttl=30 * 86400,
+                                count=False)  # fmt: skip
+        except (Blocked, ToolError):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    return lookup

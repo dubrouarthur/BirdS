@@ -14,14 +14,14 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from birds.harness import guard, meter
+from birds.harness import guard, intents, meter
 from birds.harness.config import Config, Context
 from birds.harness.llm import STOP, EndpointError, accepts
 from birds.harness.tools import TOOLS, make_search
 from birds.parse import parse_output
 from birds.render import prompt as render_prompt
 from birds.sources.identity import DEFAULT_SYSTEM  # same text as docs/PERSONA.md
-from birds.tools import PRODUCT_TOOLS
+from birds.tools import EXTRA_TOOL_NAMES, PRODUCT_TOOLS
 
 FALLBACK = {
     "fr": "Je n'ai pas pu aboutir à une réponse fiable dans les limites fixées. Pouvez-vous reformuler ou préciser la demande ?",
@@ -202,6 +202,43 @@ _TREND_ASK = re.compile(
     r"\b(?:depuis|since|entre|between)\s+(?:l.an\s+)?(?:19|20)\d\d|\b[ée]volu\w*|\btendance|\btrend|\bover the (?:years|decade)",
     re.I,
 )
+
+
+EVENT_NOTE = {
+    # the resolved day is written out: live model, given only "le 25 décembre", wrote "dimanche 25 décembre" (a Friday)
+    "fr": "\n\n(Note de Bird : une fiche d'agenda pour le {slot} avec un bouton « Ajouter au calendrier » est affichée "
+    "sous ta réponse. Confirme ce créneau en une phrase, avec ce jour exact ; ne fais un mail ou un document que si "
+    "la demande le dit ; n'invente ni lieu ni participant.)",
+    "en": "\n\n(Bird's note: an event card for {slot} with an 'Add to calendar' button is shown under your answer. "
+    "Confirm this slot in one sentence, with this exact day; write an e-mail or a document only if the request says "
+    "so; invent no place or participant.)",
+}
+_DAYS = {
+    "fr": ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"),
+    "en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+}
+_MONTHS = {
+    "fr": ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre",
+           "novembre", "décembre"),
+    "en": ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+           "November", "December"),
+}  # fmt: skip
+
+
+def _event_slot(text: str, lang: str) -> str:
+    """'vendredi 25 décembre 2026, 12:00–13:00' for an event ask in the user's words, else ''."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from birds.harness import when
+
+    got = when.event_ask(text, datetime.now(ZoneInfo("Europe/Paris")), lang)
+    if got is None:
+        return ""
+    lg = "en" if lang == "en" else "fr"
+    s, e = got["start"], got["end"]
+    day = f"{_DAYS[lg][s.weekday()]} {s.day} {_MONTHS[lg][s.month - 1]} {s.year}"
+    return day if got["all_day"] else f"{day}, {s:%H:%M}–{e:%H:%M}"
 
 
 def route(user: str, attached: bool = False) -> set[str]:
@@ -406,6 +443,7 @@ class Agent:
         """Tools shown to the model: the deployment allowlist, minus what is switched off or not configured."""
         off = set() if self.cfg.allow_python else {"run_python"}
         off |= set() if self.search else {"web_search"}
+        off |= set() if getattr(self.cfg, "widgets", True) else set(EXTRA_TOOL_NAMES)
         return set(self.cfg.allowed_tools) - off
 
     def _last_answer(self, messages: list[dict], lang: str, deadline: float) -> tuple[str, dict | None]:
@@ -484,6 +522,7 @@ class Agent:
                 lang=st["lang"],
                 request=str(st.get("request", "")),
                 message=str(st.get("message", "")),
+                attached=bool(st.get("attached", False)),
                 found=[str(u) for u in st.get("found", [])],
                 used=[str(u) for u in st.get("used", [])],
                 fetched=[[str(k), str(v)] for k, v in st.get("fetched", []) if k in ("web", "file")],
@@ -499,6 +538,7 @@ class Agent:
             routed = set(st.get("routed", []))
             gen, ok, content = st["gen"], st["ok"], st.get("content", "")
             forced = "confirmed" if decision is True else "denied_unconfirmed"
+            auto_calls = 0
         else:
             run = Run(lang=lang or detect_lang(user))
             ctx = Context(
@@ -508,6 +548,7 @@ class Agent:
                 lang=run.lang,
                 request=user if request_text is None else request_text,
                 message=user,
+                attached=attached,
             )
             messages = list(history or [])
             if not messages or messages[0]["role"] != "system":
@@ -515,11 +556,34 @@ class Agent:
             messages.append({"role": "user", "content": guard.defang(user)})
             seen, queue = set(), []
             budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
-            words = user if request_text is None else request_text
+            words = req = user if request_text is None else request_text
             routed = route(words, attached) if cfg.route_tools else (route(words) & {"make_chart"})
+            # widget tools (find_places, find_company, convert_currency) are offered only when the user's own words
+            # ask for them: an ordinary turn keeps the trained tool block byte for byte (see intents.py)
+            found = intents.detect(req, attached, run.lang) if getattr(cfg, "widgets", True) else []
+            routed |= set(EXTRA_TOOL_NAMES) - {"make_chart"} - {i.tool for i in found}
+            prefill = next((i for i in found if i.args), None)
+            if prefill and not prefill.keep_web and (prefill.tool == "convert_currency" or not _NEEDS_WEB.search(req)):
+                routed |= {"web_search", "read_page"}
+            slot = "" if prefill or _NEEDS_WEB.search(req) else _event_slot(req, run.lang)
+            if slot:
+                # "cale un déjeuner le 25 décembre à midi": the UI shows an event card (.ics) built from these
+                # words; live model, offered the web, searched "restaurants ouverts le 25 décembre" and refused
+                routed |= {"web_search", "read_page"}
+                messages[-1]["content"] += EVENT_NOTE["en" if run.lang == "en" else "fr"].format(slot=slot)
             nudged, withdrawn, file_nudged = False, set(routed), False
             promise_nudged = False
             gen, ok, forced = 0, 0, None
+            auto_calls = 0
+            if prefill and prefill.tool in self._allowed():
+                # "prefill": the harness makes the call the parser is sure of, before the first generation, on the
+                # same path as a model call (validation, gate, injection scan); the step is tagged auto for the UI
+                call = {"name": prefill.tool, "arguments": dict(prefill.args)}
+                messages.append(
+                    {"role": "assistant", "content": "", "tool_calls": [{"type": "function", "function": dict(call)}]}
+                )
+                seen.add(call["name"] + " " + json.dumps(call["arguments"], sort_keys=True, ensure_ascii=False))
+                queue, gen, auto_calls = [call], 1, 1
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
 
         while True:
@@ -720,6 +784,8 @@ class Agent:
                 c = queue[0]
                 step, result = self._call(c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced, routed)
                 forced = None
+                if auto_calls:
+                    step.info["auto"], auto_calls = True, 0
                 if step.decision == "pause":
                     paused = True
                     break
@@ -757,6 +823,7 @@ class Agent:
                     "fetched": ctx.fetched,
                     "charts": ctx.charts,
                     "images": ctx.images,
+                    "attached": ctx.attached,
                     "gen": gen,
                     "ok": ok,
                     "content": content,

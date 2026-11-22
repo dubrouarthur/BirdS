@@ -6473,3 +6473,707 @@ ol.a4-list > li::before {
     display: none;
   }
 }
+/* widgets (birds/web/static/widgets.js): places + map, company, currency, event */
+.widgets {
+  display: grid;
+  gap: 14px;
+  margin-block: 14px 4px;
+}
+.widget {
+  display: grid;
+  gap: 10px;
+  min-inline-size: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.widget-title {
+  margin: 0;
+}
+.widget-head-links {
+  margin-block-start: -6px;
+  font-size: 0.86rem;
+}
+.widget-link {
+  display: inline; /* the external icon follows the last word when the label wraps */
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.widget-link .icon.ext,
+.btn .icon.ext {
+  inline-size: 0.9em;
+  block-size: 0.9em;
+}
+.widget-link .icon.ext {
+  display: inline-block;
+  vertical-align: -0.1em;
+  margin-inline-start: 0.25em;
+}
+.widget-source {
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--muted);
+  padding-block-start: 8px;
+  border-block-start: 1px solid var(--line);
+}
+.widget-note {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--ink-2);
+}
+.widget .muted {
+  color: var(--muted);
+}
+
+/* static map: one same-origin image, pins overlaid by the client (positions through CSSOM --x/--y) */
+.map-frame {
+  position: relative;
+  aspect-ratio: 16 / 9; /* the image's own ratio: pins and the burnt-in attribution stay valid (never cropped) */
+  inline-size: 100%;
+  max-inline-size: 640px; /* the 1x image's natural width: never upscaled */
+  overflow: hidden;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--line);
+  background: #e5e3df;
+}
+.map-img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+.map-unavailable {
+  display: none;
+  position: absolute;
+  inset: 0;
+  place-items: center;
+  margin: 0;
+  color: #3a3f4a;
+  font-size: 0.9rem;
+}
+.map-frame.is-broken .map-unavailable {
+  display: grid;
+}
+.map-frame.is-broken .map-pins {
+  display: none;
+}
+.map-pins {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* the pin is a rounded label with a centred tail below it: the tail's tip is the coordinate (--x, --y) */
+.map-pin {
+  --pin-bg: #0b1b3f;
+  --tail: 7px;
+  position: absolute;
+  inset-inline-start: var(--x, 50%);
+  inset-block-start: var(--y, 50%);
+  transform: translate(calc(-50% + var(--dx, 0px)), calc(-100% - var(--tail) + var(--dy, 0px)));
+  transform-origin: 50% calc(100% + var(--tail));
+  display: grid;
+  place-items: center;
+  min-inline-size: 26px;
+  block-size: 26px;
+  padding: 0 5px;
+  border: 2px solid #fff;
+  border-radius: 13px;
+  background: var(--pin-bg);
+  color: #fff;
+  font: 700 0.75rem/1 var(--sans);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    transform 0.15s ease,
+    background 0.15s ease;
+}
+.map-pin::after {
+  content: "";
+  position: absolute;
+  inset-block-start: calc(100% + 2px);
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  border-inline: 5px solid transparent;
+  border-block-start: var(--tail) solid var(--pin-bg);
+  pointer-events: none;
+}
+/* an invisible 44 px touch target around the 26 px label */
+.map-pin::before {
+  content: "";
+  position: absolute;
+  inset: -11px;
+  border-radius: 50%;
+}
+.map-pin.is-moved::after {
+  display: none;
+}
+.map-pin[hidden],
+.map-leader[hidden],
+.map-center[hidden] {
+  display: none;
+}
+.map-pin.is-active,
+.map-pin:hover {
+  --pin-bg: #1e5bd8;
+  transform: translate(calc(-50% + var(--dx, 0px)), calc(-100% - var(--tail) + var(--dy, 0px))) scale(1.18);
+  z-index: 2;
+}
+/* a moved pin: a thin leader from its true point (with a dot) to the label */
+.map-leader {
+  position: absolute;
+  inset-inline-start: var(--x, 50%);
+  inset-block-start: var(--y, 50%);
+  inline-size: var(--len, 0px);
+  block-size: 2px;
+  margin-block-start: -1px;
+  background: #0b1b3f;
+  transform: rotate(var(--angle, 0rad));
+  transform-origin: 0 50%;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.85);
+}
+.map-leader::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -4px;
+  inset-block-start: -3px;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: #0b1b3f;
+  border: 1.5px solid #fff;
+  box-sizing: border-box;
+}
+/* the centre of a "near" search: an orange ring under the numbered pins */
+.map-center {
+  position: absolute;
+  inset-inline-start: var(--x, 50%);
+  inset-block-start: var(--y, 50%);
+  inline-size: 18px;
+  block-size: 18px;
+  translate: -50% -50%;
+  border: 4px solid #c2410c;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.85);
+  box-shadow: 0 0 0 2px #fff, 0 1px 4px rgb(0 0 0 / 0.35);
+  box-sizing: border-box;
+}
+.map-attr {
+  position: absolute;
+  inset-inline-start: 6px;
+  inset-block-end: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.88);
+  color: #222;
+  font-size: 0.68rem;
+  text-decoration: none;
+}
+.map-attr:hover,
+.map-attr:focus-visible {
+  text-decoration: underline;
+}
+.map-zoom {
+  position: absolute;
+  inset-inline-end: 6px;
+  inset-block-start: 6px;
+  display: grid;
+  gap: 4px;
+}
+.map-zoom .btn {
+  inline-size: 34px;
+  block-size: 34px;
+  padding: 0;
+  background: rgb(255 255 255 / 0.92);
+  color: #121a2e;
+  border: 1px solid #bcbab0;
+}
+
+.place-more.is-open .icon {
+  rotate: 180deg;
+}
+
+.map-frame.is-loading .map-img {
+  opacity: 0.6;
+  transition: opacity 0.2s ease;
+}
+.map-frame.is-loading::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  inline-size: 28px;
+  block-size: 28px;
+  margin: -14px 0 0 -14px;
+  border: 3px solid rgb(255 255 255 / 0.9);
+  border-block-start-color: #1e5bd8;
+  border-radius: 50%;
+  animation: map-spin 0.8s linear infinite;
+}
+@keyframes map-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-frame.is-loading::after {
+    animation: none;
+  }
+}
+@media (pointer: coarse) {
+  .map-zoom .btn {
+    inline-size: 44px;
+    block-size: 44px;
+  }
+}
+
+/* place cards */
+.place-list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.place-card {
+  display: flex;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--radius-s);
+  transition: background 0.2s ease;
+}
+.place-card[hidden] {
+  display: none;
+}
+.place-card:hover,
+.place-card:focus-within,
+.place-card.is-cited {
+  background: var(--accent-soft);
+}
+.place-card:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.place-n {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: 12px;
+  background: var(--primary);
+  color: var(--primary-ink);
+  font: 700 0.75rem/1 var(--sans);
+}
+.place-body {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.place-name {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 650;
+}
+.place-meta,
+.place-address,
+.place-hours {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.place-hours p {
+  margin: 0;
+}
+.place-hours-all summary {
+  cursor: pointer;
+  color: var(--link);
+  inline-size: fit-content;
+}
+.place-hours-all ul {
+  margin: 2px 0 0;
+  padding-inline-start: 1.1em;
+}
+.place-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 2px 0 0;
+  font-size: 0.86rem;
+}
+.place-route {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 0;
+}
+.place-more {
+  justify-self: start;
+}
+
+/* company */
+.company-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+.company-name {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.company-kv > div {
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: baseline;
+}
+.num-row {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+/* the copy button must not set the row's height (label and value on one baseline) */
+.num-row .btn {
+  align-self: center;
+  margin-block: -8px;
+}
+.company-candidates li.is-current {
+  color: var(--ink-2);
+}
+.company-candidates li.is-current .pill {
+  margin-inline-start: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.pill {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.pill-active {
+  background: var(--eco-soft);
+  color: var(--eco);
+}
+.pill-closed {
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 8px;
+}
+.kpi {
+  display: grid;
+  grid-template-rows: 1fr auto; /* tiles of a row share a height: the values sit on one line */
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+}
+.kpi-label {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.kpi-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.company-candidates ul {
+  margin: 4px 0 0;
+  padding-inline-start: 1.2em;
+  font-size: 0.86rem;
+}
+
+/* currency */
+.fx-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.fx-in {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.fx-amount {
+  inline-size: 9rem;
+  max-inline-size: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--ink);
+  font: 600 1.1rem/1.2 var(--sans);
+}
+.fx-cur {
+  font-weight: 600;
+}
+.fx-eq {
+  color: var(--muted);
+}
+.fx-result {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.fx-inverse {
+  margin: 0;
+  font-size: 0.84rem;
+}
+/* touch screens: card actions become pills of at least 40 px, other links get taller hit areas */
+@media (pointer: coarse) {
+  .place-actions {
+    gap: 8px;
+  }
+  .place-actions a.widget-link {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    text-decoration: none;
+  }
+  .place-actions .btn {
+    min-block-size: 40px;
+  }
+  .widget-head-links a,
+  .widget-source a,
+  .company-candidates a,
+  .place-hours-all summary {
+    display: inline-block;
+    padding-block: 10px;
+  }
+  .map-attr {
+    padding: 5px 8px;
+  }
+}
+/* narrow: the amount and its currency on one row, the result alone and large below (no dangling "=") */
+@media (max-width: 420px) {
+  .fx-eq {
+    display: none;
+  }
+  .fx-result {
+    flex-basis: 100%;
+  }
+}
+
+/* event */
+.ev-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.ev-leaf {
+  display: grid;
+  justify-items: center;
+  inline-size: 4.6rem;
+  padding-block-end: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  background: var(--bg);
+}
+.ev-month {
+  justify-self: stretch;
+  padding: 2px 0;
+  background: #b03a0a;
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+}
+.ev-day {
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.ev-weekday {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+.ev-fields {
+  display: grid;
+  gap: 8px;
+  min-inline-size: 0;
+}
+.ev-when {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+.ev-field {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.ev-label {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.ev-field input {
+  inline-size: 100%;
+  min-inline-size: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.92rem;
+  color-scheme: light dark;
+}
+.ev-matched {
+  margin: 0;
+  font-size: 0.8rem;
+}
+.ev-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+.ev-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.78rem;
+}
+.ev-chip-warn {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+
+/* steps: started by the harness from the user's words, not by the model */
+.badge-auto {
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+}
+
+/* sources as link previews */
+.source-list li.source-card {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+.source-card .source-body {
+  display: grid;
+  gap: 2px;
+}
+.source-card .source-body > a {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.source-card .source-host {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.source-icon {
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: 3px;
+}
+.source-mono {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: 4px;
+  color: #fff;
+  font: 700 0.62rem/1 var(--sans);
+}
+.source-mono[hidden] {
+  display: none;
+}
+.mono-0 {
+  background: #1e5bd8;
+}
+.mono-1 {
+  background: #12764a;
+}
+.mono-2 {
+  background: #9a3412;
+}
+.mono-3 {
+  background: #6d28d9;
+}
+.mono-4 {
+  background: #0e7490;
+}
+.mono-5 {
+  background: #a16207;
+}
+.mono-6 {
+  background: #be123c;
+}
+.mono-7 {
+  background: #475569;
+}
+.badge-gov {
+  background: var(--eco-soft);
+  color: var(--eco);
+}
+.source-snippet {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (max-width: 480px) {
+  .widget {
+    padding: 12px;
+  }
+  .ev-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ev-leaf {
+    display: none;
+  }
+  .ev-when {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .ev-when .ev-date {
+    grid-column: 1 / -1;
+  }
+  .company-kv > div {
+    grid-template-columns: 6.6rem minmax(0, 1fr);
+    gap: 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .map-pin,
+  .place-card {
+    transition: none;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .map-img {
+    filter: brightness(0.85) contrast(1.05);
+  }
+}
+:root[data-theme="dark"] .map-img {
+  filter: brightness(0.85) contrast(1.05);
+}

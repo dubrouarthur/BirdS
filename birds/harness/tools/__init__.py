@@ -1,9 +1,12 @@
-"""The product tools (8 trained + make_chart). Each takes arguments already validated against its schema
-(birds.tools) and a Context."""
+"""The product tools (8 trained ones + make_chart + the routed widget tools). Each takes arguments already validated
+against its schema (birds.tools) and a Context."""
 
 from birds.harness.tools.actions import draft_email, run_python
 from birds.harness.tools.chart import make_chart
+from birds.harness.tools.company import find_company
 from birds.harness.tools.files import make_document, make_sheet, make_slides, read_file
+from birds.harness.tools.fx import convert_currency
+from birds.harness.tools.places import find_places
 from birds.harness.tools.web import (
     BraveBackend,
     SearxngBackend,
@@ -25,6 +28,9 @@ TOOLS = {
     "make_sheet": make_sheet,
     "run_python": run_python,
     "make_chart": make_chart,
+    "find_places": find_places,
+    "find_company": find_company,
+    "convert_currency": convert_currency,
 }
 
 __all__ = [

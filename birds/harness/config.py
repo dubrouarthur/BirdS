@@ -54,6 +54,15 @@ class Config:
     gpu_label: str | None = None  # e.g. "NVIDIA L4, 72 W TDP"
     pue: float = 1.0  # 1.0 = GPU only
     audit_file: str | None = "bird_audit.jsonl"  # None: audit lines go to stdout (serverless logs)
+    # rich results (places, company register, ECB rates): BIRD_GEO=off withdraws the three tools
+    widgets: bool = True
+    geo_user_agent: str = "BirdHarness/0.1 (+geo)"  # generic: never a person's name or e-mail
+    nominatim_url: str = "https://nominatim.openstreetmap.org/search"
+    photon_url: str = "https://photon.komoot.io/api"
+    ban_url: str = "https://data.geopf.fr/geocodage/search"
+    company_url: str = "https://recherche-entreprises.api.gouv.fr/search"
+    fx_url: str = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+    geo_cache_dir: str | None = None  # optional disk cache (file names are hashes, never the query)
 
 
 @dataclass
@@ -78,6 +87,9 @@ class Context:
     fetched: list[list[str]] = field(default_factory=list)
     charts: list[dict] = field(default_factory=list)  # chart specs shown in the chat (make_chart)
     images: list[dict] = field(default_factory=list)  # web image candidates {src, page, title, alt, origin}
+    attached: bool = False  # the request comes with a document or an image (find_places: the user's words only)
+    geo_calls: int = 0  # upstream geocoder requests of this run (cap: geo.MAX_LOOKUPS_PER_RUN)
+    place_calls: int = 0  # successful find_places calls of this run
 
     @property
     def workspace(self) -> Path:

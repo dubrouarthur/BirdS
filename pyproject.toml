@@ -33,7 +33,7 @@ entrypoint = "app:app"
 
 
 [tool.setuptools.package-data]
-birds = ["web/static/*", "web/static/demo/*", "web/static/fonts/*", "harness/chat_template.jinja"]
+birds = ["web/static/*", "web/static/demo/*", "web/static/fonts/*", "web/demo_data/*", "harness/chat_template.jinja"]
 
 [tool.setuptools.packages.find]
 include = ["birds*"]

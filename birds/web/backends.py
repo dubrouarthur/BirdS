@@ -26,6 +26,8 @@ from birds.harness import guard
 from birds.harness.llm import Cancelled, accepts  # Cancelled: the client went away or pressed stop
 from birds.web.tidy import code_checks, tidy
 
+from .widgets import enrich_sources
+
 Event = dict[str, Any]
 
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -134,6 +136,7 @@ class ChatRequest:
     images: list[dict] = field(default_factory=list)  # [{"name", "url": data URL}] of the LAST user message only
     conv_lang: str | None = None  # pinned by the client at the first message of the conversation
     conversation_id: str | None = None  # random UUID from the client: cache salt and log id, never shown
+    tz: str | None = None  # the browser's time zone (event card); validated, Europe/Paris otherwise
 
 
 @dataclass
@@ -144,6 +147,8 @@ class RunContext:
     deadline: float  # time.monotonic() value after which the function may be killed
     max_inline_file_bytes: int = 3_000_000
     sign_image: Callable[[str], str] | None = None  # image URL -> signed same-origin /api/img path (None: no images)
+    secret: bytes = b""  # signs the same-origin map and icon URLs of the widgets (birds.web.mapimg)
+    geo: dict = field(default_factory=dict)  # widget settings: on, layer, holiday_url, holiday_zone
 
     def check(self) -> None:
         if self.cancel.is_set():
@@ -164,6 +169,7 @@ class Backend(Protocol):
     tools: list[str]
 
     def run(self, request: ChatRequest, ctx: RunContext) -> None: ...
+
 
 
 def step_event(
@@ -378,6 +384,24 @@ _DEMO_MARKERS = {
 }  # fmt: skip
 
 
+def widget_scenario(text: str) -> str:
+    """The widget demo for a request the harness would prefill (places, company, fx) or an event ask."""
+    from datetime import datetime
+
+    from birds.harness import intents
+
+    found = [i for i in intents.detect(text) if i.args]
+    if found:
+        return {"find_places": "places", "find_company": "company", "convert_currency": "fx"}[found[0].tool]
+    from .widgets import event_widget, tz_or_default
+
+    if event_widget(text, datetime.now(tz_or_default(None)), "fr") or event_widget(
+        text, datetime.now(tz_or_default(None)), "en"
+    ):
+        return "event"
+    return ""
+
+
 def pick_scenario(text: str, has_attachment: bool = False) -> str:
     """Map the last user message to a scripted scenario (deterministic keyword match). Test scenarios need an
     explicit phrase; then a named file format wins over the topic ("présentation pptx sur notre budget": slides)."""
@@ -387,6 +411,19 @@ def pick_scenario(text: str, has_attachment: bool = False) -> str:
             return name
     if has_attachment:
         return "attachment"
+    # a named format or a document topic wins over a widget: "prépare les slides pour le meeting de lundi" is a deck
+    first = [
+        ("slides", ("pptx", "powerpoint", "diapo", "slide", "présentation", "presentation")),
+        ("sheet", ("xlsx", "tableur", "excel", "spreadsheet", "feuille de calcul")),
+        ("document", ("docx",)),
+        ("minutes", ("compte rendu", "compte-rendu", "minutes", "ordre du jour")),
+    ]
+    for name, keys in first:
+        if any(k in low for k in keys):
+            return name
+    widget = widget_scenario(text)
+    if widget:
+        return widget
     rules = [
         ("slides", ("pptx", "powerpoint", "diapo", "slide", "présentation", "presentation")),
         ("sheet", ("xlsx", "tableur", "excel", "spreadsheet", "feuille de calcul")),
@@ -427,6 +464,9 @@ class DemoBackend:
             "make_document",
             "make_sheet",
             "make_chart",
+            "find_places",
+            "find_company",
+            "convert_currency",
         ]
     )
 
@@ -509,20 +549,25 @@ class _DemoRun:
             self.ctx.emit({"type": "delta", "content": "".join(pieces[i : i + 3])})
             self.pause(0.035)
 
-    def finish(self, content: str, sources=None, files=None, draft_email=None, charts=None, web_images=None) -> None:
+    def finish(
+        self, content: str, sources=None, files=None, draft_email=None, charts=None, web_images=None, widgets=None
+    ) -> None:
+        from .widgets import enrich_sources
+
         self.pause(0.3)
         self.stream(content)
         self.ctx.emit(
             {
                 "type": "answer",
                 "content": content,
-                "sources": sources or [],
+                "sources": enrich_sources(sources or [], [], self.ctx.secret, icons=False),
                 "files": files or [],
                 "draft_email": draft_email,
                 "stop_reason": "answer",
                 "charts": charts or [],
                 "web_images": web_images or [],
                 "code_checks": code_checks(content),
+                "widgets": widgets or [],
             }
         )
         prompt = 60 + sum(len(m["content"]) for m in self.req.messages) // 4 + self.extra_prompt
@@ -690,6 +735,148 @@ class _DemoRun:
                 "*Scripted demo example: paste your notes to get real minutes from the real model.*",
             )
         )
+
+    # -- widgets: the real tools on recorded provider answers (birds.web.demo_widgets)
+    def _last(self) -> str:
+        return next((m["content"] for m in reversed(self.req.messages) if m["role"] == "user"), "")
+
+    def _widget_step(self, tool: str, args: dict):
+        from types import SimpleNamespace
+
+        from birds.harness import guard
+
+        from .demo_widgets import localise_maps, run_tool
+        from .widgets import build_widgets
+
+        index = self.steps
+        self.steps += 1
+        start = time.monotonic()
+        self.ctx.emit(step_event(index, tool, args, "running", info={"auto": True}))
+        self.pause(0.8)
+        try:
+            text, info, sources = run_tool(tool, args, self.lang)
+            error = None
+        except (guard.ToolError, guard.Blocked) as e:
+            text, info, sources, error = f"Error: {e}", {}, [], str(e)
+        info["auto"] = True
+        self.ctx.emit(
+            step_event(
+                index, tool, args, "error" if error else "done",
+                error or self.t(f"{len(text)} caractères rendus au modèle", f"{len(text)} characters returned to the model"),
+                time.monotonic() - start, preview=" ".join(text.split())[:200], info=info,
+            )
+        )  # fmt: skip
+        step = SimpleNamespace(tool=tool, info=info, error=error)
+        widgets = localise_maps(
+            build_widgets([step], "", self.lang, _now(None), self.ctx.secret or b"demo", geo_on=True)
+        )
+        return widgets, sources, info
+
+    def _sources(self, urls: list[str], titles: dict) -> list[dict]:
+        return [{"n": n, "title": titles.get(u) or _source_title(u), "url": u} for n, u in enumerate(urls, 1)]
+
+    def scenario_places(self) -> None:
+        from birds.harness import intents
+
+        intent = next(i for i in intents.detect(self._last()) if i.args)
+        widgets, urls, _ = self._widget_step("find_places", intent.args)
+        w = widgets[0] if widgets else None
+        osm = self.t("OpenStreetMap — carte", "OpenStreetMap — map")
+        if not w:
+            q = intent.args.get("near") or intent.args.get("query")
+            return self.finish(self.t(
+                f"Je n'ai trouvé aucun lieu pour « {q} » dans les données de démonstration. En mode démo, seuls "
+                "quelques lieux enregistrés sont disponibles (gare de Lyon, tour Eiffel, Lyon Part-Dieu, Lille "
+                "Europe, Nantes, 20 avenue de Ségur).",
+                f"I found no place for '{q}' in the demo data. In demo mode only a few recorded places are "
+                "available (gare de Lyon, Eiffel Tower, Lyon Part-Dieu, Lille Europe, Nantes, 20 avenue de Ségur).",
+            ))  # fmt: skip
+        ps = w["places"]
+        if w["mode"] == "near":
+            names = ", ".join(f"**{p['name']}** ({p['distance_m']} m)" for p in ps[:3])
+            text = self.t(
+                f"J'ai trouvé {len(ps)} adresses sur OpenStreetMap autour de {w['center']['name']}, de la plus "
+                f"proche à la plus éloignée. Les plus proches : {names} [1].\n\nLes horaires viennent "
+                "d'OpenStreetMap : vérifiez-les avant de vous déplacer. Je ne donne ni note ni prix, que je "
+                "n'ai pas.",
+                f"I found {len(ps)} places on OpenStreetMap around {w['center']['name']}, nearest first. The "
+                f"closest: {names} [1].\n\nOpening hours come from OpenStreetMap: check them before going. I "
+                "give no ratings or prices, which I do not have.",
+            )
+        elif w["mode"] == "list":
+            text = self.t(
+                "Voici les sites placés sur la carte, dans l'ordre donné : "
+                + ", ".join(f"**{p['name']}**" for p in ps) + " [1].\n\nPour comparer l'accès, la carte montre "
+                "leur position ; je n'ai pas de temps de trajet.",
+                "Here are the sites on the map, in the order given: " + ", ".join(f"**{p['name']}**" for p in ps)
+                + " [1].\n\nThe map shows where they are; I have no travel times.",
+            )  # fmt: skip
+        else:
+            p = ps[0]
+            text = self.t(
+                f"**{p['name']}** se trouve {('au ' + p['address']) if p['address'] else 'ici'} [1]. La carte "
+                "ci-dessous la situe ; le lien « Itinéraire » ouvre OpenStreetMap.",
+                f"**{p['name']}** is at {p['address'] or 'this spot'} [1]. The map below shows it; the "
+                "'Directions' link opens OpenStreetMap.",
+            )
+        self.finish(text, sources=self._sources(urls, {urls[0]: osm} if urls else {}), widgets=widgets)
+
+    def scenario_company(self) -> None:
+        from birds.harness import intents
+
+        intent = next(i for i in intents.detect(self._last()) if i.args)
+        widgets, urls, _ = self._widget_step("find_company", intent.args)
+        if not widgets:
+            return self.finish(self.t("Aucune entreprise trouvée dans les données de démonstration.",
+                                      "No company found in the demo data."))  # fmt: skip
+        w = widgets[0]
+        text = self.t(
+            f"**{w['name']}** ({w.get('legal_form', '')}), SIREN {w['siren'][:3]} {w['siren'][3:6]} {w['siren'][6:]}, "
+            f"siège à {w.get('commune') or '—'} [1]. La fiche ci-dessous reprend les données publiques de "
+            "l'annuaire officiel ; les dirigeants sont consultables sur la fiche officielle.",
+            f"**{w['name']}** ({w.get('legal_form', '')}), SIREN {w['siren'][:3]} {w['siren'][3:6]} {w['siren'][6:]}, "
+            f"head office in {w.get('commune') or '—'} [1]. The card below shows the public data of the official "
+            "register; directors are listed on the official page.",
+        )
+        self.finish(text, sources=self._sources(urls, {urls[0]: "Annuaire des entreprises"}), widgets=widgets)
+
+    def scenario_fx(self) -> None:
+        from birds.harness import intents
+
+        intent = next(i for i in intents.detect(self._last()) if i.args)
+        widgets, urls, _ = self._widget_step("convert_currency", intent.args)
+        if not widgets:
+            return self.finish(self.t("Pas de taux de référence BCE pour cette devise.",
+                                      "No ECB reference rate for this currency."))  # fmt: skip
+        w = widgets[0]
+        fmt = (lambda x: f"{x:,.{4 if x < 10 else 2}f}".replace(",", "\u202f").replace(".", ",")) if self.lang == "fr" else (
+            lambda x: f"{x:,.{4 if x < 10 else 2}f}")  # fmt: skip
+        text = self.t(
+            f"{fmt(w['amount'])} {w['from']} = **{fmt(w['result'])} {w['to']}** au taux de référence de la BCE du "
+            f"{w['date']} [1]. C'est un taux indicatif, pas un cours de marché en temps réel.",
+            f"{fmt(w['amount'])} {w['from']} = **{fmt(w['result'])} {w['to']}** at the ECB reference rate of "
+            f"{w['date']} [1]. An indicative rate, not a live market quote.",
+        )
+        self.finish(text, sources=self._sources(urls, {urls[0]: self.t("BCE — taux de référence",
+                                                                        "ECB — reference rates")}), widgets=widgets)  # fmt: skip
+
+    def scenario_event(self) -> None:
+        from .demo_widgets import recorded
+        from .widgets import event_widget
+
+        ev = event_widget(self._last(), _now(self.req.tz), self.lang,
+                          holidays=lambda y: recorded(f"https://calendrier.api.gouv.fr/jours-feries/metropole/{y}.json"))  # fmt: skip
+        when_txt = ev["matched"] if ev else ""
+        text = self.t(
+            f"C'est noté : **{ev['title']}**, {when_txt}. Vérifiez les champs de la carte ci-dessous, puis "
+            "« Ajouter au calendrier » : le fichier .ics s'ouvre dans votre agenda, rien n'est envoyé.",
+            f"Noted: **{ev['title']}**, {when_txt}. Check the fields of the card below, then 'Add to calendar': "
+            "the .ics file opens in your calendar, nothing is sent.",
+        )
+        if ev and ev["warnings"]:
+            text += self.t(" Attention : " + ", ".join(x["label"] for x in ev["warnings"]) + ".",
+                           " Note: " + ", ".join(x["label"] for x in ev["warnings"]) + ".")  # fmt: skip
+        self.finish(text, widgets=[ev] if ev else [])
 
     def scenario_search(self) -> None:
         self.think(
@@ -1129,6 +1316,14 @@ def _plain(value: Any) -> Any:
         return json.loads(json.dumps(value, ensure_ascii=False, default=str))
     except (TypeError, ValueError):
         return {}
+
+
+def _now(tz: str | None):
+    from datetime import datetime
+
+    from .widgets import tz_or_default
+
+    return datetime.now(tz_or_default(tz))
 
 
 def _source_title(url: str) -> str:
@@ -1816,13 +2011,15 @@ class HarnessBackend:
             )
             tidied = tidy(str(run.answer), run.stop_reason)
             content = hide_out_paths(strip_tool_echo(strip_memo(tidied.text)))
+            widgets = self._widgets(run, request, ctx, lang, draft)
             ctx.emit(
                 {
                     "type": "answer",
                     "content": content,
-                    "sources": sources,
+                    "sources": enrich_sources(sources, run.steps, ctx.secret, icons=bool(ctx.secret)),
                     "charts": _plain(list(getattr(run, "charts", []) or [])),
                     "web_images": pick_web_images(run, answer_text, request_words, sources, ctx.sign_image),
+                    "widgets": widgets,
                     "files": files,
                     "draft_email": None
                     if draft is None
@@ -1865,6 +2062,38 @@ class HarnessBackend:
         finally:
             if ephemeral:
                 shutil.rmtree(workspace, ignore_errors=True)
+
+    def _widgets(self, run, request: ChatRequest, ctx: RunContext, lang: str, draft) -> list[dict]:
+        """Widgets of the answer, from tool results and the user's own words (never the model's text)."""
+        from types import SimpleNamespace
+
+        from .widgets import build_widgets, holiday_lookup
+
+        opts = ctx.geo or {}
+        if not opts.get("on", True) or request.resume is not None:
+            return [] if not opts.get("on", True) else build_widgets(run.steps, "", lang, _now(request.tz),
+                                                                    ctx.secret or b"x")  # fmt: skip
+        words = own_words(request.messages[-1]["content"]) if request.messages else ""
+        holidays = None
+        if opts.get("holiday_url"):
+            import httpx
+
+            from birds.harness import Config
+
+            cfg = Config(workspace=Path(tempfile.gettempdir()), audit_file=None, **self.config)
+            client = self.http or httpx.Client(trust_env=not cfg.pin_dns, follow_redirects=False, timeout=8.0)
+            holidays = holiday_lookup(
+                lambda: SimpleNamespace(config=cfg, http=client, geo_calls=0, bytes_fetched=0),
+                opts["holiday_url"],
+                opts.get("holiday_zone", "metropole"),
+            )
+        try:
+            return build_widgets(
+                run.steps, "" if request.attachments and not words else words, lang, _now(request.tz),
+                ctx.secret or b"x", draft=draft, holidays=holidays, layer=opts.get("layer", "osm"),
+            )  # fmt: skip
+        except Exception:  # noqa: BLE001 - a widget bug must never lose the answer
+            return []
 
     @staticmethod
     def _step_event(index: int, step, lang: str) -> Event:

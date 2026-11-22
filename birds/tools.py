@@ -128,9 +128,9 @@ BIRD_TOOLS: list[dict] = [
 
 BIRD_TOOL_NAMES = [t["function"]["name"] for t in BIRD_TOOLS]
 
-# Product tools the model was NOT trained on. Kept out of BIRD_TOOLS, which stays byte for byte the trained set
-# (training data, benchmark, prompt-cache tests). Offered only when a request needs them (agent.route), and always
-# after the trained tools in the prompt.
+# Product tools that are NOT part of the trained set: offered only when the harness routes them in
+# (birds.harness.intents), appended after the trained tools, so the prompt of an ordinary turn stays byte for byte
+# what the model was trained on. Kept tiny and flat (at most 3 string/number arguments).
 EXTRA_TOOLS: list[dict] = [
     _fn(
         "make_chart",
@@ -158,6 +158,37 @@ EXTRA_TOOLS: list[dict] = [
         },
         ["title", "columns", "rows"],
     ),
+    _fn(
+        "find_places",
+        "Find a place, an address, or places of a kind near somewhere, on OpenStreetMap. Use it when the user asks "
+        "where something is, for an address, or for places near a location.",
+        {
+            "query": {
+                "type": "string",
+                "description": "What to find: a place name, an address, or a kind of place (e.g. restaurant).",
+            },
+            "near": {"type": "string", "description": "Optional: where to search around (e.g. gare de Lyon, Paris)."},
+        },
+        ["query"],
+    ),
+    _fn(
+        "find_company",
+        "Look up a French company in the official register (name, SIREN, address, activity). Use it when the user "
+        "asks about a company, a client or a supplier by name or SIREN.",
+        {"name": {"type": "string", "description": "Company name, SIREN (9 digits) or SIRET (14 digits)."}},
+        ["name"],
+    ),
+    _fn(
+        "convert_currency",
+        "Convert an amount between currencies with the European Central Bank reference rate of the day.",
+        {
+            "amount": {"type": "number", "description": "Amount to convert (default 1)."},
+            "from": {"type": "string", "description": "Currency code to convert from, e.g. USD."},
+            "to": {"type": "string", "description": "Currency code to convert to, e.g. EUR."},
+        },
+        ["from", "to"],
+    ),
 ]
+EXTRA_TOOL_NAMES = [t["function"]["name"] for t in EXTRA_TOOLS]
 PRODUCT_TOOLS = BIRD_TOOLS + EXTRA_TOOLS
 PRODUCT_TOOL_NAMES = [t["function"]["name"] for t in PRODUCT_TOOLS]

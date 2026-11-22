@@ -10,6 +10,7 @@ import asyncio
 import hmac
 import json
 import re
+import tempfile
 import threading
 import time
 from collections import deque
@@ -24,6 +25,7 @@ from pydantic import BaseModel, Field
 
 from . import endpoint as ep
 from . import tokens
+from . import widgets as widgets_mod
 from .backends import Backend, Cancelled, ChatRequest, DemoBackend, Event, HarnessBackend, RunContext, sanitize_filename
 from .settings import Settings
 
@@ -83,6 +85,7 @@ class ChatBody(BaseModel):
     conversation_id: str | None = Field(
         default=None, pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     )
+    tz: str | None = Field(default=None, max_length=64)  # Intl.DateTimeFormat().resolvedOptions().timeZone
 
 
 class TestBody(BaseModel):
@@ -166,6 +169,14 @@ def harness_config(s: Settings) -> dict:
         "max_calls_per_step": s.max_calls_per_step,
         "max_tokens": s.max_tokens,
         "timeout_s": s.max_seconds,
+        "widgets": s.geo,
+        "geo_user_agent": s.geo_user_agent,
+        "geo_cache_dir": s.geo_cache_dir,
+        **{
+            k: getattr(s, k)
+            for k in ("nominatim_url", "photon_url", "ban_url", "company_url", "fx_url")
+            if getattr(s, k, None)
+        },
     }
 
 
@@ -326,6 +337,9 @@ TOOL_TEXT = {  # why a tool is on or off on this deployment, for the "available 
         "Affiche un graphique dans la conversation (barres, courbe, camembert)",
         "Shows a chart in the chat (bar, line, pie)",
     ),
+    "find_places": ("Cherche des lieux et adresses (OpenStreetMap)", "Finds places and addresses (OpenStreetMap)"),
+    "find_company": ("Consulte l'annuaire officiel des entreprises", "Looks up the official French company register"),
+    "convert_currency": ("Convertit une somme au taux BCE du jour", "Converts an amount at the ECB rate of the day"),
     "run_python": (
         "Désactivé : exécuter du code demande un vrai bac à sable, absent de ce déploiement",
         "Off: running code needs a real sandbox, which this deployment does not have",
@@ -355,6 +369,17 @@ def tools_info(s: Settings, backend) -> dict:
         fr, en = TOOL_TEXT.get(key, ("", ""))
         out.append({"name": name, "state": state, "fr": fr.format(label=label), "en": en.format(label=label)})
     return {"tools": out, "search": search}
+
+
+def peer_ip(request, trusted_proxies: int = 0) -> str:
+    """The client address for the rate limiters. X-Forwarded-For is written by the client and is only read when the
+    operator says how many proxies of their own sit in front (``BIRD_TRUSTED_PROXIES``, 1 on Vercel): each proxy
+    appends the address it saw, so the client is the N-th entry from the right, never the first one."""
+    peer = request.client.host if request.client else "?"
+    if trusted_proxies <= 0:
+        return peer
+    hops = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",") if h.strip()]
+    return hops[-min(trusted_proxies, len(hops))] if hops else peer
 
 
 def create_app(
@@ -388,6 +413,8 @@ def create_app(
             response.headers["Cache-Control"] = "no-cache"
         elif path == "/api/img" and response.status_code == 200:
             pass  # a re-encoded public image, signed URL: cacheable (set by the route)
+        elif path in ("/api/map", "/api/icon") and response.status_code == 200:
+            pass  # same-origin images: "private, max-age=86400" set by birds.web.mapimg
         elif path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
         return response
@@ -395,8 +422,7 @@ def create_app(
     # ------------------------------------------------------------------ request guards
 
     def client_ip(request: Request) -> str:
-        forwarded = request.headers.get("x-forwarded-for", "")
-        return forwarded.split(",")[0].strip() or (request.client.host if request.client else "?")
+        return peer_ip(request, settings.trusted_proxies)
 
     def same_origin(request: Request) -> None:
         origin = request.headers.get("origin")
@@ -744,6 +770,7 @@ def create_app(
             images,
             conv_lang=body.conv_lang,
             conversation_id=body.conversation_id,
+            tz=str(widgets_mod.tz_or_default(body.tz)),
         )
 
         loop = asyncio.get_running_loop()
@@ -764,6 +791,13 @@ def create_app(
             time.monotonic() + s.max_seconds,
             s.max_inline_file_bytes,
             sign_image=lambda u: tokens.sign_image_url(u, s.signing_secret, s.image_ttl),
+            secret=s.signing_secret,
+            geo={
+                "on": s.geo,
+                "layer": s.tile_layer,
+                "holiday_url": s.holiday_url if s.geo else None,
+                "holiday_zone": s.holiday_zone,
+            },
         )
 
         def worker() -> None:
@@ -836,6 +870,14 @@ def create_app(
     async def not_found(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse({"detail": {"code": "not_found", "message": "not found"}}, status_code=404)
 
+    from . import mapimg
+
+    def _geo_cfg():
+        from birds.harness import Config
+
+        return Config(workspace=Path(tempfile.gettempdir()), audit_file=None, **harness_config(s))
+
+    app.include_router(mapimg.make_router(s, _geo_cfg))
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     if SITE_DIR.is_dir():
         import mimetypes

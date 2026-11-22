@@ -146,7 +146,7 @@ def test_plain_answer_streams_then_gives_the_full_answer(client, lang):
     events = chat(client, "Bonjour" if lang == "fr" else "Hello", lang=lang)
     assert types(events) == ["answer", "usage", "done"]
     answer, usage = one(events, "answer"), one(events, "usage")
-    assert set(answer) == {"type", "content", "sources", "files", "draft_email", "stop_reason", "charts", "web_images", "code_checks"}
+    assert set(answer) == {"type", "content", "sources", "files", "draft_email", "stop_reason", "charts", "web_images", "code_checks", "widgets"}
     assert answer["charts"] == [] and answer["web_images"] == []
     assert "Bird" in answer["content"] and ("démo" in answer["content"] or "demo" in answer["content"])
     assert len([e for e in events if e["type"] == "delta"]) > 5
@@ -480,15 +480,21 @@ def test_rate_limit_is_per_client_and_best_effort():
     limiter = RateLimiter(2)
     assert [limiter.allow("a", now=t) for t in (0, 1, 2)] == [True, True, False]
     assert limiter.allow("b", now=2) and limiter.allow("a", now=62)
-    app = create_app(settings(rate_limit=2))
+    app = create_app(settings(rate_limit=2, trusted_proxies=1))  # one proxy of ours appends the client address
     with TestClient(app) as client:
         body = {"messages": [{"role": "user", "content": "Bonjour"}]}
         codes = [
-            client.post("/api/chat", json=body, headers={"X-Forwarded-For": "203.0.113.9"}).status_code
-            for _ in range(3)
+            client.post("/api/chat", json=body, headers={"X-Forwarded-For": f"10.0.0.{i}, 203.0.113.9"}).status_code
+            for i in range(3)
+        ]
+        assert codes == [200, 200, 429]  # the forged left-most entries change nothing
+        assert client.post("/api/chat", json=body, headers={"X-Forwarded-For": "203.0.113.10"}).status_code == 200
+    with TestClient(create_app(settings(rate_limit=2))) as client:  # no trusted proxy: the header is ignored
+        codes = [
+            client.post("/api/chat", json=body, headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code
+            for i in range(3)
         ]
         assert codes == [200, 200, 429]
-        assert client.post("/api/chat", json=body, headers={"X-Forwarded-For": "203.0.113.10"}).status_code == 200
 
 
 def test_cross_origin_requests_are_refused_and_no_cors_header_is_sent(client):
@@ -632,7 +638,7 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
     assert "@import" not in css and css.count("@font-face") == 2
     for name in ("carlito-regular.woff2", "carlito-bold.woff2", "OFL.txt"):
         assert client.get(f"/static/fonts/{name}").status_code == 200
-    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "previews.js", "chart.js", "richcode.js"]
+    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "previews.js", "chart.js", "richcode.js", "widgets.js", "ics.js"]
     brand = [
         "mark.svg",
         "mark-dark.svg",
@@ -652,18 +658,18 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
 
 
 def test_static_payload_budget():
-    files = [p for p in STATIC_DIR.rglob("*") if p.is_file()]
+    # the pre-rendered maps of the scripted demo (static/demo/) are only loaded by demo answers: not app payload
+    files = [p for p in STATIC_DIR.rglob("*") if p.is_file() and "demo" not in p.relative_to(STATIC_DIR).parts]
     fonts = STATIC_DIR / "fonts"
     total = sum(p.stat().st_size for p in files if fonts not in p.parents)
     # Carlito (regular + bold, unmodified woff2) is fetched only when a file preview is drawn, then cached: its own
     # budget, outside the page's
     assert sum(p.stat().st_size for p in fonts.iterdir()) < 400_000
-    # raised from 250 kB when images, attachments, previews and the savings report were added; what travels is
-    # gzip-compressed (about 80 kB for all the text files); raised to 400 kB for the P1 UX backlog (welcome toggle,
-    # code-block headers, action menu, chart keyboard support, approval and stop states); then raised for the file
-    # previews (slide stage, filmstrip, full screen, A4 page, styled sheet), the in-chat charts with web image cards,
-    # and rich answer text (richcode.js highlighter, rich blocks, code-block tools)
-    assert total < 580_000, f"static payload is {total} bytes"  # about 150 kB once gzipped
+    # raised step by step: images, attachments, previews, the P1 UX backlog, the file previews, the in-chat charts
+    # with web image cards, rich answer text, and the result widgets (maps, company, currency, event cards, .ics)
+    assert total < 660_000, f"static payload is {total} bytes"  # well under 200 kB once gzipped
+    demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
+    assert demo < 400_000, f"demo maps weigh {demo} bytes"
 
 
 def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
@@ -673,7 +679,7 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     fr, en = set(key.findall(fr_block.split("fr: {", 1)[1])), set(key.findall(en_block.split("\n};", 1)[0]))
     assert fr and fr == en, fr ^ en
     used = set()
-    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js"]:
+    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))
     used |= set(re.findall(r'data-i18n(?:-aria|-placeholder)?="([\w.]+)"', (STATIC_DIR / "index.html").read_text()))
     assert not used - fr, sorted(used - fr)

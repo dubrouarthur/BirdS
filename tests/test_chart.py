@@ -398,7 +398,7 @@ def test_bird_tools_unchanged():
     ]  # fmt: skip
     digest = hashlib.sha256(json.dumps(BIRD_TOOLS, ensure_ascii=False).encode()).hexdigest()
     assert digest == "e44ae3236e1698460bf38e333eab062780e719e892b7e26773d16e14efd4940f"
-    assert PRODUCT_TOOLS[-1]["function"]["name"] == "make_chart" and PRODUCT_TOOLS[:8] == BIRD_TOOLS
+    assert PRODUCT_TOOLS[8]["function"]["name"] == "make_chart" and PRODUCT_TOOLS[:8] == BIRD_TOOLS
 
 
 def test_prompt_without_chart_words_is_unchanged(tmp_path):
