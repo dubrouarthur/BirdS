@@ -107,14 +107,34 @@ async function run(n, tag) {
     if (await prev.count()) {
       await prev.scrollIntoViewIfNeeded().catch(() => {});
       await page.waitForTimeout(500);
-      const sum = prev.locator("summary").first();
-      if (await sum.count()) await sum.click().catch(() => {});
-      else await prev.click().catch(() => {});
+      const isOpen = await prev.evaluate((el) => el.open);
+      if (!isOpen) await prev.locator("summary").first().click().catch(() => {});
       await page.waitForTimeout(800);
-      for (let k = 0; k < 14; k++) {
-        await page.mouse.wheel(0, 120);
+      const fc = page.locator(".file-card").last();
+      await fc.evaluate((el) => el.scrollIntoView({ block: "start", behavior: "smooth" }));
+      await page.waitForTimeout(900);
+      await page.evaluate(() => document.querySelector("#scroll").scrollBy(0, -60));
+      await page.waitForTimeout(500);
+      const strip = page.locator(".file-card .slide-strip").last();
+      const nsl = await strip.locator(":scope > li.slide").count();
+      fs.mkdirSync(path.join(dir, "slides"), { recursive: true });
+      for (let k = 0; k < nsl; k++) {
+        await strip.locator(":scope > li.slide").nth(k)
+          .screenshot({ path: path.join(dir, "slides", `slide${k + 1}.png`) }).catch(() => {});
+      }
+      await page.evaluate(() => {
+        const st = [...document.querySelectorAll(".file-card .slide-strip")].pop();
+        st.style.scrollSnapType = "none";
+        st.style.scrollBehavior = "auto";
+      });
+      for (let k = 0; k < 28; k++) {
+        await page.evaluate(() => {
+          const st = [...document.querySelectorAll(".file-card .slide-strip")].pop();
+          st.scrollLeft += 40;
+        });
         await page.waitForTimeout(250);
       }
+      await strip.screenshot({ path: path.join(dir, "strip_end.png") }).catch(() => {});
       await page.waitForTimeout(800);
     }
   }
