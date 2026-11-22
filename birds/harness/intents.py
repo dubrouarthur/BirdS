@@ -260,7 +260,7 @@ _SIREN = re.compile(r"(?<!\d)(\d{3}[  ]?\d{3}[  ]?\d{3})(?![\d])")
 _SIREN_WORD = re.compile(r"\b(?:siren|siret|n° d'entreprise|num[ée]ro d'entreprise|registre|rcs)\b", re.I)
 _COMPANY_ASK = re.compile(
     r"(?i:fiche|infos?|informations|renseignements|siren|siret|kbis|coordonn[ée]es|adresse|si[èe]ge|qui est|"
-    r"c'est quoi|what is|about|tout sur|details? (?:on|of))\s+(?:de\s+|sur\s+|du\s+|de la\s+|de l'|of\s+|on\s+)?"
+    r"c'est quoi|what is|about|tout sur|details? (?:on|of)|record|profile|look up|lookup)\s+(?:de\s+|sur\s+|du\s+|de la\s+|de l'|of\s+|on\s+)?"
     r"(?:la soci[ée]t[ée]|l'entreprise|la bo[iî]te|notre client|notre fournisseur|le client|le fournisseur|"
     r"the company|our client|our supplier|the supplier|the client)\s+"
     r"(?P<name>[A-Z0-9À-Ý][\w&'.\- ]{1,60})"

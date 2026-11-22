@@ -14,7 +14,7 @@ from datetime import date, datetime, time, timedelta
 
 MONTHS = {
     "janvier": 1, "janv": 1, "février": 2, "fevrier": 2, "févr": 2, "fevr": 2, "fév": 2, "mars": 3, "avril": 4,
-    "avr": 4, "mai": 5, "juin": 6, "juillet": 7, "juil": 7, "août": 8, "aout": 8, "septembre": 9, "sept": 9,
+    "avr": 4, "mai": 5, "juin": 6, "juillet": 7, "juil": 7, "août": 8, "aout": 8, "septembre": 9,
     "octobre": 10, "oct": 10, "novembre": 11, "nov": 11, "décembre": 12, "decembre": 12, "déc": 12, "dec": 12,
     "january": 1, "jan": 1, "february": 2, "feb": 2, "march": 3, "mar": 3, "april": 4, "apr": 4, "may": 5,
     "june": 6, "jun": 6, "july": 7, "jul": 7, "august": 8, "aug": 8, "september": 9, "sep": 9, "october": 10,
@@ -53,11 +53,10 @@ RX_WEEKDAY = re.compile(
 )
 
 _H = r"(?:[01]?\d|2[0-3])"
-_T = (
-    r"(?:(?P<{p}h>"
+_T = (  # "3:30pm" must be read as 15:30: the am/pm form is tried first
+    r"(?:(?P<{p}ah>1[0-2]|0?[1-9])(?::(?P<{p}am>[0-5]\d))?\s*(?P<{p}ap>am|pm|a\.m\.|p\.m\.)|(?P<{p}h>"
     + _H
-    + r")\s*(?:h|:)\s*(?P<{p}m>[0-5]\d)?(?!\d)|(?P<{p}ah>1[0-2]|0?[1-9])(?::(?P<{p}am>[0-5]\d))?\s*"
-    r"(?P<{p}ap>am|pm|a\.m\.|p\.m\.)|(?P<{p}noon>midi|noon|minuit|midnight))"
+    + r")\s*(?:h|:)\s*(?P<{p}m>[0-5]\d)?(?!\d)|(?P<{p}noon>midi|noon|minuit|midnight))"
 )
 RX_RANGE = re.compile(
     r"\b(?:de\s+|from\s+|entre\s+|between\s+)?"

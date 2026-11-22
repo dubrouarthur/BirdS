@@ -4818,13 +4818,13 @@ button.att-card {
   margin: 0;
   font-size: 0.8rem;
 }
-.chips {
+.ev-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   margin: 0;
 }
-.chip {
+.ev-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -4833,7 +4833,7 @@ button.att-card {
   background: var(--surface-2);
   font-size: 0.78rem;
 }
-.chip-warn {
+.ev-chip-warn {
   background: var(--warn-bg);
   color: var(--warn-ink);
 }
@@ -4944,8 +4944,8 @@ button.att-card {
     grid-column: 1 / -1;
   }
   .company-kv > div {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
+    grid-template-columns: 6.6rem minmax(0, 1fr);
+    gap: 8px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

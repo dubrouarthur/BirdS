@@ -396,7 +396,7 @@ function renderCompany(w) {
     w.legal_form && ["company.legalForm", w.legal_form],
     w.naf && [
       "company.activity",
-      `${w.naf_label ? `${w.naf_label} ` : ""}(NAF ${w.naf})`,
+      w.naf_label ? `${w.naf_label} (NAF ${w.naf})` : `NAF ${w.naf}`,
     ],
     w.staff && ["company.staff", w.staff],
     w.created && ["company.created", fmtDate(w.created)],
@@ -688,7 +688,7 @@ function renderEvent(w) {
     ...(w.warnings || []).map((x) =>
       h(
         "span",
-        { class: "chip chip-warn" },
+        { class: "ev-chip ev-chip-warn" },
         icon("alert"),
         h("span", {
           text:
@@ -699,9 +699,9 @@ function renderEvent(w) {
       ),
     ),
     ...((w.assumptions || []).includes("default_duration")
-      ? [h("span", { class: "chip", text: t("event.defaultDuration") })]
+      ? [h("span", { class: "ev-chip", text: t("event.defaultDuration") })]
       : []),
-    w.all_day ? h("span", { class: "chip", text: t("event.allDay") }) : null,
+    w.all_day ? h("span", { class: "ev-chip", text: t("event.allDay") }) : null,
   ].filter(Boolean);
   return section(
     "event",
@@ -724,7 +724,7 @@ function renderEvent(w) {
         field("place", loc),
       ),
     ),
-    chips.length > 0 && h("p", { class: "chips" }, chips),
+    chips.length > 0 && h("p", { class: "ev-chips" }, chips),
     w.matched &&
       h("p", {
         class: "muted ev-matched",
