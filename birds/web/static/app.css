@@ -4878,6 +4878,15 @@ button.att-card {
   margin: 0;
   font-size: 0.84rem;
 }
+/* narrow: the amount and its currency on one row, the result alone and large below (no dangling "=") */
+@media (max-width: 420px) {
+  .fx-eq {
+    display: none;
+  }
+  .fx-result {
+    flex-basis: 100%;
+  }
+}
 
 /* event */
 .ev-grid {

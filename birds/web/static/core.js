@@ -129,6 +129,7 @@ const ICONS = {
   find_company: '<rect x="4" y="3.500" width="8" height="13" rx="1"/><path d="M12 8h3.500a.5.5 0 0 1 .5.5v8H12M6.500 6.500h3M6.500 9.500h3M6.500 12.500h3"/>',
   convert_currency: '<path d="M4 7h11l-3-3M16 13H5l3 3"/>',
   minus: '<path d="M4 10h12"/>',
+  swap: '<path d="M6.500 16V4M3.500 7l3-3 3 3M13.500 4v12M10.500 13l3 3 3-3"/>',
   check: '<path d="M4.500 10.500l3.500 3.500 7.500-8"/>',
   cross: '<path d="M5.500 5.500l9 9M14.500 5.500l-9 9"/>',
   ban: '<circle cx="10" cy="10" r="6.500"/><path d="M5.500 14.500l9-9"/>',

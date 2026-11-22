@@ -777,15 +777,20 @@ function renderFx(w) {
   const result = h("output", { class: "fx-result num", "aria-live": "polite" });
   const inverse = h("p", { class: "fx-inverse muted num" });
   const paint = () => {
-    const amount = Number(String(input.value).replace(",", ".")) || 0;
+    const raw = String(input.value).trim().replace(",", ".");
+    const amount = Number(raw);
     curLabel.textContent = from;
-    result.textContent = money(amount * rate, to);
+    // empty, negative or not a number: no figure at all rather than "0,00 €" or "-4,55 €"
+    result.textContent =
+      raw === "" || !Number.isFinite(amount) || amount < 0
+        ? "—"
+        : money(amount * rate, to);
     inverse.textContent = `1 ${from} = ${nf({ maximumFractionDigits: 4 }).format(rate)} ${to} · 1 ${to} = ${nf({ maximumFractionDigits: 4 }).format(1 / rate)} ${from}`;
   };
   input.addEventListener("input", paint);
   const swap = button(
     "btn-outline btn-small fx-swap",
-    "retry",
+    "swap",
     t("fx.swap"),
     () => {
       [from, to, rate] = [to, from, 1 / rate];

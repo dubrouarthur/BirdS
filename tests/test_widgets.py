@@ -748,3 +748,15 @@ def test_company_card_formats_and_marks_the_shown_candidate():
     assert got["f"] == ["383 474 814 00100", "383 474 814"]
     assert "383 474 814 00100" in got["text"] and "383474814" not in got["text"]
     assert len(got["cur"]) == 1 and "fiche affichée" in got["cur"][0]
+
+
+@needs_node
+def test_fx_card_shows_no_figure_for_empty_or_negative_amounts():
+    w = demo_widget("convert_currency", {"from": "USD", "to": "EUR", "amount": 1200})
+    got = run_js(
+        "const el = render(data.w); const i = el.querySelector('input'); const r = el.querySelector('output');"
+        "const seen = [r.textContent]; for (const v of ['', '-5', '10']) { i.value = v; i.dispatch('input');"
+        " seen.push(r.textContent); } out(seen);",
+        w=w,
+    )
+    assert "091,90" in got[0] and got[1] == "—" and got[2] == "—" and "9,09" in got[3]
