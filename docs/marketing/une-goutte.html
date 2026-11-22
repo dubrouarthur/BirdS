@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Bird — Une goutte suffit</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { width:1080px; height:1350px; }
+  body { background:radial-gradient(120% 80% at 70% 35%, #13306B 0%, #0B1B3F 55%, #070F26 100%); color:#fff; font-family:"Inter","Inter Display",system-ui,sans-serif; position:relative; overflow:hidden; }
+  h1 { position:absolute; top:110px; left:90px; font-family:"Inter Display","Inter",sans-serif; font-size:128px; line-height:.95; font-weight:800; letter-spacing:-5px; }
+  h1 em { font-style:normal; color:#8FB3FF; }
+  .art { position:absolute; left:0; top:330px; width:1080px; height:720px; }
+  .lab { position:absolute; top:1010px; font-size:26px; font-weight:700; letter-spacing:.5px; text-align:center; width:300px; }
+  .lab small { display:block; font-size:19px; font-weight:500; color:#9FB0D3; margin-top:6px; letter-spacing:0; }
+  .lab.g { left:120px; color:#C5CEDF; }
+  .lab.b { left:640px; color:#fff; }
+  .claim { position:absolute; top:1118px; left:90px; right:90px; font-size:40px; font-weight:700; letter-spacing:-.5px; }
+  .claim sup { color:#8FB3FF; font-size:26px; }
+  .brand { position:absolute; left:90px; bottom:74px; display:flex; align-items:center; gap:14px; }
+  .brand svg { width:50px; height:44px; }
+  .brand b { font-size:34px; font-weight:800; letter-spacing:-1px; }
+  .brand span { color:#8FB3FF; font-size:24px; font-weight:800; }
+  .fr { position:absolute; right:90px; bottom:82px; font-size:19px; font-weight:600; color:#C5CEDF; display:flex; align-items:center; gap:10px; }
+  .tri { display:inline-flex; height:12px; width:26px; border-radius:2px; overflow:hidden; } .tri i { flex:1; } .tri i:nth-child(1){background:#3B5BDB} .tri i:nth-child(2){background:#fff} .tri i:nth-child(3){background:#E03131}
+  .note { position:absolute; left:90px; right:90px; bottom:26px; font-size:13px; color:#7F8EAE; }
+</style></head>
+<body>
+  <h1>Une goutte<br><em>suffit.</em></h1>
+  <svg class="art" viewBox="0 0 1080 720" aria-hidden="true">
+    <defs>
+      <linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6C9BE8" stop-opacity=".55"/><stop offset="1" stop-color="#2C5DB8" stop-opacity=".55"/></linearGradient>
+      <clipPath id="g"><path d="M110 40h320l-36 600a20 20 0 0 1-20 18H166a20 20 0 0 1-20-18z"/></clipPath>
+      <radialGradient id="d" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#E3EEFF"/><stop offset=".45" stop-color="#8FB3FF"/><stop offset="1" stop-color="#2F6FD6"/></radialGradient>
+      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="18"/></filter>
+    </defs>
+    <g clip-path="url(#g)">
+      <rect x="100" y="30" width="340" height="640" fill="rgba(255,255,255,.04)"/>
+      <path d="M90 120c60-16 120 16 180 0s120-16 180 0V700H90z" fill="url(#w)"/>
+      <path d="M90 120c60-16 120 16 180 0s120-16 180 0" stroke="#BFD3FF" stroke-opacity=".45" stroke-width="4" fill="none"/>
+    </g>
+    <path d="M110 40h320l-36 600a20 20 0 0 1-20 18H166a20 20 0 0 1-20-18z" fill="none" stroke="#C5CEDF" stroke-opacity=".45" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M140 70l26 560" stroke="#fff" stroke-opacity=".18" stroke-width="10" stroke-linecap="round"/>
+    <ellipse cx="790" cy="560" rx="70" ry="40" fill="#5B9BF0" opacity=".35" filter="url(#glow)"/>
+    <path d="M790 420c0 0-62 80-62 132a62 62 0 0 0 124 0c0-52-62-132-62-132z" fill="url(#d)"/>
+    <path d="M760 560c0-20 10-38 20-50" stroke="#fff" stroke-opacity=".8" stroke-width="7" stroke-linecap="round" fill="none"/>
+  </svg>
+  <div class="lab g">Un modèle géant<small>des centaines de milliards de paramètres</small></div>
+  <div class="lab b">Bird<small>4 milliards de paramètres</small></div>
+  <p class="claim">100 fois moins de calcul par mot.<sup>*</sup></p>
+  <div class="brand"><svg viewBox="0 0 64 56" aria-hidden="true"><g fill="#fff"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg><b>Bird</b><span>S 4B</span></div>
+  <div class="fr"><span class="tri"><i></i><i></i><i></i></span>Conçu en France</div>
+  <p class="note">* Calcul théorique par token, comparé à un modèle dense de 400 milliards de paramètres. Image d'illustration, pas une mesure d'eau.</p>
+</body></html>
