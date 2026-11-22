@@ -29,7 +29,7 @@ export function formatter(lang, unit) {
     maximumFractionDigits: 2,
   });
   const u = String(unit || "");
-  return (v) => {
+  const f = (v) => {
     if (v === null || v === undefined || Number.isNaN(v))
       return t("chart.missing");
     const n = nf.format(v);
@@ -37,6 +37,50 @@ export function formatter(lang, unit) {
     if (u === "%") return lang === "en" ? `${n}%` : `${n} %`;
     return `${n} ${u}`;
   };
+  f.lang = lang;
+  f.unit = u;
+  return f;
+}
+
+/** Axis ticks: compact from 10 000 up (« 1,5 M € », "1.5M €"), so a long number never runs off the card. */
+export function tickFormatter(lang, unit, ticks) {
+  const big = Math.max(...ticks.map((v) => Math.abs(v))) >= 10000;
+  if (!big) return formatter(lang, unit);
+  const nf = new Intl.NumberFormat(lang === "en" ? "en-GB" : "fr-FR", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  });
+  const u = String(unit || "");
+  return (v) => {
+    const n = nf.format(v);
+    if (!u) return n;
+    if (u === "%") return lang === "en" ? `${n}%` : `${n}\u202f%`;
+    return `${n}\u00a0${u}`;
+  };
+}
+
+let measureCtx = null;
+/** Width of a 12px chart label in CSS px (canvas measure; an estimate where there is no canvas). */
+export function textWidth(text) {
+  const str = String(text);
+  try {
+    if (!measureCtx) {
+      measureCtx = document.createElement("canvas").getContext("2d");
+      const family = getComputedStyle(document.body).fontFamily || "sans-serif";
+      measureCtx.font = `12px ${family}`;
+    }
+    const w = measureCtx?.measureText(str).width;
+    if (w) return w;
+  } catch {
+    /* no canvas: estimate below */
+  }
+  return str.length * 6.6;
+}
+
+/** Left margin that fits the longest y tick label (8px gap), within [36, 40% of the width]. */
+function leftFor(ticks, tf) {
+  const widest = Math.max(...ticks.map((tk) => textWidth(tf(tk))));
+  return Math.round(Math.max(36, Math.min(W * 0.4, widest + 14)));
 }
 
 /** 4 to 6 "nice" ticks (steps of 1, 2 or 5 x 10^k) covering [lo, hi]. */
@@ -95,9 +139,10 @@ function drawBars(spec, fmt) {
   const hits = [];
   const g = s("g");
   const valueLabels = labels.length * nS <= 8;
+  const tf = tickFormatter(fmt.lang, fmt.unit, ticks);
   if (!horizontal) {
     const H = 320;
-    const m = { l: 56, r: 12, t: 20, b: 46 };
+    const m = { l: leftFor(ticks, tf), r: 12, t: 20, b: 46 };
     const pw = W - m.l - m.r;
     const ph = H - m.t - m.b;
     const y = (v) => m.t + ph - ((v - t0) / (t1 - t0)) * ph;
@@ -120,7 +165,7 @@ function drawBars(spec, fmt) {
             y: y(tk) + 4,
             "text-anchor": "end",
           },
-          fmt(tk),
+          tf(tk),
         ),
       );
     }
@@ -230,7 +275,7 @@ function drawBars(spec, fmt) {
           y: H - m.b + 16,
           "text-anchor": "middle",
         },
-        fmt(tk),
+        tf(tk),
       ),
     );
     if (tall)
@@ -238,7 +283,7 @@ function drawBars(spec, fmt) {
         s(
           "text",
           { class: "chart-tick", x: x(tk), y: m.t - 10, "text-anchor": "middle" },
-          fmt(tk),
+          tf(tk),
         ),
       );
   }
@@ -310,9 +355,6 @@ function drawLine(spec, fmt) {
   const labels = spec.rows.map((r) => String(r[0]));
   const nS = spec.columns.length - 1;
   const direct = nS >= 2 && nS <= 4;
-  const m = { l: 56, r: direct ? 92 : 16, t: 20, b: 46 };
-  const pw = W - m.l - m.r;
-  const ph = H - m.t - m.b;
   const vals = valuesOf(spec);
   const ticks = niceTicks(
     Math.min(...vals) >= 0 &&
@@ -321,6 +363,10 @@ function drawLine(spec, fmt) {
       : Math.min(...vals),
     Math.max(...vals),
   );
+  const tf = tickFormatter(fmt.lang, fmt.unit, ticks);
+  const m = { l: leftFor(ticks, tf), r: direct ? 92 : 16, t: 20, b: 46 };
+  const pw = W - m.l - m.r;
+  const ph = H - m.t - m.b;
   const t0 = ticks[0];
   const t1 = ticks[ticks.length - 1];
   const y = (v) => m.t + ph - ((v - t0) / (t1 - t0)) * ph;
@@ -341,7 +387,7 @@ function drawLine(spec, fmt) {
       s(
         "text",
         { class: "chart-tick", x: m.l - 8, y: y(tk) + 4, "text-anchor": "end" },
-        fmt(tk),
+        tf(tk),
       ),
     );
   }
