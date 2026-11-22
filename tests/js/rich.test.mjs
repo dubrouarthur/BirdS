@@ -275,3 +275,28 @@ test("the plain renderer (tool steps) is unchanged: no detectors without options
   const out = renderMarkdown("Sécurité\n- a\n\nAttention, x.\n\nDécision : a\nActions : b");
   assert.doesNotMatch(out, /md-ph|md-callout|md-pairs/);
 });
+
+// A live answer collected after the first round (2026-11-22): bare "Avantages courants" labels and a
+// "Recommandation" line glued to its paragraph.
+const LEASING =
+  "Je peux cependant résumer ce que l'on sait généralement.\n\nAvantages courants\n" +
+  "- flux de trésorerie régulier : une mensualité unique plutôt qu'un achat à la fois.\n" +
+  "- assurance et entretien inclus : souvent simplifiés dans le contrat.\n\nInconvénients courants\n" +
+  "- coût total souvent supérieur à l'achat : intérêts et frais de gestion ajoutés.\n" +
+  "- flexibilité limitée : changer de véhicule avant la fin du contrat est possible mais coûteux.\n\n" +
+  "Recommandation\nPour une PME de 15 salariés, le leasing convient si vous voulez lisser vos charges ; " +
+  "vérifiez cependant le coût total sur 4 à 5 ans.";
+
+test("labels with a qualifier still pair up, and a title glued to its paragraph becomes a heading", () => {
+  const out = md(LEASING);
+  assert.match(out, /md-pc--pro"><h4 class="md-pc-t">Avantages courants/);
+  assert.match(out, /<li><span class="md-li-k">assurance et entretien inclus<\/span>\u00a0: souvent/);
+  assert.match(out, /<h4 class="md-ph">Recommandation<\/h4>\n<p>Pour une PME/);
+  for (const s of [
+    "Décision : valider le budget\nActions : Hugo envoie le calendrier avant le 1er décembre, Sophie lance l'appel.",
+    "Plan de déménagement des bureaux — 35 personnes\nemménagement le 15 mars 2027",
+    "Bonjour Camille,\nmerci pour votre message, je reviens vers vous dès que possible avec le devis.",
+  ])
+    assert.doesNotMatch(md(s), /md-ph/, s);
+  assert.doesNotMatch(md("Avantages fiscaux du leasing pour les petites entreprises\n- a\n\nInconvénients\n- b"), /md-proscons/);
+});

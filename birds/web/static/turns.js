@@ -1018,7 +1018,9 @@ export function plainText(turn) {
   const folded = [...md.querySelectorAll(".md-fold li[hidden]")]; // folded items are copied too
   for (const el of heads) el.hidden = true;
   for (const el of folded) el.hidden = false;
+  md.classList.add("md-copying"); // code lines back inline, so innerText keeps one newline per line
   const text = md.innerText.trim();
+  md.classList.remove("md-copying");
   for (const el of heads) el.hidden = false;
   for (const el of folded) el.hidden = true;
   return text;

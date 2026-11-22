@@ -1207,6 +1207,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         stop_reason: event.stop_reason || "answer",
         memo: String(event.memo || ""),
         images: event.images || [],
+        code_checks: Array.isArray(event.code_checks) ? event.code_checks.slice(0, 50) : [], // syntax badges
       };
       turn.files.push(...(event.files || []));
       turn.text = "";

@@ -273,6 +273,15 @@ function pseudoHeading(raw) {
   return text;
 }
 
+/** The first line of a multi-line paragraph is a title when it is short and bare and the rest is real prose. */
+function leadHeading(para) {
+  const first = para[0].trim();
+  const rest = para.slice(1).join(" ").trim();
+  if (first.length > 40 || first.split(/\s+/).length > 5 || /:/.test(first) || !/^\p{Lu}/u.test(first)) return null;
+  if (rest.length < 60 || !/[.!?…)]$/.test(rest)) return null;
+  return pseudoHeading(first);
+}
+
 const CALLOUTS = [
   [
     "warn",
@@ -341,10 +350,11 @@ const figureOf = (text) => {
     : null;
 };
 
+// "Avantages", "Avantages courants", "Points forts du leasing": the keyword opens a label of at most 5 words
 const PROS =
-  /^(avantages?|points? forts?|atouts?|pour|pros|advantages?|benefits?|strengths?)$/i;
+  /^(avantages?|points? forts?|atouts?|pour|pros|advantages?|benefits?|strengths?)(\s\S+){0,4}$/i;
 const CONS =
-  /^(inconvénients?|points? faibles?|limites?|contre|risques?|cons|disadvantages?|drawbacks?|weaknesses?|risks?)$/i;
+  /^(inconvénients?|points? faibles?|limites?|contre|risques?|cons|disadvantages?|drawbacks?|weaknesses?|risks?)(\s\S+){0,4}$/i;
 
 // ------------------------------------------------------------------ lists
 
@@ -365,13 +375,13 @@ function listTree(items) {
   return root.children;
 }
 
-const RE_KEYED = /^([\p{L}][\p{L}\p{N}'’.& -]{0,27}?) : (?=\S)/u;
+const RE_KEYED = /^([\p{L}][\p{L}\p{N}'’.& -]{0,39}?) : (?=\S)/u;
 const RE_BOLD_LEAD = /^\*\*([^*\n]{1,80})\*\*\s*(?::\s*)?/;
 
 function itemHtml(node, ctx, keyed) {
   const text = node.item.text;
   const k = keyed && text.match(RE_KEYED);
-  if (k && k[1].trim().split(/\s+/).length <= 4)
+  if (k && k[1].trim().split(/\s+/).length <= 5)
     return `<span class="md-li-k">${inline(k[1], ctx)}</span>${inline(text.slice(k[1].length), ctx)}`;
   return inline(text, ctx);
 }
@@ -876,6 +886,16 @@ function blockList(lines, ctx, depth) {
       para[0].trim().match(RE_FILE_LINE);
     if (named) {
       ctx.file = named[1];
+      continue;
+    }
+    // "Recommandation" alone on the first line of a paragraph of prose: a heading over that paragraph
+    const lead =
+      ctx.rich && depth === 0 && para.length >= 2 && (start === 0 || !lines[start - 1].trim())
+        ? leadHeading(para)
+        : null;
+    if (lead) {
+      push({ kind: "heading", label: lead, html: `<h4 class="md-ph">${inline(lead, ctx)}</h4>` });
+      push(paragraph(para.slice(1), start + 1, lines, i, ctx, depth));
       continue;
     }
     push(paragraph(para, start, lines, i, ctx, depth));
