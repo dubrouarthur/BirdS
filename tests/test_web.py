@@ -673,6 +673,9 @@ MD_CASES = {
     "table": "| a | b |\n|---|---|\n| <i>1</i> | **2** |",
     "heading": "# <u>t</u>\n\n- one\n- two\n\n1. x\n2. y",
     "nul": "a\u0000<b>0\u0000",
+    "table_pipes": "| a | b |\n|---|---|\n| x \\| y | `c|d` |",
+    "table_short": "| a | b | c |\n|---|---|---|\n| 1 |",
+    "table_long": "| a | b |\n|---|---|\n| 1 | 2 | 3 | 4 |",
 }
 STREAM_TEXT = (
     "## Titre\n\nUn **gras**, de l'*italique*, du `code <b>` et un [lien](https://e.org/x) [1].\n\n"
@@ -733,6 +736,14 @@ def test_markdown_renderer_is_safe(rendered):
     assert "<h3>" in out["heading"] and "<ul><li>one</li><li>two</li></ul>" in out["heading"]
     assert "<ol><li>x</li><li>y</li></ol>" in out["heading"]
     assert "<code>&lt;b&gt;x&lt;/b&gt;</code>" in out["code"]
+
+
+def test_markdown_table_cells_keep_escaped_and_code_pipes(rendered):
+    """A pipe escaped with a backslash or inside a code span stays in its cell; no cell content is ever dropped."""
+    out = rendered["out"]
+    assert "<tbody><tr><td>x | y</td><td><code>c|d</code></td></tr></tbody>" in out["table_pipes"]
+    assert "<tbody><tr><td>1</td><td></td><td></td></tr></tbody>" in out["table_short"]  # short row: padded
+    assert "<tbody><tr><td>1</td><td>2 | 3 | 4</td></tr></tbody>" in out["table_long"]  # long row: rejoined
 
 
 def test_streaming_markdown_is_inert_and_stable_at_every_prefix(rendered):

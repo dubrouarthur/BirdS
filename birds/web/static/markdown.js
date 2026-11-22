@@ -97,13 +97,44 @@ const RE_ITEM = /^(\s*)([-*+]|\d{1,9}[.)])\s+(.*)$/;
 const RE_QUOTE = /^\s{0,3}>\s?(.*)$/;
 const RE_TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 
-const splitRow = (line) =>
-  line
-    .trim()
-    .replace(/^\|/, "")
-    .replace(/\|$/, "")
-    .split("|")
-    .map((cell) => cell.trim());
+/**
+ * Split a table row into cells with a small scanner. "\\|" is a literal pipe, and a pipe inside a code span
+ * (matching backtick runs) does not split. Deliberate deviation from GFM, which splits on a bare pipe even
+ * inside a code span: a model writing `a|b` in a cell means one cell, and losing half of it reads as a bug.
+ */
+function splitRow(line) {
+  const text = line.trim();
+  const cells = [];
+  let cell = "";
+  let fence = 0; // length of the backtick run that opened the current code span, 0 outside one
+  let endsWithPipe = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    endsWithPipe = false;
+    if (c === "\\" && text[i + 1] === "|") {
+      cell += "|";
+      i++;
+    } else if (c === "`") {
+      let run = 1;
+      while (text[i + run] === "`") run++;
+      const ticks = "`".repeat(run);
+      if (!fence) {
+        // opens a span only if the same run closes it later on this line
+        const close = text.indexOf(ticks, i + run);
+        if (close >= 0 && text[close + run] !== "`") fence = run;
+      } else if (run === fence) fence = 0;
+      cell += ticks;
+      i += run - 1;
+    } else if (c === "|" && !fence) {
+      cells.push(cell);
+      cell = "";
+      endsWithPipe = true;
+    } else cell += c;
+  }
+  if (!endsWithPipe) cells.push(cell);
+  if (text.startsWith("|")) cells.shift();
+  return cells.map((x) => x.trim());
+}
 
 function isTableStart(lines, i) {
   return (
@@ -196,6 +227,9 @@ function blockList(lines, ctx, depth) {
       i += 2;
       while (i < lines.length && lines[i].trim() && lines[i].includes("|")) {
         const cells = splitRow(lines[i++]);
+        // a row longer than the header keeps its extra cells, joined into the last one, instead of dropping them
+        if (cells.length > head.length)
+          cells.splice(head.length - 1, cells.length, cells.slice(head.length - 1).join(" | "));
         html += "<tr>";
         head.forEach(
           (_, k) =>
