@@ -651,8 +651,9 @@ def test_static_payload_budget():
     # raised from 250 kB when images, attachments, previews and the savings report were added; what travels is
     # gzip-compressed (about 80 kB for all the text files); raised to 400 kB for the P1 UX backlog (welcome toggle,
     # code-block headers, action menu, chart keyboard support, approval and stop states); raised to 440 kB for the
-    # in-chat charts (chart.js, no library) and web image cards (about 40 kB with the 5 kB demo image)
-    assert total < 440_000, f"static payload is {total} bytes"
+    # in-chat charts (chart.js, no library) and web image cards (about 40 kB with the 5 kB demo image); raised to
+    # 450 kB for the chart review fixes (real-width drawing, measured margins, touch, export header and footer)
+    assert total < 450_000, f"static payload is {total} bytes"
 
 
 def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
