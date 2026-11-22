@@ -41,8 +41,19 @@ export const store = {
 
 const DEFAULT_PREFS = { lang: "fr", theme: "system", thinking: false, mode: "", endpoint: "", token: "", model: "", access: "", welcomed: false };
 
+/** First visit (nothing stored): French when any of the browser's languages is French, English otherwise. */
+function detectLang() {
+  try {
+    const list = navigator.languages?.length ? navigator.languages : [navigator.language || ""];
+    return list.some((l) => /^fr/i.test(l || "")) ? "fr" : "en";
+  } catch {
+    return "fr";
+  }
+}
+const storedPrefs = store.json("bird.prefs", null);
+
 export const state = {
-  prefs: { ...DEFAULT_PREFS, ...store.json("bird.prefs", {}) },
+  prefs: { ...DEFAULT_PREFS, ...(storedPrefs?.lang ? {} : { lang: detectLang() }), ...(storedPrefs || {}) },
   health: null,
   convs: [], // index: [{id, title, created, updated, n}]
   conv: null, // the open conversation {id, title, created, updated, turns, attachments}

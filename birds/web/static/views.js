@@ -984,6 +984,11 @@ export function renderAbout() {
       h("img", { class: "lockup only-dark", src: "/static/brand/logo-stacked-dark.svg", alt: "Bird S 4B", width: "87", height: "112" }),
       h("p", { class: "page-lead", text: t("about.tagline") }),
     ),
+    h(
+      "p",
+      { class: "about-intro" },
+      h("button", { id: "about-intro", class: "btn", type: "button", onclick: () => openWelcome() }, icon("info"), h("span", { class: "btn-label", text: t("about.intro") })),
+    ),
     block(t("about.what"), h("p", { text: t("about.what.p") })),
     block(t("about.deal"), h("p", { text: t("about.deal.p") })),
     block(t("about.built"), h("p", { text: t("about.built.p") })),
@@ -1042,7 +1047,16 @@ const svgFrom = (markup) => {
   return wrap.firstChild;
 };
 
-export function openWelcome() {
+function setWelcomeLang(lang) {
+  if (state.prefs.lang !== lang) {
+    state.prefs.lang = lang;
+    savePrefs();
+    hooks.onPrefs?.(); // applyStrings() and a redraw of the app behind the dialog
+  }
+  openWelcome({ focusLang: lang });
+}
+
+export function openWelcome({ focusLang } = {}) {
   const dialog = $("welcome");
   const start = h("button", { id: "welcome-start", class: "btn btn-primary btn-cta", type: "button", text: t("welcome.start"), onclick: () => dialog.close() });
   const pillar = (ico, title, text) =>
@@ -1065,6 +1079,31 @@ export function openWelcome() {
         { class: "w-head" },
         h("span", { class: "w-brand" }, svgFrom(MARK), h("b", { text: "Bird" }), h("span", { text: "S 4B" })),
         h("span", { class: "w-tag" }, h("span", { class: "tri", "aria-hidden": "true" }, h("i"), h("i"), h("i")), t("welcome.france")),
+        h(
+          "span",
+          { class: "w-tools" },
+          h(
+            "span",
+            { class: "w-lang", role: "group", "aria-label": t("welcome.lang") },
+            ["fr", "en"].map((lang) =>
+              h("button", {
+                class: "w-lang-opt",
+                type: "button",
+                lang,
+                "data-lang": lang,
+                "aria-pressed": String(state.prefs.lang === lang),
+                "aria-label": lang === "fr" ? "Français" : "English",
+                text: lang.toUpperCase(),
+                onclick: () => setWelcomeLang(lang),
+              }),
+            ),
+          ),
+          h(
+            "button",
+            { id: "welcome-close", class: "btn btn-quiet btn-icon w-close", type: "button", "aria-label": t("close"), title: t("close"), onclick: () => dialog.close() },
+            icon("cross"),
+          ),
+        ),
       ),
       h("h2", { id: "welcome-title", class: "w-title", text: t("welcome.title") }),
       h("p", { id: "welcome-lead", class: "w-lead", text: t("welcome.mission") }),
@@ -1081,9 +1120,13 @@ export function openWelcome() {
       h("div", { class: "w-actions" }, h("p", { class: "w-privacy" }, icon("check"), h("span", { text: t("welcome.local") })), start),
     ),
   );
-  if (!dialog.open) dialog.showModal();
-  dialog.scrollTop = 0;
-  start.focus({ preventScroll: true });
+  if (!dialog.open) {
+    dialog.returnTo = document.activeElement;
+    dialog.showModal();
+    dialog.scrollTop = 0;
+  }
+  const lang = focusLang && dialog.querySelector(`[data-lang="${focusLang}"]`);
+  (lang || start).focus({ preventScroll: true });
 }
 
 export function openShortcuts() {

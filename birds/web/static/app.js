@@ -1624,7 +1624,11 @@ function bind() {
   $("welcome").addEventListener("close", () => {
     state.prefs.welcomed = true;
     savePrefs();
-    el.focus();
+    const back = $("welcome").returnTo;
+    $("welcome").returnTo = null;
+    // reopened from About: focus goes back to its button (redrawn if the language changed meanwhile)
+    const target = back?.isConnected && back !== document.body ? back : back?.id && $(back.id);
+    (target || el).focus();
   });
 
   // Citation links move focus to the source entry.
