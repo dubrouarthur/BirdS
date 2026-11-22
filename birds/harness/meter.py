@@ -96,10 +96,15 @@ def report(
     gpu_watts: float | None = None,
     gpu_label: str | None = None,
     pue: float = 1.0,
+    busy_seconds_override: float | None = None,
 ) -> dict:
-    """Resource report for the UI. `energy_wh` is None unless it was measured or an explicit calibration is set."""
+    """Resource report for the UI. `energy_wh` is None unless it was measured or an explicit calibration is set.
+    ``busy_seconds_override``: GPU time measured another way (Mode Agent: the union of parallel call intervals,
+    which share one GPU batch, instead of their sum)."""
     # Token counts come from the model server. When it reports none, fall back to characters / 4 and say so.
     busy = round(sum(float(u.get("busy_seconds") or 0) for u in usage), 3)
+    if busy_seconds_override is not None:
+        busy = round(float(busy_seconds_override), 3)
     exact = all(u.get("prompt_tokens") is not None and u.get("completion_tokens") is not None for u in usage)
     tin = sum(_tokens(u, "prompt") for u in usage)
     tout = sum(_tokens(u, "completion") for u in usage)
