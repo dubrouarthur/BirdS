@@ -1092,6 +1092,31 @@ details[open] > summary > .chev {
 .status-denied {
   color: var(--danger-ink);
 }
+.status-awaiting,
+.step-await-text {
+  color: var(--warn-ink);
+}
+.step-await-text {
+  font-weight: 600;
+}
+.step-awaiting .step-icon {
+  border-color: var(--warn-line, var(--line-strong));
+}
+.badge-await {
+  color: var(--warn-ink);
+}
+.send-why {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 0 18px 10px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.send-why .link {
+  font-weight: 600;
+}
 .step-body {
   display: grid;
   gap: 6px;
@@ -2872,8 +2897,15 @@ kbd {
   .bubble-edit {
     opacity: 1;
   }
+  .sheet-actions {
+    flex-wrap: wrap;
+  }
   .sheet-actions .btn {
     flex: 1;
+  }
+  .sheet-actions [data-confirm-refine] {
+    order: 3;
+    flex-basis: 100%;
   }
   .step-body {
     margin-inline-start: 12px;

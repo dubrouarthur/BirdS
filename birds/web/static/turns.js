@@ -189,9 +189,12 @@ function renderSteps(turn) {
   const total = turn.steps.reduce((sum, s) => sum + (s.seconds || 0), 0);
   const n = turn.steps.length;
   turn.ui.stepOpen = turn.ui.stepOpen || {};
-  const items = turn.steps.map((step) => {
+  const asking = turn.status === "confirm";
+  const items = turn.steps.map((raw) => {
+    // a step paused on the approval sheet is waiting for you, not running
+    const step = asking && raw.status === "running" ? { ...raw, status: "awaiting" } : raw;
     const injection = (step.flags || []).includes("possible_injection");
-    const statusIcon = { done: "check", error: "cross", denied: "ban" }[
+    const statusIcon = { done: "check", error: "cross", denied: "ban", awaiting: "shield" }[
       step.status
     ];
     const what = target(step.tool, step.arguments);
@@ -231,7 +234,9 @@ function renderSteps(turn) {
             step.status === "running"
               ? h("span", { class: "spinner", "aria-hidden": "true" })
               : icon(statusIcon || "check", `status-${step.status}`),
-            h("span", { class: "sr-only", text: t(`status.${step.status}`) }),
+            step.status === "awaiting"
+              ? h("span", { class: "step-await-text", text: t("status.awaiting") })
+              : h("span", { class: "sr-only", text: t(`status.${step.status}`) }),
             step.status !== "running" &&
               step.seconds > 0 &&
               h("span", { class: "num", text: fmtSeconds(step.seconds) }),
@@ -295,7 +300,9 @@ function renderSteps(turn) {
           icon("alert"),
           t("steps.flagged"),
         ),
+      asking && h("span", { class: "badge badge-await" }, icon("shield"), t("steps.awaiting")),
       turn.status !== "running" &&
+        !asking &&
         total > 0 &&
         h("span", { class: "num steps-time", text: fmtSeconds(total) }),
     ],
@@ -364,6 +371,13 @@ function renderConfirm(turn) {
         t("confirm.deny"),
         () => handlers.onConfirm(turn, false),
         { "data-confirm-deny": "1" },
+      ),
+      button(
+        "btn-quiet",
+        null,
+        t("confirm.refine"),
+        () => handlers.onConfirm(turn, false, { refine: true }),
+        { "data-confirm-refine": "1", title: t("confirm.refine.hint") },
       ),
       button(
         "btn-primary",

@@ -714,7 +714,25 @@ function updateComposer() {
   const nDocs = nAtt - images;
   $("btn-attach").dataset.count = nDocs ? String(nDocs) : "";
   $("btn-photo").dataset.count = images ? String(images) : "";
-  $("send-why").textContent = reason ? t(reason) : "";
+  // most reasons stay for screen readers only; a pending approval is shown, with a way to reach the request
+  const why = $("send-why");
+  const shown = reason === "composer.send.pending" || reason === "composer.send.offline";
+  why.className = shown ? "send-why" : "sr-only";
+  why.replaceChildren(
+    reason ? h("span", { text: t(reason) }) : "",
+    reason === "composer.send.pending"
+      ? h("button", {
+          class: "link",
+          type: "button",
+          text: t("composer.send.pending.see"),
+          onclick: () => {
+            const deny = document.querySelector("[data-confirm-deny]");
+            deny?.scrollIntoView({ block: "center" });
+            deny?.focus();
+          },
+        })
+      : "",
+  );
   $("btn-stop").hidden = !state.busy;
   const count = $("composer-count");
   if (text.length > 1200) {
@@ -1481,12 +1499,17 @@ function editLast() {
   input().focus();
 }
 
-function answerConfirm(turn, allow) {
+function answerConfirm(turn, allow, { refine = false } = {}) {
   if (state.busy || turn.status !== "confirm" || !turn.confirm) return;
   const token = turn.confirm.token;
   turn.confirm.decision = allow;
   turn.confirm.token = null; // one use: the server continues the paused run from this token
-  input().focus();
+  const el = input();
+  el.focus(); // whatever was typed meanwhile stays in the composer
+  if (refine) {
+    el.setSelectionRange(el.value.length, el.value.length);
+    announce(t("confirm.refine.next"));
+  }
   runTurn(turn, allow ? { approved: [token] } : { denied: [token] });
 }
 
