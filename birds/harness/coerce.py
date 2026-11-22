@@ -57,7 +57,9 @@ def parse_json_like(text: str):
         except ValueError:
             pass
     try:  # Python-style literal: single quotes, True/False/None
-        return ast.literal_eval(_balance(s))
+        value = ast.literal_eval(_balance(s))
+        # '["Mon", 120], ["Tue", 98]' (outer brackets forgotten, seen live) reads as a tuple: it is a list
+        return list(value) if isinstance(value, tuple) else value
     except (ValueError, SyntaxError, MemoryError, RecursionError):
         raise ValueError("not JSON") from None
 
@@ -180,17 +182,170 @@ def _rename(args: dict, tool: str, notes: list[str]) -> None:
                 notes.append(f"{key}/{i}: '{alt}' read as '{want}'")
 
 
+class ArgError(ValueError):
+    """A repair found a mistake it must not guess around. ``path`` names the argument, for the error message."""
+
+    def __init__(self, path: str, message: str):
+        super().__init__(message)
+        self.path = path
+
+
+# Default names a repair gives to a chart's label column and series (French; birds.harness.tools.chart translates
+# them for an English conversation).
+CHART_LABEL, CHART_VALUE, CHART_SERIES = "Libellé", "Valeur", "Série {i}"
+_CHART_TYPES = {
+    "bar": "bar bars barre barres histogram histogramme histogrammes column columns colonne colonnes baton batons "
+    "barchart",
+    "line": "line lines ligne lignes courbe courbes curve area aire linechart",
+    "pie": "pie camembert camemberts donut doughnut secteur secteurs circulaire piechart",
+}
+_CHART_TYPE = {w: k for k, words in _CHART_TYPES.items() for w in words.split()}
+
+
+def _fold(text: str) -> str:
+    import unicodedata
+
+    s = unicodedata.normalize("NFKD", str(text)).encode("ascii", "ignore").decode().lower()
+    return re.sub(r"[^a-z]", "", s)
+
+
+def _decoded(value):
+    if isinstance(value, str) and value.strip()[:1] in '[{`"':
+        try:
+            return parse_json_like(value)
+        except ValueError:
+            return _row_lines(value)
+    return value
+
+
+def _row_lines(text: str):
+    """Rows written as broken JSON text, one row per line, with brackets missing (seen live on make_chart):
+    '["T1", 120],\\n"T2", 135],\\n"T3", 128]'. Each line is read as one row; anything else stays text."""
+    lines = [ln.strip() for ln in text.strip().strip("[]").splitlines() if ln.strip()]
+    if len(lines) < 2:
+        return text
+    rows = []
+    for ln in lines:
+        body = re.sub(r"^\[+|[\],\s]+$", "", ln)
+        try:
+            row = json.loads("[" + body + "]")
+        except ValueError:
+            return text
+        if not isinstance(row, list) or len(row) < 2 or any(isinstance(c, list | dict) for c in row):
+            return text
+        rows.append(row)
+    return rows
+
+
+def _series_list(series) -> list:
+    """series as a list of {name, values} / bare lists, or as an object {name: values} / one {name, values}."""
+    if isinstance(series, dict):
+        if any(k in series for k in ("values", "data", "y")):
+            return [series]
+        return [{"name": k, "values": v} for k, v in series.items()]
+    return series if isinstance(series, list) else [series]
+
+
+def _chart_shape(a: dict, notes: list[str]) -> None:
+    """make_chart: the other shapes a model writes ({labels, series}, {labels, values}, {data: {k: v}}, x/y...)
+    become columns/rows. Labels and values of different lengths are an error, never truncated."""
+    for src, dst in (("chart_type", "type"), ("kind", "type"), ("name", "title"), ("x", "labels"),
+                     ("categories", "labels"), ("y", "values")):  # fmt: skip
+        if src in a and dst not in a:
+            a[dst] = a.pop(src)
+            notes.append(f"'{src}' read as '{dst}'")
+    for k in ("labels", "values", "series", "data", "points", "rows", "columns"):
+        if k in a:
+            before = a[k]
+            a[k] = _decoded(before)
+            if a[k] is not before:
+                notes.append(f"{k}: JSON text decoded")
+    if "type" in a and isinstance(a["type"], str):
+        word = _fold(a["type"])
+        if word in _CHART_TYPE:
+            if a["type"] != _CHART_TYPE[word]:
+                notes.append(f"type '{a['type']}' read as '{_CHART_TYPE[word]}'")
+            a["type"] = _CHART_TYPE[word]
+        else:
+            notes.append(f"type '{a.pop('type')}' unknown: chosen from the data")
+    for k in ("data", "points"):
+        v = a.get(k)
+        if "rows" not in a and (
+            isinstance(v, dict) or (isinstance(v, list) and v and all(isinstance(r, list | dict) for r in v))
+        ):
+            a["rows"] = a.pop(k)
+            notes.append(f"'{k}' read as 'rows'")
+    value_name = (
+        str(a.get("unit") or a.get("title") or CHART_VALUE)[:60] if not isinstance(a.get("unit"), dict) else CHART_VALUE
+    )
+    rows = a.get("rows")
+    if isinstance(rows, dict):  # {label: value} or {label: [v1, v2]}
+        a["rows"] = [[str(k), *(v if isinstance(v, list) else [v])] for k, v in rows.items()]
+        notes.append("rows: object {label: value} turned into rows")
+        if "columns" not in a:
+            width = max((len(r) for r in a["rows"]), default=2)
+            a["columns"] = (
+                [CHART_LABEL, value_name]
+                if width <= 2
+                else [CHART_LABEL] + [CHART_SERIES.format(i=i) for i in range(1, width)]
+            )
+    if "labels" in a and ("series" in a or "values" in a) and "rows" not in a:
+        labels, series, values = a.pop("labels"), a.pop("series", None), a.pop("values", None)
+        if not isinstance(labels, list):
+            raise ArgError("labels", "'labels' must be a list of labels")
+        if series is None:
+            series = [{"name": value_name, "values": values}]
+        names, columns_of_values = [], []
+        for i, s in enumerate(_series_list(series)):
+            if isinstance(s, dict):
+                name = s.get("name") or s.get("label") or s.get("title") or CHART_SERIES.format(i=i + 1)
+                vals = _decoded(s.get("values", s.get("data", s.get("y"))))
+            else:
+                name, vals = CHART_SERIES.format(i=i + 1), _decoded(s)
+            if isinstance(vals, dict):  # {label: value} inside a series
+                vals = [vals.get(str(lab), vals.get(lab)) for lab in labels]
+            if not isinstance(vals, list):
+                raise ArgError(f"series/{i}", "'values' must be a list of numbers, one per label")
+            if len(vals) != len(labels):
+                raise ArgError(
+                    f"series/{i}",
+                    f"'values' has {len(vals)} numbers but there are {len(labels)} labels. Give one number per "
+                    "label (null for a missing one)",
+                )
+            names.append(str(name))
+            columns_of_values.append(vals)
+        a["rows"] = [[lab, *(col[j] for col in columns_of_values)] for j, lab in enumerate(labels)]
+        if not isinstance(a.get("columns"), list) or len(a["columns"]) != len(names) + 1:
+            a["columns"] = [CHART_LABEL, *names]
+        notes.append("labels/series turned into columns/rows")
+    rows = a.get("rows")
+    if isinstance(rows, list) and rows and "columns" not in a:
+        if all(isinstance(r, dict) for r in rows):
+            a["columns"] = [str(k) for k in rows[0]]
+        elif all(isinstance(r, list) for r in rows):
+            width = max(len(r) for r in rows)
+            a["columns"] = (
+                [CHART_LABEL, value_name]
+                if width <= 2
+                else [CHART_LABEL] + [CHART_SERIES.format(i=i) for i in range(1, width)]
+            )
+        if "columns" in a:
+            notes.append("columns missing: named from the rows")
+
+
 def coerce_args(tool: str, args: dict, schema: dict) -> tuple[dict, list[str]]:
     """(repaired arguments, notes). Unknown keys are kept: validation refuses them afterwards."""
     notes: list[str] = []
     props = schema.get("properties") or {}
+    if tool == "make_chart":
+        _chart_shape(args, notes)
     out = {k: coerce(v, props[k], k, notes) if k in props else v for k, v in args.items()}
     if tool in _ALIASES:
         _rename(out, tool, notes)
         key = _ALIASES[tool][0]
         if key in out:  # second pass: renamed values (e.g. "content" text -> bullets list) get their types fixed
             out[key] = coerce(out[key], props[key], key, notes)
-    if tool == "make_sheet":
+    if tool in ("make_sheet", "make_chart"):
         _sheet_rows(out, notes)
         if isinstance(out.get("rows"), list):
             out["rows"] = coerce(out["rows"], props["rows"], "rows", notes)

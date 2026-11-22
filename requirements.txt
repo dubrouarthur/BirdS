@@ -12,3 +12,4 @@ python-docx>=1.1
 openpyxl>=3.1
 pypdf>=5
 pypdfium2>=4
+pillow>=10

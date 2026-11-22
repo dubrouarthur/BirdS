@@ -21,7 +21,7 @@ from birds.harness.tools import TOOLS, make_search
 from birds.parse import parse_output
 from birds.render import prompt as render_prompt
 from birds.sources.identity import DEFAULT_SYSTEM  # same text as docs/PERSONA.md
-from birds.tools import BIRD_TOOLS
+from birds.tools import PRODUCT_TOOLS
 
 FALLBACK = {
     "fr": "Je n'ai pas pu aboutir à une réponse fiable dans les limites fixées. Pouvez-vous reformuler ou préciser la demande ?",
@@ -57,6 +57,82 @@ _HOWTO = re.compile(
 NO_FILE_NUDGE = (
     "No file exists: nothing was created or updated, because no make_* tool ran. Call the make_* tool now with the "
     "full content, or tell the user plainly that no file was produced."
+)
+NO_CHART_NUDGE = (
+    "No chart was shown: call make_chart now with the figures, or say plainly that you have no figures to chart."
+)
+# Words that are not about a chart: « charte graphique », « identité graphique », « courbe en J »,
+# « courbe d'apprentissage ». They are removed before any chart test (live model: « Rédige une charte graphique »
+# made a correct document, was then reminded to call make_chart and answered « pas de chiffres à chartier »).
+_NOT_CHART = re.compile(
+    r"\b(?:chartes?|identit[ée]s?|lignes?|cr[ée]ations?|conceptions?|design|arts?|interfaces?|univers|rep[èe]res?|"
+    r"cartes?|signal[ée]tiques?|moteurs?|logiciels?|suites?|cartes?)\s+graphiques?\b|"
+    r"\bcourbes?\s+(?:en\s+[a-z]\b|d['’]apprentissage|de\s+gauss|de\s+niveau|de\s+bézier|de\s+bezier)",
+    re.I,
+)
+# A chart noun in the user's own words: make_chart is offered (an extra tool, nothing else). « secteurs » and
+# « barres » alone are not chart nouns (« les secteurs qui recrutent », « barres de céréales »).
+_CHART_ASK = re.compile(
+    r"\b(?:graphiques?|graphes?|graphs?|courbes?|diagrammes?|camemberts?|histogrammes?|histograms?|charts?|plots?|"
+    r"plotting|visualis\w*|visualiz\w*|repr[ée]sent\w* graphiquement)\b",
+    re.I,
+)
+# A clear request for one: an action verb shortly before a chart noun (« fais un graphique », « trace la courbe »,
+# « refais-le en courbe », « make a bar chart »), or a bare verb « plot / visualise »; or figures in the message.
+_CHART_VERB = re.compile(
+    r"\b(?:re)?(?:fai[st]e?s?|faites|faire|fasse|trac\w*|montr\w*|cr[ée]\w*|g[ée]n[èée]r\w*|dessin\w*|affich\w*|produi\w*|"
+    r"pr[ée]par\w*|sort\w*|mets|mettez|transform\w*|convert\w*|make|draw|show|create|generate|build|render|"
+    r"turn|redo|do|give|want|veux|voudrais|aimerais)\b[^.?!\n]{0,40}?\b(?:en\s+|in\s+|as\s+(?:an?\s+)?)?"
+    r"(?:graphiques?|graphes?|graphs?|courbes?|diagrammes?|camemberts?|histogrammes?|histograms?|charts?|plots?|"
+    r"barres|b[âa]tons|secteurs|lines?|bars?|pies?)\b|"
+    r"(?:^|[.!?\n]\s*)(?:plot|chart|graph|visualis\w*|visualiz\w*|repr[ée]sente\w*)\b",
+    re.I,
+)
+_NUMBER = re.compile(r"(?<![\w])\d+(?:[.,]\d+)?")
+NO_CHART = {
+    "fr": "Je n'ai pas pu afficher le graphique cette fois. Redemandez-le en redonnant les chiffres.",
+    "en": "I could not show the chart this time. Ask again, with the figures.",
+}
+# An answer that presents a chart ("Voici la courbe du CA :") although none was shown. Tested on the answer
+# without _NOT_CHART words (« Voici une proposition de charte graphique », « Voici l'idée de la courbe en J »).
+_CHART_CLAIM = re.compile(
+    r"\b(?:voici|voil[àa]|ci-dessous|here(?: is|'s)|below)\b.{0,30}\b(?:graphique|graphe|courbe|camembert|diagramme|"
+    r"histogramme|chart|graph|plot)",
+    re.I | re.S,
+)
+
+
+def _chart_words(text: str) -> str:
+    return _NOT_CHART.sub(" ", text or "")
+
+
+def chart_claim(answer: str) -> bool:
+    """The answer presents a chart (« Voici le graphique : »)."""
+    return bool(_CHART_CLAIM.search(_chart_words(answer)))
+
+
+_TYPE_WORDS = (("line", r"courbe|line|évolution|evolution"), ("pie", r"camembert|secteurs|pie|donut"),
+               ("bar", r"barres?|bâtons|histogramme|bar"))  # fmt: skip
+
+
+def chart_nudge(request: str, messages: list[dict]) -> str:
+    """NO_CHART_NUDGE, plus what a follow-up ("refais-le en courbe") needs: where the data is, and the type asked.
+    Live model, « refais-le en courbe » after a bar chart: reminded with the bare nudge, it wrote "Voici la courbe :"
+    again without calling the tool."""
+    out = NO_CHART_NUDGE
+    if any(
+        "graphique affiché :" in str(m.get("content")) or "chart shown :" in str(m.get("content")) for m in messages
+    ):
+        out += " The earlier chart's columns and rows are in the memo of your previous answer: reuse them."
+    kind = next((k for k, rx in _TYPE_WORDS if re.search(rf"\b(?:{rx})\b", request or "", re.I)), None)
+    if kind:
+        out += f' Use "type": "{kind}".'
+    return out
+
+
+# "Explique ce qu'est un histogramme": a question about charts, not a request for one (no nudge).
+_ABOUT_CHARTS = re.compile(
+    r"^\s*(?:explique|expliquez|explain|d[ée]finis|define|qu['’]est[- ]ce|what (?:is|are)|c['’]est quoi)\b", re.I
 )
 LOOPED = {
     "fr": "Je me suis mis à tourner en boucle, alors je me suis arrêté pour ne pas gaspiller de calcul. Relancez, ou "
@@ -102,6 +178,12 @@ _NEEDS_WEB = re.compile(
 )
 
 
+_TREND_ASK = re.compile(
+    r"\b(?:depuis|since|entre|between)\s+(?:l.an\s+)?(?:19|20)\d\d|\b[ée]volu\w*|\btendance|\btrend|\bover the (?:years|decade)",
+    re.I,
+)
+
+
 def route(user: str, attached: bool = False) -> set[str]:
     """Tools NOT worth offering for this request (a smaller prompt, and fewer detours for a small model).
 
@@ -113,9 +195,25 @@ def route(user: str, attached: bool = False) -> set[str]:
     deck on remote work" and then never made the deck; on "make a spreadsheet from this invoice" (photo), it called
     read_page on the attachment and gave up.
     """
-    if (attached or _FILE_ASK.search(user or "")) and not _NEEDS_WEB.search(user or ""):
-        return {"web_search", "read_page"}
-    return set()
+    words = _chart_words(user)
+    # untrained tool: only when a chart is asked, or the question is about a trend over time (« la population de
+    # Paris évolue comment depuis 2012 ») where a line chart is the natural answer
+    out = set() if _CHART_ASK.search(words) or _TREND_ASK.search(user or "") else {"make_chart"}
+    # A chart of public facts (« la population des 5 plus grandes villes ») is researched first, as ChatGPT does:
+    # the web tools are withheld only when the message itself carries the figures (or a document does).
+    figures = chart_ask(user) and len(_NUMBER.findall(words)) >= 2
+    asks = attached or _FILE_ASK.search(user or "") or figures
+    if asks and not _NEEDS_WEB.search(user or ""):
+        out |= {"web_search", "read_page"}
+    return out
+
+
+def chart_ask(text: str) -> bool:
+    """The user's words clearly ask for a chart: an action verb near a chart noun (not « charte graphique » or
+    « courbe en J »), and not a question about charts. Only then is a text answer reminded or replaced."""
+    text = _chart_words(text)
+    clear = _CHART_VERB.search(text) or len(_NUMBER.findall(text)) >= 2  # « graphique du CA : T1 120, T2 135 »
+    return bool(_CHART_ASK.search(text) and clear and not _HOWTO.search(text) and not _ABOUT_CHARTS.search(text))
 
 
 def _file_edit_ask(text: str, attached: bool = False) -> bool:
@@ -127,7 +225,9 @@ def _file_edit_ask(text: str, attached: bool = False) -> bool:
 
 def _made_file(run, ctx: Context) -> bool:
     """A make_* tool succeeded in this run, or a draft exists (a mail ask is answered by a draft, not a file)."""
-    return bool(ctx.drafts) or any(s.tool.startswith("make_") and not s.error for s in run.steps)
+    return bool(ctx.drafts) or any(
+        s.tool.startswith("make_") and s.tool != "make_chart" and not s.error for s in run.steps
+    )  # a chart is shown in the chat, it is not a file
 
 
 _URL_IN_TEXT = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
@@ -186,6 +286,8 @@ class Run:
     sources: list[str] = field(default_factory=list)
     drafts: list[dict] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
+    charts: list[dict] = field(default_factory=list)  # make_chart specs, drawn by the browser
+    images: list[dict] = field(default_factory=list)  # web image candidates seen by web_search / read_page
     usage: list[dict] = field(default_factory=list)  # one entry per generation
     report: dict = field(default_factory=dict)
     flagged: bool = False  # some tool result looked like a prompt injection
@@ -273,7 +375,8 @@ class Agent:
         # the host's proxy settings (unlike read_page, whose target the model chooses).
         self.search = search if search is not None else make_search(config, http or httpx.Client(timeout=15.0))
         self.audit = guard.Audit(config.workspace / config.audit_file if config.audit_file else None)
-        self.tools = [t for t in BIRD_TOOLS if t["function"]["name"] in self._allowed()]
+        # the 8 trained tools first, in their trained order; make_chart (EXTRA_TOOLS) last, when it is offered at all
+        self.tools = [t for t in PRODUCT_TOOLS if t["function"]["name"] in self._allowed()]
         params = inspect.signature(llm.generate).parameters
         self._llm_kwargs = any(p.kind is p.VAR_KEYWORD for p in params.values()) or "on_token" in params
 
@@ -340,7 +443,12 @@ class Agent:
                 bytes_fetched=int(st["bytes_fetched"]),
                 lang=st["lang"],
                 request=str(st.get("request", "")),
+                message=str(st.get("message", "")),
                 found=[str(u) for u in st.get("found", [])],
+                used=[str(u) for u in st.get("used", [])],
+                fetched=[[str(k), str(v)] for k, v in st.get("fetched", []) if k in ("web", "file")],
+                charts=[c for c in st.get("charts", []) if isinstance(c, dict)],
+                images=[i for i in st.get("images", []) if isinstance(i, dict)],
             )
             messages, seen, queue = st["messages"], set(st["seen"]), list(st["queue"])
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
@@ -353,8 +461,12 @@ class Agent:
         else:
             run = Run(lang=lang or detect_lang(user))
             ctx = Context(
-                config=cfg, http=self.http, search=self.search, lang=run.lang,
+                config=cfg,
+                http=self.http,
+                search=self.search,
+                lang=run.lang,
                 request=user if request_text is None else request_text,
+                message=user,
             )
             messages = list(history or [])
             if not messages or messages[0]["role"] != "system":
@@ -362,7 +474,8 @@ class Agent:
             messages.append({"role": "user", "content": guard.defang(user)})
             seen, queue = set(), []
             budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
-            routed = route(user if request_text is None else request_text, attached) if cfg.route_tools else set()
+            words = user if request_text is None else request_text
+            routed = route(words, attached) if cfg.route_tools else (route(words) & {"make_chart"})
             nudged, withdrawn, file_nudged = False, set(routed), False
             gen, ok, forced = 0, 0, None
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
@@ -452,6 +565,40 @@ class Agent:
                         elif file_nudged and claims:
                             content = NO_FILE[run.lang]  # reminded once, and still claims a file: say so, plainly
                         # reminded once and now answering inline without a claim: that answer is kept
+                    if (
+                        run.stop_reason == "answer"
+                        and not file_nudged
+                        and "make_chart" not in withdrawn
+                        and chart_ask(ctx.request)
+                        and not ctx.charts
+                        and not _made_file(run, ctx)
+                        and not content.rstrip().endswith("?")
+                        and gen < cfg.max_steps - 1
+                        and time.monotonic() < deadline
+                    ):
+                        # a chart was asked and the model answered in text only: remind it once (same budget and
+                        # flag as the file reminder, so at most one reminder per run)
+                        file_nudged = True
+                        if stream is not None and stream.streamed and hooks.on_reset:
+                            hooks.on_reset()
+                        messages.append(
+                            {
+                                "role": "assistant",
+                                "content": parsed["content"],
+                                "reasoning_content": parsed["reasoning"],
+                            }
+                        )
+                        messages.append({"role": "tool", "content": chart_nudge(ctx.request, messages)})
+                        gen += 1
+                        continue
+                    if (
+                        run.stop_reason == "answer"
+                        and chart_ask(ctx.request)
+                        and not ctx.charts
+                        and not _made_file(run, ctx)
+                        and chart_claim(content)
+                    ):
+                        content = NO_CHART[run.lang]  # "Voici la courbe :" with no chart: say so, plainly
                     break
                 if gen == cfg.max_steps - 1:
                     run.stop_reason = "max_steps"  # the last allowed generation still asks for tools: they are not run
@@ -502,9 +649,7 @@ class Agent:
             paused = False
             while queue:
                 c = queue[0]
-                step, result = self._call(
-                    c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced, routed
-                )
+                step, result = self._call(c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced, routed)
                 forced = None
                 if step.decision == "pause":
                     paused = True
@@ -538,6 +683,11 @@ class Agent:
                     "routed": sorted(routed),
                     "found": ctx.found,
                     "request": ctx.request,
+                    "message": ctx.message,
+                    "used": ctx.used,
+                    "fetched": ctx.fetched,
+                    "charts": ctx.charts,
+                    "images": ctx.images,
                     "gen": gen,
                     "ok": ok,
                     "content": content,
@@ -568,6 +718,7 @@ class Agent:
         else:
             run.answer = content or FALLBACK[run.lang]
         run.messages, run.sources, run.drafts, run.files = messages, ctx.sources, ctx.drafts, ctx.files
+        run.charts, run.images = ctx.charts, ctx.images
         run.report = meter.report(
             run.usage,
             wall_seconds=time.monotonic() - t0,
@@ -638,6 +789,9 @@ class Agent:
                     if name == "read_page" and run.flagged:
                         _check_untrusted_url(args.get("url"), ctx)
                     result = guard.defang(guard.redact(str(TOOLS[name](args, ctx))))
+                    ctx.used.append(name)
+                    if name in ("web_search", "read_page", "read_file"):
+                        ctx.fetched.append(["file" if name == "read_file" else "web", result[:40_000]])
                     if guard.scan_injection(result):
                         step.flags.append("possible_injection")
                         step.flagged_excerpt = guard.injection_excerpt(result)

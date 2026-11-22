@@ -12,15 +12,16 @@ import re
 import socket
 import time
 import unicodedata
+from contextlib import contextmanager
 from pathlib import Path
 
 import httpx
 from jsonschema import Draft202012Validator
 
-from birds.harness.coerce import coerce_args
-from birds.tools import BIRD_TOOLS
+from birds.harness.coerce import ArgError, coerce_args
+from birds.tools import PRODUCT_TOOLS
 
-SCHEMAS = {t["function"]["name"]: copy.deepcopy(t["function"]["parameters"]) for t in BIRD_TOOLS}
+SCHEMAS = {t["function"]["name"]: copy.deepcopy(t["function"]["parameters"]) for t in PRODUCT_TOOLS}
 # Harness-side optional fields, accepted when given but NOT advertised to the model (the prompt keeps the trained
 # schemas of birds/tools.py byte for byte).
 SCHEMAS["make_slides"]["properties"]["slides"]["items"]["properties"]["notes"] = {"type": "string"}
@@ -36,6 +37,8 @@ EXAMPLES = {
     "make_document": '{"title": "Titre", "sections": [{"heading": "Contexte", "content": "Texte..."}]}',
     "make_sheet": '{"title": "Titre", "columns": ["Poste", "Montant"], "rows": [["Loyer", 1200], ["Total", "=SUM(B2:B2)"]]}',
     "run_python": '{"code": "print(1 + 1)"}',
+    "make_chart": '{"title": "CA par trimestre", "type": "bar", "columns": ["Trimestre", "CA (k€)"], '
+    '"rows": [["T1", 120], ["T2", 135]]}',
 }
 SIDE_EFFECT_TOOLS = {"draft_email", "make_slides", "make_document", "make_sheet", "run_python"}
 EXTERNAL_TOOLS = {"web_search", "read_page", "read_file", "run_python"}  # results carry content we did not write
@@ -118,38 +121,166 @@ def check_url(url: str, cfg) -> list[str]:
     return ips
 
 
-def fetch(ctx, url: str) -> tuple[str, str, bytes]:
-    """GET a text resource. Every hop (redirects included) is validated. Returns (final URL, content type, body)."""
-    cfg, start = ctx.config, time.monotonic()
+class _Deadline:
+    """A wall-clock limit for a whole fetch, all hops included. httpx's timeouts apply to each socket read, so an
+    upstream that trickles its status line and headers one byte at a time would hold the request (and its worker
+    thread) for as long as it likes. A watchdog shuts down every socket the fetch opened once the limit passes,
+    which wakes the blocked read; httpcore reports each new socket through the request's ``trace`` extension."""
+
+    def __init__(self, seconds: float):
+        import threading
+
+        self.at = time.monotonic() + seconds
+        self.expired = False
+        self._streams: list = []
+        self._lock = threading.Lock()
+        self._timer = threading.Timer(max(0.0, seconds), self._fire)
+        self._timer.daemon = True
+        self._timer.start()
+
+    def left(self) -> float:
+        return self.at - time.monotonic()
+
+    def trace(self, name: str, info: dict) -> None:
+        if name in ("connection.connect_tcp.complete", "connection.start_tls.complete"):
+            stream = info.get("return_value")
+            if stream is not None:
+                with self._lock:
+                    self._streams.append(stream)
+                    late = self.expired
+                if late:
+                    self._cut(stream)
+
+    @staticmethod
+    def _cut(stream) -> None:
+        try:
+            stream.get_extra_info("socket").shutdown(socket.SHUT_RDWR)
+        except Exception:  # noqa: BLE001 - already closed, detached by TLS, or not a real socket (tests)
+            pass
+
+    def _fire(self) -> None:
+        with self._lock:
+            self.expired = True
+            streams = list(self._streams)
+        for stream in streams:
+            self._cut(stream)
+
+    def cancel(self) -> None:
+        self._timer.cancel()
+
+
+class TooSlow(ToolError):
+    """The whole fetch (connect, redirects, headers and body) went past its wall-clock limit."""
+
+
+@contextmanager
+def _hops(http, cfg, url: str, headers: dict, timeout: float, deadline: _Deadline):
+    """Open a GET, following redirects by hand: every hop goes through check_url and, with pin_dns, connects to the
+    address that was validated. Every hop counts against ``deadline``. Yields (final URL, open streamed response)."""
     for _ in range(cfg.max_redirects + 1):
+        left = deadline.left()
+        if left <= 0 or deadline.expired:
+            raise TooSlow("too slow")
         ips = check_url(url, cfg)
         u = httpx.URL(url)
-        target, ext = u, {}
-        headers = {"User-Agent": USER_AGENT, "Accept": "text/html,text/plain;q=0.9,*/*;q=0.1"}
+        target, ext, hdrs = u, {"trace": deadline.trace}, dict(headers)
         if cfg.pin_dns:  # connect to the address we validated, so a second DNS answer cannot differ (rebinding)
-            target, ext = u.copy_with(host=ips[0]), {"sni_hostname": u.host}
-            headers["Host"] = u.netloc.decode("ascii")
-        with ctx.http.stream(
-            "GET", target, headers=headers, extensions=ext, follow_redirects=False, timeout=cfg.http_timeout
-        ) as r:
-            if r.status_code in (301, 302, 303, 307, 308) and r.headers.get("location"):
-                url = str(u.join(r.headers["location"]))
-                continue
+            target, ext["sni_hostname"] = u.copy_with(host=ips[0]), u.host
+            hdrs["Host"] = u.netloc.decode("ascii")
+        try:
+            with http.stream(
+                "GET", target, headers=hdrs, extensions=ext, follow_redirects=False, timeout=min(timeout, left)
+            ) as r:
+                if r.status_code in (301, 302, 303, 307, 308) and r.headers.get("location"):
+                    url = str(u.join(r.headers["location"]))
+                    continue
+                yield str(u), r
+                return
+        except httpx.HTTPError:
+            if deadline.expired:
+                raise TooSlow("too slow") from None
+            raise
+    raise Blocked("too many redirects")
+
+
+def _ctype(r) -> str:
+    return r.headers.get("content-type", "").split(";")[0].strip().lower()
+
+
+def fetch(ctx, url: str) -> tuple[str, str, bytes]:
+    """GET a text resource. Every hop (redirects included) is validated. Returns (final URL, content type, body)."""
+    cfg = ctx.config
+    headers = {"User-Agent": USER_AGENT, "Accept": "text/html,text/plain;q=0.9,*/*;q=0.1"}
+    deadline = _Deadline(2 * cfg.http_timeout)
+    try:
+        with _hops(ctx.http, cfg, url, headers, cfg.http_timeout, deadline) as (final, r):
             if r.status_code >= 400:
                 raise ToolError(f"HTTP {r.status_code}")
-            ctype = r.headers.get("content-type", "").split(";")[0].strip().lower()
+            ctype = _ctype(r)
             if not ctype.startswith(_TEXT_TYPES):
                 raise Blocked(f"content type not allowed: {ctype or 'missing'}")
             if int(r.headers.get("content-length") or 0) > cfg.max_bytes:
                 raise Blocked("response too large")
             body = b""
+            try:
+                for chunk in r.iter_bytes():
+                    body += chunk
+                    if len(body) >= cfg.max_bytes or deadline.left() <= 0:
+                        break
+            except httpx.HTTPError:
+                if not (deadline.expired and body):
+                    raise
+            ctx.bytes_fetched += len(body)
+            return final, ctype, body[: cfg.max_bytes]
+    finally:
+        deadline.cancel()
+
+
+IMAGE_TYPES = ("image/png", "image/jpeg", "image/webp", "image/gif")
+IMAGE_USER_AGENT = "BirdHarness/0.1 (+image)"
+
+
+class FetchError(ToolError):
+    """An image fetch failed: ``code`` is one of upstream, image_type, too_large (the web app maps it to HTTP)."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+def fetch_image(http, cfg, url: str, max_bytes: int = 2_000_000, timeout: float = 8.0) -> tuple[str, bytes]:
+    """GET an image through the same egress policy as read_page (check_url on every hop, DNS pinning). No browser
+    header is ever forwarded: only a fixed User-Agent and Accept. A body over ``max_bytes`` is refused, not cut.
+    The client's cookie jar is cleared afterwards, so nothing persists between two images."""
+    deadline = _Deadline(2 * timeout)
+    headers = {"User-Agent": IMAGE_USER_AGENT, "Accept": "image/webp,image/png,image/jpeg,image/gif;q=0.9"}
+    try:
+        with _hops(http, cfg, url, headers, timeout, deadline) as (_, r):
+            if r.status_code >= 400:
+                raise FetchError("upstream", f"HTTP {r.status_code}")
+            ctype = _ctype(r)
+            if ctype not in IMAGE_TYPES:
+                raise FetchError("image_type", f"not an image type we accept: {ctype or 'missing'}")
+            if int(r.headers.get("content-length") or 0) > max_bytes:
+                raise FetchError("too_large", "image too large")
+            body = b""
             for chunk in r.iter_bytes():
                 body += chunk
-                if len(body) >= cfg.max_bytes or time.monotonic() - start > 2 * cfg.http_timeout:
-                    break
-            ctx.bytes_fetched += len(body)
-            return str(u), ctype, body[: cfg.max_bytes]
-    raise Blocked("too many redirects")
+                if len(body) > max_bytes:
+                    raise FetchError("too_large", "image too large")
+                if deadline.left() <= 0:
+                    raise FetchError("upstream", "too slow")
+            return ctype, body
+    except TooSlow:
+        raise FetchError("upstream", "too slow") from None
+    except httpx.HTTPError as e:
+        raise FetchError("upstream", "too slow" if deadline.expired else type(e).__name__) from None
+    finally:
+        deadline.cancel()
+        try:
+            http.cookies.clear()
+        except Exception:  # noqa: BLE001 - a client without a jar
+            pass
 
 
 # ---------------------------------------------------------------- untrusted content
@@ -194,7 +325,9 @@ def injection_excerpt(text: str, size: int = 240) -> str:
     room = max(0, size - (m.end() - m.start()))
     start = max(0, m.start() - room // 3)
     # begin at a sentence start when one is close, so the quote reads naturally
-    cut = max(clean.rfind(". ", start, m.start()), clean.rfind("« ", start, m.start()), clean.rfind('"', start, m.start()))
+    cut = max(
+        clean.rfind(". ", start, m.start()), clean.rfind("« ", start, m.start()), clean.rfind('"', start, m.start())
+    )
     if cut >= 0 and m.start() - cut < room:
         start = cut + (1 if clean[cut] != "." else 2)
     end = min(len(clean), max(m.end() + 40, start + size))
@@ -264,7 +397,13 @@ def validate_args(tool: str, args, allowed, notes: list | None = None) -> tuple[
     if not isinstance(args, dict):
         return {}, f"arguments must be an object, for example {EXAMPLES.get(tool, '{}')}"
     schema = SCHEMAS[tool]
-    args, fixed = coerce_args(tool, dict(args), schema)
+    try:
+        args, fixed = coerce_args(tool, dict(args), schema)
+    except ArgError as e:  # a repair found a mistake it must not guess around (labels and values of unequal length)
+        return dict(args), (
+            f"invalid arguments for {tool} ({e.path}): {e}. Call {tool} again with corrected arguments, "
+            f"for example {EXAMPLES.get(tool, '{}')}"
+        )
     if notes is not None:
         notes.extend(fixed)
     for key, spec in schema["properties"].items():  # the XML parser JSON-decodes values: "42" arrives as 42

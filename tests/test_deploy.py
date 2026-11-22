@@ -44,7 +44,7 @@ def test_core_dependencies_are_light_and_mirrored_in_requirements_txt():
 
 def test_every_core_dependency_is_really_imported_by_the_app():
     """No dead weight in the function: each core package is imported somewhere under birds/ (lazily or not)."""
-    module_of = {"python-pptx": "pptx", "python-docx": "docx", "jinja2": "jinja2", "pypdf": "pypdf"}
+    module_of = {"python-pptx": "pptx", "python-docx": "docx", "jinja2": "jinja2", "pypdf": "pypdf", "pillow": "PIL"}
     source = "\n".join(p.read_text(encoding="utf-8") for p in (ROOT / "birds").rglob("*.py"))
     for package in names(pyproject()["project"]["dependencies"]):
         module = module_of.get(package, package.replace("-", "_"))

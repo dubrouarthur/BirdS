@@ -69,6 +69,9 @@ def web_search(args: dict, ctx) -> str:
         url = str(r.get("url") or "")
         if url and url not in ctx.found:
             ctx.found.append(url)
+    for r in results[:3]:  # image candidates for the UI only: an image URL is never put in the model's text
+        if r.get("image"):
+            add_image(ctx, str(r["image"]), str(r.get("url") or ""), str(r.get("title") or ""), "", "search")
     if not results:
         return "No results."
     lines = []
@@ -129,6 +132,119 @@ def extract(page: str, url: str) -> tuple[str, str]:
     return title, (text or html_to_text(page)).strip()
 
 
+MAX_IMAGE_CANDIDATES = 8
+_BAD_IMAGE = re.compile(
+    r"logo|favicon|sprite|icon|avatar|placeholder|default|blank|pixel|spacer|badge|banner|ads?[/_-]|tracking", re.I
+)
+
+
+def add_image(ctx, src: str, page: str, title: str, alt: str, origin: str) -> None:
+    """Remember an image candidate (one per page, never the same src twice, at most 8). Shown only by the web app,
+    which chooses among them at answer time (birds.web.backends.pick_web_images)."""
+    images = getattr(ctx, "images", None)
+    if images is None or not src or not page or len(images) >= MAX_IMAGE_CANDIDATES:
+        return
+    if any(i["src"] == src or i["page"] == page for i in images):
+        return
+    images.append(
+        {"src": src, "page": page, "title": " ".join(title.split())[:120], "alt": " ".join(alt.split())[:160],
+         "origin": origin}
+    )  # fmt: skip
+
+
+def _int(value) -> int | None:
+    m = re.match(r"\s*(\d+)", str(value or ""))
+    return int(m.group(1)) if m else None
+
+
+class _Images(HTMLParser):
+    """The page's own illustration: og:image / twitter:image / image_src metas, else a large <img> in the article."""
+
+    def __init__(self):
+        super().__init__()
+        self.meta: dict[str, str] = {}
+        self.imgs: list[dict] = []
+        self.depth = 0  # inside <article> or <main>
+
+    def handle_starttag(self, tag, attrs):
+        a = {k.lower(): (v or "") for k, v in attrs}
+        if tag == "meta":
+            key = (a.get("property") or a.get("name") or "").lower()
+            if key and a.get("content") and key not in self.meta:
+                self.meta[key] = a["content"].strip()
+        elif tag == "link" and "image_src" in a.get("rel", "").lower() and a.get("href"):
+            self.meta.setdefault("image_src", a["href"].strip())
+        elif tag in ("article", "main"):
+            self.depth += 1
+        elif tag == "img" and self.depth and len(self.imgs) < 40:
+            self.imgs.append(a)
+
+    def handle_endtag(self, tag):
+        if tag in ("article", "main"):
+            self.depth = max(0, self.depth - 1)
+
+
+def _usable(src: str, base: str) -> str | None:
+    from urllib.parse import urljoin, urlsplit
+
+    src = html.unescape(str(src or "").strip())
+    if not src or src.startswith("data:"):
+        return None
+    full = urljoin(base, src)
+    parts = urlsplit(full)
+    if parts.scheme not in ("http", "https") or not parts.netloc or len(full) > 2048:
+        return None
+    if parts.path.lower().endswith((".svg", ".ico", ".svgz")) or _BAD_IMAGE.search(parts.path):
+        return None
+    return full
+
+
+def _srcset_best(srcset: str) -> tuple[str, int]:
+    best, width = "", 0
+    for part in srcset.split(","):
+        bits = part.strip().split()
+        if len(bits) == 2 and bits[1].endswith("w") and (_int(bits[1]) or 0) > width:
+            best, width = bits[0], _int(bits[1]) or 0
+    return best, width
+
+
+def extract_image(page: str, url: str) -> dict | None:
+    """{"src", "alt"} of the page's main image, or None. No new dependency: the standard HTML parser."""
+    p = _Images()
+    try:
+        p.feed(page[:400_000])
+    except Exception:  # a malformed page: no image rather than an error
+        return None
+    m = p.meta
+    w, h = _int(m.get("og:image:width")), _int(m.get("og:image:height"))
+    sized_ok = not (w and h) or (min(w, h) >= 200 and 1 / 3 <= w / h <= 3)
+    if sized_ok:
+        for key in (
+            "og:image:secure_url",
+            "og:image",
+            "og:image:url",
+            "twitter:image",
+            "twitter:image:src",
+            "image_src",
+        ):
+            src = _usable(m.get(key, ""), url)
+            if src:
+                alt = m.get("og:image:alt") or m.get("twitter:image:alt") or ""
+                return {"src": src, "alt": alt}
+    for img in p.imgs:
+        best, bw = _srcset_best(img.get("srcset", ""))
+        iw, ih = _int(img.get("width")), _int(img.get("height"))
+        if iw and ih and iw >= 300 and ih >= 150 and 1 / 3 <= iw / ih <= 3:
+            src = _usable(img.get("src") or best, url)
+        elif bw >= 300:
+            src = _usable(best, url)
+        else:
+            continue
+        if src:
+            return {"src": src, "alt": img.get("alt", "")}
+    return None
+
+
 def read_page(args: dict, ctx) -> str:
     url, ctype, body = guard.fetch(ctx, args["url"])
     m = re.search(rb"charset=[\"']?([\w-]+)", body[:2048])
@@ -136,13 +252,14 @@ def read_page(args: dict, ctx) -> str:
         page = body.decode(m.group(1).decode("ascii") if m else "utf-8", errors="replace")
     except LookupError:
         page = body.decode("utf-8", errors="replace")
-    title, text = (
-        extract(page, url)
-        if "html" in ctype or page.lstrip()[:15].lower().startswith(("<!doctype", "<html"))
-        else ("", page.strip())
-    )
+    is_html = "html" in ctype or page.lstrip()[:15].lower().startswith(("<!doctype", "<html"))
+    title, text = extract(page, url) if is_html else ("", page.strip())
     if not text:
         raise ToolError("the page has no readable text (it may need JavaScript)")
     if url not in ctx.sources:
         ctx.sources.append(url)
+    if is_html:
+        found = extract_image(page, url)  # for the UI only: the model gets the text, never the image URL
+        if found:
+            add_image(ctx, found["src"], url, title, found["alt"], "page")
     return f"URL: {url}\n" + (f"Title: {title}\n" if title else "") + "\n" + text

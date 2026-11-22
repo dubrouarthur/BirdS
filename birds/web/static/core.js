@@ -123,6 +123,7 @@ const ICONS = {
   make_slides: '<rect x="3" y="4" width="14" height="9" rx="1.200"/><path d="M10 13v3.500M7 16.500h6"/>',
   make_document: '<path d="M5.500 3h6l3.500 3.500V17h-9.500z"/><path d="M8 9h4.500M8 11.500h4.500M8 14h3"/>',
   make_sheet: '<rect x="3.500" y="4" width="13" height="12" rx="1.200"/><path d="M3.500 8h13M3.500 12h13M8 4v12"/>',
+  make_chart: '<path d="M3.500 16.500h13"/><path d="M5.500 16.500V10.500M10 16.500V5M14.500 16.500V8.500" stroke-width="2.400"/>',
   run_python: '<rect x="4.500" y="3" width="11" height="14" rx="1.500"/><path d="M7.500 6.500h5M7.500 10.500h.01M10 10.500h.01M12.500 10.500h.01M7.500 13.500h.01M10 13.500h.01M12.500 13.500h.01"/>',
   tool: '<circle cx="10" cy="10" r="2.200"/><circle cx="10" cy="10" r="6.500"/>',
   check: '<path d="M4.500 10.500l3.500 3.500 7.500-8"/>',

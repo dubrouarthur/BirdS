@@ -19,6 +19,8 @@ uv pip install --python .venv/bin/python -e ".[web,harness]"    # avec le vrai m
 
 Les réponses sont **écrites à l'avance** (`DemoBackend`) et l'interface l'affiche partout (« démo »). Les quatre exemples de l'écran d'accueil déclenchent chacun un scénario : mail (page signalée comme suspecte, puis demande d'autorisation), compte rendu (tableau), diapositives (fichier .pptx téléchargeable), recherche web (étapes, sources citées). Trois scénarios de test, déclenchés seulement par une phrase explicite (un simple « erreur » ou « réveil » dans une vraie demande ne les déclenche pas) : « simule une erreur » simule une panne ; « test réveil » simule l'attente d'un endpoint en veille ; « test xss » renvoie du contenu hostile pour vérifier le rendu Markdown. Un format nommé (pptx, diapo, xlsx, tableur, docx) l'emporte sur le sujet de la demande.
 
+Démo graphiques et images : « Fais un graphique de la part des demandes » (barres), « Trace la courbe des demandes par mois » (courbe), « Fais un camembert de la part des demandes » (camembert) ; « Cherche la consommation des petits modèles » montre une image de démonstration (`static/demo/`), marquée comme telle.
+
 ## Mode réel (modèle derrière le harnais)
 
 ```bash
@@ -78,6 +80,23 @@ La vue Empreinte (bouton en haut à droite) cumule la conversation ou tout l'his
 - **Côté serveur**, une image passe par `/v1/chat/completions` (seule route qui transporte des images), **sans outils** : vLLM refuse le champ `tools` sans analyseur d'appels configuré. Bird lui demande une transcription fidèle (texte mot pour mot, tableaux en Markdown, « [illisible] » plutôt qu'inventer), affichée comme une étape « Lecture de l'image », puis la boucle normale répond avec ses outils sur cette transcription (« mets cette facture dans un tableur » fonctionne). Les tokens d'image comptent dans les tokens lus.
 - Les images ne sont **jamais** stockées : ni sur le serveur, ni dans le `localStorage` (après un rechargement, une carte neutre « Image envoyée (non conservée) »). Elles ne sont envoyées qu'une fois ; les tours suivants n'en gardent que le nom et ce que Bird y a lu (mémo).
 - CSP : `img-src 'self' blob:` — les miniatures sont des URL `blob:` créées par la page ; aucune image `data:` ni externe.
+
+## Graphiques
+
+Quand on demande un graphique (« fais un graphique… », « trace la courbe… », « un camembert de… »), Bird appelle `make_chart` et le graphique s'affiche sous la réponse : barres (horizontales au-delà de 8 libellés ou pour des libellés longs), courbe ou camembert (anneau). Il est dessiné en SVG par le navigateur (`static/chart.js`, sans bibliothèque) ; rien n'est rendu côté serveur. Il est dessiné à la largeur réelle de la carte (un `ResizeObserver` le redessine quand elle change), donc le texte reste à 12 px sur téléphone comme sur ordinateur ; camembert étroit : pourcentages autour de l'anneau, noms dans la légende.
+
+- **Lire** : survol ou flèches du clavier (le graphique est un seul arrêt de tabulation ; Début/Fin, Échap) ; la bulle est annoncée par les lecteurs d'écran. Légende dès 2 séries (camembert : toujours), et « Voir les données » ouvre le tableau.
+- **Exporter** : « Télécharger PNG » (canevas, 1 280 px de large au moins, toujours en thème clair, avec le titre, la légende, la ligne d'origine des chiffres — dont « non vérifiés » — et la remise en forme éventuelle), « Copier les données (CSV) » (`;` et virgule décimale en français, `,` en anglais, protégé contre l'injection de formules), « Exporter .xlsx » (le générateur `make_sheet` existant, par `POST /api/tool`).
+- **Honnêteté** : la légende dit d'où viennent les chiffres (votre message, le fichier joint, le web) ; des chiffres fournis par Bird lui-même portent l'étiquette « Chiffres fournis par Bird, non vérifiés ». Une remise en forme (ligne Total retirée, petites parts regroupées en « Autres ») est écrite sous le graphique.
+- **Couleurs** : 6 teintes dans un ordre fixe (jetons `--series-1…6`, clair et sombre), vérifiées avec le script de palette dataviz sur les surfaces de Bird ; trois teintes claires sont sous 3:1 de contraste, compensé par la légende et le tableau toujours présents. Couleurs forcées : marques en `CanvasText`.
+
+## Images du web
+
+Une réponse qui a utilisé le web peut montrer jusqu'à 3 images, chacune sous un cadre 4:3 fixe (rien ne bouge au chargement), créditée du titre de la page et de son domaine (et du numéro de source [n] quand la page est citée), cliquable vers la page source. La mention « Images issues des pages consultées, non créées par Bird » les accompagne. Aucune image si aucune n'est pertinente (le titre de la page doit partager un mot avec la réponse et la demande), ni pour une réponse sans web.
+
+**Vie privée** : le navigateur ne contacte que l'application. Les images passent par `GET /api/img?u=&e=&s=` : URL signée par le serveur (7 jours, `BIRD_IMAGE_TTL`), garde de sortie réseau à chaque redirection, aucun cookie ni en-tête du navigateur transmis, 2 Mo au plus, PNG/JPEG/WebP/GIF vérifiés sur les octets, réencodage WebP 640 px, limite propre (`BIRD_IMG_RATE_LIMIT`, 60/min). Codes d'erreur : 400 `bad_request`, 403 `bad_signature` / `cross_origin` / `blocked`, 410 `expired`, 413 `too_large`, 415 `image_type`, 422 `image_invalid` / `image_too_small`, 429 `rate_limited`, 502 `upstream` (enveloppe habituelle `{"detail": {"code", "message"}}`). Seule route `/api/` mise en cache (`public, max-age=3600`). Une image qui ne se charge pas (lien expiré après 7 jours, erreur en amont) est retirée ; la section disparaît s'il n'en reste aucune. Sur téléphone, les vignettes forment une seule rangée qui défile horizontalement.
+
+**Ce qu'il ne fait pas** : il ne vérifie pas les licences au-delà du `pilicense=free` de Wikipédia ; une `og:image` peut être hors sujet ou promotionnelle ; une image n'est jamais présentée comme faite par Bird.
 
 ## Autres aides
 

@@ -754,8 +754,9 @@ def test_trend_questions_keep_the_web_tools():
 
     for q in ("Fais un tableur de la population de Paris depuis 2012", "Fais une courbe de l'évolution du chômage",
               "Make a spreadsheet of inflation in France since 2015"):
-        assert route(q) == set(), q
-    assert route("Fais une présentation sur notre bilan 2016") == {"web_search", "read_page"}
+        assert route(q) == set(), q  # web tools kept, and make_chart offered: a trend is a line chart
+    assert {"web_search", "read_page"} <= route("Fais une présentation sur notre bilan 2016")
+    assert "make_chart" in route("Bonjour, peux-tu relire ce mail ?")
 
 
 def test_platform_logs_hold_metadata_only():

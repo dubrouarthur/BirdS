@@ -27,6 +27,8 @@ MEMO_LABELS = {
         "draft": "brouillon de mail",
         "results": "résultats de recherche",
         "notsent": "non envoyé",
+        "chart": "graphique affiché",
+        "columns": "colonnes",
     },
     "en": {
         "head": "Memo of this turn",
@@ -36,6 +38,8 @@ MEMO_LABELS = {
         "draft": "email draft",
         "results": "search results",
         "notsent": "not sent",
+        "chart": "chart shown",
+        "columns": "columns",
     },
 }
 
@@ -52,6 +56,28 @@ def _plain(text: str, limit: int) -> str:
 
 INTERRUPTED = {"fr": "[réponse interrompue]", "en": "[answer interrupted]"}
 MEMO_CAP = 2400
+CHART_CAP = 400
+
+
+def _num(v) -> str:
+    if v is None:
+        return "–"
+    return f"{v:g}" if isinstance(v, float) else str(v)
+
+
+def chart_line(chart: dict, lab: dict) -> str:
+    """'graphique : « CA » (bar, k€) colonnes Trimestre / CA — T1 120 ; T2 135', at most CHART_CAP characters."""
+    cols = [str(c) for c in chart.get("columns") or []]
+    unit = f", {chart['unit']}" if chart.get("unit") else ""
+    head = (
+        f"{lab['chart']} : « {_plain(chart.get('title'), 80)} » ({chart.get('type')}{unit}) "
+        f"{lab['columns']} {' / '.join(_plain(c, 30) for c in cols)} — "
+    )
+    rows = " ; ".join(_plain(r[0], 30) + " " + "/".join(_num(v) for v in r[1:]) for r in chart.get("rows") or [] if r)
+    line = head + rows
+    return line if len(line) <= CHART_CAP else line[: CHART_CAP - 1].rstrip() + "…"
+
+
 SUMMARY_CAP = 2100
 
 
@@ -62,9 +88,11 @@ def memo(
     files: list[str],
     draft: dict | None,
     results: list[dict] | None = None,
+    charts: list[dict] | None = None,
 ) -> str:
     """Deterministic, compact record of what the tools did in one turn: tool names and key arguments, search result
-    titles and URLs (so "the second source" can be answered later), pages read, files made, draft subject.
+    titles and URLs (so "the second source" can be answered later), pages read, files made, draft subject, the data
+    of the charts shown (so "refais-le en courbe" can chart it again).
     Never raw tool output, never excerpts, never an image transcription (it lives in the user turn)."""
     lab = MEMO_LABELS["en" if lang == "en" else "fr"]
     parts = []
@@ -93,6 +121,8 @@ def memo(
         parts.append(f"{lab['files']} : " + ", ".join(_plain(f, 80) for f in files[:6]))
     if draft:
         parts.append(f"{lab['draft']} : « {_plain(draft.get('subject'), 120)} » ({lab['notsent']})")
+    for c in (charts or [])[:3]:
+        parts.append(chart_line(c, lab))
     out = f"[{lab['head']} — " + " | ".join(parts) + "]" if parts else ""
     return out if len(out) <= MEMO_CAP else out[: MEMO_CAP - 2] + "…]"
 

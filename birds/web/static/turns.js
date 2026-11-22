@@ -24,6 +24,7 @@ import {
 import { renderBlocks, renderMarkdown, safeUrl, stabilize } from "./markdown.js";
 import { docCard, imageCard, kindOf, middle } from "./attach.js";
 import { deckPreview, docPreview, sheetPreview } from "./previews.js";
+import { chartMarkdown, renderChart } from "./chart.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1204,6 +1205,116 @@ function renderError(turn, isLast) {
 }
 
 /** "D'après : facture.pdf" — the attachments this answer actually read, linked to their card in the message. */
+function renderCharts(turn) {
+  const charts = (turn.answer?.charts || [])
+    .filter((c) => c && typeof c === "object")
+    .slice(0, 3);
+  if (!charts.length) return null;
+  turn.ui.charts = turn.ui.charts || {};
+  return h(
+    "div",
+    { class: "cards chart-cards" },
+    charts.map((spec, i) => {
+      // charts are drawn once per turn and kept: a re-render (streaming, a toggle) must not reset hover or focus
+      const key = `${spec.id || i}:${state.prefs.lang}`;
+      if (!turn.ui.charts[key])
+        turn.ui.charts[key] = renderChart(spec, {
+          lang: state.prefs.lang,
+          onXlsx: (s) => handlers.onChartXlsx?.(turn, s),
+        });
+      return turn.ui.charts[key];
+    }),
+  );
+}
+
+const IMG_OK = /^\/(?:api\/img\?|static\/demo\/)/;
+
+function webImageTile(turn, img) {
+  const page = safeUrl(img.page);
+  const domain = String(img.domain || hostOf(img.page) || "");
+  const title = String(img.title || domain);
+  const frame = h("span", { class: "web-image-frame" });
+  const el = h("img", {
+    src: img.src,
+    alt: String(img.alt || title),
+    width: "168",
+    height: "126",
+    loading: "lazy",
+    decoding: "async",
+    referrerpolicy: "no-referrer",
+  });
+  // an image that does not load (expired link, upstream error) is removed, not shown as an empty frame; the
+  // section goes when none is left
+  el.addEventListener(
+    "error",
+    () => {
+      const li = el.closest("li");
+      const list = li?.parentElement;
+      li?.remove();
+      if (list && !list.children.length) list.closest("section")?.remove();
+    },
+    { once: true },
+  );
+  frame.append(el);
+  if (img.demo)
+    frame.append(
+      h("span", { class: "tag web-image-badge", text: t("webimg.demo") }),
+    );
+  const n = Number(img.n) || 0;
+  const cap = h(
+    "span",
+    { class: "web-image-cap" },
+    h("span", { class: "web-image-title", text: title }),
+    h(
+      "span",
+      { class: "web-image-host" },
+      n ? h("span", { class: "web-image-n num", text: `[${n}]` }) : null,
+      h("span", { text: domain }),
+    ),
+  );
+  return page
+    ? h(
+        "a",
+        {
+          class: "web-image",
+          href: page,
+          target: "_blank",
+          rel: "noopener noreferrer",
+          "aria-label": t("webimg.open", { title, domain }),
+        },
+        frame,
+        cap,
+      )
+    : h("span", { class: "web-image" }, frame, cap);
+}
+
+function renderWebImages(turn) {
+  const images = (turn.answer?.web_images || [])
+    .filter((x) => x && typeof x === "object" && typeof x.src === "string" && IMG_OK.test(x.src))
+    .slice(0, 3);
+  if (!images.length) return null;
+  // kept between re-renders: an image that already loaded (or failed) is not fetched or laid out again
+  if (turn.ui.webImagesLang !== state.prefs.lang) {
+    turn.ui.webImages = webImagesSection(turn, images);
+    turn.ui.webImagesLang = state.prefs.lang;
+  }
+  return turn.ui.webImages.querySelector("li") ? turn.ui.webImages : null;
+}
+
+function webImagesSection(turn, images) {
+  return h(
+    "section",
+    { class: "web-images", "aria-label": t("webimg.aria") },
+    h("h3", { class: "eyebrow", text: t("webimg.title") }),
+    h(
+      "ul",
+      { class: "web-image-list" },
+      images.map((img) => h("li", null, webImageTile(turn, img))),
+    ),
+    h("p", { class: "web-image-note", text: t("webimg.note") }),
+  );
+}
+
 function basedOn(turn) {
   if (!turn.answer) return null;
   const names = [
@@ -1272,6 +1383,8 @@ function fillAssistant(el, turn, isLast) {
         h("div", { class: "reasoning-body", text: turn.reasoning }),
       ),
     hasText && entry.md,
+    renderCharts(turn),
+    renderWebImages(turn),
     basedOn(turn),
     liveLine(turn),
     renderConfirm(turn),
@@ -1418,6 +1531,16 @@ export function exportMarkdown(conv) {
       );
     if ((turn.steps || []).length) lines.push("");
     if (turn.answer) lines.push(turn.answer.content, "");
+    for (const chart of turn.answer?.charts || [])
+      lines.push(
+        `**${t("chart.export")} : ${chart.title}**`,
+        "",
+        chartMarkdown(chart, state.prefs.lang),
+        "",
+      );
+    for (const img of turn.answer?.web_images || [])
+      lines.push(`- ${t("webimg.export")} : ${img.title} — ${img.page}`);
+    if ((turn.answer?.web_images || []).length) lines.push("");
     const draft = turn.answer?.draft_email;
     if (draft)
       lines.push(

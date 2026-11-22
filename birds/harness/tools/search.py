@@ -60,6 +60,13 @@ def _retry_after(r) -> float | None:
         return None
 
 
+def _image(url) -> dict:
+    """{"image": url} for an absolute https image URL a backend tied to one result, else {} (never shown to the
+    model; the web app proxies it through /api/img, see birds.web.server)."""
+    url = str(url or "").strip()
+    return {"image": url} if url.startswith("https://") and len(url) <= 2048 else {}
+
+
 def _clean(text) -> str:
     text = re.sub(r"<[^>]+>", "", str(text or ""))
     return " ".join(html.unescape(text).split())
@@ -80,7 +87,12 @@ class SearxngBackend:
         params = {"q": query, "format": "json", **({"language": lang} if lang else {})}
         r = self.http.get(self.url, params=params, timeout=self.timeout)
         return [
-            {"title": x.get("title") or "", "url": x.get("url") or "", "snippet": x.get("content") or ""}
+            {
+                "title": x.get("title") or "",
+                "url": x.get("url") or "",
+                "snippet": x.get("content") or "",
+                **_image(x.get("thumbnail") or x.get("img_src")),
+            }
             for x in (_json(r, self.label).get("results") or [])[:n]
         ]
 
@@ -145,7 +157,11 @@ class BraveBackend:
             extra = " ".join(_clean(e) for e in (x.get("extra_snippets") or [])[:2] if isinstance(e, str))
             snippet = _clean(x.get("description")) + (" " + extra if extra else "")
             age = _clean(x.get("age") or x.get("page_age") or "")
-            out.append({"title": _clean(x.get("title")), "url": x.get("url") or "", "snippet": snippet, "date": age})
+            thumb = x.get("thumbnail") if isinstance(x.get("thumbnail"), dict) else {}
+            image = _image(thumb.get("src")) if not thumb.get("logo") else {}  # Brave's own image proxy
+            out.append(
+                {"title": _clean(x.get("title")), "url": x.get("url") or "", "snippet": snippet, "date": age, **image}
+            )
         return out
 
 
@@ -208,7 +224,10 @@ class WikipediaBackend:
             "generator": "search",
             "gsrsearch": query,
             "gsrlimit": n,
-            "prop": "extracts|info",
+            "prop": "extracts|info|pageimages",
+            "piprop": "thumbnail",  # pilicense stays at its default, "free": free-licence images only
+            "pithumbsize": 640,
+            "pilimit": n,
             "exintro": 1,
             "explaintext": 1,
             "exsentences": 4,
@@ -232,6 +251,7 @@ class WikipediaBackend:
                 "url": p.get("fullurl")
                 or f"https://{lang}.wikipedia.org/wiki/{str(p.get('title', '')).replace(' ', '_')}",
                 "snippet": _clean(p.get("extract"))[:600],
+                **_image((p.get("thumbnail") or {}).get("source") if isinstance(p.get("thumbnail"), dict) else None),
             }
             for p in pages[:n]
         ]

@@ -38,6 +38,82 @@ MIME = {
 }
 
 
+MAX_WEB_IMAGES = 3
+_STOP = set(
+    "avec dans pour plus sont cette ceux elle elles leur leurs mais comme tout tous toute toutes quel quelle quels "
+    "être etre avoir fait faire entre sans sous vers chez donc alors aussi encore depuis selon quoi dont était etait "
+    "cherche chercher recherche trouve lire page site wiki wikipedia accueil about from with that this have what "
+    "when where which their there your into over more most also been were will would search find read news".split()
+)
+
+
+def _words(text: str) -> set[str]:
+    import unicodedata
+
+    plain = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode().lower()
+    return {w for w in re.findall(r"[a-z]{4,}", plain) if w not in _STOP}
+
+
+def chart_summary(lang: str, values: int, series: int) -> str:
+    fr_s, en_s = ("série", "series") if series == 1 else ("séries", "series")
+    fr_v, en_v = ("valeur", "value") if values == 1 else ("valeurs", "values")
+    return _t(
+        lang, f"Graphique affiché ({values} {fr_v}, {series} {fr_s})", f"Chart shown ({values} {en_v}, {series} {en_s})"
+    )
+
+
+def pick_web_images(run, answer: str, request_text: str, sources: list[dict], sign) -> list[dict]:
+    """At most 3 credited images for an answer that used the web, or [] (the honest default: no image rather than
+    an unrelated one). Pages actually read come first; any image's page title must share a content word with both
+    the answer and the request. One per page and per domain. Images never come from files or the model's words."""
+    if sign is None or getattr(run, "stop_reason", "") != "answer" or not str(answer or "").strip():
+        return []
+    steps = list(getattr(run, "steps", []) or [])
+    web = [s for s in steps if s.tool in ("web_search", "read_page") and not s.error]
+    if not web:
+        return []
+    searches = [s for s in steps if s.tool == "web_search"]
+    read = any(s.tool == "read_page" and not s.error for s in steps)
+    if searches and not read:
+        last = searches[-1]
+        if last.error or not (getattr(last, "info", {}) or {}).get("results"):
+            return []  # "the search is unavailable" / "no results" answers get no picture
+    numbers = {str(s.get("url")): s.get("n") for s in sources}
+    answer_w, request_w = _words(answer), _words(request_text)
+    read_pages = [str(u) for u in getattr(run, "sources", []) or []]
+    cands = [c for c in getattr(run, "images", []) or [] if isinstance(c, dict)]
+    ordered = sorted(
+        (c for c in cands if c.get("origin") == "page" and c.get("page") in read_pages),
+        key=lambda c: read_pages.index(c["page"]),
+    ) + [c for c in cands if c.get("origin") == "search"]
+    out, pages, domains, srcs = [], set(), set(), set()
+    for c in ordered:
+        src, page = str(c.get("src") or ""), str(c.get("page") or "")
+        domain = (urlsplit(page).hostname or "").lower().removeprefix("www.")
+        if not src.startswith(("https://", "http://")) or not page.startswith(("https://", "http://")) or not domain:
+            continue
+        if src in srcs or page in pages or domain in domains:
+            continue
+        title = " ".join(str(c.get("title") or "").split())[:120] or _source_title(page)
+        words = _words(title) | _words(urlsplit(page).path.replace("_", " "))
+        if not (words & answer_w and words & request_w):
+            continue  # the relevance gate
+        entry = {
+            "src": sign(src),
+            "page": page,
+            "title": title,
+            "domain": domain,
+            "alt": " ".join(str(c.get("alt") or "").split())[:160] or title,
+        }
+        if numbers.get(page):
+            entry["n"] = numbers[page]
+        out.append(entry)
+        srcs.add(src), pages.add(page), domains.add(domain)
+        if len(out) >= MAX_WEB_IMAGES:
+            break
+    return out
+
+
 def sanitize_filename(name: str) -> str:
     """Reduce an arbitrary name to a safe basename (letters, digits, ``._-``)."""
     base = str(name).replace("\\", "/").rsplit("/", 1)[-1]
@@ -66,6 +142,7 @@ class RunContext:
     sign: Callable[[dict], str]  # payload -> signed confirm token (the server adds the conversation binding)
     deadline: float  # time.monotonic() value after which the function may be killed
     max_inline_file_bytes: int = 3_000_000
+    sign_image: Callable[[str], str] | None = None  # image URL -> signed same-origin /api/img path (None: no images)
 
     def check(self) -> None:
         if self.cancel.is_set():
@@ -225,6 +302,7 @@ def written_preview(tool: str, args: dict, info: dict | None) -> dict | None:
 def file_preview(tool: str, args: dict) -> dict | None:
     """What a make_* call asked for, trimmed, so the UI can show the outline before the download."""
     a = args if isinstance(args, dict) else {}
+
     def cut(v, n: int) -> str:
         """At most n characters; a cut text ends with '…', so a sliced cell never looks like a broken file."""
         s = str(v if v is not None else "")
@@ -312,6 +390,7 @@ def pick_scenario(text: str, has_attachment: bool = False) -> str:
         ("slides", ("pptx", "powerpoint", "diapo", "slide", "présentation", "presentation")),
         ("sheet", ("xlsx", "tableur", "excel", "spreadsheet", "feuille de calcul")),
         ("document", ("docx",)),
+        ("chart", _DEMO_CHART),  # whole words: "orthographe" or "paragraphe" are not charts
         ("reply", ("réponds à", "reponds a", "reply to")),  # a self-contained reply: no page, no approval
         ("email", ("mail", "courriel")),
         ("search", ("cherche", "search", "web", "source", "compare", "trouve", "find")),
@@ -319,9 +398,14 @@ def pick_scenario(text: str, has_attachment: bool = False) -> str:
         ("document", ("document", "note de synthèse", "memo")),
     ]
     for name, keys in rules:
-        if any(k in low for k in keys):
+        if keys.search(low) if isinstance(keys, re.Pattern) else any(k in low for k in keys):
             return name
     return "plain"
+
+
+_DEMO_CHART = re.compile(
+    r"\b(?:graphiques?|graphes?|courbes?|diagrammes?|camemberts?|histogrammes?|charts?|graphs?|plots?)\b"
+)
 
 
 @dataclass
@@ -341,6 +425,7 @@ class DemoBackend:
             "make_slides",
             "make_document",
             "make_sheet",
+            "make_chart",
         ]
     )
 
@@ -397,7 +482,15 @@ class _DemoRun:
         self.extra_completion += 24
         self.ctx.emit(
             step_event(
-                index, tool, arguments, "done", summary, time.monotonic() - start, flags, preview, flagged_excerpt=excerpt
+                index,
+                tool,
+                arguments,
+                "done",
+                summary,
+                time.monotonic() - start,
+                flags,
+                preview,
+                flagged_excerpt=excerpt,
             )
         )
 
@@ -415,7 +508,7 @@ class _DemoRun:
             self.ctx.emit({"type": "delta", "content": "".join(pieces[i : i + 3])})
             self.pause(0.035)
 
-    def finish(self, content: str, sources=None, files=None, draft_email=None) -> None:
+    def finish(self, content: str, sources=None, files=None, draft_email=None, charts=None, web_images=None) -> None:
         self.pause(0.3)
         self.stream(content)
         self.ctx.emit(
@@ -426,6 +519,8 @@ class _DemoRun:
                 "files": files or [],
                 "draft_email": draft_email,
                 "stop_reason": "answer",
+                "charts": charts or [],
+                "web_images": web_images or [],
             }
         )
         prompt = 60 + sum(len(m["content"]) for m in self.req.messages) // 4 + self.extra_prompt
@@ -658,6 +753,17 @@ class _DemoRun:
                 "Both pages are **fictional** (demo mode): they show how citations look, not verified facts.",
             ),
             sources=sources,
+            web_images=[
+                {
+                    "src": "/static/demo/petits-modeles.webp",
+                    "page": url,
+                    "title": sources[0]["title"],
+                    "domain": "example.org",
+                    "alt": self.t("Illustration de la page de démonstration", "Illustration of the demo page"),
+                    "n": 1,
+                    "demo": True,
+                }
+            ],
         )
 
     def _email_arguments(self) -> dict:
@@ -899,6 +1005,72 @@ class _DemoRun:
             files=[entry],
         )
 
+    def scenario_chart(self) -> None:
+        """A chart through the real normalize_chart, from string cells ("27,5", "12,5 %"), so the demo exercises the
+        number reading. "courbe/line" and "camembert/pie" pick the other two renderers."""
+        from birds.harness.tools.chart import normalize_chart
+
+        t = self.t
+        last = next((m["content"] for m in reversed(self.req.messages) if m["role"] == "user"), "").lower()
+        self.think(
+            "Les chiffres sont fournis : je les mets en graphique, sans chercher sur le web.",
+            "The figures are given: I chart them, without searching the web.",
+        )
+        if re.search(r"\b(?:courbe|line|évolution|evolution)\b", last):
+            args = {
+                "title": t("Demandes traitées par mois (démo)", "Requests handled per month (demo)"),
+                "type": "line",
+                "columns": [t("Mois", "Month"), t("Mails", "Emails"), t("Synthèses", "Summaries")],
+                "rows": [
+                    [t("janv.", "Jan"), "34", 21],
+                    [t("févr.", "Feb"), "38,5", 24],
+                    [t("mars", "Mar"), 41, "22"],
+                    [t("avr.", "Apr"), 45, 29.5],
+                    [t("mai", "May"), "43", 33],
+                    [t("juin", "Jun"), 48, "36,5"],
+                ],
+            }
+            comment = t(
+                "Voici la courbe. Les chiffres sont **fictifs** (mode démo). Les mails progressent chaque mois, les "
+                "synthèses accélèrent au printemps.",
+                "Here is the line chart. The figures are **fictional** (demo mode). Emails grow every month, summaries "
+                "pick up in spring.",
+            )
+        else:
+            pie = bool(re.search(r"\b(?:camembert|pie|secteurs?|donut)\b", last))
+            args = {
+                "title": t("Part des demandes par type (démo)", "Share of requests by type (demo)"),
+                "type": "pie" if pie else "bar",
+                "columns": [t("Type", "Type"), t("Part (%)", "Share (%)")],
+                "rows": [
+                    [t("Mails", "Emails"), "34"],
+                    [t("Synthèses", "Summaries"), "27,5" if self.lang != "en" else "27.5"],
+                    [t("Tableurs", "Spreadsheets"), 18],
+                    [t("Présentations", "Presentations"), "12,5 %" if self.lang != "en" else "12.5 %"],
+                    [t("Recherche", "Research"), 8],
+                ],
+            }
+            comment = t(
+                "Voici le graphique. Les chiffres sont **fictifs** (mode démo). Les mails dominent, devant les "
+                "synthèses ; la recherche reste marginale.",
+                "Here is the chart. The figures are **fictional** (demo mode). Emails lead, ahead of summaries; "
+                "research stays marginal.",
+            )
+        spec, _ = normalize_chart(args, self.lang, last)
+        spec = {"id": "c1", **spec, "source": "model"}  # demo figures are invented: say so on the chart
+        index = self.steps
+        self.steps += 1
+        shown = {"title": spec["title"], "type": spec["type"]}
+        start = time.monotonic()
+        self.ctx.emit(step_event(index, "make_chart", shown, "running"))
+        self.pause(0.8)
+        self.extra_completion += len(json.dumps(args, ensure_ascii=False)) // 4
+        summary = chart_summary(self.lang, len(spec["rows"]), len(spec["columns"]) - 1)
+        self.ctx.emit(
+            step_event(index, "make_chart", shown, "done", summary, time.monotonic() - start, info={"chart": "c1"})
+        )
+        self.finish(comment, charts=[spec])
+
     def scenario_xss(self) -> None:
         self.pause(0.2)
         self.finish(
@@ -1098,6 +1270,24 @@ _OCR_HEAD = {
 _MEMO_ECHO = re.compile(r"\s*\[(?:Mémo de ce tour|Memo of this turn) —[^\]]*\]?\s*$")
 
 
+# make_chart's tool result, copied into the answer by the live model (« Voici le graphique : [Chart shown to the user
+# in the chat: bar chart « … », 5 labels, …] Paris domine… »): internal English, never shown.
+_CHART_ECHO = re.compile(
+    r"[ \t]*\[(?:Chart shown to the user in the chat|Chart displayed to the user)\b[^\]]*\][ \t]*"
+    r"|^[ \t]*(?:Chart shown to the user in the chat|Chart displayed to the user|Adjusted: |"
+    r"These figures are not from the user)[^\n]*\n?",
+    re.M,
+)
+
+
+def strip_tool_echo(text: str) -> str:
+    """Remove a make_chart tool result the model quoted in its answer."""
+    if "Chart " not in text and "Adjusted: " not in text and "These figures" not in text:
+        return text
+    out = _CHART_ECHO.sub(lambda m: " " if m.group(0).startswith((" ", "\t")) else "", text)
+    return re.sub(r"[ \t]{2,}", " ", out).strip()
+
+
 def strip_memo(text: str) -> str:
     """The model sees memos at the end of past answers and sometimes imitates one: never show or keep that echo."""
     return _MEMO_ECHO.sub("", text).rstrip() if "[" in text else text
@@ -1291,8 +1481,13 @@ class HarnessBackend:
             parts.append(head.format(name=name) + "\n\n" + text if text else empty.format(name=name))
         run = Run(lang=lang, answer="\n\n---\n\n".join(parts), stop_reason="answer")
         run.report = meter.report(
-            [{k: u.get(k) for k in ("prompt_tokens", "completion_tokens", "seconds", "busy_seconds",
-                                    "first_token_seconds")} for u in image_usage],
+            [
+                {
+                    k: u.get(k)
+                    for k in ("prompt_tokens", "completion_tokens", "seconds", "busy_seconds", "first_token_seconds")
+                }
+                for u in image_usage
+            ],
             wall_seconds=wall,
             tool_calls=len(image_usage),
             bytes_fetched=0,
@@ -1513,13 +1708,15 @@ class HarnessBackend:
             previews = iter(
                 written_preview(s.tool, s.arguments, getattr(s, "info", None))
                 for s in run.steps
-                if s.tool.startswith("make_") and not s.error
-            )
+                if s.tool.startswith("make_") and s.tool != "make_chart" and not s.error
+            )  # a chart is not a file: it is drawn from answer.charts
             files = []
             for rel in run.files:
                 preview = next(previews, None)
                 path = output_file(workspace, rel)
-                if path is not None and path.is_file():  # files made before a pause were already delivered with the confirm event
+                if (
+                    path is not None and path.is_file()
+                ):  # files made before a pause were already delivered with the confirm event
                     files.append(inline_file(path, preview, ctx.max_inline_file_bytes))
             seconds = float(carry.get("seconds") or 0.0) + (time.monotonic() - t0)
             energy, energy_kind = report.get("energy_wh"), report.get("energy_kind")
@@ -1581,12 +1778,21 @@ class HarnessBackend:
                 [f["name"] for f in files],
                 draft,
                 [r for s in run.steps for r in (getattr(s, "info", {}) or {}).get("results", [])],
+                list(getattr(run, "charts", []) or []),
+            )
+            answer_text = hide_out_paths(strip_tool_echo(strip_memo(str(run.answer))))
+            request_words = (
+                str((request.resume or {}).get("state", {}).get("request", ""))
+                if request.resume is not None
+                else own_words(request.messages[-1]["content"])
             )
             ctx.emit(
                 {
                     "type": "answer",
-                    "content": hide_out_paths(strip_memo(str(run.answer))),
+                    "content": answer_text,
                     "sources": sources,
+                    "charts": _plain(list(getattr(run, "charts", []) or [])),
+                    "web_images": pick_web_images(run, answer_text, request_words, sources, ctx.sign_image),
                     "files": files,
                     "draft_email": None
                     if draft is None
@@ -1642,6 +1848,10 @@ class HarnessBackend:
             code = info.get("code")
             if code in _SEARCH_CODES:
                 summary = _t(lang, *_SEARCH_CODES[code]) + (f" ({info.get('label')})" if info.get("label") else "")
+        elif step.tool == "make_chart":
+            status = "done"
+            summary = chart_summary(lang, info.get("values", 0), info.get("series", 0))
+            preview = str(step.result or "").split("\n", 1)[0][:200]
         else:
             status = "done"
             summary = _t(

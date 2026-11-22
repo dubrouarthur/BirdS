@@ -15,6 +15,7 @@ import time
 from collections import deque
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -215,6 +216,94 @@ def fetch_client(s: Settings):
     return httpx.Client(follow_redirects=False)
 
 
+def image_client(s: Settings):
+    """A fresh client for one /api/img fetch: no proxy variables (unless behind a filtering proxy, like read_page),
+    no redirects followed by httpx (guard.fetch_image checks each hop), and so no cookie jar shared between images."""
+    import httpx
+
+    return fetch_client(s) or httpx.Client(trust_env=False, follow_redirects=False)
+
+
+class ImageCache:
+    """Small in-process LRU of re-encoded images: 32 entries, 6 MB, 1 hour. Best effort, per instance."""
+
+    def __init__(self, entries: int = 32, max_bytes: int = 6_000_000, ttl: float = 3600.0):
+        from collections import OrderedDict
+
+        self.entries, self.max_bytes, self.ttl = entries, max_bytes, ttl
+        self._data: OrderedDict[str, tuple[float, bytes]] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> bytes | None:
+        with self._lock:
+            hit = self._data.get(key)
+            if hit is None or time.monotonic() - hit[0] > self.ttl:
+                self._data.pop(key, None)
+                return None
+            self._data.move_to_end(key)
+            return hit[1]
+
+    def put(self, key: str, data: bytes) -> None:
+        with self._lock:
+            self._data[key] = (time.monotonic(), data)
+            self._data.move_to_end(key)
+            while len(self._data) > self.entries or sum(len(v[1]) for v in self._data.values()) > self.max_bytes:
+                self._data.popitem(last=False)
+
+
+IMG_MAX_BYTES = 2_000_000
+# 16 Mpx is ample for a 640 px card. A small compressible file can still decode big (an 8000 x 5000 RGBA PNG of
+# 165 KB is 160 MB of pixels), so decoding is also bounded in concurrency.
+IMG_MAX_PIXELS = 16_000_000
+IMG_DECODES = threading.BoundedSemaphore(3)
+IMG_MAX_SIDE, IMG_MIN_SIDE, IMG_OUT_SIDE = 8000, 64, 640
+_MAGIC = {
+    "image/png": lambda b: b.startswith(b"\x89PNG\r\n\x1a\n"),
+    "image/jpeg": lambda b: b.startswith(b"\xff\xd8\xff"),
+    "image/gif": lambda b: b[:6] in (b"GIF87a", b"GIF89a"),
+    "image/webp": lambda b: b[:4] == b"RIFF" and b[8:12] == b"WEBP",
+}
+
+
+def reencode_image(ctype: str, raw: bytes) -> bytes:
+    """Check the bytes really are the declared type, then re-encode the first frame as WebP, long side <= 640 px.
+    Re-encoding drops EXIF/GPS and any payload hidden in the file. Raises ApiError."""
+    import io
+
+    from PIL import Image, ImageOps
+
+    if not _MAGIC.get(ctype, lambda b: False)(raw):
+        raise ApiError(415, "image_type", "the file is not the image type it claims to be")
+    import warnings
+
+    try:
+        with warnings.catch_warnings():  # the size check below refuses bombs before decoding: no warning needed
+            warnings.simplefilter("ignore", Image.DecompressionBombWarning)
+            im = Image.open(io.BytesIO(raw))
+        with im:
+            w, h = im.size
+            if w * h > IMG_MAX_PIXELS or max(w, h) > IMG_MAX_SIDE:
+                raise ApiError(422, "image_invalid", "image too large to decode")
+            if min(w, h) < IMG_MIN_SIDE:
+                raise ApiError(422, "image_too_small", "image too small to show")
+            im.seek(0)
+            # no full-size copy: JPEG decodes at a reduced scale (draft), the rest is reduced in place
+            if im.format == "JPEG":
+                im.draft("RGB", (2 * IMG_OUT_SIDE, 2 * IMG_OUT_SIDE))
+            with IMG_DECODES:
+                im.thumbnail((IMG_OUT_SIDE, IMG_OUT_SIDE), reducing_gap=2.0)
+            frame = ImageOps.exif_transpose(im)  # on the small image: a small copy, detached from the file
+            alpha = frame.mode in ("RGBA", "LA") or (frame.mode == "P" and "transparency" in frame.info)
+            frame = frame.convert("RGBA" if alpha else "RGB")
+    except ApiError:
+        raise
+    except Exception:  # noqa: BLE001 - truncated, corrupt or a decompression bomb
+        raise ApiError(422, "image_invalid", "this image cannot be read") from None
+    out = io.BytesIO()
+    frame.save(out, "WEBP", quality=80, method=4)
+    return out.getvalue()
+
+
 TOOL_TEXT = {  # why a tool is on or off on this deployment, for the "available tools" panel
     "web_search": ("Recherche : {label}", "Search: {label}"),
     # no search backend label (the demo, or a backend that does not name itself): a whole sentence, never "Recherche :"
@@ -233,6 +322,10 @@ TOOL_TEXT = {  # why a tool is on or off on this deployment, for the "available 
     "make_slides": ("Crée un .pptx, téléchargeable ici", "Creates a .pptx, downloadable here"),
     "make_document": ("Crée un .docx, téléchargeable ici", "Creates a .docx, downloadable here"),
     "make_sheet": ("Crée un .xlsx, téléchargeable ici", "Creates a .xlsx, downloadable here"),
+    "make_chart": (
+        "Affiche un graphique dans la conversation (barres, courbe, camembert)",
+        "Shows a chart in the chat (bar, line, pie)",
+    ),
     "run_python": (
         "Désactivé : exécuter du code demande un vrai bac à sable, absent de ce déploiement",
         "Off: running code needs a real sandbox, which this deployment does not have",
@@ -242,12 +335,12 @@ TOOL_TEXT = {  # why a tool is on or off on this deployment, for the "available 
 
 def tools_info(s: Settings, backend) -> dict:
     """Which tools the model may use here, which are off, and why. Also which search backend answers."""
-    from birds.tools import BIRD_TOOL_NAMES
+    from birds.tools import PRODUCT_TOOL_NAMES
 
     offered = set(getattr(backend, "tools", []) or [])
     search = getattr(backend, "search_info", None) or {}
     out = []
-    for name in BIRD_TOOL_NAMES:
+    for name in PRODUCT_TOOL_NAMES:
         state = "on" if name in offered else "off"
         key = name
         if name == "read_file" and s.workspace is None and getattr(backend, "kind", "") != "demo":
@@ -274,9 +367,13 @@ def create_app(
     demo = demo or DemoBackend(delay=s.demo_delay)
     server = server_backend if server_backend is not None else build_server_backend(s)
     limiter = RateLimiter(s.rate_limit)
+    img_limiter = RateLimiter(s.img_rate_limit)
+    img_cache = ImageCache()
 
     app = FastAPI(title="Bird", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.settings, app.state.demo, app.state.server_backend = s, demo, server
+    # upstream client for /api/img: a fresh one per image (no cookie jar survives); tests swap in a mock transport
+    app.state.image_client = lambda: image_client(s)
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
@@ -289,6 +386,8 @@ def create_app(
             response.headers["Cache-Control"] = "public, max-age=0, s-maxage=86400, must-revalidate"
         elif path == "/" or path == "/manifest.webmanifest":
             response.headers["Cache-Control"] = "no-cache"
+        elif path == "/api/img" and response.status_code == 200:
+            pass  # a re-encoded public image, signed URL: cacheable (set by the route)
         elif path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
         return response
@@ -299,8 +398,7 @@ def create_app(
         forwarded = request.headers.get("x-forwarded-for", "")
         return forwarded.split(",")[0].strip() or (request.client.host if request.client else "?")
 
-    def guard_request(request: Request) -> None:
-        """Same-origin only (no CORS headers are ever sent), then the best-effort rate limit."""
+    def same_origin(request: Request) -> None:
         origin = request.headers.get("origin")
         if origin:
             host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
@@ -308,6 +406,10 @@ def create_app(
                 raise ApiError(403, "cross_origin", "cross-origin requests are not accepted")
         if request.headers.get("sec-fetch-site") in ("cross-site", "same-site"):
             raise ApiError(403, "cross_origin", "cross-origin requests are not accepted")
+
+    def guard_request(request: Request) -> None:
+        """Same-origin only (no CORS headers are ever sent), then the best-effort rate limit."""
+        same_origin(request)
         if not limiter.allow(client_ip(request)):
             raise ApiError(429, "rate_limited", "too many requests, wait a minute")
 
@@ -395,7 +497,7 @@ def create_app(
             "demo_model": demo.model,
             "access_required": bool(s.access_code),
             "images": bool(getattr(shown, "images", False)),
-                "site_url": "/a-propos/" if (SITE_DIR / "index.html").is_file() else None,
+            "site_url": "/a-propos/" if (SITE_DIR / "index.html").is_file() else None,
             "images_modes": {
                 "demo": bool(getattr(demo, "images", False)),
                 "server": bool(getattr(server, "images", False)) if server is not None else False,
@@ -505,6 +607,67 @@ def create_app(
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    @app.get("/api/img")
+    def web_image(request: Request):
+        """A web image Bird credited in an answer, fetched by the server and re-encoded, so the browser never
+        contacts a third-party host. Only URLs this server signed are served (not an open proxy)."""
+        from fastapi.responses import Response
+
+        from birds.harness import Config, guard
+
+        same_origin(request)
+        if not img_limiter.allow(client_ip(request)):
+            raise ApiError(429, "rate_limited", "too many requests, wait a minute")
+        q = request.query_params
+        u, e, sig = q.get("u") or "", q.get("e") or "", q.get("s") or ""
+        if (
+            not u
+            or len(u) > 2048
+            or not re.fullmatch(r"https?://\S+", u)
+            or not re.fullmatch(r"\d{1,12}", e)
+            or not re.fullmatch(r"[0-9a-f]{32}", sig)
+        ):
+            raise ApiError(400, "bad_request", "missing or invalid image parameters")
+        try:
+            tokens.check_image_sig(u, e, sig, s.signing_secret)
+        except tokens.TokenError as err:
+            if str(err) == "expired":
+                raise ApiError(410, "expired", "this image link has expired") from None
+            raise ApiError(403, "bad_signature", "this image link was not issued here") from None
+        host = (urlsplit(u).hostname or "?").lower()
+        headers = {
+            "Cache-Control": "public, max-age=3600, s-maxage=86400",
+            "Content-Disposition": 'inline; filename="image.webp"',
+        }
+        cached = img_cache.get(u)
+        if cached is not None:
+            return Response(cached, media_type="image/webp", headers=headers)
+        status, size = 200, 0
+        try:
+            cfg = Config(workspace=Path("."), audit_file=None, pin_dns=s.pin_dns)
+            client = app.state.image_client()
+            try:
+                ctype, raw = guard.fetch_image(client, cfg, u, max_bytes=IMG_MAX_BYTES, timeout=8.0)
+            finally:
+                client.close()
+            size = len(raw)
+            data = reencode_image(ctype, raw)
+        except guard.Blocked:
+            status = 403
+            raise ApiError(403, "blocked", "this address is not allowed") from None
+        except guard.FetchError as err:
+            status, code = {"image_type": (415, "image_type"), "too_large": (413, "too_large")}.get(
+                err.code, (502, "upstream")
+            )
+            raise ApiError(status, code, "the image could not be fetched") from None
+        except ApiError as err:
+            status = err.status_code
+            raise
+        finally:
+            print(json.dumps({"event": "img", "host": host, "status": status, "bytes": size}), flush=True)
+        img_cache.put(u, data)
+        return Response(data, media_type="image/webp", headers=headers)
+
     @app.post("/api/chat")
     async def chat(body: ChatBody, request: Request) -> StreamingResponse:
         guard_request(request)
@@ -594,7 +757,14 @@ def create_app(
         def sign(payload: dict) -> str:
             return tokens.sign({**payload, "conv": conv, "bind": binding}, s.signing_secret, s.confirm_ttl)
 
-        ctx = RunContext(emit, cancel, sign, time.monotonic() + s.max_seconds, s.max_inline_file_bytes)
+        ctx = RunContext(
+            emit,
+            cancel,
+            sign,
+            time.monotonic() + s.max_seconds,
+            s.max_inline_file_bytes,
+            sign_image=lambda u: tokens.sign_image_url(u, s.signing_secret, s.image_ttl),
+        )
 
         def worker() -> None:
             from birds.harness import guard
@@ -703,6 +873,7 @@ def create_app(
                 return Response(html, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-cache"})
             kind = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
             return FileResponse(f, media_type=kind, headers={"Cache-Control": "public, max-age=3600"})
+
     return app
 
 
