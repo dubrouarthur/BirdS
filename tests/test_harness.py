@@ -712,3 +712,38 @@ def test_office_text_stops_at_the_cap(tmp_path, monkeypatch):
     assert "ligne 0" in text and "ligne 499" not in text
     monkeypatch.setattr(files, "TEXT_CAP", 200_000)
     assert "ligne 499" in TOOLS["read_file"]({"path": "grand.xlsx"}, ctx(tmp_path))
+
+
+@pytest.mark.parametrize(
+    "ask,answer",
+    [
+        ("How do I update a slide in PowerPoint?", "Open the deck, select the slide; once edited the slide is updated."),
+        ("Comment ajouter une diapo dans PowerPoint ?", "Cliquez sur Nouvelle diapositive : la diapositive est prête."),
+        ("Mets à jour mon planning : réunion lundi 14h.", "Noté : lundi 14h réunion. Le document reste disponible."),
+        (
+            "Ajoute des idées pour ma présentation de demain",
+            "Voici quelques idées pour que votre présentation soit prête : 1. Ouvrir sur un chiffre clé.",
+        ),
+        (
+            "Mets à jour ce paragraphe avec la date de mars 2026 : « Le document de référence sera disponible bientôt. »",
+            "Voici le paragraphe mis à jour : le document de référence est disponible depuis mars 2026.",
+        ),
+    ],
+)
+def test_inline_answers_to_edit_or_howto_asks_are_kept(tmp_path, ask, answer):
+    agent, llm = make(tmp_path, [answer, answer])
+    run = agent.run(ask)
+    assert len(llm.prompts) == 1 and run.answer == answer
+
+
+def test_english_false_claim_is_reminded_then_honest(tmp_path):
+    agent, llm = make(tmp_path, ["Here is slide 6, added to your presentation.", "Done, the deck is updated."])
+    run = agent.run("Add a slide on risks")
+    assert len(llm.prompts) == 2 and "did not produce a file" in run.answer
+
+
+def test_inline_answer_after_the_reminder_is_kept(tmp_path):
+    inline = "Je ne peux pas modifier le fichier ici ; voici le texte de la diapositive : Risques — retard, budget."
+    agent, llm = make(tmp_path, [CLAIM, inline])
+    run = agent.run("Ajoute une diapo sur les risques")
+    assert len(llm.prompts) == 2 and run.answer == inline

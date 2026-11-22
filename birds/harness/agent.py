@@ -41,10 +41,18 @@ _EDIT_ASK = re.compile(
     r"\b(?:ajoute[rz]?|modifie[rz]?|met[sz]? à jour|mettre à jour|add (?:a|an|one) (?:slide|section|sheet)|update)\b",
     re.I,
 )
+# Only a claim that something was done to a file counts: "prête", "disponible" or "ready" also describe an inline
+# answer ("pour que votre présentation soit prête"), so they are not claims.
 _FILE_CLAIM = re.compile(
     r"\b(?:fichier|pr[ée]sentation|diapositive|diapo|document|tableur|file|deck|presentation|slide|spreadsheet)\b"
-    r".{0,40}\b(?:pr[êe]te?s?|int[ée]gr[ée]e?s?|mise? à jour|disponibles?|ready|updated|saved|added)\b",
+    r".{0,40}\b(?:int[ée]gr[ée]e?s?|mise? à jour|ajout[ée]e?s?|enregistr[ée]e?s?|integrated|updated|saved|added)\b",
     re.I | re.S,
+)
+# A how-to question ("Comment ajouter une diapo dans PowerPoint ?") asks for steps, not for a file.
+_HOWTO = re.compile(
+    r"^\s*(?:comment|how|pourquoi|why|o[uù]|where|quand|when|est-ce qu)\b|\b(?:how (?:do|can|to|should)|"
+    r"comment (?:faire|on|je|puis|peut))\b",
+    re.I,
 )
 NO_FILE_NUDGE = (
     "No file exists: nothing was created or updated, because no make_* tool ran. Call the make_* tool now with the "
@@ -107,8 +115,11 @@ def route(user: str, attached: bool = False) -> set[str]:
     return set()
 
 
-def _file_or_edit_ask(text: str) -> bool:
-    return bool(_FILE_ASK.search(text or "") or _EDIT_ASK.search(text or ""))
+def _file_edit_ask(text: str, attached: bool = False) -> bool:
+    """A request to change a file: an edit verb that names a format or comes with a document, and not a how-to
+    question. "Mets à jour mon planning : réunion lundi 14h." or "Comment ajouter une diapo ?" are not."""
+    text = text or ""
+    return bool(_EDIT_ASK.search(text) and (attached or _FILE_ASK.search(text)) and not _HOWTO.search(text))
 
 
 def _made_file(run, ctx: Context) -> bool:
@@ -417,7 +428,8 @@ class Agent:
                     if out.get("finish_reason") == "repetition":
                         run.stop_reason = "repetition"  # the model looped: stopped early, one copy kept
                     if run.stop_reason == "answer" and not _made_file(run, ctx):
-                        if not file_nudged and _file_or_edit_ask(ctx.request) and _FILE_CLAIM.search(content):
+                        claims = bool(_FILE_CLAIM.search(content))
+                        if not file_nudged and claims and _file_edit_ask(ctx.request, attached):
                             if gen < cfg.max_steps - 1 and time.monotonic() < deadline:
                                 # it claims a file that does not exist: tell it once, and let it make the file
                                 file_nudged = True
@@ -434,8 +446,9 @@ class Agent:
                                 gen += 1
                                 continue
                             content = NO_FILE[run.lang]
-                        elif file_nudged:
-                            content = NO_FILE[run.lang]  # reminded once, and still no file: say so, plainly
+                        elif file_nudged and claims:
+                            content = NO_FILE[run.lang]  # reminded once, and still claims a file: say so, plainly
+                        # reminded once and now answering inline without a claim: that answer is kept
                     break
                 if gen == cfg.max_steps - 1:
                     run.stop_reason = "max_steps"  # the last allowed generation still asks for tools: they are not run
