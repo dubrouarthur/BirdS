@@ -127,6 +127,11 @@ def test_health(client):
     assert data["model_label"] == "Bird S 4B"
     assert data["modes"] == {"demo": True, "server": False, "user": False}
     assert set(data["tools"]) >= {"web_search", "read_page", "draft_email", "make_slides"}
+    for tool in data["tools_info"]["tools"]:  # every description is a whole sentence, never "Recherche :"
+        assert tool["fr"].strip() and not tool["fr"].rstrip().endswith(":"), tool
+        assert tool["en"].strip() and not tool["en"].rstrip().endswith(":"), tool
+    search = next(x for x in data["tools_info"]["tools"] if x["name"] == "web_search")
+    assert search["state"] == "on" and search["fr"] == "Cherche sur le web et cite ses sources"
     assert data["thinking_default"] is False and data["access_required"] is False
     assert data["grid_intensity_g_per_kwh"] is None and data["equivalent"] is None
     assert data["endpoint_hosts"] == ["*.endpoints.huggingface.cloud"]
