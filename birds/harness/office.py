@@ -186,9 +186,14 @@ def _level(bullet: str) -> tuple[int, str]:
 KEY_FIGURES = {"fr": "Chiffres clés", "en": "Key figures"}
 
 _FIG = re.compile(
-    r"(?<![\w,.])[+\-−]?\d{1,3}(?:[   ]\d{3})*(?:[.,]\d+)?|(?<![\w,.])[+\-−]?\d+(?:[.,]\d+)?"
+    r"(?<![\w,.])[+\-−]?\d{1,3}(?:[   ]\d{3})*(?!\d)(?:[.,]\d+)?|(?<![\w,.])[+\-−]?\d+(?:[.,]\d+)?"
 )
-_FIG_UNIT = re.compile(r"\s?(?:%|M€|K€|k€|Md€|Mds€|€|M\b|Md\b|k\b|pts?\b|points?\b)", re.I)
+_FIG_UNIT = re.compile(
+    r"\s?(?:%|M€|K€|k€|Md€|Mds€|€|M\b|Md\b|k\b|pts?\b|points?\b|heures?\b|hours?\b|jours?\b|days?\b|h\b)", re.I
+)
+# a span of values ('21 à 26', 'de 3 à 5 jours', 'from 2 to 4'): no single headline figure, so no kpi card
+_RANGE = re.compile(r"\d\s*(?:à|a|to|-|–)\s*[+\-−]?\d|\bde\s+\S+\s+à\s|\bfrom\s+\S+\s+to\s", re.I)
+_YEAR = re.compile(r"(?:19|20)\d{2}")
 _COUNT_WORDS = re.compile(
     r"\s*(?:slides?|diapo\w*|pages?|parties|sections?|points?|minutes?|min\b|mots|lignes|colonnes|bullets?)", re.I
 )
@@ -263,7 +268,9 @@ def layout_of(bullets: list[str]) -> str:
         return "bullets"
     if 3 <= len(bullets) <= 5 and all(_STEP.match(b) and len(_STEP.sub("", b)) <= 70 for b in bullets):
         return "steps"  # before kpi: "Phase 1 : ..." carries a digit but is not a figure
-    if 1 <= len(bullets) <= 4 and all(len(b) <= 60 and _FIG.search(b) and not _STEP.match(b) for b in bullets):
+    if 1 <= len(bullets) <= 4 and all(
+        len(b) <= 60 and _FIG.search(b) and not _STEP.match(b) and not _RANGE.search(b) for b in bullets
+    ):
         return "kpi"
     if len(bullets) >= 6 and all(len(b) <= 60 for b in bullets):
         return "columns"
@@ -273,7 +280,12 @@ def layout_of(bullets: list[str]) -> str:
 def kpi_parts(bullet: str) -> tuple[str, str]:
     """'CA : 1,2 M€ (+8 %)' -> ('1,2 M€', 'CA (+8 %)'): the first figure, big, and what it measures."""
     text = plain(bullet)
-    m = _FIG.search(text)
+    found = list(_FIG.finditer(text))
+    # a year ('CA 2026 : 3,4 M€') says when, not how much: the headline is the next figure, if there is one
+    m = next(
+        (f for f in found if not (_YEAR.fullmatch(f.group(0)) and not _FIG_UNIT.match(text[f.end() :]))),
+        found[0],
+    )
     unit = _FIG_UNIT.match(text[m.end() :])
     end = m.end() + (len(unit.group(0)) if unit else 0)
     big = text[m.start() : end].strip()
