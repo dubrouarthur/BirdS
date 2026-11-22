@@ -203,9 +203,11 @@ function drawBars(spec, fmt) {
     return { g, H, marks, hits };
   }
   // horizontal bars: one row per label, labels on the left
+  // at least 22px per row so that 12px labels never shrink: a long list makes a taller card, never a smaller font
   const rowH =
-    Math.max(14, Math.min(26, 220 / labels.length)) * Math.max(1, nS * 0.8);
-  const m = { l: W < 600 ? 112 : 150, r: 40, t: 12, b: 32 };
+    Math.max(22, Math.min(28, 240 / labels.length)) * Math.max(1, nS * 0.8);
+  const tall = labels.length > 14; // ticks are repeated above the rows, so the scale stays in view
+  const m = { l: W < 600 ? 112 : 150, r: 40, t: tall ? 28 : 12, b: 32 };
   const H = Math.round(m.t + m.b + rowH * labels.length + 8);
   const pw = W - m.l - m.r;
   const x = (v) => m.l + ((v - t0) / (t1 - t0)) * pw;
@@ -231,6 +233,14 @@ function drawBars(spec, fmt) {
         fmt(tk),
       ),
     );
+    if (tall)
+      g.append(
+        s(
+          "text",
+          { class: "chart-tick", x: x(tk), y: m.t - 10, "text-anchor": "middle" },
+          fmt(tk),
+        ),
+      );
   }
   const bh = (rowH * 0.76) / nS;
   labels.forEach((label, i) => {

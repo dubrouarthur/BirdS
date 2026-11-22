@@ -1839,8 +1839,7 @@ details[open] > summary > .chev {
 .chart-svg {
   display: block;
   inline-size: 100%;
-  block-size: auto;
-  max-block-size: 360px;
+  block-size: auto; /* drawn at its real size: no cap, a long horizontal bar chart makes a taller card */
   overflow: visible;
   font-family: var(--sans);
 }
