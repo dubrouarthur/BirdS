@@ -386,14 +386,43 @@ function clearAll() {
 
 const isNarrow = () => window.matchMedia("(max-width: 900px)").matches;
 function setSidebar(open) {
+  const side = $("sidebar");
+  const modal = open && isNarrow(); // on phones and tablets the open drawer is a modal: what is behind it is inert
   document.body.classList.toggle("side-open", open);
   document.body.classList.toggle("side-closed", !open);
   delete document.documentElement.dataset.side;
   $("btn-menu").setAttribute("aria-expanded", String(open));
-  $("backdrop").hidden = !(open && isNarrow());
-  $("sidebar").inert = !open;
+  $("backdrop").hidden = !modal;
+  for (const el of document.querySelectorAll(".main, .skip")) el.inert = modal;
+  // focus leaves the drawer before it turns inert, back to the button that opened it
+  if (!open && side.contains(document.activeElement)) $("btn-menu").focus();
+  side.inert = !open;
   if (!isNarrow()) store.set("bird.side", open ? "1" : "0");
-  if (open && isNarrow()) $("btn-new").focus();
+  if (modal) $("btn-new").focus();
+}
+/** Tab and Shift+Tab wrap inside the open drawer on narrow screens, so focus never leaves the modal. */
+function trapDrawer(e) {
+  if (
+    e.key !== "Tab" ||
+    !isNarrow() ||
+    !document.body.classList.contains("side-open")
+  )
+    return;
+  const items = [
+    ...$("sidebar").querySelectorAll(
+      "button, input, a[href], [tabindex]:not([tabindex='-1'])",
+    ),
+  ].filter((el) => !el.disabled && !el.hidden && el.getClientRects().length);
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
 }
 const closeDrawer = () => isNarrow() && setSidebar(false);
 
@@ -1510,6 +1539,7 @@ function bind() {
   );
   $("btn-side-close").addEventListener("click", () => setSidebar(false));
   $("backdrop").addEventListener("click", () => setSidebar(false));
+  $("sidebar").addEventListener("keydown", trapDrawer);
   $("btn-clear").addEventListener("click", clearAll);
   $("conv-search").addEventListener("input", (e) => {
     search = e.target.value;
@@ -1574,9 +1604,9 @@ function bind() {
       setSidebar(!document.body.classList.contains("side-open"));
     } else if (e.key === "Escape") {
       if (document.querySelector("dialog[open]")) return;
-      if (state.busy) stop();
-      else if (isNarrow() && document.body.classList.contains("side-open"))
-        setSidebar(false);
+      if (isNarrow() && document.body.classList.contains("side-open"))
+        setSidebar(false); // the open drawer is on top: Escape closes it first, an answer keeps streaming
+      else if (state.busy) stop();
       else if (state.view !== "chat") showView("chat");
     } else if (!typing && !mod && !e.altKey && e.key === "/") {
       e.preventDefault();
