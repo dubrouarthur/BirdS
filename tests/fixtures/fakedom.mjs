@@ -28,6 +28,11 @@ class Node_ {
       this.childNodes.push(node);
     }
   }
+  replaceChildren(...nodes) {
+    for (const c of this.childNodes) c.parentNode = null;
+    this.childNodes = [];
+    this.append(...nodes);
+  }
   remove() {
     if (this.parentNode) {
       const p = this.parentNode;

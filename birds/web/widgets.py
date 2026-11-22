@@ -99,13 +99,18 @@ def event_widget(text: str, now: datetime, lang: str, *, draft: dict | None = No
     if day.weekday() >= 5:
         warnings.append({"kind": "weekend", "label": "samedi" if day.weekday() == 5 else "dimanche"}
                         if lang == "fr" else {"kind": "weekend", "label": day.strftime("%A")})  # fmt: skip
+    table: dict[str, str] = {}
     if holidays:
-        try:
-            names = holidays(day.year) or {}
-        except Exception:  # noqa: BLE001 - a missing holiday list only removes a warning
-            names = {}
-        if day.isoformat() in names:
-            warnings.append({"kind": "holiday", "label": str(names[day.isoformat()])[:60]})
+        for year in sorted({day.year, day.year + 1 if day.month == 12 else day.year}):
+            try:
+                names = holidays(year) or {}
+            except Exception:  # noqa: BLE001 - a missing holiday list only removes a warning
+                names = {}
+            table.update({str(k): str(v)[:60] for k, v in names.items() if re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(k))})
+        if day.isoformat() in table:
+            warnings.append({"kind": "holiday", "label": table[day.isoformat()], "date": day.isoformat()})
+    for w in warnings:
+        w.setdefault("date", day.isoformat())
     return {
         "type": "event",
         "v": 1,
@@ -118,6 +123,7 @@ def event_widget(text: str, now: datetime, lang: str, *, draft: dict | None = No
         "description": desc,
         "assumptions": got["assumptions"],
         "warnings": warnings,
+        "holidays": table,  # the card re-checks the day when the user changes it
         "matched": got["matched"][:120],
     }
 

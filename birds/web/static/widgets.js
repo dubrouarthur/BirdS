@@ -588,6 +588,32 @@ function renderFx(w) {
 
 // ------------------------------------------------------------------ event
 
+/** The event card's chips for the fields as they are now: [["warn" | "info", label], ...]. */
+export function eventChips(f, holidays = {}, warnings = []) {
+  const out = [];
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(f.date || ""));
+  if (m) {
+    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    const known = warnings.find((x) => x.kind === "holiday" && x.date === f.date);
+    const name = holidays[f.date] || known?.label;
+    if (name) out.push(["warn", t("event.holiday", { name })]);
+    const wd = d.getUTCDay();
+    if (wd === 0 || wd === 6)
+      out.push([
+        "warn",
+        t("event.weekend", {
+          day: d.toLocaleDateString(locale(), {
+            weekday: "long",
+            timeZone: "UTC",
+          }),
+        }),
+      ]);
+  }
+  if (!f.start) out.push(["info", t("event.allDay")]);
+  else if (f.assumedEnd || !f.end) out.push(["info", t("event.defaultDuration")]);
+  return out;
+}
+
 function renderEvent(w) {
   const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(String(w.start || ""));
   const e = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(String(w.end || ""));
@@ -686,25 +712,36 @@ function renderEvent(w) {
       .filter(Boolean)
       .join("\n");
   };
-  const chips = [
-    ...(w.warnings || []).map((x) =>
-      h(
-        "span",
-        { class: "ev-chip ev-chip-warn" },
-        icon("alert"),
-        h("span", {
-          text:
-            x.kind === "holiday"
-              ? t("event.holiday", { name: x.label })
-              : t("event.weekend", { day: x.label }),
-        }),
-      ),
-    ),
-    ...((w.assumptions || []).includes("default_duration")
-      ? [h("span", { class: "ev-chip", text: t("event.defaultDuration") })]
-      : []),
-    w.all_day ? h("span", { class: "ev-chip", text: t("event.allDay") }) : null,
-  ].filter(Boolean);
+  // the chips follow the fields: a holiday or a weekend for the day now shown, "all day" when there is no start,
+  // "default duration" only while the end is still the one assumed from the words
+  let assumedEnd = (w.assumptions || []).includes("default_duration");
+  const chipBox = h("p", { class: "ev-chips", "aria-live": "polite" });
+  const paintChips = () => {
+    const flags = eventChips(
+      { date: date.value, start: start.value, end: end.value, assumedEnd },
+      w.holidays || {},
+      (w.warnings || []).map((x) => ({ ...x, date: x.date || m[1] })),
+    );
+    const chips = flags.map(([kind, label]) =>
+      kind === "warn"
+        ? h(
+            "span",
+            { class: "ev-chip ev-chip-warn" },
+            icon("alert"),
+            h("span", { text: label }),
+          )
+        : h("span", { class: "ev-chip", text: label }),
+    );
+    chipBox.replaceChildren(...chips);
+    chipBox.hidden = chips.length === 0;
+  };
+  date.addEventListener("input", paintChips);
+  start.addEventListener("input", paintChips);
+  end.addEventListener("input", () => {
+    assumedEnd = false;
+    paintChips();
+  });
+  paintChips();
   return section(
     "event",
     t("event.title"),
@@ -726,7 +763,7 @@ function renderEvent(w) {
         field("place", loc),
       ),
     ),
-    chips.length > 0 && h("p", { class: "ev-chips" }, chips),
+    chipBox,
     w.matched &&
       h("p", {
         class: "muted ev-matched",

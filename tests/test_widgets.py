@@ -617,3 +617,24 @@ def test_pin_tip_is_on_the_coordinate():
     assert "transform: translate(-50%, calc(-100% - var(--tail)))" in pin and "border-radius: 13px;" in pin
     assert "inset-inline-start: 50%" in tail and "translate: -50% 0" in tail
     assert "border-block-start: var(--tail) solid" in tail
+
+
+@needs_node
+def test_event_chips_follow_the_fields():
+    holidays = lambda y: json.loads((DATA / "feries_metropole_2026.json").read_text())  # noqa: E731
+    w = event_widget("Cale un déjeuner avec l'équipe le 25 décembre à midi", NOW, "fr", holidays=holidays)
+    assert w["holidays"]["2026-12-25"] == "Jour de Noël" and w["warnings"][0]["date"] == "2026-12-25"
+    got = run_js(
+        "const el = render(data.w); const chips = () => el.querySelector('.ev-chips').textContent;"
+        "const [date, start] = el.querySelectorAll('input').filter((i) => ['date', 'time'].includes(i.attributes.type));"
+        "const a = chips(); date.value = '2026-12-28'; date.dispatch('input'); const b = chips();"
+        "date.value = '2026-12-26'; date.dispatch('input'); const c = chips();"
+        "start.value = ''; start.dispatch('input'); const d = chips();"
+        "out({ a, b, c, d, pure: W.eventChips({ date: '2026-11-11', start: '10:00', end: '11:00' }, data.w.holidays) });",
+        w=w,
+    )
+    assert "Jour de Noël" in got["a"] and "Durée par défaut" in got["a"]
+    assert "Jour de Noël" not in got["b"] and "Week-end" not in got["b"] and "Durée par défaut" in got["b"]
+    assert "Week-end (samedi)" in got["c"]
+    assert "Journée entière" in got["d"] and "Durée par défaut" not in got["d"]
+    assert got["pure"] == [["warn", "Jour férié : 11 novembre"]]
