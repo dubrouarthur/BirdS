@@ -702,17 +702,43 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
   const type = ["bar", "line", "pie"].includes(spec.type) ? spec.type : "bar";
   const series = spec.columns.slice(1, 1 + MAX_SERIES);
   const n = spec.rows.length;
-  const vals = spec.rows
-    .map((r, i) => ({ i, v: r[1] }))
-    .filter((x) => typeof x.v === "number");
-  const max = vals.reduce((a, b) => (b.v > a.v ? b : a), vals[0]);
-  const min = vals.reduce((a, b) => (b.v < a.v ? b : a), vals[0]);
-  const summary = max
-    ? [
-        t("chart.max", { label: spec.rows[max.i][0], value: fmt(max.v) }),
-        t("chart.min", { label: spec.rows[min.i][0], value: fmt(min.v) }),
-      ].join(". ")
-    : "";
+  // what a screen reader hears: max and min of the series, or of each series when there are several
+  const extremes = (j) => {
+    const pts = spec.rows
+      .map((r, i) => ({ i, v: r[j] }))
+      .filter((x) => typeof x.v === "number");
+    if (!pts.length) return null;
+    return {
+      max: pts.reduce((a, b) => (b.v > a.v ? b : a)),
+      min: pts.reduce((a, b) => (b.v < a.v ? b : a)),
+    };
+  };
+  const summary =
+    series.length > 1
+      ? series
+          .map((name, j) => {
+            const e = extremes(j + 1);
+            return e
+              ? t("chart.series.range", {
+                  name,
+                  min: fmt(e.min.v),
+                  minLabel: spec.rows[e.min.i][0],
+                  max: fmt(e.max.v),
+                  maxLabel: spec.rows[e.max.i][0],
+                })
+              : "";
+          })
+          .filter(Boolean)
+          .join(". ")
+      : (() => {
+          const e = extremes(1);
+          return e
+            ? [
+                t("chart.max", { label: spec.rows[e.max.i][0], value: fmt(e.max.v) }),
+                t("chart.min", { label: spec.rows[e.min.i][0], value: fmt(e.min.v) }),
+              ].join(". ")
+            : "";
+        })();
   const tip = h("div", {
     class: "chart-tip",
     role: "status",
