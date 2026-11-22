@@ -63,22 +63,10 @@ log("copied", copied, "of", len(merged), "| unmapped:", missing[:10])
 assert copied == len(merged), f"unmapped merged tensors: {missing[:20]}"
 del merged
 
-# sanity: the full merged model must answer with its new identity
-# the tokenizer is saved next to the adapter at the end of training; a mid-run checkpoint has none
-tok = AutoTokenizer.from_pretrained(a.adapter if (Path(a.adapter) / "tokenizer_config.json").exists() else a.base)
-full.to(dev).eval()
-for q in ("Qui es-tu ?", "Who made you?"):
-    ids = tok.apply_chat_template([{"role": "user", "content": q}], add_generation_prompt=True, enable_thinking=False,
-                                  return_tensors="pt", return_dict=True).to(dev)
-    with torch.no_grad():
-        out = full.generate(**ids, max_new_tokens=40, do_sample=False)
-    log("SANITY", q, "->", repr(tok.decode(out[0][ids["input_ids"].shape[1]:], skip_special_tokens=True)))
-full.to("cpu")
-
 local = Path("/tmp/merged")
 local.mkdir(parents=True, exist_ok=True)
 full.save_pretrained(local, safe_serialization=True, max_shard_size="5GB")
-tok.save_pretrained(local)
+AutoTokenizer.from_pretrained(a.adapter if (Path(a.adapter) / "tokenizer_config.json").exists() else a.base).save_pretrained(local)
 for f in ("preprocessor_config.json", "video_preprocessor_config.json", "chat_template.jinja", "generation_config.json", "LICENSE"):
     try:
         shutil.copy(hf_hub_download(a.base, f), local / f)
@@ -96,3 +84,13 @@ os.sync()
 log("waiting for the bucket mount to flush")
 time.sleep(int(os.environ.get("FLUSH_WAIT", "240")))
 log("done", sorted(p.name for p in out.iterdir()))
+
+# sanity AFTER the files are safely in the bucket: a few greedy tokens are enough to see the new identity
+# (bf16 generation on CPU is very slow, so keep it short)
+tok_s = AutoTokenizer.from_pretrained(a.adapter if (Path(a.adapter) / "tokenizer_config.json").exists() else a.base)
+full.to(dev).eval()
+ids = tok_s.apply_chat_template([{"role": "user", "content": "Qui es-tu ?"}], add_generation_prompt=True,
+                                enable_thinking=False, return_tensors="pt", return_dict=True).to(dev)
+with torch.no_grad():
+    gen = full.generate(**ids, max_new_tokens=8 if dev == "cpu" else 40, do_sample=False)
+log("SANITY Qui es-tu ? ->", repr(tok_s.decode(gen[0][ids["input_ids"].shape[1]:], skip_special_tokens=True)))
