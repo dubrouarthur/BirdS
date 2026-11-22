@@ -350,18 +350,27 @@ def test_generated_files_open_and_read_back(tmp_path):
     TOOLS["make_document"](
         {"title": "../../etc/x", "sections": [{"heading": "Contexte", "content": "Ligne 1\nLigne 2"}]}, c
     )
-    assert c.files[1].startswith("bird_out/etc-x-") and [p.text for p in docx.Document(str(tmp_path / c.files[1])).paragraphs] == [
-        "../../etc/x", "Contexte", "Ligne 1", "Ligne 2"]  # fmt: skip
+    paras = [p.text for p in docx.Document(str(tmp_path / c.files[1])).paragraphs]
+    assert c.files[1].startswith("bird_out/etc-x-") and paras[0] == "../../etc/x"  # title; paras[1] is the date
+    assert paras[2:] == ["Contexte", "Ligne 1", "Ligne 2"]
     TOOLS["make_sheet"](
-        {"title": "Budget", "columns": ["Poste", "Montant"], "rows": [["Loyer", 1200.5], ["=1+1", None]]}, c
+        {
+            "title": "Budget",
+            "columns": ["Poste", "Montant"],
+            "rows": [["Loyer", 1200.5], ["=1+1", None], ['=WEBSERVICE("http://x.test")', "=SUM(B2:B2)"]],
+        },
+        c,
     )
     ws = openpyxl.load_workbook(str(tmp_path / c.files[2])).active
     assert [[x.value for x in row] for row in ws.iter_rows()] == [
         ["Poste", "Montant"],
         ["Loyer", 1200.5],
         ["=1+1", None],
+        ['=WEBSERVICE("http://x.test")', "=SUM(B2:B2)"],
     ]
-    assert ws["A3"].data_type == "s"  # stored as text, not as a formula
+    assert ws["A3"].data_type == "f" and ws["B4"].data_type == "f"  # formulas inside the file are kept
+    assert ws["A4"].data_type == "s"  # a formula reaching outside the file is stored as text, never evaluated
+    assert ws.freeze_panes == "A2" and ws["A1"].font.bold
     assert all((tmp_path / f).resolve().parent == tmp_path / "bird_out" for f in c.files) and len(set(c.files)) == 3
     assert "Ventes" in TOOLS["read_file"]({"path": c.files[0]}, c) and "Ligne 2" in TOOLS["read_file"](
         {"path": c.files[1]}, c

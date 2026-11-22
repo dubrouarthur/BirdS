@@ -142,10 +142,11 @@ def _bullet(paragraph, level: int, char: str = "•") -> None:
 
 
 def _text(frame, text: str, size: float, color: str = INK, bold: bool = False, font: str = FONT):
-    from pptx.util import Pt
+    from pptx.enum.text import PP_ALIGN
 
     p = frame.paragraphs[0]
     p.text = ""
+    p.alignment = PP_ALIGN.LEFT
     _runs(p, text, size, color, bold, font)
     return p
 
@@ -221,7 +222,18 @@ def build_pptx(path, title: str, slides: list[dict], subtitle: str = "") -> int:
     prs = Presentation()
     prs.slide_width, prs.slide_height = Inches(13.333), Inches(7.5)
     W, H = prs.slide_width, prs.slide_height
-    blank = prs.slide_layouts[6]
+    blank = prs.slide_layouts[5]  # "Title Only": real slide titles (outline view, screen readers, read_file)
+
+    def title_box(slide, x, y, w, h):
+        t = slide.shapes.title
+        t.left, t.top, t.width, t.height = x, y, w, h
+        sp = t._element  # drawn last, above the decorative shapes added after it
+        tree = sp.getparent()
+        tree.remove(sp)
+        tree.append(sp)
+        t.text_frame.word_wrap = True
+        return t
+
     plan = plan_slides(slides)
     total = len(plan) + 1
 
@@ -239,7 +251,7 @@ def build_pptx(path, title: str, slides: list[dict], subtitle: str = "") -> int:
     s = prs.slides.add_slide(blank)
     _box(s, 0, 0, W, H, NAVY)
     _box(s, Inches(0.9), Inches(3.05), Inches(0.9), Emu(54000), BLUE)
-    tb = s.shapes.add_textbox(Inches(0.9), Inches(1.2), W - Inches(1.8), Inches(1.75))
+    tb = title_box(s, Inches(0.9), Inches(1.2), W - Inches(1.8), Inches(1.75))
     tf = tb.text_frame
     tf.word_wrap, tf.vertical_anchor = True, MSO_ANCHOR.BOTTOM
     _text(tf, title, 48 if len(title) < 50 else 36, "FFFFFF", bold=True)
@@ -254,13 +266,13 @@ def build_pptx(path, title: str, slides: list[dict], subtitle: str = "") -> int:
         if item["section"]:  # a slide without bullets is a section divider
             _box(s, 0, 0, Inches(0.35), H, BLUE)
             _box(s, Inches(0.35), 0, W - Inches(0.35), H, SOFT)
-            tb = s.shapes.add_textbox(Inches(1.2), Inches(2.6), W - Inches(2.4), Inches(2.0))
+            tb = title_box(s, Inches(1.2), Inches(2.6), W - Inches(2.4), Inches(2.0))
             tb.text_frame.word_wrap, tb.text_frame.vertical_anchor = True, MSO_ANCHOR.MIDDLE
             _text(tb.text_frame, item["title"], 44, NAVY, bold=True)
             footer(s, n)
         else:
             _box(s, 0, 0, W, Inches(0.12), NAVY)
-            tb = s.shapes.add_textbox(Inches(0.7), Inches(0.45), W - Inches(1.4), Inches(1.0))
+            tb = title_box(s, Inches(0.7), Inches(0.45), W - Inches(1.4), Inches(1.0))
             tb.text_frame.word_wrap, tb.text_frame.vertical_anchor = True, MSO_ANCHOR.BOTTOM
             _text(tb.text_frame, item["title"], 36 if len(item["title"]) < 50 else 28, NAVY, bold=True)
             _box(s, Inches(0.7), Inches(1.6), Inches(0.9), Emu(45000), BLUE)

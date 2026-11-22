@@ -103,7 +103,7 @@ MESSAGES = {
     ),
     "unknown_model": (
         "L'endpoint répond, mais ne connaît pas ce nom de modèle. Mettez dans « Nom du modèle » (ou BIRD_MODEL) le nom indiqué par l'endpoint après « Valid aliases ».",
-        "The endpoint answers but does not know this model name. Set the model name (or BIRD_MODEL) to the name the endpoint lists after \"Valid aliases\".",
+        'The endpoint answers but does not know this model name. Set the model name (or BIRD_MODEL) to the name the endpoint lists after "Valid aliases".',
     ),
     "wrong_route": (
         "L'adresse répond, mais pas sur /v1/completions. Vérifiez l'URL et que le moteur expose l'API compatible OpenAI.",

@@ -24,8 +24,29 @@ def user_agent(contact: str | None = None) -> str:
     return USER_AGENT.format(contact=f"; {contact}" if contact else "")
 
 
-def _json(r) -> dict:
-    r.raise_for_status()
+class SearchError(Exception):
+    """A search backend failed in a way worth telling the user. ``code`` is stable (UI translation)."""
+
+    def __init__(self, code: str, message: str, retry_after: float | None = None):
+        super().__init__(message)
+        self.code, self.retry_after = code, retry_after
+
+
+def _status_error(r, label: str) -> SearchError:
+    if r.status_code in (401, 403):
+        return SearchError("search_unauthorized", f"{label} refused the API key (HTTP {r.status_code})")
+    if r.status_code in (402, 432, 433):
+        return SearchError("search_quota", f"{label}: search quota or plan limit reached (HTTP {r.status_code})")
+    if r.status_code == 429:
+        return SearchError("search_rate_limited", f"{label} is rate limiting searches (HTTP 429)")
+    if r.status_code in (400, 422):
+        return SearchError("search_bad_request", f"{label} rejected the query (HTTP {r.status_code})")
+    return SearchError("search_failed", f"{label} failed (HTTP {r.status_code})")
+
+
+def _json(r, label: str = "the search service") -> dict:
+    if r.status_code >= 400:
+        raise _status_error(r, label)
     if len(r.content) > MAX_BYTES:
         raise ValueError("search response too large")
     data = r.json()
@@ -53,7 +74,7 @@ class SearxngBackend:
         r = self.http.get(self.url, params=params, timeout=self.timeout)
         return [
             {"title": x.get("title") or "", "url": x.get("url") or "", "snippet": x.get("content") or ""}
-            for x in (_json(r).get("results") or [])[:n]
+            for x in (_json(r, self.label).get("results") or [])[:n]
         ]
 
 
@@ -63,18 +84,62 @@ class BraveBackend:
     name, label = "brave", "Brave Search"
     URL = "https://api.search.brave.com/res/v1/web/search"
 
-    def __init__(self, api_key: str, http, timeout: float = 10.0):
+    def __init__(self, api_key: str, http, timeout: float = 10.0, sleep=None, retries: int = 1):
+        import time
+
         self.key, self.http, self.timeout = api_key, http, timeout
+        self.sleep, self.retries = sleep or time.sleep, retries
+
+    @staticmethod
+    def limit_error(r) -> SearchError:
+        """429 from Brave: X-RateLimit-Remaining / -Reset hold one comma-separated value per window
+        (per second, per month). A monthly remaining of 0 means the plan's quota is used up."""
+
+        def values(name):
+            try:
+                return [float(x) for x in (r.headers.get(name) or "").split(",") if x.strip()]
+            except ValueError:
+                return []
+
+        remaining, reset = values("x-ratelimit-remaining"), values("x-ratelimit-reset")
+        if len(remaining) > 1 and remaining[-1] <= 0:
+            return SearchError(
+                "search_quota",
+                "Brave Search: the monthly search quota is used up (HTTP 429)",
+                reset[-1] if len(reset) > 1 else None,
+            )
+        return SearchError(
+            "search_rate_limited", "Brave Search is rate limiting searches (HTTP 429)", reset[0] if reset else None
+        )
 
     def search(self, query: str, n: int, lang: str | None = None) -> list[dict]:
-        params = {"q": query, "count": max(1, min(int(n), 20)), **({"search_lang": lang} if lang else {})}
+        params = {
+            "q": query,
+            "count": max(1, min(int(n), 20)),
+            **({"search_lang": lang} if lang else {}),
+            "extra_snippets": "true",
+        }
         headers = {"Accept": "application/json", "X-Subscription-Token": self.key}
         r = self.http.get(self.URL, params=params, headers=headers, timeout=self.timeout)
-        results = ((_json(r).get("web") or {}).get("results")) or []
-        return [
-            {"title": _clean(x.get("title")), "url": x.get("url") or "", "snippet": _clean(x.get("description"))}
-            for x in results[:n]
-        ]
+        if r.status_code == 429:
+            err = self.limit_error(r)
+            if err.code == "search_rate_limited" and (err.retry_after or 0) <= 2 and self.retries:
+                self.sleep(max(1.0, err.retry_after or 1.0))  # per-second window: one polite retry
+                r = self.http.get(self.URL, params=params, headers=headers, timeout=self.timeout)
+                if r.status_code == 429:
+                    raise self.limit_error(r)
+            else:
+                raise err
+        results = ((_json(r, self.label).get("web") or {}).get("results")) or []
+        out = []
+        for x in results[:n]:
+            if not isinstance(x, dict):
+                continue
+            extra = " ".join(_clean(e) for e in (x.get("extra_snippets") or [])[:2] if isinstance(e, str))
+            snippet = _clean(x.get("description")) + (" " + extra if extra else "")
+            age = _clean(x.get("age") or x.get("page_age") or "")
+            out.append({"title": _clean(x.get("title")), "url": x.get("url") or "", "snippet": snippet, "date": age})
+        return out
 
 
 class TavilyBackend:
@@ -91,8 +156,9 @@ class TavilyBackend:
         headers = {"Authorization": f"Bearer {self.key}", "Content-Type": "application/json"}
         r = self.http.post(self.URL, json=body, headers=headers, timeout=self.timeout)
         return [
-            {"title": _clean(x.get("title")), "url": x.get("url") or "", "snippet": _clean(x.get("content"))}
-            for x in (_json(r).get("results") or [])[:n]
+            {"title": _clean(x.get("title")), "url": x.get("url") or "", "snippet": _clean(x.get("content"))[:600]}
+            for x in (_json(r, self.label).get("results") or [])[:n]
+            if isinstance(x, dict)
         ]
 
 
@@ -114,7 +180,11 @@ class WikipediaBackend:
 
     @property
     def label(self) -> str:
-        return "Wikipédia" if self.default_lang == "fr" else "Wikipedia"
+        return self.label_for(self.default_lang)
+
+    @staticmethod
+    def label_for(lang: str | None) -> str:
+        return "Wikipedia (en)" if lang == "en" else "Wikipédia"
 
     def search(self, query: str, n: int, lang: str | None = None) -> list[dict]:
         lang = lang if lang in self.LANGS else self.default_lang
@@ -138,7 +208,7 @@ class WikipediaBackend:
         r = self.http.get(
             f"https://{lang}.wikipedia.org/w/api.php", params=params, headers=self.headers, timeout=self.timeout
         )
-        pages = ((_json(r).get("query") or {}).get("pages")) or []
+        pages = ((_json(r, self.label).get("query") or {}).get("pages")) or []
         pages = sorted((p for p in pages if isinstance(p, dict)), key=lambda p: p.get("index") or 0)
         return [
             {
@@ -151,14 +221,50 @@ class WikipediaBackend:
         ]
 
 
+class FallbackSearch:
+    """A keyed backend first; when it fails (quota, refused key, outage), the no-key Wikipedia search.
+
+    ``last`` says which backend answered the latest call and why the first one was skipped, for the UI.
+    """
+
+    def __init__(self, primary, fallback):
+        self.primary, self.fallback = primary, fallback
+        self.name, self.label = primary.name, primary.label
+        self.last: dict = {}
+
+    def search(self, query: str, n: int, lang: str | None = None) -> list[dict]:
+        try:
+            results = self.primary.search(query, n, lang=lang)
+            self.last = {"backend": self.primary.name, "label": self.primary.label}
+            return results
+        except Exception as e:  # noqa: BLE001 - any failure of the keyed backend: try the free one
+            code = e.code if isinstance(e, SearchError) else "search_failed"
+            results = self.fallback.search(query, n, lang=lang)
+            self.last = {
+                "backend": self.fallback.name,
+                "label": self.fallback.label_for(lang) if hasattr(self.fallback, "label_for") else self.fallback.label,
+                "fallback_from": self.primary.label,
+                "fallback_code": code,
+            }
+            return results
+
+
 def make_search(cfg, http):
-    """The backend the configuration asks for, or None when search is switched off (``search_default="none"``)."""
+    """The backend the configuration asks for (SearXNG > Brave > Tavily > Wikipedia), or None when search is off.
+
+    A keyed backend falls back to Wikipedia on failure unless ``search_default="none"``.
+    """
+    contact = getattr(cfg, "search_contact", None)
+    wiki = (
+        WikipediaBackend(http, contact=contact) if getattr(cfg, "search_default", "wikipedia") == "wikipedia" else None
+    )
+    primary = None
     if getattr(cfg, "searxng_url", None):
-        return SearxngBackend(cfg.searxng_url, http)
-    if getattr(cfg, "brave_api_key", None):
-        return BraveBackend(cfg.brave_api_key, http)
-    if getattr(cfg, "tavily_api_key", None):
-        return TavilyBackend(cfg.tavily_api_key, http)
-    if getattr(cfg, "search_default", "wikipedia") == "wikipedia":
-        return WikipediaBackend(http, contact=getattr(cfg, "search_contact", None))
-    return None
+        primary = SearxngBackend(cfg.searxng_url, http)
+    elif getattr(cfg, "brave_api_key", None):
+        primary = BraveBackend(cfg.brave_api_key, http)
+    elif getattr(cfg, "tavily_api_key", None):
+        primary = TavilyBackend(cfg.tavily_api_key, http)
+    if primary is None:
+        return wiki
+    return FallbackSearch(primary, wiki) if wiki else primary

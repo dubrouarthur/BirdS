@@ -10,6 +10,8 @@ from birds.harness import guard
 from birds.harness.guard import ToolError
 from birds.harness.tools.search import (  # noqa: F401 - re-exported
     BraveBackend,
+    FallbackSearch,
+    SearchError,
     SearxngBackend,
     TavilyBackend,
     WikipediaBackend,
@@ -32,19 +34,39 @@ class StaticBackend:
 def web_search(args: dict, ctx) -> str:
     if ctx.search is None:
         raise ToolError("web search is not configured on this deployment")
+    backend = ctx.search
     try:
         try:
-            results = ctx.search.search(args["query"], args.get("max_results") or 5, lang=ctx.lang)
+            results = backend.search(args["query"], args.get("max_results") or 5, lang=ctx.lang)
         except TypeError:  # a backend written before the lang parameter existed
-            results = ctx.search.search(args["query"], args.get("max_results") or 5)
+            results = backend.search(args["query"], args.get("max_results") or 5)
+    except SearchError as e:
+        ctx.step_info = {
+            "backend": getattr(backend, "name", "?"),
+            "label": getattr(backend, "label", ""),
+            "code": e.code,
+        }
+        raise ToolError(f"{e}. Answer without searching and tell the user the search is unavailable.") from e
     except Exception as e:
+        ctx.step_info = {
+            "backend": getattr(backend, "name", "?"),
+            "label": getattr(backend, "label", ""),
+            "code": "search_failed",
+        }
         raise ToolError(f"search backend failed ({type(e).__name__})") from e
+    last = getattr(backend, "last", None)
+    if last:
+        ctx.step_info = dict(last)
+    else:
+        label = backend.label_for(ctx.lang) if hasattr(backend, "label_for") else getattr(backend, "label", "")
+        ctx.step_info = {"backend": getattr(backend, "name", "?"), "label": label}
     if not results:
         return "No results."
     lines = []
     for i, r in enumerate(results, 1):
         snippet = " ".join(str(r.get("snippet") or "").split())[:300]
-        lines.append(f"{i}. {' '.join(str(r.get('title') or '').split())[:150]}\n   {r.get('url')}\n   {snippet}")
+        date = f" ({r['date']})" if r.get("date") else ""
+        lines.append(f"{i}. {' '.join(str(r.get('title') or '').split())[:150]}{date}\n   {r.get('url')}\n   {snippet}")
     return "\n".join(lines)
 
 

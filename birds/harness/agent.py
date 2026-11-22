@@ -68,6 +68,7 @@ class Step:
     decision: str = "allow"
     chars: int = 0
     repairs: list[str] = field(default_factory=list)  # argument shapes fixed before validation (coerce.py)
+    info: dict = field(default_factory=dict)  # tool-provided details for the UI (search backend used...)
 
 
 @dataclass
@@ -441,6 +442,7 @@ class Agent:
                 step.error = step.decision
                 result = DENIED[step.decision]
             else:
+                ctx.step_info = None
                 try:
                     result = guard.defang(guard.redact(str(TOOLS[name](args, ctx))))
                     if guard.scan_injection(result):
@@ -459,6 +461,8 @@ class Agent:
                 except Exception as e:  # a tool bug must never crash the run, nor leak a stack trace to the model
                     step.error = f"{type(e).__name__}: {guard.redact(str(e))[:200]}"
                     result = f"Error: the tool failed ({type(e).__name__})."
+        if ctx.step_info:
+            step.info, ctx.step_info = dict(ctx.step_info), None
         step.seconds = round(time.monotonic() - t0, 3)
         self.audit.log(
             "tool_call",

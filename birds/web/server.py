@@ -66,6 +66,18 @@ class TestBody(BaseModel):
     lang: Literal["fr", "en"] = "fr"
 
 
+class ExportBody(BaseModel):
+    format: Literal["docx", "md"] = "docx"
+    title: str = Field(default="Bird", max_length=200)
+    content: str = Field(min_length=1, max_length=120_000)
+
+
+class ToolBody(BaseModel):
+    tool: Literal["make_slides", "make_document", "make_sheet"]
+    arguments: dict
+    lang: Literal["fr", "en"] = "fr"
+
+
 class ApiError(HTTPException):
     def __init__(self, status: int, code: str, message: str):
         super().__init__(status, {"code": code, "message": message})
@@ -116,6 +128,14 @@ class RateLimiter:
 def harness_config(s: Settings) -> dict:
     return {
         "searxng_url": s.searxng_url,
+        "brave_api_key": s.brave_api_key,
+        "tavily_api_key": s.tavily_api_key,
+        "search_default": s.search_default,
+        "search_contact": s.search_contact,
+        "pin_dns": s.pin_dns,
+        "gpu_watts": s.gpu_watts,
+        "gpu_label": s.gpu_label,
+        "pue": s.pue,
         "measure_gpu": s.measure_gpu,
         "wh_per_1k_tokens": s.wh_per_1k_tokens,
         "calibration_source": s.calibration_source,
@@ -142,7 +162,66 @@ def build_server_backend(s: Settings) -> Backend | None:
 
         tok = AutoTokenizer.from_pretrained(s.tokenizer)
     llm = CompletionsClient(s.base_url, s.model, s.api_key, timeout=s.max_seconds)
-    return HarnessBackend(llm, tok, kind="completions", model=s.model, workspace=s.workspace, config=harness_config(s))
+    return HarnessBackend(
+        llm,
+        tok,
+        kind="completions",
+        model=s.model,
+        workspace=s.workspace,
+        config=harness_config(s),
+        http=fetch_client(s),
+    )
+
+
+def fetch_client(s: Settings):
+    """read_page's HTTP client. Behind a filtering egress proxy (BIRD_PIN_DNS=0) it uses the proxy settings."""
+    if s.pin_dns:
+        return None  # the harness default: no proxy variables, connection pinned to the validated address
+    import httpx
+
+    return httpx.Client(follow_redirects=False)
+
+
+TOOL_TEXT = {  # why a tool is on or off on this deployment, for the "available tools" panel
+    "web_search": ("Recherche : {label}", "Search: {label}"),
+    "web_search_off": (
+        "Désactivée par l'exploitant (BIRD_SEARCH_DEFAULT=none)",
+        "Switched off (BIRD_SEARCH_DEFAULT=none)",
+    ),
+    "read_page": ("Lit une page publique (http/https, adresses publiques, 2 Mo au plus)", "Reads a public page"),
+    "read_file": ("Actif quand vous joignez un fichier texte au message", "Active when you attach a text file"),
+    "read_file_ws": ("Lit les fichiers du dossier de travail du serveur", "Reads files in the server workspace"),
+    "draft_email": ("Prépare un brouillon ; rien n'est envoyé", "Prepares a draft; nothing is sent"),
+    "make_slides": ("Crée un .pptx, téléchargeable ici", "Creates a .pptx, downloadable here"),
+    "make_document": ("Crée un .docx, téléchargeable ici", "Creates a .docx, downloadable here"),
+    "make_sheet": ("Crée un .xlsx, téléchargeable ici", "Creates a .xlsx, downloadable here"),
+    "run_python": (
+        "Désactivé : exécuter du code demande un vrai bac à sable, absent de ce déploiement",
+        "Off: running code needs a real sandbox, which this deployment does not have",
+    ),
+}
+
+
+def tools_info(s: Settings, backend) -> dict:
+    """Which tools the model may use here, which are off, and why. Also which search backend answers."""
+    from birds.tools import BIRD_TOOL_NAMES
+
+    offered = set(getattr(backend, "tools", []) or [])
+    search = getattr(backend, "search_info", None) or {}
+    out = []
+    for name in BIRD_TOOL_NAMES:
+        state = "on" if name in offered else "off"
+        key = name
+        if name == "read_file" and s.workspace is None and getattr(backend, "kind", "") != "demo":
+            state, key = "attach", "read_file"
+        elif name == "read_file":
+            key = "read_file_ws"
+        elif name == "web_search" and state == "off":
+            key = "web_search_off"
+        fr, en = TOOL_TEXT.get(key, ("", ""))
+        label = search.get("label") or ""
+        out.append({"name": name, "state": state, "fr": fr.format(label=label), "en": en.format(label=label)})
+    return {"tools": out, "search": search}
 
 
 def create_app(
@@ -247,6 +326,21 @@ def create_app(
             "model_label": s.model_label,
             "backend": shown.kind,
             "tools": list(shown.tools),
+            "tools_info": tools_info(s, shown),
+            "energy": {
+                "gpu_watts": s.gpu_watts,
+                "gpu_label": s.gpu_label,
+                "gpu_source": s.gpu_source,
+                "pue": s.pue,
+                "calibrated": s.wh_per_1k_tokens is not None,
+                "calibration_source": s.calibration_source,
+                "measured": bool(s.measure_gpu or s.local_llm is not None),
+            },
+            "compare": {
+                "active_params_b": s.active_params_b,
+                "classes": [{"fr": fr, "en": en, "active_params_b": b} for fr, en, b in s.compare_classes],
+                "reference": s.reference,
+            },
             "thinking_default": False,
             "default_mode": default_mode(),
             "modes": {"demo": True, "server": server is not None, "user": bool(s.allow_user_endpoint)},
@@ -288,6 +382,67 @@ def create_app(
         except ApiError as e:
             return {"ok": False, "status": e.detail["code"], "message": ep.explain(e.detail["code"], body.lang)}
         return ep.probe(llm, body.lang)
+
+    def check_access(request: Request) -> None:
+        if s.access_code:
+            given = request.headers.get("x-bird-access") or ""
+            if not hmac.compare_digest(given.encode("utf-8"), s.access_code.encode("utf-8")):
+                raise ApiError(401, "access_code", "a valid access code is required")
+
+    @app.post("/api/export")
+    def export(body: ExportBody, request: Request):
+        """Any answer as a .docx (or .md): headings, lists and tables of its Markdown are kept. No model call."""
+        guard_request(request)
+        from fastapi.responses import Response
+
+        name = sanitize_filename((body.title or "bird")[:60]).rsplit(".", 1)[0] or "bird"
+        if body.format == "md":
+            data, mime, ext = body.content.encode("utf-8"), "text/markdown; charset=utf-8", "md"
+        else:
+            import tempfile as _tmp
+
+            from birds.harness.office import docx_from_markdown
+
+            with _tmp.TemporaryDirectory(prefix="bird-export-") as tmp:
+                path = Path(tmp) / "export.docx"
+                docx_from_markdown(path, body.title or "Bird", body.content)
+                data = path.read_bytes()
+            mime, ext = "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"
+        if len(data) > s.max_inline_file_bytes:
+            raise ApiError(413, "too_large", "the exported file is too large")
+        return Response(data, media_type=mime, headers={"Content-Disposition": f'attachment; filename="{name}.{ext}"'})
+
+    @app.post("/api/tool")
+    def run_tool(body: ToolBody, request: Request) -> dict:
+        """Retry a file step that failed, without calling the model: same validation (with shape repair) and
+        the same generators as the agent. Only the three file makers, which touch nothing but a temp folder."""
+        guard_request(request)
+        check_access(request)
+        import shutil
+        import tempfile as _tmp
+
+        from birds.harness import Config, guard
+        from birds.harness.config import Context
+        from birds.harness.tools import TOOLS
+
+        from .backends import file_preview, inline_file
+
+        args, err = guard.validate_args(body.tool, body.arguments, (body.tool,))
+        if err:
+            return {"ok": False, "error": err}
+        tmp = Path(_tmp.mkdtemp(prefix="bird-tool-"))
+        try:
+            ctx = Context(config=Config(workspace=tmp, audit_file=None), http=None)
+            try:
+                TOOLS[body.tool](args, ctx)
+            except (guard.ToolError, guard.Blocked) as e:
+                return {"ok": False, "error": str(e)}
+            files = [
+                inline_file(tmp / rel, file_preview(body.tool, args), s.max_inline_file_bytes) for rel in ctx.files
+            ]
+            return {"ok": True, "files": files}
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
 
     @app.post("/api/chat")
     async def chat(body: ChatBody, request: Request) -> StreamingResponse:
