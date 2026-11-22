@@ -134,6 +134,14 @@ def chart_nudge(request: str, messages: list[dict]) -> str:
 _ABOUT_CHARTS = re.compile(
     r"^\s*(?:explique|expliquez|explain|d[ée]finis|define|qu['’]est[- ]ce|what (?:is|are)|c['’]est quoi)\b", re.I
 )
+# stop reasons after which a last answer is attempted before the generic fallback
+_SALVAGE = {"max_steps", "invalid_tool_calls", "loop", "empty_output", "malformed_output"}
+LAST_CHANCE = {
+    "fr": "[Consigne interne] Réponds maintenant à ma demande, sans appeler d'outil, avec ce que tu sais déjà et ce que "
+    "les étapes précédentes ont trouvé. Si une information manque, dis-le simplement en une phrase.",
+    "en": "[Internal instruction] Answer my request now, without calling any tool, using what you already know and "
+    "what the previous steps found. If something is missing, say so plainly in one sentence.",
+}
 LOOPED = {
     "fr": "Je me suis mis à tourner en boucle, alors je me suis arrêté pour ne pas gaspiller de calcul. Relancez, ou "
     "reformulez la demande plus précisément.",
@@ -281,6 +289,7 @@ class Hooks:
 class Run:
     answer: str = ""
     stop_reason: str = ""
+    salvaged: bool = False  # the loop failed and the answer came from one last generation without tools
     think_cut: bool = False  # the reasoning ran past cfg.think_chars and the step was redone without it
     lang: str = "en"
     steps: list[Step] = field(default_factory=list)
@@ -386,6 +395,22 @@ class Agent:
         off = set() if self.cfg.allow_python else {"run_python"}
         off |= set() if self.search else {"web_search"}
         return set(self.cfg.allowed_tools) - off
+
+    def _last_answer(self, messages: list[dict], lang: str, deadline: float) -> tuple[str, dict | None]:
+        """One generation with no tools and no reasoning, asked to answer from what is already in the conversation.
+        The instruction is a temporary last message: it is never kept in the history."""
+        note = {"role": "user", "content": LAST_CHANCE[lang if lang in LAST_CHANCE else "en"]}
+        try:
+            out, stream = self._generate(render_prompt(self.tok, [*messages, note], [], False), False, deadline)
+        except EndpointError:
+            return "", None
+        parsed = parse_output(out.get("text") or "")
+        text = guard.redact(parsed["content"]).strip()
+        if _TOOL_OPEN in text:
+            text = text.split(_TOOL_OPEN, 1)[0].strip()
+        if text and stream is not None:
+            stream.finish()
+        return text, out
 
     def _generate(self, prompt: str, thinking: bool, deadline: float) -> tuple[dict, AnswerStream | None]:
         hooks = self.hooks
@@ -716,6 +741,17 @@ class Agent:
                 run.stop_reason = "invalid_tool_calls"  # one retry after a malformed step, not more
                 break
 
+        salvage = run.stop_reason in _SALVAGE and not (content or "").strip() and deadline - time.monotonic() > 8
+        if salvage:
+            # The loop ended without a usable answer (tool calls that kept failing, the step budget, an empty or
+            # broken output). Before giving up, one last generation with no tools and no reasoning: answer with what
+            # was gathered. Cheap, and far better than a generic "could not answer".
+            last, used = self._last_answer(messages, run.lang, deadline)
+            if used:  # the last generation counts in the receipt like any other
+                run.usage.append({k: used.get(k) for k in ("prompt_tokens", "completion_tokens", "seconds",
+                                                           "busy_seconds", "finish_reason") if k in used})
+            if last:
+                content, run.stop_reason, run.salvaged = last, "answer", True
         if run.stop_reason == "confirm":
             run.answer = ""
         elif run.stop_reason == "answer":

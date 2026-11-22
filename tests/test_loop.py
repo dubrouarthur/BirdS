@@ -131,3 +131,23 @@ def test_a_reasoning_loop_also_falls_back_to_a_direct_answer(tmp_path):
     llm = FakeClient(["<think>" + "Je pèse le pour et le contre, une hypothèse après l'autre. " * 400, "Voici la réponse."])
     run = Agent(llm, Tok(), Config(workspace=tmp_path)).run("Question ?", lang="fr", thinking=True)
     assert run.think_cut and run.answer == "Voici la réponse."
+
+
+def test_a_failed_tool_loop_ends_with_a_last_answer_not_the_generic_fallback(tmp_path):
+    from birds.harness.agent import FALLBACK
+
+    bad = "<tool_call>\n<function=web_search>\n<parameter=query>\n\n</parameter>\n</function>\n</tool_call>"
+    llm = FakeClient([bad, bad, "Je n'ai pas pu chercher en ligne, mais voici l'essentiel : un CDI n'a pas de terme."])
+    run = Agent(llm, Tok(), Config(workspace=tmp_path, max_steps=2)).run("Différence CDD CDI ?", lang="fr")
+    assert run.salvaged and run.stop_reason == "answer" and run.answer != FALLBACK["fr"]
+    assert "CDI" in run.answer and "Consigne interne" in llm.prompts[-1]
+    assert not any("Consigne interne" in str(m.get("content")) for m in run.messages)  # never kept in history
+    assert len(run.usage) == 3
+
+
+def test_the_generic_fallback_stays_when_the_last_answer_is_empty_too(tmp_path):
+    from birds.harness.agent import FALLBACK
+
+    bad = "<tool_call>\n<function=web_search>\n<parameter=query>\n\n</parameter>\n</function>\n</tool_call>"
+    run = Agent(FakeClient([bad, bad, ""]), Tok(), Config(workspace=tmp_path, max_steps=2)).run("Question ?", lang="fr")
+    assert not run.salvaged and run.answer == FALLBACK["fr"]

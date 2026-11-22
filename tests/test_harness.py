@@ -163,7 +163,7 @@ def test_invalid_calls_stop_after_one_retry(tmp_path):
         tmp_path, [call("web_search", q="a"), call("web_search", q="b"), call("web_search", q="c"), "never"]
     )
     run = agent.run("Find the rates")
-    assert run.stop_reason == "invalid_tool_calls" and len(run.usage) == 2 and run.answer == agent_fallback("en")
+    assert run.stop_reason == "invalid_tool_calls" and len(run.usage) == 3 and run.answer == agent_fallback("en")  # + the empty last answer
 
 
 def agent_fallback(lang):
@@ -193,7 +193,7 @@ def test_string_arguments_are_coerced(tmp_path):
 def test_loop_detection(tmp_path):
     agent, llm = make(tmp_path, [call("web_search", query="x")] * 5)
     run = agent.run("Search x")
-    assert run.stop_reason == "loop" and len(run.steps) == 1 and len(run.usage) == 3  # one reminder, then stop
+    assert run.stop_reason == "loop" and len(run.steps) == 1 and len(run.usage) == 4  # one reminder, stop, last answer
     assert "already called" in json.loads(llm.prompts[2])["messages"][-1]["content"]
 
 
@@ -208,7 +208,7 @@ def test_step_limit_and_calls_per_step(tmp_path):
     outs = ["".join(call("web_search", query=f"q{i}-{j}") for j in range(5)) for i in range(10)]
     agent, llm = make(tmp_path, outs, max_steps=3)
     run = agent.run("Search a lot")
-    assert run.stop_reason == "max_steps" and len(run.usage) == 3
+    assert run.stop_reason == "max_steps" and len(run.usage) == 4  # + the (empty) last answer
     assert len(run.steps) == 2 * 3  # 3 calls kept per step; the last generation's calls are not executed
 
 
