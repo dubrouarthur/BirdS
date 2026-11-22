@@ -14,6 +14,7 @@ class Config:
     workspace: Path
     allowed_tools: tuple[str, ...] = tuple(BIRD_TOOL_NAMES)  # per-deployment allowlist
     allow_python: bool = False  # run_python is NOT a sandbox: enable only inside a disposable container
+    cache_salt: str | None = None  # vLLM prefix-cache isolation, one value per conversation (backends.cache_salt)
     route_tools: bool = True  # hide web tools for a plain "make me a file" request (agent.route)
     # loop limits
     max_steps: int = 6  # model generations per run

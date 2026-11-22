@@ -78,6 +78,19 @@ def _usage(obj: dict) -> tuple[int | None, int | None]:
     return None, None
 
 
+def _meta(obj: dict, meta: dict | None) -> None:
+    """finish_reason (stop | length | ...) and prompt tokens served from the prefix cache, when reported."""
+    if meta is None:
+        return
+    choices = obj.get("choices") or []
+    if choices and isinstance(choices[0], dict) and choices[0].get("finish_reason"):
+        meta["finish_reason"] = choices[0]["finish_reason"]
+    u = obj.get("usage")
+    details = u.get("prompt_tokens_details") if isinstance(u, dict) else None
+    if isinstance(details, dict) and details.get("cached_tokens") is not None:
+        meta["cached_tokens"] = details["cached_tokens"]
+
+
 class _StopCutter:
     """Forwards text but never a stop string, even when the server streams it split across chunks."""
 
@@ -159,7 +172,9 @@ class CompletionsClient:
         ip = ips[0]
         return u.copy_with(host=f"[{ip}]" if ":" in ip else ip), headers, {"sni_hostname": u.host}
 
-    def _post(self, body: dict, read_timeout: float, on_piece, url: str | None = None) -> tuple[int | None, int | None]:
+    def _post(
+        self, body: dict, read_timeout: float, on_piece, url: str | None = None, meta: dict | None = None
+    ) -> tuple[int | None, int | None]:
         import httpx
 
         target, headers, ext = self._target(url)
@@ -172,6 +187,7 @@ class CompletionsClient:
                 if "text/event-stream" not in r.headers.get("content-type", ""):
                     data = json.loads(r.read() or b"{}")  # the server answered in one piece
                     on_piece(_piece(data))
+                    _meta(data, meta)
                     return _usage(data)
                 tin = tout = None
                 for line in r.iter_lines():
@@ -189,6 +205,7 @@ class CompletionsClient:
                     if obj.get("error"):
                         err = obj["error"]
                         raise EndpointError("server", _safe(err.get("message") if isinstance(err, dict) else err))
+                    _meta(obj, meta)
                     a, b = _usage(obj)
                     tin, tout = (a if a is not None else tin), (b if b is not None else tout)
                     if on_piece(_piece(obj)) or obj.get("stop") is True:
@@ -200,7 +217,15 @@ class CompletionsClient:
             raise EndpointError("unreachable", f"cannot reach the model endpoint ({type(e).__name__})") from None
 
     def chat(
-        self, messages: list[dict], max_tokens: int, *, on_token=None, on_status=None, deadline=None, thinking=False
+        self,
+        messages: list[dict],
+        max_tokens: int,
+        *,
+        on_token=None,
+        on_status=None,
+        deadline=None,
+        thinking=False,
+        extra=None,
     ) -> dict:
         """``/v1/chat/completions`` with the server's chat template: the only route that carries images (OpenAI
         content lists with ``image_url`` data URLs). No tools are sent: vLLM refuses them without a tool parser."""
@@ -222,6 +247,7 @@ class CompletionsClient:
             _body=body,
             _url=self.url[: -len("/completions")] + "/chat/completions",
             _chars=sum(len(json.dumps(m.get("content"), ensure_ascii=False)) for m in messages),
+            extra=extra,
         )
 
     def generate(
@@ -236,6 +262,7 @@ class CompletionsClient:
         _body=None,
         _url=None,
         _chars=None,
+        extra=None,
         **_,
     ) -> dict:
         """``deadline`` is a ``time.monotonic()`` value: waiting for a waking endpoint and reading stop before it."""
@@ -249,12 +276,15 @@ class CompletionsClient:
             "stream": self.stream,
             **self.extra,
         }
+        if extra:  # per-call fields, e.g. cache_salt (one per conversation: never on the shared client)
+            body = {**body, **extra}
         if self.stream:
             body.setdefault("stream_options", {"include_usage": True})
         attempt, conservative = 0, False
         while True:
             cutter = _StopCutter(stop, on_token)
             mark = {"start": time.monotonic(), "first": None}
+            meta: dict = {}
 
             def on_piece(piece, cutter=cutter, mark=mark):
                 if piece and mark["first"] is None:
@@ -266,7 +296,7 @@ class CompletionsClient:
             if left <= 1:
                 raise EndpointError("timeout", "no time left to call the model endpoint")
             try:
-                tin, tout = self._post(body, min(self.timeout, left), on_piece, _url)
+                tin, tout = self._post(body, min(self.timeout, left), on_piece, _url, meta)
                 break
             except EndpointError as e:
                 if e.kind == "bad_request" and not conservative and not cutter.sent:
@@ -300,6 +330,8 @@ class CompletionsClient:
             "busy_seconds": round(end - mark["start"], 3),
             "first_token_seconds": round(mark["first"] - mark["start"], 3) if mark["first"] else None,
             "wake_attempts": attempt,
+            "finish_reason": meta.get("finish_reason"),
+            "cached_tokens": meta.get("cached_tokens"),
         }
 
     def probe(self) -> dict:

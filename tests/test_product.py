@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from birds.harness import Agent, Config, FakeClient, guard, history, meter, office
 from birds.harness.coerce import coerce_args, parse_json_like
-from birds.harness.tools import TOOLS, StaticBackend
+from birds.harness.tools import StaticBackend
 from birds.harness.tools.search import (
     BraveBackend,
     FallbackSearch,

@@ -1015,11 +1015,14 @@ class HarnessBackend:
                 if names:
                     note = _ATTACH_NOTE[lang]
                     user += "\n\n" + "\n".join(f"[{note} : {n}]" for n in names)
-                user_lang = detect_lang(last["content"]) if last["content"].strip() else lang
+                from birds.harness.agent import _EN, _FR
+
+                text = last["content"]
+                user_lang = detect_lang(text) if (_FR.search(text) or _EN.search(text)) else lang
                 kept, summary, hist_stats = window(history, self.history_tokens, lang=user_lang)
                 system = DEFAULT_SYSTEM[user_lang] + ("\n\n" + summary if summary else "")
                 kept = [{**m, "content": guard.defang(m["content"])} for m in kept]
-                run = agent.run(user, history=kept or None, system=system, thinking=request.thinking)
+                run = agent.run(user, history=kept or None, system=system, thinking=request.thinking, lang=user_lang)
             ctx.check()
             report = run.report or {}
             previews = iter(

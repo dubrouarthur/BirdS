@@ -102,9 +102,7 @@ def _summary(turns: list[list[dict]], lang: str) -> str:
         first = _plain((str(user.get("content") or "").strip().splitlines() or [""])[0], 120) if user else ""
         extra = []
         for m in t:
-            for chunk in re.findall(
-                r"\b(?:fichiers créés|files created|sources) : [^|\]]+", str(m.get("memo") or "")
-            ):
+            for chunk in re.findall(r"\b(?:fichiers créés|files created|sources) : [^|\]]+", str(m.get("memo") or "")):
                 extra.append(_plain(chunk, 160))
         lines.append("- " + first + (" → " + " ; ".join(extra) if extra else ""))
     return NOTE["en" if lang == "en" else "fr"] + "\n" + "\n".join(lines[-12:])

@@ -224,6 +224,7 @@ class Agent:
             on_token=stream.feed if stream else None,
             on_status=hooks.on_status,
             deadline=deadline,
+            **({"extra": {"cache_salt": self.cfg.cache_salt}} if self.cfg.cache_salt else {}),
         )
         return out, stream
 
@@ -278,7 +279,7 @@ class Agent:
             messages.append({"role": "user", "content": guard.defang(user)})
             seen, queue = set(), []
             budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
-            nudged, withdrawn = False, (route(user) if cfg.route_tools else set())
+            nudged, withdrawn = False, (route(user) if cfg.route_tools and not history else set())
             gen, ok, forced = 0, 0, None
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
 
@@ -316,6 +317,8 @@ class Agent:
                             "seconds",
                             "busy_seconds",
                             "first_token_seconds",
+                            "finish_reason",
+                            "cached_tokens",
                             "prompt_chars",
                             "completion_chars",
                         )
@@ -339,6 +342,8 @@ class Agent:
                         content, run.stop_reason = content.split(_TOOL_OPEN, 1)[0].strip(), "malformed_output"
                     else:
                         run.stop_reason = "answer" if content else "empty_output"
+                        if content and out.get("finish_reason") == "length":
+                            run.stop_reason = "length"  # cut by max_tokens: kept, but marked as interrupted
                     break
                 if gen == cfg.max_steps - 1:
                     run.stop_reason = "max_steps"  # the last allowed generation still asks for tools: they are not run
