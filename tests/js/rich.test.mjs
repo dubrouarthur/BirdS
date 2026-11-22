@@ -159,9 +159,9 @@ test("code blocks: language label, file name from the line above, download, copy
   assert.doesNotMatch(out, /Fichier\u00a0:/); // the line moved into the head
   assert.match(out, /data-code-download data-file="backup\.sh"/);
   assert.match(out, /code-check--ok[\s\S]*Syntaxe JSON valide/);
-  assert.match(out, /data-lang="bash" data-lines="36" data-long data-collapsed/);
+  assert.match(out, /data-lang="bash" data-i="1" data-lines="36" data-long data-collapsed/);
   assert.match(out, /Afficher les 36 lignes/);
-  assert.match(out, /data-lang="bash" data-lines="2">/); // short: no numbers, no collapse
+  assert.match(out, /data-lang="bash" data-i="2" data-lines="2">/); // short: no numbers, no collapse
 });
 
 test("code text content is exactly the source: copy and download never see numbers or markup", () => {
@@ -189,7 +189,8 @@ test("syntax badges: server verdicts by index and line count, JSON checked local
 
 test("an open fence renders plain while streaming, highlighted once closed", () => {
   const open = renderBlocks(stabilize(`Voici :\n${FENCE}python\ndef f():\n    return 1`), { rich: true, lang: "fr" });
-  assert.doesNotMatch(open.join(""), /tk-|class="ln/);
+  assert.doesNotMatch(open.join(""), /tk-/);
+  assert.match(open.join(""), /<span class="ln">def f\(\):\n<\/span><span class="ln">    return 1<\/span>/); // lines from the start
   const closed = renderBlocks(`Voici :\n${FENCE}python\ndef f():\n    return 1\n${FENCE}`, { rich: true, lang: "fr" });
   assert.match(closed.join(""), /<span class="tk-kw">def<\/span> <span class="tk-fn">f<\/span>/);
 });
@@ -412,4 +413,19 @@ test("streaming: no block changes its look more than once (keyed, airy, steps, s
   for (const [id, src] of [...answers.map((a) => [a.id, a.answer]), ...extra.map((s, k) => [`extra${k}`, s])]) {
     flips(src, noCode).forEach((h, k) => assert.ok(h.length <= 2, `${id} block ${k}: ${h.join(" -> ")}`));
   }
+});
+
+test("code blocks keep their layout from the first streamed line to the final render", () => {
+  const src = answer("json_bash");
+  const sig = (h) => (h.startsWith("<figure") ? h.match(/^<[^>]*>/)[0].replace(/ data-lines="\d+"/, "") : "");
+  flips(src, sig).forEach((h, k) => assert.ok(h.filter(Boolean).length <= 2, `block ${k}: ${h.join(" -> ")}`));
+  const long = `${FENCE}bash\n${Array.from({ length: 30 }, (_, k) => `echo ${k}`).join("\n")}`;
+  const streaming = renderBlocks(stabilize(long), { rich: true, lang: "fr" }).join("");
+  assert.match(streaming, /data-lines="30" data-long>/); // numbered while streaming, never folded
+  const closed = `${long}\n${FENCE}`;
+  assert.doesNotMatch(renderBlocks(closed, { rich: true, lang: "fr" }).join(""), /data-collapsed/);
+  // final render: folded when it arrives whole, open when the reader saw it open
+  assert.match(md(closed), /data-collapsed>[^]*aria-expanded="false"/);
+  assert.doesNotMatch(md(closed, { expanded: [0] }), /data-collapsed/);
+  assert.match(md(closed, { expanded: [0] }), /aria-expanded="true"[^]*Réduire/);
 });

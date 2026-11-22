@@ -699,25 +699,27 @@ function codeBlock(code, name, closed, ctx) {
     (file ? `<span class="code-file">${escapeHtml(file)}</span>` : "") +
     badge +
     `<span class="code-tools">${tools.join("")}</span></div>`;
-  let body;
-  if (!closed)
-    body = escapeHtml(code); // still streaming: plain text, highlighted once the fence closes
-  else
-    body = highlight(code, info.key)
-      .map(
-        (l, k) =>
-          `<span class="ln${errLine === k + 1 ? " ln--err" : ""}">${l}${k < n - 1 ? "\n" : ""}</span>`,
-      )
-      .join("");
-  const long = closed && n > 12 ? " data-long" : "";
-  const collapse = closed && n > 25;
+  // Line spans and the line-number gutter exist while streaming too (only the colours wait for the closing fence),
+  // so the text never shifts when the block completes.
+  const painted = closed ? highlight(code, info.key) : lines.map(escapeHtml);
+  const body = painted
+    .map(
+      (l, k) =>
+        `<span class="ln${errLine === k + 1 ? " ln--err" : ""}">${l}${k < n - 1 ? "\n" : ""}</span>`,
+    )
+    .join("");
+  const long = n > 12 ? ` data-long${n > 99 ? '="3"' : ""}` : "";
+  // A long block is folded only when it arrives whole (final render, history): never under the eyes of a reader
+  // who watched it stream or opened it (ctx.expanded holds those blocks' indices).
+  const foldable = closed && n > 25;
+  const collapse = foldable && ctx.final && !ctx.expanded.has(index);
   const more = escapeHtml(L.more.replace("{n}", String(n)));
-  const moreBtn = collapse
-    ? `<button type="button" class="code-more" data-code-more aria-expanded="false" data-more="${more}" data-less="${escapeHtml(L.less)}">${ICON.chevron}<span class="code-more-t">${more}</span></button>`
+  const moreBtn = foldable
+    ? `<button type="button" class="code-more" data-code-more aria-expanded="${!collapse}" data-more="${more}" data-less="${escapeHtml(L.less)}">${ICON.chevron}<span class="code-more-t">${collapse ? more : escapeHtml(L.less)}</span></button>`
     : "";
   const lang = escapeHtml(info.key || name || "");
   return (
-    `<figure class="code-block${closed && ctx.wrap ? " is-wrapped" : ""}"${lang ? ` data-lang="${lang}"` : ""} data-lines="${n}"${long}${collapse ? " data-collapsed" : ""}>` +
+    `<figure class="code-block${ctx.wrap ? " is-wrapped" : ""}"${lang ? ` data-lang="${lang}"` : ""} data-i="${index}" data-lines="${n}"${long}${collapse ? " data-collapsed" : ""}>` +
     `${head}<pre class="code-pre"><code>${body}</code></pre>${moreBtn}</figure>`
   );
 }
@@ -1105,6 +1107,7 @@ function context(options) {
     wrap: Boolean(options.wrap),
     checks: Array.isArray(options.codeChecks) ? options.codeChecks : [],
     suppress: new Set(options.suppress || []),
+    expanded: new Set(options.expanded || []),
     labels,
     fence: 0,
     file: null,
@@ -1122,7 +1125,8 @@ const clean = (source) =>
  * options.cites: iterable of valid citation numbers; options.anchor: id prefix of the sources list.
  * options.rich: answer mode (detectors, typography with options.lang); options.final: the answer is complete
  * (key numbers, pros/cons, folding, syntax badges); options.codeChecks: the server's verdicts; options.wrap:
- * code lines wrap; options.suppress: detectors a structured widget replaces ("kpis"); options.labels: UI strings.
+ * code lines wrap; options.suppress: detectors a structured widget replaces ("kpis"); options.labels: UI strings;
+ * options.expanded: indices of long code blocks the reader has seen open (never folded again on re-render).
  */
 export function renderBlocks(source, options = {}) {
   return blockList(clean(source).split("\n"), context(options), 0).map(

@@ -960,6 +960,13 @@ function paintMarkdown(turn, entry) {
   const streaming = turn.status === "running" && !turn.answer;
   const source = turn.answer ? turn.answer.content : stabilize(turn.text || "");
   const cites = (turn.answer?.sources || []).map((s) => Number(s.n));
+  // Long code blocks already on screen keep their open/folded state across re-renders (streaming, final answer)
+  entry.expanded ||= new Set();
+  for (const fig of entry.md.querySelectorAll("figure.code-block[data-i]")) {
+    const i = Number(fig.dataset.i);
+    if (fig.hasAttribute("data-collapsed")) entry.expanded.delete(i);
+    else entry.expanded.add(i);
+  }
   // Safe by construction: renderBlocks escapes all model text before emitting its own tags.
   const blocks = renderBlocks(source, {
     cites,
@@ -973,6 +980,7 @@ function paintMarkdown(turn, entry) {
     wrap: wrapPref(),
     codeChecks: turn.answer?.code_checks,
     suppress: turn.answer?.widgets?.length ? ["kpis"] : [], // a structured widget owns the key numbers
+    expanded: entry.expanded,
     labels: mdLabels(),
   });
   const md = entry.md;
