@@ -2626,7 +2626,8 @@ details[open] > summary > .chev {
   background: var(--surface);
 }
 .mode.is-off {
-  opacity: 0.62;
+  color: var(--muted);
+  border-style: dashed;
   cursor: not-allowed;
 }
 .mode input {
@@ -2657,7 +2658,7 @@ details[open] > summary > .chev {
   border-radius: 12px;
 }
 .endpoint:disabled {
-  opacity: 0.55;
+  color: var(--muted);
 }
 .tradeoff {
   display: flex;
@@ -3819,7 +3820,7 @@ button.att-card {
   color: var(--muted);
 }
 .tool-off {
-  opacity: 0.72;
+  color: var(--muted);
 }
 .tag-tool-on {
   border-color: var(--eco-soft);
@@ -4273,4 +4274,38 @@ button.att-card {
   justify-self: start;
   align-self: center;
   inline-size: max-content;
+}
+.mode-title .tag {
+  margin-inline-start: 6px;
+  vertical-align: 1px;
+}
+.mode.is-off .mode-hint {
+  color: var(--muted);
+}
+.tools-panel > summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+.tools-panel > summary::-webkit-details-marker {
+  display: none;
+}
+.tools-panel > summary .chev {
+  margin-block-start: 3px;
+  transition: transform 0.15s;
+}
+.tools-panel[open] > summary .chev {
+  transform: rotate(90deg);
+}
+.tools-sum {
+  display: grid;
+  gap: 2px;
+}
+.tools-sum-title {
+  font-weight: 650;
+}
+.tools-panel[open] > summary {
+  margin-block-end: 10px;
 }

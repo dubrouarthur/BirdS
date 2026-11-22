@@ -696,10 +696,14 @@ export function toolsPanel() {
   const demo = activeMode() === "demo";
   const label = { on: t("tools.on"), off: t("tools.off"), attach: t("tools.attach") };
   return h(
-    "section",
-    { class: "panel tools-panel", id: "settings-tools", "aria-labelledby": "set-tools-title" },
-    h("h3", { id: "set-tools-title", text: t("tools.title") }),
-    h("p", { class: "hint", text: demo ? t("tools.demo") : t("tools.lead") }),
+    "details",
+    { class: "panel tools-panel", id: "settings-tools" },
+    h(
+      "summary",
+      null,
+      icon("chevron", "chev"),
+      h("span", { class: "tools-sum" }, h("span", { id: "set-tools-title", class: "tools-sum-title", text: t("tools.title") }), h("span", { class: "hint", text: demo ? t("tools.demo") : t("tools.lead") })),
+    ),
     h(
       "ul",
       { class: "tools-list" },
@@ -755,7 +759,7 @@ export function renderSettings() {
       h(
         "span",
         { class: "mode-text" },
-        h("span", { class: "mode-title", text: title }),
+        h("span", { class: "mode-title" }, title, !enabled && h("span", { class: "tag tag-unavailable", text: t("kind.unavailable") })),
         h("span", { class: "mode-hint", text: hint }),
       ),
     );
@@ -859,78 +863,6 @@ export function renderSettings() {
     ", ",
   );
   put(body, 
-    toolsPanel(),
-    h(
-      "section",
-      {
-        class: "panel",
-        id: "settings-model",
-        "aria-labelledby": "set-model-title",
-      },
-      h("h3", { id: "set-model-title", text: t("set.model") }),
-      h("p", { class: "hint", text: t("set.model.lead") }),
-      h(
-        "div",
-        {
-          class: "modes",
-          role: "radiogroup",
-          "aria-labelledby": "set-model-title",
-        },
-        modeCard("demo", t("set.mode.demo"), t("set.mode.demo.hint"), true),
-        modeCard(
-          "server",
-          t("set.mode.server"),
-          modes.server
-            ? t("set.mode.server.hint", { model: hl.model || "bird" })
-            : t("set.mode.server.off"),
-          !!modes.server,
-        ),
-        modeCard(
-          "user",
-          t("set.mode.user"),
-          modes.user ? t("set.mode.user.hint") : t("set.mode.user.off"),
-          !!modes.user,
-        ),
-      ),
-      modes.user &&
-        h(
-          "fieldset",
-          { class: "endpoint", disabled: mode !== "user" },
-          h("legend", { class: "sr-only", text: t("set.mode.user") }),
-          field(
-            "set-endpoint",
-            t("set.endpoint.url"),
-            t("set.endpoint.url.hint", { hosts }),
-            urlInput,
-          ),
-          field(
-            "set-token",
-            t("set.endpoint.token"),
-            t("set.endpoint.token.hint"),
-            h("div", { class: "input-row" }, tokenInput, reveal),
-          ),
-          field(
-            "set-model",
-            t("set.endpoint.model"),
-            t("set.endpoint.model.hint"),
-            modelInput,
-          ),
-          h(
-            "p",
-            { class: "tradeoff" },
-            icon("info"),
-            h("span", { text: t("set.endpoint.tradeoff") }),
-          ),
-        ),
-      (hl.access_required || p.access) &&
-        field(
-          "set-access",
-          t("set.access"),
-          t(hl.access_required ? "set.access.needed" : "set.access.hint"),
-          accessInput,
-        ),
-      mode !== "demo" && h("div", { class: "test-row" }, testBtn, result),
-    ),
     h(
       "section",
       { class: "panel", "aria-labelledby": "set-general-title" },
@@ -981,6 +913,84 @@ export function renderSettings() {
         ),
       ),
     ),
+    h(
+      "section",
+      {
+        class: "panel",
+        id: "settings-model",
+        "aria-labelledby": "set-model-title",
+      },
+      h("h3", { id: "set-model-title", text: t("set.model") }),
+      h("p", { class: "hint", text: t("set.model.lead") }),
+      h(
+        "div",
+        {
+          class: "modes",
+          role: "radiogroup",
+          "aria-labelledby": "set-model-title",
+        },
+        modeCard("demo", t("set.mode.demo"), t("set.mode.demo.hint"), true),
+        modeCard(
+          "server",
+          t("set.mode.server"),
+          modes.server
+            ? t("set.mode.server.hint", { model: hl.model || "bird" })
+            : t("set.mode.server.off"),
+          !!modes.server,
+        ),
+        modeCard(
+          "user",
+          t("set.mode.user"),
+          modes.user ? t("set.mode.user.hint") : t("set.mode.user.off"),
+          !!modes.user,
+        ),
+      ),
+      modes.user &&
+        mode !== "user" &&
+        h("p", { class: "hint endpoint-off", text: t("set.endpoint.choose") }),
+      modes.user &&
+        mode === "user" &&
+        h(
+          "fieldset",
+          { class: "endpoint" },
+          h("legend", { class: "sr-only", text: t("set.mode.user") }),
+          field(
+            "set-endpoint",
+            t("set.endpoint.url"),
+            t("set.endpoint.url.hint", { hosts }),
+            urlInput,
+          ),
+          field(
+            "set-token",
+            t("set.endpoint.token"),
+            t("set.endpoint.token.hint"),
+            h("div", { class: "input-row" }, tokenInput, reveal),
+          ),
+          field(
+            "set-model",
+            t("set.endpoint.model"),
+            t("set.endpoint.model.hint"),
+            modelInput,
+          ),
+        ),
+      modes.user &&
+        mode === "user" &&
+        h(
+          "p",
+          { class: "tradeoff" },
+          icon("info"),
+          h("span", { text: t("set.endpoint.tradeoff") }),
+        ),
+      (hl.access_required || p.access) &&
+        field(
+          "set-access",
+          t("set.access"),
+          t(hl.access_required ? "set.access.needed" : "set.access.hint"),
+          accessInput,
+        ),
+      mode !== "demo" && h("div", { class: "test-row" }, testBtn, result),
+    ),
+    toolsPanel(),
     h(
       "section",
       { class: "panel", "aria-labelledby": "set-data-title" },

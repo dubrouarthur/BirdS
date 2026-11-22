@@ -380,6 +380,7 @@ export const STRINGS = {
     "set.mode.server.hint": "Modèle configuré par l'administrateur : {model}.",
     "set.mode.server.off": "Aucun modèle n'est configuré sur ce serveur.",
     "set.mode.user": "Mon endpoint",
+    "set.endpoint.choose": "Choisissez « Mon endpoint » pour saisir l'adresse et le jeton de votre propre serveur.",
     "set.mode.user.hint":
       "Votre propre Inference Endpoint Hugging Face (ou hôte autorisé).",
     "set.mode.user.off": "Désactivé sur cette instance par l'administrateur.",
@@ -979,6 +980,7 @@ export const STRINGS = {
     "set.mode.server.hint": "Model configured by the administrator: {model}.",
     "set.mode.server.off": "No model is configured on this server.",
     "set.mode.user": "My endpoint",
+    "set.endpoint.choose": "Choose \"My endpoint\" to enter the address and token of your own server.",
     "set.mode.user.hint":
       "Your own Hugging Face Inference Endpoint (or an allowed host).",
     "set.mode.user.off": "Disabled on this instance by the administrator.",
