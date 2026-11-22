@@ -42,6 +42,7 @@ from birds.sources.identity import DEFAULT_SYSTEM
 
 # ------------------------------------------------------------------ budget (spec section 5)
 MAX_CONCURRENT = 4
+_PAGE_LOCK = threading.Lock()
 MAX_CALLS = 7
 MAX_CALLS_GENERIC = 5
 DRAFTS = 2
@@ -514,12 +515,17 @@ class Crew:
         clone = copy.copy(self.agent)
         clone.hooks = Hooks()  # the crew reports its own steps (with the lane id)
         self._emit({"kind": "tool_start", "index": index, "tool": name, "arguments": args, "agent": lane})
-        step, result = clone._call(name, args, 0, sub, ctx, 0, forced, frozenset())
+        if name == "read_page":  # page parsing (lxml) crashed the process when run in parallel: one page at a time
+            with _PAGE_LOCK:
+                step, result = clone._call(name, args, 0, sub, ctx, 0, forced, frozenset())
+        else:
+            step, result = clone._call(name, args, 0, sub, ctx, 0, forced, frozenset())
         if step.decision == "pause":
             return index, step, "", ctx
         step.chars, step.result = len(result), result[:200]
         with self.lock:
-            self.flagged = self.flagged or sub.flagged
+            # a page only taints the run once its text is given to a model (see _research)
+            self.flagged = self.flagged or (sub.flagged and name != "read_page")
             self.found += [u for u in ctx.found if u not in self.found]
             self.bytes += ctx.bytes_fetched
             self.images += [i for i in ctx.images if i not in self.images]
@@ -629,7 +635,9 @@ class Crew:
             body = text.split("\n\n", 1)[-1]
             win = cc.evidence(body, head, since, PAGE_CAP)
             if win and total + len(win) <= TOTAL_CAP:
-                windows.append({"url": url, "title": title or urlsplit(url).netloc, "text": win})
+                windows.append(
+                    {"url": url, "title": title or urlsplit(url).netloc, "text": win, "flagged": bool(step.flags)}
+                )
                 total += len(win)
         self._step(
             lane, "done", "brief", detail=f"{len(windows)} page(s)", seconds=round(time.monotonic() - self.t0, 1)
@@ -649,6 +657,8 @@ class Crew:
             raise _Fallback("no_facts")
         cold = self._cold()
         windows = sorted(windows, key=lambda w: -len(w["text"]))[: 1 if cold else 2]
+        if any(w["flagged"] for w in windows):  # a flagged page whose text reaches a model taints the run
+            self.flagged = True
         if len(windows) < 2:
             self._step("lecteur_2", "skipped", "brief")
 
@@ -704,22 +714,16 @@ class Crew:
                 if g:
                     self._step("lecteur", "error", "brief", detail="table")
                 return None
-            whole, bad = cc.fold(text), 0
+            whole, bad, in_text = cc.fold(text), 0, cc.allowed_figures(text)
             clean = []
             for r in rows:
                 if not isinstance(r, list):
                     continue
                 cells = []
                 for c in r:
-                    ok = (
-                        not str(c).strip()
-                        or cc.fold(c) in whole
-                        or all(
-                            any(abs(v - w) < 0.006 for w in cc.allowed_figures(text))
-                            for v in cc.allowed_figures(str(c))
-                        )
-                        and cc.allowed_figures(str(c))
-                    )
+                    # words cannot be checked (the reader may rephrase them); every figure must be in the text
+                    figs = cc.allowed_figures(str(c))
+                    ok = cc.fold(c) in whole or all(any(abs(v - w) < 0.006 for w in in_text) for v in figs)
                     bad += not ok
                     cells.append(str(c) if ok else "?")
                 clean.append(cells)
@@ -832,6 +836,7 @@ class Crew:
             for n, w in enumerate(windows, 1):
                 b.sources.append({"n": n, "url": w["url"], "title": w["title"]})
                 b.extracts.append({"n": n, "text": w["text"]})
+                self.flagged = self.flagged or w["flagged"]
                 b.allowed |= cc.allowed_figures(w["text"])
         else:
             self._step("chercheur", "skipped", "brief")
@@ -932,6 +937,8 @@ class Crew:
         def one(k: int) -> Draft:
             lane = "redacteur_" + "ab"[k]
             instr = PROMPTS[self.lang]["draft"].format(shape=self._shape(b), angle=angles[k], tool=tool)
+            if not b.sources:  # nothing to cite: no « [n] » asked for
+                instr = re.sub(r" ?;[^.;]*\[n\][^.]*", "", instr)
             temp = (0.3, 0.7)[k]
             g = self._gen(lane, "drafts", self._user(shared, instr), [PRODUCT[tool]], max_t, temperature=temp,
                           seed=11 + k, thinking=self.thinking, until=self.t0 + DRAFTS_END_S)  # fmt: skip
@@ -1050,6 +1057,8 @@ class Crew:
         """Unsupported figures removed, a Sources slide/section appended, the checked action table put in."""
         args, removed = copy.deepcopy(args), 0
         fr = self.lang == "fr"
+        if not b.sources:  # no source was read: a « [3] » would point at nothing (seen live in a mail)
+            args = json.loads(re.sub(r" ?\[\d{1,2}\]", "", json.dumps(args, ensure_ascii=False)))
         src = [f"[{s['n']}] {s['title']} — {s['url']}" for s in b.sources]
         if b.tool == "make_slides":
             slides = []
@@ -1182,7 +1191,7 @@ class Crew:
                 if fr
                 else "Computed by Bird from the amounts in the text."
             )
-        if actx.get("n_sources"):
+        if actx.get("n_sources") and step is not None and not step.error and not step.decision.startswith("denied"):
             n = actx["n_sources"]
             lines.append(f"Les chiffres viennent de {n} source(s) vérifiée(s), citées [n] et listées à la fin."
                          if fr else f"The figures come from {n} checked source(s), cited [n] and listed at the end.")  # fmt: skip
