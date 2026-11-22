@@ -112,8 +112,7 @@ function slim(conv) {
   };
 }
 
-function saveConv() {
-  const conv = state.conv;
+function saveConv(conv = state.conv) {
   if (!conv) return;
   if (!conv.turns.length) {
     store.set(`bird.conv.${conv.id}`, null);
@@ -142,7 +141,9 @@ function saveConv() {
     }
   }
   store.set("bird.convs", JSON.stringify(state.convs));
-  store.set("bird.current", conv.turns.length ? conv.id : null);
+  // a conversation saved in the background (its answer ended after a switch) never takes the "current" slot
+  if (conv === state.conv)
+    store.set("bird.current", conv.turns.length ? conv.id : null);
   renderSidebar();
 }
 
@@ -170,7 +171,13 @@ function loadConv(id) {
 }
 
 function openConv(id) {
-  stop();
+  if (id && id === state.conv?.id) {
+    // the conversation already open (maybe still streaming): just come back to it
+    showView("chat");
+    closeDrawer();
+    return;
+  }
+  stop(); // the aborted answer is saved as "stopped" in its own conversation (runTurn keeps a reference to it)
   const conv = (id && loadConv(id)) || newConv();
   state.conv = conv;
   state.editing = false;
@@ -1117,7 +1124,7 @@ function endWake(turn) {
   }
 }
 
-function handleEvent(turn, event) {
+function handleEvent(turn, event, conv = state.conv) {
   if (turn.wakeStart && event.type !== "status") endWake(turn);
   switch (event.type) {
     case "delta":
@@ -1127,7 +1134,7 @@ function handleEvent(turn, event) {
       return paintSoon(turn);
     case "user": {
       // the exact user text the model got: stored on the user turn and sent back as history from now on
-      const turns = state.conv.turns;
+      const turns = conv.turns;
       const userTurn = turns[turns.indexOf(turn) - 1];
       if (userTurn?.role === "user")
         userTurn.sent = String(event.content ?? "");
@@ -1201,11 +1208,13 @@ function handleEvent(turn, event) {
     default:
       break;
   }
+  if (state.conv !== conv) return; // the user switched conversation: nothing on screen to update
   updateTurn(turn);
   scrollToEnd(false);
 }
 
 async function runTurn(turn, extra = {}) {
+  const conv = state.conv; // the conversation this answer belongs to, even if the user opens another one
   const controller = new AbortController();
   state.abort = controller;
   state.busy = true;
@@ -1220,16 +1229,16 @@ async function runTurn(turn, extra = {}) {
   try {
     const { resend, ...rest } = extra;
     extra = rest;
-    if (!state.conv.cid) state.conv.cid = randomId();
-    if (!state.conv.lang)
-      state.conv.lang = state.prefs.lang === "en" ? "en" : "fr"; // pinned for the conversation
+    if (!conv.cid) conv.cid = randomId();
+    if (!conv.lang)
+      conv.lang = state.prefs.lang === "en" ? "en" : "fr"; // pinned for the conversation
     const body = {
       messages: apiMessages(!!resend),
-      conv_lang: state.conv.lang,
-      conversation_id: state.conv.cid,
+      conv_lang: conv.lang,
+      conversation_id: conv.cid,
       thinking: !!turn.thinking,
       lang: state.prefs.lang,
-      attachments: state.conv.attachments
+      attachments: conv.attachments
         .filter((a) => a.content && !a.lost)
         .map(({ name, content, encoding }) => ({
           name,
@@ -1282,7 +1291,7 @@ async function runTurn(turn, extra = {}) {
           continue;
         }
         if (event.type === "done") finished = true;
-        else handleEvent(turn, event);
+        else handleEvent(turn, event, conv);
       }
     }
     if (!finished && turn.status === "running") {
@@ -1329,13 +1338,14 @@ async function runTurn(turn, extra = {}) {
       };
     if (turn.usage && turn.status === "done" && !turn.counted) {
       turn.counted = true;
-      ledgerAdd(turn.usage, state.conv.id);
+      ledgerAdd(turn.usage, conv.id);
     }
-    renderConversation(); // the last-turn actions (regenerate, edit) depend on the busy state
+    const shown = state.conv === conv;
+    if (shown) renderConversation(); // the last-turn actions (regenerate, edit) depend on the busy state
     updateComposer();
     updateTop();
-    saveConv();
-    scrollToEnd(false);
+    saveConv(conv);
+    if (shown) scrollToEnd(false);
     const sheet = document.querySelector("[data-confirm-deny]");
     if (turn.status === "confirm" && sheet) sheet.focus();
   }
@@ -1387,6 +1397,7 @@ function send(text) {
     turn,
   );
   for (const a of newDocs) a.sent = true;
+  saveConv(conv); // the question is stored before the answer starts: a reload or a switch never loses it
   const payload = images.map(({ name, url }) => ({ name, url }));
   lastImages = payload; // kept in memory only, so "regenerate" can send them again
   pending.images = [];
