@@ -1019,6 +1019,27 @@ def ocr_only(words: str) -> bool:
     return True
 
 
+def write_ocr_sidecar(pdf: Path, pages: object) -> bool:
+    """Write what an earlier turn read on a PDF's scanned pages (sent back by the browser) where read_file looks
+    for it. The browser is not trusted: page numbers must be numbers, each text is capped and defanged."""
+    import json
+
+    from birds.harness import guard
+    from birds.harness.tools.files import pdf_sidecar
+
+    if pdf.suffix.lower() != ".pdf" or not isinstance(pages, dict):
+        return False
+    clean = {
+        str(int(k)): guard.defang(guard_truncate(v))
+        for k, v in pages.items()
+        if isinstance(k, str) and k.isdigit() and 0 < int(k) <= 2000 and isinstance(v, str) and v.strip()
+    }
+    if not clean:
+        return False
+    pdf_sidecar(pdf).write_text(json.dumps(clean, ensure_ascii=False), encoding="utf-8")
+    return True
+
+
 def guard_truncate(text: str) -> str:
     from birds.harness import guard
 
@@ -1276,7 +1297,7 @@ class HarnessBackend:
         from birds.harness.tools.files import pdf_pages, pdf_scanned, pdf_sidecar, render_pdf_page
 
         usages, budget = [], MAX_SCAN_PAGES
-        for p in paths:
+        for index, p in paths:
             if p.suffix.lower() != ".pdf" or not self.images or budget <= 0:
                 continue
             try:
@@ -1301,6 +1322,8 @@ class HarnessBackend:
                     read[str(number)] = guard_truncate(texts[0][1])
             if read:
                 pdf_sidecar(p).write_text(json.dumps(read, ensure_ascii=False), encoding="utf-8")
+                # the browser keeps this with the attachment and sends it back: the next turns read no page again
+                ctx.emit({"type": "attachment_text", "index": index, "name": p.name, "pages": read})
         return usages
 
     def _read_images(
@@ -1375,12 +1398,14 @@ class HarnessBackend:
         image_texts, image_usage, hist_stats = [], [], None
         try:
             attach_dir = workspace if ephemeral else workspace / ATTACH_DIR
-            names = []
+            names, already_read = [], set()
             for doc in request.attachments:
                 attach_dir.mkdir(parents=True, exist_ok=True)
                 name = sanitize_filename(doc["name"])
                 if doc.get("encoding") == "base64":
                     (attach_dir / name).write_bytes(base64.b64decode(doc["content"]))
+                    if write_ocr_sidecar(attach_dir / name, doc.get("ocr")):
+                        already_read.add(len(names))  # read in an earlier turn: its scanned pages are not read again
                 else:
                     (attach_dir / name).write_text(doc["content"], encoding="utf-8")
                 names.append(name if ephemeral else f"{ATTACH_DIR}/{name}")
@@ -1438,7 +1463,12 @@ class HarnessBackend:
                             guard.truncate(text or "", IMAGE_TEXT_CHARS), encoding="utf-8"
                         )
                 scan_usage = self._read_scanned_pdfs(
-                    [workspace / n for n in names], ctx, rl, len(request.images), last["content"], cfg.cache_salt
+                    [(i, workspace / n) for i, n in enumerate(names) if i not in already_read],
+                    ctx,
+                    rl,
+                    len(request.images),
+                    last["content"],
+                    cfg.cache_salt,
                 )
                 image_usage += scan_usage
                 offset = len(request.images) + len(scan_usage)  # the agent's steps come after these

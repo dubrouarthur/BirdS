@@ -635,3 +635,45 @@ def test_attachment_requests_get_no_web_tools_unless_asked(tmp_path):
     tools_web = json.loads(llm.prompts[3])["tools"]
     assert "web_search" not in tools_plain and "read_page" not in tools_plain and "make_sheet" in tools_plain
     assert "web_search" in tools_web
+def _scanned_pdf(pages: int) -> str:
+    import pypdf
+
+    w = pypdf.PdfWriter()
+    for _ in range(pages):
+        w.add_blank_page(width=300, height=400)  # no text layer: read as an image
+    buf = io.BytesIO()
+    w.write(buf)
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def test_scanned_pdf_read_once_per_conversation(tmp_path, monkeypatch):
+    monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
+    pages = ["Page un : facture 7.", "Page deux : total 1 250 €.", "Page trois : IBAN FR76."]
+    tool = "<tool_call>\n<function=read_file>\n<parameter=path>\nscan.pdf\n</parameter>\n</function>\n</tool_call>"
+    llm = FakeClient([*pages, "Voici le résumé.", tool, "Le total est 1 250 €."])
+    app = create_app(Settings(rate_limit=0, demo_delay=0), server_backend=HarnessBackend(llm, _Tok()))
+    doc = {"name": "scan.pdf", "content": _scanned_pdf(3), "encoding": "base64"}
+    with TestClient(app) as c:
+        first = _sse(
+            c.post("/api/chat", json={"messages": [{"role": "user", "content": "Résume ce PDF"}], "attachments": [doc]})
+        )
+        assert len(llm.chats) == 3  # one vision call per scanned page
+        (event,) = [e for e in first if e["type"] == "attachment_text"]
+        assert event["index"] == 0 and event["pages"]["2"] == pages[1]
+        answer = [e for e in first if e["type"] == "answer"][0]["content"]
+        body = {
+            "messages": [
+                {"role": "user", "content": "Résume ce PDF"},
+                {"role": "assistant", "content": answer},
+                {"role": "user", "content": "Quel est le total ?"},
+            ],
+            "attachments": [{**doc, "ocr": event["pages"]}],
+        }
+        n = len(llm.prompts)
+        second = _sse(c.post("/api/chat", json=body))
+    assert len(llm.chats) == 3  # no page read again
+    assert len(llm.prompts) == n + 2  # the agent's two generations only
+    assert not [e for e in second if e["type"] == "attachment_text"]
+    read = json.loads(llm.prompts[-1])["messages"][-1]["content"]
+    assert "Page deux : total 1 250 €." in read and "scanned, read as an image" in read
+    assert [e for e in second if e["type"] == "answer"][0]["content"] == "Le total est 1 250 €."

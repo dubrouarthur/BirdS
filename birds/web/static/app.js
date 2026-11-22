@@ -1124,7 +1124,7 @@ function endWake(turn) {
   }
 }
 
-function handleEvent(turn, event, conv = state.conv) {
+function handleEvent(turn, event, conv = state.conv, docs = []) {
   if (turn.wakeStart && event.type !== "status") endWake(turn);
   switch (event.type) {
     case "delta":
@@ -1143,6 +1143,13 @@ function handleEvent(turn, event, conv = state.conv) {
     case "delta_reset":
       turn.text = "";
       break;
+    case "attachment_text": {
+      // what the server read on the scanned pages of a PDF: kept with the attachment and sent back, so the
+      // next turns do not read (and pay for) the same pages again
+      const doc = docs[event.index];
+      if (doc && event.pages && typeof event.pages === "object") doc.ocr = event.pages;
+      return;
+    }
     case "status":
       if (event.state === "waking") {
         turn.wakeStart = turn.wakeStart || Date.now();
@@ -1232,19 +1239,19 @@ async function runTurn(turn, extra = {}) {
     if (!conv.cid) conv.cid = randomId();
     if (!conv.lang)
       conv.lang = state.prefs.lang === "en" ? "en" : "fr"; // pinned for the conversation
+    const docs = conv.attachments.filter((a) => a.content && !a.lost);
     const body = {
       messages: apiMessages(!!resend),
       conv_lang: conv.lang,
       conversation_id: conv.cid,
       thinking: !!turn.thinking,
       lang: state.prefs.lang,
-      attachments: conv.attachments
-        .filter((a) => a.content && !a.lost)
-        .map(({ name, content, encoding }) => ({
-          name,
-          content,
-          encoding: encoding || "text",
-        })),
+      attachments: docs.map(({ name, content, encoding, ocr }) => ({
+        name,
+        content,
+        encoding: encoding || "text",
+        ...(ocr && encoding === "base64" ? { ocr } : {}),
+      })),
       ...extra,
     };
     const response = await fetch("/api/chat", {
@@ -1291,7 +1298,7 @@ async function runTurn(turn, extra = {}) {
           continue;
         }
         if (event.type === "done") finished = true;
-        else handleEvent(turn, event, conv);
+        else handleEvent(turn, event, conv, docs);
       }
     }
     if (!finished && turn.status === "running") {
