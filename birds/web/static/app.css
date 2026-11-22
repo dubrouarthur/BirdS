@@ -1842,8 +1842,11 @@ details[open] > summary > .chev {
 /* ------------------------------------------------------------ the receipt (signature) */
 .receipt-fold {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   justify-items: start;
+  min-inline-size: 0;
+  max-inline-size: 100%;
 }
 .receipt-fold > div {
   justify-self: stretch;
@@ -1853,6 +1856,7 @@ details[open] > summary > .chev {
   align-items: center;
   gap: 8px;
   min-block-size: 36px;
+  min-inline-size: 0;
   max-inline-size: 100%;
   padding: 0 12px;
   border: 1px solid var(--line);
@@ -1862,6 +1866,10 @@ details[open] > summary > .chev {
   font: inherit;
   font-size: 0.8rem;
   cursor: pointer;
+}
+.receipt-chip > .icon,
+.receipt-chip > .tag {
+  flex: none;
 }
 .receipt-chip .icon:first-child {
   color: var(--eco);
@@ -2216,10 +2224,11 @@ details[open] > summary > .chev {
 .dock-keys::before {
   content: " · ";
 }
-/* while typing on a narrow screen, the notes give their room to the conversation */
+/* while typing on a narrow screen, the notes give their room to the conversation;
+   keyed to the whole dock, so tapping Send does not bring them back mid-tap and move the button away */
 @media (max-width: 640px) {
-  .dock:has(#composer-input:focus) .dock-note,
-  .dock:has(#composer-input:focus) .att-note {
+  .dock:focus-within .dock-note,
+  .dock:focus-within .att-note {
     display: none;
   }
   /* a long message shows its count: the switch keeps its accessible name, the visible label steps aside */

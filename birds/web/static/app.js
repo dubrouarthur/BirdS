@@ -1551,6 +1551,8 @@ function bind() {
     e.preventDefault();
     send(el.value);
   });
+  // a tap on Send keeps the focus (and the phone keyboard) in the message box, so the layout does not move under the finger
+  $("btn-send").addEventListener("mousedown", (e) => e.preventDefault());
   el.addEventListener("input", () => {
     slashIndex = 0;
     autosize();
