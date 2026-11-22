@@ -2467,6 +2467,15 @@ details[open] > summary > .chev {
   stroke: var(--line-strong);
   stroke-width: 1;
 }
+.chart-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.chart-scale {
+  fill: var(--muted);
+  font: 0.7rem var(--sans);
+}
 .chart-hit {
   fill: transparent;
 }

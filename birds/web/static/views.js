@@ -85,95 +85,111 @@ function topRounded(x, y, w, hgt, r) {
 function chart(all) {
   const usages = all.slice(-40);
   const offset = all.length - usages.length;
-  const barW = 14;
-  const gap = 8;
-  const height = 120;
-  const plot = height - 10;
+  const height = 132;
+  const top = 16; // room for the scale label
+  const plot = height - top - 2;
   const max = Math.max(
     1,
     ...usages.map((u) => u.prompt_tokens + u.completion_tokens),
   );
-  const width = Math.max(usages.length * (barW + gap) + gap, 160);
   const readout = h("p", {
     class: "chart-readout num",
+    "aria-live": "polite",
     text: t("fp.chart.hint"),
   });
-  const el = svg("svg", {
-    class: "chart",
-    viewBox: `0 0 ${width} ${height}`,
-    width,
-    height,
-    role: "group",
-    "aria-label": t("fp.chart"),
-  });
-  el.append(
-    svg("line", {
-      class: "chart-axis",
-      x1: 0,
-      x2: width,
-      y1: height - 0.5,
-      y2: height - 0.5,
-    }),
-  );
-  usages.forEach((u, i) => {
-    const x = gap + i * (barW + gap);
-    const hIn = Math.max(
-      u.prompt_tokens > 0 ? 2 : 0,
-      (u.prompt_tokens / max) * (plot - 2),
-    );
-    const hOut = Math.max(
-      u.completion_tokens > 0 ? 2 : 0,
-      (u.completion_tokens / max) * (plot - 2),
-    );
-    const extra =
-      (u.thinking ? t("fp.bar.thinking") : "") +
-      (u.tool_calls ? t("fp.bar.tools", { n: u.tool_calls }) : "");
-    const label = t("fp.bar", {
+  const scroller = h("div", { class: "chart-scroll" });
+  let current = usages.length - 1; // roving tabindex: one tab stop, the arrows move between answers
+  const labelOf = (u, i) =>
+    t("fp.bar", {
       i: offset + i + 1,
       in: fmtInt(u.prompt_tokens),
       out: fmtInt(u.completion_tokens),
-      extra,
+      extra:
+        (u.thinking ? t("fp.bar.thinking") : "") +
+        (u.tool_calls ? t("fp.bar.tools", { n: u.tool_calls }) : ""),
     });
-    const group = svg("g", {
-      class: "chart-bar",
-      tabindex: "0",
-      role: "img",
-      "aria-label": label,
+  function draw() {
+    const W = Math.max(160, Math.floor(scroller.clientWidth || 640) - 4);
+    const n = Math.max(1, usages.length);
+    const gap = Math.min(8, Math.max(2, Math.round(W / n / 4)));
+    const barW = Math.min(24, Math.max(3, Math.floor((W - gap) / n - gap)));
+    const width = Math.min(W, Math.max(n * (barW + gap) + gap, 160));
+    const hadFocus = scroller.contains(document.activeElement);
+    const el = svg("svg", {
+      class: "chart",
+      viewBox: `0 0 ${width} ${height}`,
+      width,
+      height,
+      role: "group",
+      "aria-label": t("fp.chart"),
     });
-    group.append(
-      svg("rect", {
-        class: "chart-hit",
-        x: x - gap / 2,
-        y: 0,
-        width: barW + gap,
-        height,
-      }),
-      svg("rect", {
-        class: "series-in",
-        x,
-        y: height - 1 - hIn,
-        width: barW,
-        height: hIn,
-      }),
-      svg("path", {
-        class: "series-out",
-        d: topRounded(x, height - 1 - hIn - 2 - hOut, barW, hOut, 4),
-      }),
+    el.append(
+      svg("line", { class: "chart-grid", x1: 0, x2: width, y1: top + 0.5, y2: top + 0.5 }),
+      svg("text", { class: "chart-scale", x: 0, y: top - 5 }, document.createTextNode(`${fmtInt(max)} tokens`)),
+      svg("line", { class: "chart-axis", x1: 0, x2: width, y1: height - 0.5, y2: height - 0.5 }),
     );
-    if (u.thinking)
+    const bars = usages.map((u, i) => {
+      const x = gap + i * (barW + gap); // left-aligned
+      const hIn = Math.max(u.prompt_tokens > 0 ? 2 : 0, (u.prompt_tokens / max) * (plot - 2));
+      const hOut = Math.max(u.completion_tokens > 0 ? 2 : 0, (u.completion_tokens / max) * (plot - 2));
+      const label = labelOf(u, i);
+      const group = svg("g", {
+        class: "chart-bar",
+        tabindex: i === current ? "0" : "-1",
+        role: "img",
+        "aria-label": label,
+        "data-i": String(i),
+      });
       group.append(
-        svg("circle", {
-          class: "chart-dot",
-          cx: x + barW / 2,
-          cy: Math.max(4, height - 1 - hIn - 2 - hOut - 6),
-          r: 2.2,
-        }),
+        svg("rect", { class: "chart-hit", x: x - gap / 2, y: 0, width: barW + gap, height }),
+        svg("rect", { class: "series-in", x, y: height - 1 - hIn, width: barW, height: hIn }),
+        svg("path", { class: "series-out", d: topRounded(x, height - 1 - hIn - 2 - hOut, barW, hOut, Math.min(4, barW / 2)) }),
       );
-    const show = () => (readout.textContent = label);
-    group.addEventListener("mouseenter", show);
-    group.addEventListener("focus", show);
-    el.append(group);
-  });
+      if (u.thinking)
+        group.append(
+          svg("circle", {
+            class: "chart-dot",
+            cx: x + barW / 2,
+            cy: Math.max(top + 4, height - 1 - hIn - 2 - hOut - 6),
+            r: Math.min(2.2, barW / 2),
+          }),
+        );
+      const show = () => {
+        current = i;
+        readout.textContent = label;
+      };
+      group.addEventListener("mouseenter", show);
+      group.addEventListener("focus", show);
+      group.addEventListener("pointerdown", show); // touch: a tap shows the details
+      el.append(group);
+      return group;
+    });
+    el.addEventListener("keydown", (e) => {
+      const go = { ArrowRight: current + 1, ArrowLeft: current - 1, Home: 0, End: bars.length - 1 }[e.key];
+      if (go === undefined) return;
+      e.preventDefault();
+      const next = Math.max(0, Math.min(bars.length - 1, go));
+      bars[current]?.setAttribute("tabindex", "-1");
+      bars[next].setAttribute("tabindex", "0");
+      current = next;
+      bars[next].focus();
+    });
+    scroller.replaceChildren(el);
+    if (hadFocus) bars[current]?.focus();
+  }
+  draw();
+  let lastW = 0;
+  let timer = 0;
+  if (typeof ResizeObserver === "function")
+    new ResizeObserver(() => {
+      const w = scroller.clientWidth;
+      if (!w || w === lastW) return;
+      const first = !lastW;
+      lastW = w;
+      window.clearTimeout(timer);
+      if (first) draw(); // now in the page: its real width
+      else timer = window.setTimeout(draw, 80); // debounced: a window drag redraws once
+    }).observe(scroller);
   return h(
     "figure",
     { class: "panel chart-figure" },
@@ -210,7 +226,7 @@ function chart(all) {
         ),
       ),
     ),
-    h("div", { class: "chart-scroll" }, el),
+    scroller,
     readout,
     h(
       "details",

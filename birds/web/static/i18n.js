@@ -313,8 +313,7 @@ export const STRINGS = {
     "fp.co2": "Émissions",
     "fp.partial": "sur {k} réponse(s) sur {n}",
     "fp.chart": "Tokens par réponse",
-    "fp.chart.hint":
-      "Survolez une barre, ou parcourez-les au clavier, pour le détail.",
+    "fp.chart.hint": "Touchez ou survolez une barre, ou utilisez les flèches.",
     "fp.chart.last": "{n} dernières réponses",
     "fp.legend.in": "lus",
     "fp.legend.out": "écrits",
@@ -912,7 +911,7 @@ export const STRINGS = {
     "fp.co2": "Emissions",
     "fp.partial": "over {k} of {n} answer(s)",
     "fp.chart": "Tokens per answer",
-    "fp.chart.hint": "Hover a bar, or tab through them, for details.",
+    "fp.chart.hint": "Tap or hover a bar, or use the arrow keys.",
     "fp.chart.last": "last {n} answers",
     "fp.legend.in": "read",
     "fp.legend.out": "written",
