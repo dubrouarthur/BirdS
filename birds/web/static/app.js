@@ -21,6 +21,7 @@ import {
   uid,
   modelLabel,
 } from "./core.js";
+import { wire as wireRich } from "./richcode.js";
 import {
   exportMarkdown,
   forgetRendered,
@@ -1791,6 +1792,8 @@ function bind() {
     (target || el).focus();
   });
 
+  // Code blocks: wrap, download, expand; formula chips; folded lists (delegated once, see richcode.js).
+  wireRich($("conversation"), { copy: (text, done) => copyText(text, done), download });
   // Code blocks: copy only the code (read at click time, so a block redrawn while streaming copies its latest text).
   $("conversation").addEventListener("click", (e) => {
     const btn = e.target.closest?.("[data-copy-code]");
