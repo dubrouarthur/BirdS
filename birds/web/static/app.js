@@ -157,6 +157,8 @@ function loadConv(id) {
         ? {
             role: "user",
             content: String(x.content ?? ""),
+            // the exact text the model got (image and scan transcriptions included): keep it for the history
+            sent: typeof x.sent === "string" ? x.sent : undefined,
             attachments: (x.attachments || []).map((a) =>
               typeof a === "string" ? { name: a } : a,
             ),
