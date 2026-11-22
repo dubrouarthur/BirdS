@@ -18,6 +18,7 @@ dependencies = [
     "openpyxl>=3.1",
     "pypdf>=5",
     "pypdfium2>=4",
+    "pillow>=10",  # already pulled in by python-pptx; /api/img re-encodes web images with it
 ]
 
 [project.optional-dependencies]
@@ -32,7 +33,7 @@ entrypoint = "app:app"
 
 
 [tool.setuptools.package-data]
-birds = ["web/static/*", "harness/chat_template.jinja"]
+birds = ["web/static/*", "web/static/demo/*", "harness/chat_template.jinja"]
 
 [tool.setuptools.packages.find]
 include = ["birds*"]
