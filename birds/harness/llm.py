@@ -141,27 +141,28 @@ class CompletionsClient:
         self.http = httpx.Client(timeout=timeout, transport=transport, follow_redirects=False, trust_env=egress is None)
 
     # -- one HTTP attempt
-    def _target(self):
+    def _target(self, url: str | None = None):
         import httpx
 
+        url = url or self.url
         headers = {"Accept": "text/event-stream, application/json", **self._auth}
         if self.egress is None:
-            return self.url, headers, {}
+            return url, headers, {}
         from birds.harness import guard
 
         try:
-            ips = guard.check_url(self.url, self.egress)
+            ips = guard.check_url(url, self.egress)
         except guard.Blocked as e:
             raise EndpointError("blocked", f"endpoint URL refused by the egress policy: {e}") from None
-        u = httpx.URL(self.url)
+        u = httpx.URL(url)
         headers["Host"] = u.netloc.decode("ascii")
         ip = ips[0]
         return u.copy_with(host=f"[{ip}]" if ":" in ip else ip), headers, {"sni_hostname": u.host}
 
-    def _post(self, body: dict, read_timeout: float, on_piece) -> tuple[int | None, int | None]:
+    def _post(self, body: dict, read_timeout: float, on_piece, url: str | None = None) -> tuple[int | None, int | None]:
         import httpx
 
-        target, headers, ext = self._target()
+        target, headers, ext = self._target(url)
         timeout = httpx.Timeout(read_timeout, connect=min(15.0, read_timeout))
         try:
             with self.http.stream("POST", target, json=body, headers=headers, extensions=ext, timeout=timeout) as r:
@@ -198,12 +199,48 @@ class CompletionsClient:
         except httpx.HTTPError as e:
             raise EndpointError("unreachable", f"cannot reach the model endpoint ({type(e).__name__})") from None
 
+    def chat(
+        self, messages: list[dict], max_tokens: int, *, on_token=None, on_status=None, deadline=None, thinking=False
+    ) -> dict:
+        """``/v1/chat/completions`` with the server's chat template: the only route that carries images (OpenAI
+        content lists with ``image_url`` data URLs). No tools are sent: vLLM refuses them without a tool parser."""
+        body = {
+            "model": self.model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": self.temperature,
+            "stream": self.stream,
+            "chat_template_kwargs": {"enable_thinking": bool(thinking)},
+        }
+        return self.generate(
+            "",
+            max_tokens,
+            STOP,
+            on_token=on_token,
+            on_status=on_status,
+            deadline=deadline,
+            _body=body,
+            _url=self.url[: -len("/completions")] + "/chat/completions",
+            _chars=sum(len(json.dumps(m.get("content"), ensure_ascii=False)) for m in messages),
+        )
+
     def generate(
-        self, prompt: str, max_tokens: int, stop: list[str], *, on_token=None, on_status=None, deadline=None, **_
+        self,
+        prompt: str,
+        max_tokens: int,
+        stop: list[str],
+        *,
+        on_token=None,
+        on_status=None,
+        deadline=None,
+        _body=None,
+        _url=None,
+        _chars=None,
+        **_,
     ) -> dict:
         """``deadline`` is a ``time.monotonic()`` value: waiting for a waking endpoint and reading stop before it."""
         t0 = time.monotonic()
-        body = {
+        body = _body or {
             "model": self.model,
             "prompt": prompt,
             "max_tokens": max_tokens,
@@ -229,13 +266,14 @@ class CompletionsClient:
             if left <= 1:
                 raise EndpointError("timeout", "no time left to call the model endpoint")
             try:
-                tin, tout = self._post(body, min(self.timeout, left), on_piece)
+                tin, tout = self._post(body, min(self.timeout, left), on_piece, _url)
                 break
             except EndpointError as e:
                 if e.kind == "bad_request" and not conservative and not cutter.sent:
                     conservative = True  # some engines refuse stream_options, or more than 4 stop sequences
                     body.pop("stream_options", None)
-                    body["stop"] = list(stop or [])[:4]
+                    if "stop" in body:
+                        body["stop"] = list(stop or [])[:4]
                     continue
                 if e.kind != "waking" or cutter.sent:
                     raise
@@ -254,7 +292,7 @@ class CompletionsClient:
             "text": text,
             "prompt_tokens": tin,
             "completion_tokens": tout,
-            "prompt_chars": len(prompt),
+            "prompt_chars": _chars if _chars is not None else len(prompt),
             "completion_chars": len(text),
             "seconds": round(end - t0, 3),
             # the successful attempt only (waiting for a waking endpoint excluded): time the GPU worked for us,
@@ -341,6 +379,10 @@ class FakeClient:
 
     def __init__(self, outputs: list[str], seconds: float = 0.01, chunk: int = 7):
         self.outputs, self.prompts, self.seconds, self.chunk = list(outputs), [], seconds, chunk
+
+    def chat(self, messages: list[dict], max_tokens: int, *, on_token=None, **_) -> dict:
+        self.chats = getattr(self, "chats", []) + [messages]
+        return self.generate("<chat>", max_tokens, STOP, on_token=on_token)
 
     def generate(self, prompt: str, max_tokens: int, stop: list[str], *, on_token=None, **_) -> dict:
         self.prompts.append(prompt)
