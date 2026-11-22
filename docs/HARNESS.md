@@ -4,7 +4,7 @@ Code : `birds/harness/` · tests : `tests/test_harness.py` · ligne de commande 
 
 ## 1. Ce que fait le harnais
 
-Bird est un petit modèle (4 Md de paramètres). Le harnais est donc petit lui aussi : invite système courte (celle de `docs/PERSONA.md`, dans la langue de l'utilisateur), huit outils au plus, boucle bornée. **Toutes les règles de sécurité sont appliquées par le code, jamais confiées au modèle.**
+Bird est un petit modèle (4 Md de paramètres). Le harnais est donc petit lui aussi : invite système courte (celle de `docs/PERSONA.md`, dans la langue de l'utilisateur), huit outils entraînés, plus trois outils de fiches (lieux, entreprise, devises) proposés seulement quand la demande les appelle, boucle bornée. **Toutes les règles de sécurité sont appliquées par le code, jamais confiées au modèle.**
 
 Déroulé d'une requête :
 
@@ -64,6 +64,8 @@ Chaque réparation est notée sur l'étape (`repairs`, journal d'audit, et « Ar
 **Réponse coupée** : si la dernière génération s'arrête sur `finish_reason = "length"`, la raison d'arrêt est `length` (et non `answer`) ; la réponse est gardée et marquée « [réponse interrompue] » dans l'historique.
 
 **Texte en boucle** (`llm.find_loop`) : pendant le flux, toutes les 48 nouvelles lettres, le harnais regarde si la fin du texte répète un même motif exact (mot, ligne, paragraphe) au moins 3 fois et sur au moins 400 caractères (3 200 si le motif n'a ni lettre ni chiffre : espaces, tirets, lignes de tableau vides). Si oui, il ferme la connexion : vLLM annule la requête et le GPU s'arrête au lieu de tourner jusqu'à `max_tokens`. Une seule copie du motif est gardée, la raison d'arrêt devient `repetition`, l'interface affiche « Bird se répétait : réponse arrêtée net » avec « Relancer », et la réponse est marquée interrompue dans l'historique. Une boucle pendant la réflexion, sans réponse, donne un message qui le dit. Mesure sur les 264 000 réponses longues du jeu d'entraînement (`out/pool_all`) : 58 signalées, toutes dégénérées (base64 répété, balises d'appel d'outil à l'infini, une formule recopiée) sauf un modèle de facture JSON avec plus de 3 000 caractères de lignes vides identiques.
+
+**Outils de fiches et pré-appel** (`birds/harness/intents.py`) : Bird S 4B n'a jamais été entraîné sur `find_places`, `find_company` et `convert_currency`. Le harnais lit donc les mots de l'utilisateur : quand il est sûr (« restaurants près de la gare de Lyon », un SIREN valide, « 1 200 dollars en euros »), il fait l'appel lui-même avant la première génération, par le même chemin qu'un appel du modèle (validation, garde-fous, détection d'injection) ; l'étape porte `info.auto` (« automatique » dans l'interface). Quand il n'a qu'un indice (« et des hôtels près de là ? »), l'outil est seulement proposé. Sinon les trois outils sont retirés : un tour ordinaire garde le bloc d'outils d'entraînement octet pour octet (cache de préfixe intact). Ils sont petits (au plus trois arguments plats) et placés après les outils entraînés. Pour une demande de rendez-vous datée sans besoin web, le harnais retire la recherche et ajoute au message une note qui donne le jour exact résolu (le modèle réel avait écrit « dimanche 25 décembre » pour un vendredi). Mesures réelles et détails : `docs/WEB.md`, « Résultats enrichis ».
 
 ## 3. Les garde-fous, et ce qu'ils ne couvrent pas
 
