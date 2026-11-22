@@ -507,7 +507,7 @@ function filePreview(preview, onDownload) {
       const deck = deckPreview(preview, { onDownload });
       return deck && h("div", null, deck, preview.notes > 0 && h("p", { class: "hint", text: t("files.notes", { n: preview.notes }) }));
     }
-    if (preview.kind === "document") return docPreview(preview);
+    if (preview.kind === "document") return docPreview(preview, { onDownload });
     if (preview.kind === "sheet") return sheetPreview(preview);
   }
   if (preview.kind === "slides") {

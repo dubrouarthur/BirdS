@@ -323,7 +323,7 @@ const runsOf = (el, runs) => {
   return el;
 };
 
-export function docPreview(p) {
+export function docPreview(p, { onDownload } = {}) {
   const page = h("div", { class: "a4" });
   let list = null;
   for (const b of Array.isArray(p.blocks) ? p.blocks : []) {
@@ -389,10 +389,25 @@ export function docPreview(p) {
     t("files.doc.all"),
     () => {
       wrap.classList.remove("is-clipped");
-      more.remove();
+      less.focus();
     },
   );
-  wrap.append(more);
+  // once open, the page can be long: "Show less" and the download stay at hand at the bottom of the window
+  const less = button("btn-ghost btn-small a4-less", "down", t("files.doc.less"), () => {
+    wrap.classList.add("is-clipped");
+    wrap.querySelector(".a4-scroll").scrollTop = 0;
+    wrap.scrollIntoView({ block: "nearest" });
+    more.focus();
+  }, { "aria-label": t("files.doc.less") }); // its label hides on a phone
+  wrap.append(
+    more,
+    h(
+      "div",
+      { class: "a4-bar" },
+      less,
+      onDownload && button("btn-primary btn-small btn-icon", "download", t("files.download"), onDownload),
+    ),
+  );
   return wrap;
 }
 

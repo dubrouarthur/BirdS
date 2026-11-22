@@ -4206,8 +4206,41 @@ button.att-card {
   background: var(--surface);
   box-shadow: var(--shadow);
 }
-.a4-wrap:not(.is-clipped) .a4-more {
+.a4-wrap:not(.is-clipped) .a4-more,
+.a4-wrap.is-clipped .a4-bar {
   display: none;
+}
+.file-card {
+  overflow: clip; /* clips like hidden, but leaves the page as the scroller of the sticky bar below */
+}
+.a4-bar {
+  position: sticky;
+  z-index: 1;
+  inset-block-end: 10px;
+  display: flex;
+  justify-content: flex-end; /* clear of the centred 'Go to the end' pill */
+  gap: 8px;
+  padding: 0 12px 10px;
+  pointer-events: none;
+}
+.a4-bar > .btn {
+  pointer-events: auto;
+  box-shadow: var(--shadow);
+}
+.a4-bar > .btn-ghost {
+  background: var(--surface);
+}
+.a4-less .icon {
+  transform: rotate(180deg);
+}
+@media (max-width: 640px) {
+  .a4-less {
+    inline-size: 34px;
+    padding: 0;
+  }
+  .a4-less .btn-label {
+    display: none;
+  }
 }
 .a4 {
   --cm: calc(min(100cqw, 794px) / 21);
