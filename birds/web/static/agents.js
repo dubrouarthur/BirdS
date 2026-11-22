@@ -48,7 +48,9 @@ export function applyAgentEvent(turn, ev) {
     crew.done = ev;
     for (const lane of crew.lanes) {
       if (lane.status === "queued") lane.status = "skipped";
-      if (lane.status === "running") lane.status = ev.ok ? "done" : "error";
+      // the user stopped the team: a neutral « arrêté », not a red failure
+      if (lane.status === "running")
+        lane.status = ev.ok ? "done" : ev.stopped ? "stopped" : "error";
     }
     return;
   }
@@ -93,6 +95,7 @@ function detailOf(lane) {
       ? lane.info
       : t("agent.skipped");
   if (lane.status === "error") return t("agent.error");
+  if (lane.status === "stopped") return t("agent.status.stopped");
   return lane.info || lane.detail || "";
 }
 
@@ -103,7 +106,7 @@ function laneCard(turn, lane) {
     counts.set(toolLabel(s.tool), (counts.get(toolLabel(s.tool)) || 0) + 1);
   const running = lane.status === "running";
   const state =
-    { done: "✓", error: "✕", skipped: "–", queued: "", running: "" }[
+    { done: "✓", error: "✕", skipped: "–", stopped: "■", queued: "", running: "" }[
       lane.status
     ] ?? "";
   return h(

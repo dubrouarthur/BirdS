@@ -186,6 +186,27 @@ async function run(cfg) {
   );
   await page.screenshot({ path: path.join(SHOTS, `${name}-5-simple.png`) });
 
+  // 4b. Stop while the drafts run: the running lanes read « arrêté » (grey), never a red failure
+  await newConversation(page);
+  await send(page, DECK);
+  await page.waitForSelector(
+    '[data-phase="drafts"] .crew-lane[data-status="running"]',
+    { timeout: 20000 },
+  );
+  await page.click("#btn-stop");
+  await idle(page);
+  await page
+    .locator(".crew-fold > summary")
+    .click()
+    .catch(() => {});
+  const after = await page.$$eval(".crew-lane", (els) =>
+    els.map((e) => e.dataset.status),
+  );
+  check(
+    after.includes("stopped") && !after.includes("error"),
+    `after Stop: lanes stopped, none in error (${after.join(",")})`,
+  );
+
   // 5. Désactivé: no team on the same request
   await newConversation(page);
   await page.selectOption("#agent-mode", "off");

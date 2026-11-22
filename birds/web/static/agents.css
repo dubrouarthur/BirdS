@@ -287,6 +287,16 @@
   background: var(--eco-soft);
   color: var(--eco);
 }
+.crew-lane.is-stopped {
+  color: var(--muted);
+  border-color: var(--line);
+  background: transparent;
+}
+.crew-lane.is-stopped .crew-dot {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 0.5rem;
+}
 .crew-lane.is-error .crew-dot {
   background: var(--danger-bg);
   color: var(--danger-ink);
