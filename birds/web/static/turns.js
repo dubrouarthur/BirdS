@@ -1227,30 +1227,29 @@ function webImageTile(turn, img) {
   const page = safeUrl(img.page);
   const domain = String(img.domain || hostOf(img.page) || "");
   const title = String(img.title || domain);
-  const missing = () =>
-    h(
-      "span",
-      { class: "web-image-missing" },
-      icon("image"),
-      h("span", { text: t("webimg.missing") }),
-      h("span", { text: domain }),
-    );
   const frame = h("span", { class: "web-image-frame" });
-  if (typeof img.src === "string" && IMG_OK.test(img.src)) {
-    const el = h("img", {
-      src: img.src,
-      alt: String(img.alt || title),
-      width: "168",
-      height: "126",
-      loading: "lazy",
-      decoding: "async",
-      referrerpolicy: "no-referrer",
-    });
-    el.addEventListener("error", () => el.replaceWith(missing()), {
-      once: true,
-    });
-    frame.append(el);
-  } else frame.append(missing());
+  const el = h("img", {
+    src: img.src,
+    alt: String(img.alt || title),
+    width: "168",
+    height: "126",
+    loading: "lazy",
+    decoding: "async",
+    referrerpolicy: "no-referrer",
+  });
+  // an image that does not load (expired link, upstream error) is removed, not shown as an empty frame; the
+  // section goes when none is left
+  el.addEventListener(
+    "error",
+    () => {
+      const li = el.closest("li");
+      const list = li?.parentElement;
+      li?.remove();
+      if (list && !list.children.length) list.closest("section")?.remove();
+    },
+    { once: true },
+  );
+  frame.append(el);
   if (img.demo)
     frame.append(
       h("span", { class: "tag web-image-badge", text: t("webimg.demo") }),
@@ -1285,7 +1284,7 @@ function webImageTile(turn, img) {
 
 function renderWebImages(turn) {
   const images = (turn.answer?.web_images || [])
-    .filter((x) => x && typeof x === "object")
+    .filter((x) => x && typeof x === "object" && typeof x.src === "string" && IMG_OK.test(x.src))
     .slice(0, 3);
   if (!images.length) return null;
   // kept between re-renders: an image that already loaded (or failed) is not fetched or laid out again
@@ -1293,7 +1292,7 @@ function renderWebImages(turn) {
     turn.ui.webImages = webImagesSection(turn, images);
     turn.ui.webImagesLang = state.prefs.lang;
   }
-  return turn.ui.webImages;
+  return turn.ui.webImages.querySelector("li") ? turn.ui.webImages : null;
 }
 
 function webImagesSection(turn, images) {

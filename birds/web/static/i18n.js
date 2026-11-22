@@ -227,7 +227,6 @@ export const STRINGS = {
     "webimg.open":
       "{title}, {domain} (ouvre la page source dans un nouvel onglet)",
     "webimg.note": "Images issues des pages consultées, non créées par Bird.",
-    "webimg.missing": "Image indisponible",
     "webimg.demo": "Image de démonstration",
     "webimg.export": "Image",
     "arg.query": "Recherche",
@@ -873,7 +872,6 @@ export const STRINGS = {
     "webimg.aria": "Images found on the web",
     "webimg.open": "{title}, {domain} (opens the source page in a new tab)",
     "webimg.note": "Images from the pages consulted, not made by Bird.",
-    "webimg.missing": "Image unavailable",
     "webimg.demo": "Demo image",
     "webimg.export": "Image",
     "arg.query": "Query",

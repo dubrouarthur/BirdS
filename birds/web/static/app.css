@@ -2024,6 +2024,22 @@ details[open] > summary > .chev {
   inline-size: 168px;
   max-inline-size: calc(50% - 5px);
 }
+/* phones: one row of smaller tiles that scrolls sideways (no orphan tile, about a third of the height) */
+@media (max-width: 560px) {
+  .web-image-list {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: thin;
+    padding-block-end: 4px;
+  }
+  .web-image-list > li {
+    flex: 0 0 128px;
+    max-inline-size: none;
+    scroll-snap-align: start;
+  }
+}
 .web-image {
   display: grid;
   gap: 4px;
@@ -2050,15 +2066,6 @@ details[open] > summary > .chev {
   inline-size: 100%;
   block-size: 100%;
   object-fit: cover;
-}
-.web-image-missing {
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  padding: 8px;
-  font-size: 0.74rem;
-  color: var(--muted);
-  text-align: center;
 }
 .web-image-cap {
   display: grid;
