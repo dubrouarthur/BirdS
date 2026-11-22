@@ -339,6 +339,75 @@ def test_api_img_rate_limit(monkeypatch):
     assert codes == [400, 400, 429]
 
 
+def _trickler(script):
+    """A local HTTP server that runs ``script(conn)`` for each connection (a slow or hostile upstream)."""
+    import socket
+    import threading
+
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(8)
+
+    def serve():
+        while True:
+            try:
+                conn, _ = srv.accept()
+            except OSError:
+                return
+            conn.recv(65536)
+            try:
+                script(conn)
+            except OSError:
+                pass
+            finally:
+                conn.close()
+
+    threading.Thread(target=serve, daemon=True).start()
+    return srv, srv.getsockname()[1]
+
+
+def _trickle_headers(conn):
+    for ch in b"HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nX-Pad: " + b"a" * 400:
+        conn.send(bytes([ch]))
+        time.sleep(0.05)
+
+
+def test_fetch_image_deadline_covers_trickled_headers(monkeypatch):
+    # an upstream that sends its status line and headers one byte at a time must not hold the worker: each read
+    # is quick, so only a wall-clock deadline for the whole fetch stops it
+    from birds.harness import Config
+
+    srv, port = _trickler(_trickle_headers)
+    monkeypatch.setattr(guard, "resolve", lambda host: ["127.0.0.1"])
+    monkeypatch.setattr(guard, "ip_is_public", lambda ip: True)
+    cfg = Config(workspace=Path("."), audit_file=None, allowed_ports=(port,))
+    t = time.monotonic()
+    with httpx.Client(trust_env=False) as http, pytest.raises(guard.FetchError) as err:
+        guard.fetch_image(http, cfg, f"http://slow.test:{port}/x.png", timeout=0.4)
+    srv.close()
+    assert err.value.code == "upstream" and str(err.value) == "too slow"
+    assert time.monotonic() - t < 2.0  # 2 x timeout, not 400 x 0.05 s
+
+
+def test_fetch_deadline_counts_every_redirect_hop(monkeypatch):
+    # each hop answers a redirect just under the per-read timeout: the hops share one budget
+    from birds.harness import Config
+
+    def slow_redirect(conn):
+        time.sleep(0.3)
+        conn.send(b"HTTP/1.1 302 Found\r\nLocation: /next\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+
+    srv, port = _trickler(slow_redirect)
+    monkeypatch.setattr(guard, "resolve", lambda host: ["127.0.0.1"])
+    monkeypatch.setattr(guard, "ip_is_public", lambda ip: True)
+    cfg = Config(workspace=Path("."), audit_file=None, allowed_ports=(port,), max_redirects=20)
+    t = time.monotonic()
+    with httpx.Client(trust_env=False) as http, pytest.raises(guard.FetchError) as err:
+        guard.fetch_image(http, cfg, f"http://slow.test:{port}/x.png", timeout=0.4)
+    srv.close()
+    assert str(err.value) == "too slow" and time.monotonic() - t < 1.5
+
+
 # --------------------------------------------------------------------------- 19 CSP unchanged
 
 
