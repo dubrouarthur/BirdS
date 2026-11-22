@@ -255,6 +255,26 @@ def test_office_questions_are_never_sent_to_a_geocoder(tmp_path, text):
     assert "find_places" not in tools
 
 
+def test_attachment_with_place_words_is_only_offered_and_file_text_is_refused(tmp_path):
+    call = "<tool_call>\n<function=find_places>\n<parameter=query>\n12 rue de la Paix, 75002 Paris\n</parameter>\n</function>\n</tool_call>"
+    a, seen = agent(tmp_path, [call, "Je ne peux pas géocoder une adresse lue dans le fichier."])
+    text = "Affiche le lieu de la réunion de ce PDF sur une carte"
+    run = a.run(text, request_text=text, attached=True)
+    assert "find_places" in json.loads(a.llm.prompts[0])["tools"]
+    assert not seen and run.steps and run.steps[0].error and "attached" in run.steps[0].error
+
+
+def test_attachment_typed_place_is_still_looked_up(tmp_path):
+    call = (
+        "<tool_call>\n<function=find_places>\n<parameter=query>\nrestaurant\n</parameter>\n"
+        "<parameter=near>\ngare de Lyon\n</parameter>\n</function>\n</tool_call>"
+    )
+    a, seen = agent(tmp_path, [call, "Voici [1]."])
+    text = "Restaurants près de la gare de Lyon pour les invités de la liste jointe"
+    run = a.run(text, request_text=text, attached=True)
+    assert seen and run.steps[0].tool == "find_places" and not run.steps[0].error
+
+
 def test_attachment_address_is_not_geocoded(tmp_path):
     a, seen = agent(tmp_path, ["ok"])
     a.run("Résume ce document", request_text="Résume ce document", attached=True)

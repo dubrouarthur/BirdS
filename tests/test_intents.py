@@ -78,6 +78,13 @@ def test_documents_meetings_and_people_are_not_places(text):
     assert not [i for i in intents.detect(text) if i.tool == "find_places"]
 
 
+@pytest.mark.parametrize(
+    "text", ["Où se trouve le siège mentionné dans ce contrat ?", "Affiche le lieu de la réunion de ce PDF sur une carte"]
+)
+def test_attachment_never_prefills(text):
+    assert not [i for i in intents.detect(text, attached=True) if i.args]
+
+
 @pytest.mark.parametrize("text", ["Où se trouve Lyon ?", "Situe Brest sur une carte", "Where is New York?"])
 def test_proper_nouns_are_places(text):
     got = intents.places(text)

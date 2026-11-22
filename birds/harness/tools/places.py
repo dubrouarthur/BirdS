@@ -6,6 +6,8 @@ UI. Coordinates only ever come from a geocoder response: the model cannot put a 
 
 from __future__ import annotations
 
+import re
+import unicodedata
 from urllib.parse import quote
 
 from birds.harness import geo
@@ -91,6 +93,20 @@ def _none(q: str, lang: str) -> str:
     return f"No place found for '{q}' on OpenStreetMap. Say so; do not guess an address."
 
 
+def _fold(text: str) -> str:
+    t = unicodedata.normalize("NFKD", (text or "").replace("’", "'").casefold())
+    t = "".join(c for c in t if not unicodedata.combining(c))
+    return " ".join(re.sub(r"[^\w']+", " ", t).split())
+
+
+def own_words(value: str, request: str) -> bool:
+    """``value`` (a query, a 'near' or a list item) is written in the user's own words, or is a kind keyword."""
+    v = _fold(value)
+    if not v or value.strip().lower() in _KIND_KEYS:
+        return True
+    return f" {v} " in f" {_fold(request)} "
+
+
 def find_places(args: dict, ctx) -> str:
     if ctx.place_calls >= MAX_PER_RUN:
         raise ToolError("places already shown; answer with them")
@@ -99,6 +115,14 @@ def find_places(args: dict, ctx) -> str:
     near = " ".join(str(args.get("near") or "").split())[:120]
     if not query:
         raise ToolError("query is empty")
+    if getattr(ctx, "attached", False):
+        # with a document attached, an address read in the file is never sent to a geocoder: only what the
+        # user typed (docs/WEB.md, « Vie privée »)
+        parts = [x.strip() for x in query.split(";")] + ([near] if near else [])
+        if not all(own_words(x, ctx.request) for x in parts if x):
+            raise ToolError(
+                "a place read in an attached file is never looked up; ask the user to type the place or address"
+            )
     g = geo.Geocoder(ctx)
     center = None
     if ";" in query:

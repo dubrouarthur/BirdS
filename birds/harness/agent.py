@@ -378,6 +378,7 @@ class Agent:
                 bytes_fetched=int(st["bytes_fetched"]),
                 lang=st["lang"],
                 request=str(st.get("request", "")),
+                attached=bool(st.get("attached", False)),
                 found=[str(u) for u in st.get("found", [])],
             )
             messages, seen, queue = st["messages"], set(st["seen"]), list(st["queue"])
@@ -397,6 +398,7 @@ class Agent:
                 search=self.search,
                 lang=run.lang,
                 request=user if request_text is None else request_text,
+                attached=attached,
             )
             messages = list(history or [])
             if not messages or messages[0]["role"] != "system":
@@ -604,6 +606,7 @@ class Agent:
                     "routed": sorted(routed),
                     "found": ctx.found,
                     "request": ctx.request,
+                    "attached": ctx.attached,
                     "gen": gen,
                     "ok": ok,
                     "content": content,

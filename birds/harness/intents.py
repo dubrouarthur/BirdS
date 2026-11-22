@@ -519,8 +519,8 @@ def detect(text: str, attached: bool = False, lang: str = "fr") -> list[Intent]:
     c = company(text, lang)
     p = places(text, lang)
     f = fx(text, lang)
-    if attached:  # an address inside a document is never geocoded: only an explicit ask in the user's words
-        p = p if p and p.args and p.mode != "address" else (Intent("find_places", None) if p else None)
+    if attached and p:  # never an automatic lookup next to a document; find_places then only accepts the user's
+        p = Intent("find_places", None)  # own words as query (tools/places.py), never an address read in the file
     if c and c.args:  # the register's address is authoritative: company wins the prefill, places is offered
         out.append(c)
         if p:
