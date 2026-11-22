@@ -989,54 +989,17 @@ export function renderAbout() {
   );
 }
 
-// Inline SVG drawn here (constants, never model output): the bird mark and the drop-vs-glass illustration.
+// The bird mark: a constant drawn here, never model output.
+const MARK = '<svg class="w-mark" viewBox="0 0 64 56" aria-hidden="true" focusable="false"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></svg>';
 const svgFrom = (markup) => {
   const wrap = document.createElement("span");
   wrap.innerHTML = markup;
   return wrap.firstChild;
 };
-const MARK = '<svg class="w-mark" viewBox="0 0 64 56" aria-hidden="true" focusable="false"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></svg>';
-const DROP = '<svg class="w-drop" viewBox="0 0 120 160" aria-hidden="true" focusable="false"><defs><linearGradient id="wd" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8FC0FF"/><stop offset="1" stop-color="#1E5BD8"/></linearGradient></defs><path d="M60 6C60 6 14 66 14 104a46 46 0 0 0 92 0C106 66 60 6 60 6z" fill="url(#wd)"/><path d="M38 104c0-14 8-28 14-38" stroke="#fff" stroke-opacity=".7" stroke-width="7" stroke-linecap="round" fill="none"/></svg>';
-const GLASS = '<svg class="w-glass" viewBox="0 0 250 330" aria-hidden="true" focusable="false"><defs><linearGradient id="ww" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7DB0F5"/><stop offset="1" stop-color="#2F6FD6"/></linearGradient><clipPath id="wg"><path d="M22 18h206l-24 290a16 16 0 0 1-16 14H62a16 16 0 0 1-16-14z"/></clipPath></defs><g clip-path="url(#wg)"><rect width="250" height="330" fill="#EEF3FB"/><path d="M0 70c40-12 80 12 125 0s85-12 125 0V330H0z" fill="url(#ww)"/></g><path d="M22 18h206l-24 290a16 16 0 0 1-16 14H62a16 16 0 0 1-16-14z" fill="none" stroke="#0B1B3F" stroke-opacity=".28" stroke-width="6" stroke-linejoin="round"/><path d="M48 44l20 248" stroke="#fff" stroke-opacity=".55" stroke-width="9" stroke-linecap="round"/></svg>';
 
-let welcomeStep = 0;
-export function openWelcome(step = 0) {
+export function openWelcome() {
   const dialog = $("welcome");
-  welcomeStep = step;
   const start = h("button", { id: "welcome-start", class: "btn btn-primary btn-cta", type: "button", text: t("welcome.start"), onclick: () => dialog.close() });
-  const head = h(
-    "header",
-    { class: "w-head" },
-    h("span", { class: "w-brand" }, svgFrom(MARK), h("b", { text: "Bird" }), h("span", { text: "S 4B" })),
-    h("span", { class: "w-tag" }, h("span", { class: "tri", "aria-hidden": "true" }, h("i"), h("i"), h("i")), t("welcome.france")),
-  );
-  const one = h(
-    "section",
-    { class: "w-step w-one", hidden: step !== 0 },
-    head,
-    h("h2", { id: "welcome-title", class: "w-title" }, t("welcome.h1"), h("br"), h("em", { text: t("welcome.h2") })),
-    h("p", { class: "w-lead", text: t("welcome.lead") }),
-    h(
-      "div",
-      { class: "w-scene", "aria-hidden": "true" },
-      h("figure", { class: "w-col" }, svgFrom(DROP), h("figcaption", null, h("b", { text: "Bird S 4B" }), h("small", { text: t("welcome.drop") }))),
-      h("span", { class: "w-vs", text: "vs" }),
-      h("figure", { class: "w-col" }, svgFrom(GLASS), h("figcaption", null, h("b", { text: t("welcome.giant") }), h("small", { text: t("welcome.glass") }))),
-    ),
-    h(
-      "div",
-      { class: "w-stat" },
-      h("span", { class: "w-n" }, "×100", h("sup", { text: "*" })),
-      h("p", null, t("welcome.stat"), h("span", { text: t("welcome.stat.sub") })),
-    ),
-    h("p", { class: "w-note", text: t("welcome.note") }),
-    h(
-      "div",
-      { class: "w-actions" },
-      h("button", { class: "link w-more", type: "button", text: t("welcome.more"), onclick: () => openWelcome(1) }),
-      start,
-    ),
-  );
   const pillar = (ico, title, text) =>
     h("li", { class: "w-pillar" }, h("span", { class: "w-picon" }, icon(ico)), h("p", { class: "w-ptitle", text: title }), h("p", { class: "w-ptext", text }));
   const examples = ["email", "minutes", "slides", "search"].map((key) =>
@@ -1047,31 +1010,35 @@ export function openWelcome(step = 0) {
       t(`ex.${key}.title`),
     ),
   );
-  const two = h(
-    "section",
-    { class: "w-step w-two", hidden: step !== 1 },
-    head.cloneNode(true),
-    h("h2", { class: "w-title w-title-s", text: t("welcome.mission.title") }),
-    h("p", { class: "w-lead", text: t("welcome.mission") }),
-    h("ul", { class: "w-pillars" }, pillar("leaf", t("welcome.tiny"), t("welcome.tiny.p")), pillar("eye", t("welcome.sober"), t("welcome.sober.p")), pillar("shield", t("welcome.candid"), t("welcome.candid.p"))),
-    h("p", { class: "w-sub", text: t("welcome.good") }),
-    h("div", { class: "w-exs" }, examples),
-    h("p", { class: "w-deal" }, h("strong", { text: t("welcome.deal") }), " ", t("welcome.deal.p")),
-    h("p", { class: "w-privacy" }, icon("check"), h("span", { text: t("welcome.local") })),
+  put(
+    $("welcome-body"),
     h(
-      "div",
-      { class: "w-actions" },
-      h("button", { class: "link w-more", type: "button", text: t("welcome.back"), onclick: () => openWelcome(0) }),
-      h("button", { class: "btn btn-primary btn-cta", type: "button", text: t("welcome.start"), onclick: () => dialog.close() }),
+      "section",
+      { class: "w-step" },
+      h(
+        "header",
+        { class: "w-head" },
+        h("span", { class: "w-brand" }, svgFrom(MARK), h("b", { text: "Bird" }), h("span", { text: "S 4B" })),
+        h("span", { class: "w-tag" }, h("span", { class: "tri", "aria-hidden": "true" }, h("i"), h("i"), h("i")), t("welcome.france")),
+      ),
+      h("h2", { id: "welcome-title", class: "w-title", text: t("welcome.title") }),
+      h("p", { id: "welcome-lead", class: "w-lead", text: t("welcome.mission") }),
+      h(
+        "ul",
+        { class: "w-pillars" },
+        pillar("leaf", t("welcome.tiny"), t("welcome.tiny.p")),
+        pillar("eye", t("welcome.sober"), t("welcome.sober.p")),
+        pillar("shield", t("welcome.candid"), t("welcome.candid.p")),
+      ),
+      h("p", { class: "w-sub", text: t("welcome.good") }),
+      h("div", { class: "w-exs" }, examples),
+      h("p", { class: "w-deal" }, h("strong", { text: t("welcome.deal") }), " ", t("welcome.deal.p")),
+      h("div", { class: "w-actions" }, h("p", { class: "w-privacy" }, icon("check"), h("span", { text: t("welcome.local") })), start),
     ),
   );
-  put($("welcome-body"), one, two);
-  dialog.setAttribute("aria-labelledby", step === 0 ? "welcome-title" : "");
-  if (step === 1) dialog.setAttribute("aria-label", t("welcome.mission.title"));
-  else dialog.removeAttribute("aria-label");
   if (!dialog.open) dialog.showModal();
   dialog.scrollTop = 0;
-  (step === 0 ? start : two.querySelector(".w-ex")).focus({ preventScroll: true });
+  start.focus({ preventScroll: true });
 }
 
 export function openShortcuts() {

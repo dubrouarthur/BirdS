@@ -562,3 +562,29 @@ def test_health_lists_tools_with_reasons():
     assert rows["web_search"]["state"] == "on" and rows["web_search"]["fr"] == "Recherche : Wikipédia"
     assert rows["run_python"]["state"] == "off" and rows["read_file"]["state"] == "attach"
     assert h["images"] is True and h["energy"]["gpu_watts"] == 72.0 and h["compare"]["reference"]["wh"] == 0.24
+
+
+def test_memo_echo_is_stripped_and_image_is_readable_by_read_file(tmp_path):
+    from birds.web.backends import strip_memo
+
+    assert strip_memo("Voilà le tableau.\n\n[Mémo de ce tour — outils : make_sheet « T »]") == "Voilà le tableau."
+    assert strip_memo("Voir [1].") == "Voir [1]."
+    call = "<tool_call>\n<function=read_file>\n<parameter=path>\nf.png\n</parameter>\n</function>\n</tool_call>"
+    llm = FakeClient(["FACTURE 7 Total 1 250 €", call, "1 250 €."])
+    app = create_app(Settings(rate_limit=0, demo_delay=0), server_backend=HarnessBackend(llm, _Tok()))
+    body = {"messages": [{"role": "user", "content": "Total ?"}], "images": [{"name": "f.png", "url": _png(960, 540)}]}
+    with TestClient(app) as c:
+        events = _sse(c.post("/api/chat", json=body))
+    done = [e for e in events if e["type"] == "step" and e["tool"] == "read_file"][-1]
+    assert done["status"] == "done" and "FACTURE 7" in done["preview"]
+
+
+def test_demo_answers_an_image_turn_and_health_lists_image_modes():
+    app = create_app(Settings(rate_limit=0, demo_delay=0))
+    body = {"messages": [{"role": "user", "content": "?"}], "images": [{"name": "f.png", "url": _png(960, 540)}]}
+    with TestClient(app) as c:
+        h = c.get("/api/health").json()
+        events = _sse(c.post("/api/chat", json=body))
+    assert h["images_modes"]["demo"] is True and h["images_modes"]["server"] is False
+    assert [e["tool"] for e in events if e["type"] == "step"][0] == "read_image"
+    assert "Mode démo" in [e for e in events if e["type"] == "answer"][0]["content"]
