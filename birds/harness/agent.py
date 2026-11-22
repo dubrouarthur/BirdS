@@ -9,13 +9,14 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
+from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
 
 from birds.harness import guard, meter
 from birds.harness.config import Config, Context
-from birds.harness.llm import STOP, EndpointError
+from birds.harness.llm import STOP, EndpointError, accepts
 from birds.harness.tools import TOOLS, make_search
 from birds.parse import parse_output
 from birds.render import prompt as render_prompt
@@ -159,6 +160,7 @@ class Hooks:
     on_step_start: Callable[[int, str, dict], None] | None = None  # (index, tool, arguments)
     on_step_end: Callable[[int, Step], None] | None = None
     on_status: Callable[[str, dict], None] | None = None  # e.g. ("waking", {"attempt": 2, "retry_in": 5.0})
+    cancel: Any = None  # a threading.Event the front end sets on stop: the model call ends at once
 
 
 @dataclass
@@ -280,6 +282,7 @@ class Agent:
             on_status=hooks.on_status,
             deadline=deadline,
             **({"extra": {"cache_salt": self.cfg.cache_salt}} if self.cfg.cache_salt else {}),
+            **({"cancel": hooks.cancel} if hooks.cancel is not None and accepts(self.llm.generate, "cancel") else {}),
         )
         return out, stream
 

@@ -23,6 +23,7 @@ from typing import Any, Protocol
 from urllib.parse import urlsplit
 
 from birds.harness import guard
+from birds.harness.llm import Cancelled, accepts  # Cancelled: the client went away or pressed stop
 
 Event = dict[str, Any]
 
@@ -43,10 +44,6 @@ def sanitize_filename(name: str) -> str:
     base = re.sub(r"[^A-Za-z0-9._-]+", "-", base).strip("-.")
     base = re.sub(r"\.{2,}", ".", base)[:120]
     return base if base and SAFE_NAME.match(base) else "fichier"
-
-
-class Cancelled(Exception):
-    """Raised inside a backend when the client went away or pressed stop."""
 
 
 @dataclass
@@ -1334,6 +1331,7 @@ class HarnessBackend:
                 on_status=lambda state, info: ctx.emit({"type": "status", "state": state, **(info or {})}),
                 deadline=ctx.deadline - 20,
                 **({"extra": {"cache_salt": salt}} if salt else {}),
+                **({"cancel": ctx.cancel} if accepts(self.llm.chat, "cancel") else {}),
             )
             text = (out.get("text") or "").strip()
             usages.append(out)
@@ -1386,6 +1384,7 @@ class HarnessBackend:
                 on_step_start=on_step_start,
                 on_step_end=lambda index, step: ctx.emit(self._step_event(index + offset, step, lang)),
                 on_status=lambda state, info: ctx.emit({"type": "status", "state": state, **(info or {})}),
+                cancel=ctx.cancel,  # stop closes the endpoint stream and ends the wake-up retries
             )
             agent = Agent(
                 self.llm,

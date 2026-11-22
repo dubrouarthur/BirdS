@@ -533,3 +533,71 @@ def test_wrong_model_name_is_reported_as_such():
     err = _http_error(404, vllm)
     assert err.kind == "unknown_model" and "adubrou/Bird-S-4B" in str(err)
     assert _http_error(404, "Not Found").kind == "wrong_route"
+def test_stop_closes_endpoint_stream():
+    import threading
+
+    from birds.harness.llm import Cancelled
+
+    cancel, sent = threading.Event(), []
+
+    def chunks():
+        for i in range(1500):
+            sent.append(i)
+            piece = {"choices": [{"index": 0, "text": f"mot{i} ", "finish_reason": None}]}
+            yield f"data: {json.dumps(piece)}\n\n".encode()
+        yield b"data: [DONE]\n\n"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=chunks())
+
+    tokens = []
+
+    def on_token(text):
+        tokens.append(text)
+        if len(tokens) == 3:
+            cancel.set()  # the user pressed stop while the answer streams
+
+    with pytest.raises(Cancelled):
+        client_for(handler).generate("x", 4000, STOP, on_token=on_token, cancel=cancel)
+    assert len(sent) < 10
+
+
+def test_cancel_stops_wake_retries():
+    import threading
+
+    from birds.harness.llm import Cancelled
+
+    cancel, calls = threading.Event(), []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        cancel.set()  # stop pressed while the endpoint wakes up
+        return httpx.Response(503, text="")
+
+    with pytest.raises(Cancelled):
+        client_for(handler).generate("x", 8, STOP, cancel=cancel)
+    assert len(calls) <= 1
+    with pytest.raises(Cancelled):  # already stopped: not even one attempt
+        client_for(handler).generate("x", 8, STOP, cancel=cancel)
+    assert len(calls) == 1
+
+
+def test_agent_passes_the_stop_signal_to_the_model_call(tmp_path):
+    import threading
+
+    from birds.harness import Agent, Config, FakeClient
+    from birds.harness.agent import Hooks
+
+    seen = {}
+
+    class Spy(FakeClient):
+        def generate(self, prompt, max_tokens, stop, *, cancel=None, **kw):
+            seen["cancel"] = cancel
+            return super().generate(prompt, max_tokens, stop, **kw)
+
+    cancel = threading.Event()
+    hooks = Hooks(on_token=lambda t: None, cancel=cancel)
+    from birds.harness.template import TemplateTokenizer
+
+    Agent(Spy(["Bonjour."]), TemplateTokenizer(), Config(workspace=tmp_path), hooks=hooks).run("Salut")
+    assert seen["cancel"] is cancel
