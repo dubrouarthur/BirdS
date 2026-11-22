@@ -419,6 +419,31 @@ function itemHtml(node, ctx, keyed) {
   return inline(text, ctx);
 }
 
+/**
+ * "1. **Prix** :" over a nested list: a section label, not a step. Short noun label (one to four words, no final
+ * period, not an instruction such as "Ouvrez…" or "Créer un compte"): the label text, or null.
+ */
+function sectionLabel(text) {
+  const t = text.trim();
+  const m = t.match(/^\*\*([^*\n]+)\*\*\s*:?$/) || t.match(/^([^*`[\]\n]+?)\s*:?$/);
+  if (!m) return null;
+  const label = m[1].replace(/\s*:$/, "").trim();
+  const words = label.split(/\s+/);
+  if (!label || words.length > 4 || label.length > 40 || /[.,;!?]$/.test(label)) return null;
+  const w0 = words[0].toLowerCase();
+  if (/ez$/.test(w0) || (words.length > 1 && /(?:er|ir|re|oir)$/.test(w0) && !/^(?:premier|dernier)$/.test(w0)))
+    return null; // "Ouvrez le fichier", "Créer un compte": an instruction
+  return label;
+}
+
+function sectionsHtml(run, first, ctx, level) {
+  const secs = run.map((node, k) => {
+    const n = `<span class="md-ph-n">${first + k}.</span> `;
+    return `<section class="md-sec"><h4 class="md-ph">${n}${inline(sectionLabel(node.item.text), ctx)}</h4>${listHtml(node.children, ctx, level + 1)}</section>`;
+  });
+  return `<div class="md-sections">${secs.join("")}</div>`;
+}
+
 function listHtml(nodes, ctx, level, opts = {}) {
   let html = "";
   let start = 0;
@@ -435,6 +460,17 @@ function listHtml(nodes, ctx, level, opts = {}) {
     const ordered = run[0].item.ordered;
     const first = run[0].item.start;
     const texts = run.map((n) => n.item.text);
+    // numbered labels over nested lists ("1. Prix" / "2. Intégrations"): sections with the in-answer heading style
+    if (
+      ctx.rich &&
+      ordered &&
+      level === 0 &&
+      run.length >= 2 &&
+      run.every((n) => n.children.length && sectionLabel(n.item.text))
+    ) {
+      html += sectionsHtml(run, first, ctx, level);
+      continue;
+    }
     const keyed =
       ctx.rich &&
       run.length >= 2 &&

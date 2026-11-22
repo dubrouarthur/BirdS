@@ -376,3 +376,14 @@ test("an indented paragraph under a list item stays in that item", () => {
   assert.match(md("- a\n\nSuite du texte."), /<\/ul>\n<p>Suite du texte/); // not indented: a new paragraph
   assert.doesNotMatch(md("  Sécurité\n- a"), /<h4/); // an indented line is never a heading
 });
+
+test("numbered noun labels over nested lists are sections, not steps", () => {
+  const out = md(answer("comparison+hint"));
+  assert.doesNotMatch(out, /md-steps/);
+  assert.match(out, /<div class="md-sections"><section class="md-sec"><h4 class="md-ph"><span class="md-ph-n">1\.<\/span> Prix<\/h4><ul>/);
+  assert.match(out, /<span class="md-ph-n">4\.<\/span> Facilité d’usage<\/h4>/);
+  assert.match(md(answer("procedure+hint")), /md-steps/); // a procedure keeps its rail
+  const steps = md("1. Ouvrez le fichier\n   - a\n2. Créer un compte\n   - b\n3. Valider\n   - c");
+  assert.doesNotMatch(steps, /md-sections/);
+  assert.doesNotMatch(md("1. Prix\n2. Délais"), /md-sections/); // no nested lists: a plain list
+});

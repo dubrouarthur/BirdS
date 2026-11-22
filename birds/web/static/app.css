@@ -4526,6 +4526,24 @@ button.att-card {
 .md > .md-ph:first-child {
   margin-block-start: 0;
 }
+/* "1. Prix" over a nested list: numbered sections with the same heading, the number kept but quiet */
+.md-sections > .md-sec + .md-sec {
+  margin-block-start: 0.2em;
+}
+.md > .md-sections:first-child > .md-sec:first-child > .md-ph {
+  margin-block-start: 0;
+}
+.md .md-sec > .md-ph {
+  margin-block-end: 0.35em;
+}
+.md .md-ph-n {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-weight: 500;
+}
+.md .md-sec > :is(ul, ol) {
+  margin-block-start: 0;
+}
 .md hr {
   margin-block: 1.8em;
   border-block-start-color: var(--line);
@@ -4772,14 +4790,24 @@ button.att-card {
   border-radius: 12px;
   background: var(--surface);
 }
+/* one heading family in answers: the column titles read like the other in-answer headings, tinted by a mark */
 .md .md-pc-t {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   margin: 0 0 6px;
-  font: 650 0.76rem/1.5 var(--sans);
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.05rem;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.md .md-pc-t::before {
+  content: var(--pc-mark);
+  flex: none;
+  inline-size: 1.1em;
+  font: 700 1rem/1 var(--sans);
+  text-align: center;
   color: var(--pc-ink);
 }
 .md-pc--pro {
