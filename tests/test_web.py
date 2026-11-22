@@ -626,7 +626,7 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
     assert not re.search(r"https?://|//[a-z]", html), "external origin in index.html"
     css = (STATIC_DIR / "app.css").read_text()
     assert "url(" not in css and "@import" not in css and "@font-face" not in css
-    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js"]
+    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "chart.js"]
     brand = [
         "mark.svg",
         "mark-dark.svg",
@@ -650,8 +650,9 @@ def test_static_payload_budget():
     total = sum(p.stat().st_size for p in files)
     # raised from 250 kB when images, attachments, previews and the savings report were added; what travels is
     # gzip-compressed (about 80 kB for all the text files); raised to 400 kB for the P1 UX backlog (welcome toggle,
-    # code-block headers, action menu, chart keyboard support, approval and stop states)
-    assert total < 400_000, f"static payload is {total} bytes"
+    # code-block headers, action menu, chart keyboard support, approval and stop states); raised to 440 kB for the
+    # in-chat charts (chart.js, no library) and web image cards (about 40 kB with the 5 kB demo image)
+    assert total < 440_000, f"static payload is {total} bytes"
 
 
 def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
@@ -661,7 +662,7 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     fr, en = set(key.findall(fr_block.split("fr: {", 1)[1])), set(key.findall(en_block.split("\n};", 1)[0]))
     assert fr and fr == en, fr ^ en
     used = set()
-    for name in ["app.js", "turns.js", "views.js", "core.js"]:
+    for name in ["app.js", "turns.js", "views.js", "core.js", "chart.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))
     used |= set(re.findall(r'data-i18n(?:-aria|-placeholder)?="([\w.]+)"', (STATIC_DIR / "index.html").read_text()))
     assert not used - fr, sorted(used - fr)

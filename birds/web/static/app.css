@@ -36,6 +36,15 @@
   --danger-line: #e6b9af;
   --series-in: #c4953f;
   --series-out: #12764a;
+  /* chart series, fixed order (validated with the dataviz palette script on --surface); 7-8: neutral, pie only */
+  --series-1: #1e5bd8;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #6250d6;
+  --series-7: #8a8f9c;
+  --series-8: #b9bcc4;
   --shadow: 0 1px 2px rgb(18 26 46 / 0.05), 0 8px 24px -12px rgb(18 26 46 / 0.18);
   --shadow-lg: 0 2px 6px rgb(18 26 46 / 0.06), 0 24px 48px -20px rgb(18 26 46 / 0.3);
   --backdrop: rgb(11 27 63 / 0.4);
@@ -88,6 +97,14 @@
     --danger-line: #6b332a;
     --series-in: #bb8c36;
     --series-out: #1a8256;
+    --series-1: #5b8def;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-6: #9085e9;
+    --series-7: #7b8496;
+    --series-8: #555e70;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 28px -12px rgb(0 0 0 / 0.6);
     --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.4), 0 28px 56px -20px rgb(0 0 0 / 0.8);
     --backdrop: rgb(0 0 0 / 0.6);
@@ -127,6 +144,14 @@
   --danger-line: #6b332a;
   --series-in: #bb8c36;
   --series-out: #1a8256;
+  --series-1: #5b8def;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #9085e9;
+  --series-7: #7b8496;
+  --series-8: #555e70;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 28px -12px rgb(0 0 0 / 0.6);
   --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.4), 0 28px 56px -20px rgb(0 0 0 / 0.8);
   --backdrop: rgb(0 0 0 / 0.6);
@@ -1721,6 +1746,353 @@ details[open] > summary > .chev {
 }
 .card-note .icon {
   margin-block-start: 3px;
+}
+
+/* charts (chart.js): marks wear series classes, text wears ink tokens, grid and axes stay recessive */
+.series-1 {
+  fill: var(--series-1);
+}
+.series-2 {
+  fill: var(--series-2);
+}
+.series-3 {
+  fill: var(--series-3);
+}
+.series-4 {
+  fill: var(--series-4);
+}
+.series-5 {
+  fill: var(--series-5);
+}
+.series-6 {
+  fill: var(--series-6);
+}
+.series-7 {
+  fill: var(--series-7);
+}
+.series-8 {
+  fill: var(--series-8);
+}
+.stroke-1 {
+  stroke: var(--series-1);
+}
+.stroke-2 {
+  stroke: var(--series-2);
+}
+.stroke-3 {
+  stroke: var(--series-3);
+}
+.stroke-4 {
+  stroke: var(--series-4);
+}
+.stroke-5 {
+  stroke: var(--series-5);
+}
+.stroke-6 {
+  stroke: var(--series-6);
+}
+.series-bg-1 {
+  background: var(--series-1);
+}
+.series-bg-2 {
+  background: var(--series-2);
+}
+.series-bg-3 {
+  background: var(--series-3);
+}
+.series-bg-4 {
+  background: var(--series-4);
+}
+.series-bg-5 {
+  background: var(--series-5);
+}
+.series-bg-6 {
+  background: var(--series-6);
+}
+.series-bg-7 {
+  background: var(--series-7);
+}
+.series-bg-8 {
+  background: var(--series-8);
+}
+.chart-card {
+  margin: 0;
+}
+.chart-head {
+  padding: 12px 14px 0;
+}
+.chart-head .card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.chart-plot {
+  position: relative;
+  margin: 8px 6px 0;
+  border-radius: var(--radius-s);
+}
+.chart-plot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.chart-svg {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  max-block-size: 360px;
+  overflow: visible;
+  font-family: var(--sans);
+}
+.chart-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.chart-axis {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+.chart-tick,
+.chart-label,
+.chart-value,
+.chart-direct {
+  font-size: 12px;
+  fill: var(--muted);
+}
+.chart-label {
+  fill: var(--ink-2);
+}
+.chart-value,
+.chart-direct {
+  fill: var(--ink);
+  font-weight: 600;
+}
+.chart-mark {
+  stroke: var(--surface);
+  stroke-width: 2;
+  transition: opacity 0.15s;
+}
+.chart-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.chart-point-hidden {
+  opacity: 0;
+}
+.chart-hit {
+  fill: transparent;
+}
+.chart-plot.has-active .chart-mark:not(.is-active) {
+  opacity: 0.55;
+}
+.chart-mark.is-active {
+  stroke: var(--ink);
+  stroke-width: 2;
+  opacity: 1;
+}
+.chart-tip {
+  position: absolute;
+  z-index: 2;
+  max-inline-size: min(280px, 90%);
+  padding: 6px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-size: 0.82rem;
+  line-height: 1.35;
+  pointer-events: none;
+  transform: translate(-50%, 0);
+  opacity: 0;
+}
+.chart-tip.is-shown {
+  opacity: 1;
+}
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 8px 14px 0;
+  font-size: 0.82rem;
+  color: var(--ink-2);
+}
+.chart-legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chart-swatch {
+  flex: none;
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: 3px;
+}
+.chart-swatch.is-line {
+  block-size: 3px;
+  inline-size: 14px;
+  border-radius: 2px;
+}
+.chart-note {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 8px 14px 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.chart-data {
+  margin: 8px 14px 0;
+  font-size: 0.84rem;
+}
+.chart-data > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 550;
+  color: var(--muted);
+  cursor: pointer;
+}
+.chart-data[open] > summary .chev {
+  transform: rotate(90deg);
+}
+.chart-table-wrap {
+  overflow-x: auto;
+  margin-block-start: 6px;
+}
+.chart-data table {
+  border-collapse: collapse;
+  min-inline-size: 100%;
+}
+.chart-data th,
+.chart-data td {
+  padding: 4px 10px 4px 0;
+  border-block-end: 1px solid var(--line);
+  text-align: start;
+}
+.chart-data td.num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+.chart-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 14px 12px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chart-mark {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .chart-mark,
+  .chart-swatch {
+    fill: CanvasText;
+    background: CanvasText;
+    forced-color-adjust: none;
+  }
+  .chart-line {
+    stroke: CanvasText;
+  }
+}
+
+/* web images: a fixed 4:3 frame, laid out before the image loads (no layout shift) */
+.web-images {
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--line);
+}
+.web-image-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-block-start: 8px;
+}
+.web-image-list > li {
+  inline-size: 168px;
+  max-inline-size: calc(50% - 5px);
+}
+.web-image {
+  display: grid;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-s);
+}
+.web-image:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.web-image-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+}
+.web-image-frame img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+.web-image-missing {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px;
+  font-size: 0.74rem;
+  color: var(--muted);
+  text-align: center;
+}
+.web-image-cap {
+  display: grid;
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+.web-image-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-weight: 550;
+}
+.web-image:hover .web-image-title {
+  text-decoration: underline;
+}
+.web-image-host {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+}
+.web-image-n {
+  padding: 0 0.35em;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+.web-image-badge {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-start: 6px;
+  max-inline-size: calc(100% - 12px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--surface);
+}
+.web-image-note {
+  margin-block-start: 6px;
+  font-size: 0.76rem;
+  color: var(--muted);
 }
 
 /* notices */

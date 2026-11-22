@@ -5,6 +5,7 @@ import {
   activeMode,
   activeModel,
   announce,
+  b64ToBytes,
   button,
   copyText,
   download,
@@ -1200,6 +1201,8 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         stop_reason: event.stop_reason || "answer",
         memo: String(event.memo || ""),
         images: event.images || [],
+        charts: Array.isArray(event.charts) ? event.charts : [],
+        web_images: Array.isArray(event.web_images) ? event.web_images : [],
       };
       turn.files.push(...(event.files || []));
       turn.text = "";
@@ -1500,6 +1503,37 @@ async function retryStep(turn, step) {
     toast(t("retry.done"), "ok");
   } catch (error) {
     toast(String(error?.message || error), "error");
+  }
+}
+
+/** A chart's data as an .xlsx, made by the existing make_sheet generator on the server (no model call). */
+async function chartXlsx(turn, spec) {
+  try {
+    const response = await fetch("/api/tool", {
+      method: "POST",
+      headers: requestHeaders(),
+      body: JSON.stringify({
+        tool: "make_sheet",
+        arguments: {
+          title: String(spec.title || "Graphique").slice(0, 120),
+          columns: spec.columns,
+          rows: spec.rows,
+        },
+        lang: state.prefs.lang,
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok)
+      throw new Error(httpMessage(response.status, data?.detail));
+    const file = (data.files || [])[0];
+    if (!data.ok || !file?.data) return toast(t("chart.xlsx.error"), "error");
+    download(
+      file.name,
+      file.mime,
+      new Blob([b64ToBytes(file.data)], { type: file.mime }),
+    );
+  } catch {
+    toast(t("chart.xlsx.error"), "error");
   }
 }
 
@@ -1902,6 +1936,7 @@ async function init() {
     onOpenFootprint: () => showView("footprint"),
     onOpenSettings: () => showView("settings"),
     onRetryStep: retryStep,
+    onChartXlsx: chartXlsx,
     onExport: exportAnswer,
     onLightbox: openLightbox,
   });
