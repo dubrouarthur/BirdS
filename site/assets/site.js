@@ -40,18 +40,24 @@
       });
     }
 
-    // Menu mobile.
+    // Menu mobile. Le menu suit le bouton dans le DOM : Tab mène directement aux liens.
     var mb = document.querySelector(".menu-btn");
     var nav = document.getElementById("nav");
     if (mb && nav) {
+      var isOpen = function () { return nav.classList.contains("is-open"); };
       var close = function () { nav.classList.remove("is-open"); mb.setAttribute("aria-expanded", "false"); };
       mb.addEventListener("click", function () {
-        var open = !nav.classList.contains("is-open");
+        var open = !isOpen();
         nav.classList.toggle("is-open", open);
         mb.setAttribute("aria-expanded", open ? "true" : "false");
       });
       nav.addEventListener("click", function (e) { if (e.target.closest("a")) close(); });
-      document.addEventListener("keydown", function (e) { if (e.key === "Escape" && nav.classList.contains("is-open")) { close(); mb.focus(); } });
+      document.addEventListener("keydown", function (e) { if (e.key === "Escape" && isOpen()) { close(); mb.focus(); } });
+      document.addEventListener("click", function (e) { if (isOpen() && !nav.contains(e.target) && !mb.contains(e.target)) close(); });
+      nav.addEventListener("focusout", function (e) {
+        var to = e.relatedTarget;
+        if (isOpen() && to && !nav.contains(to) && to !== mb) close();
+      });
     }
 
     // En-tête : filet au défilement.

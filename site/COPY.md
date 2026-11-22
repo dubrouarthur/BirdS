@@ -1,3 +1,5 @@
+> Note : le texte publié fait foi (pages HTML). Ce fichier reprend les corrections de relecture principales ; titres, sections « Ce que fait Bird », limites et précautions d'Empreinte ont été resserrés dans les pages.
+
 # Bird Models — copy du site corporate
 
 Document de référence pour tout le texte du site. Français d'abord, anglais ensuite.
@@ -58,7 +60,7 @@ Texte alternatif : « Écran d'accueil de l'assistant Bird. »
 
 ## Toujours plus gros. Pour quoi faire ?
 
-L'IA a pris une seule direction : plus de paramètres, plus de calcul, plus d'énergie. Chaque nouvelle génération est plus lourde que la précédente.
+La course dominante de l'IA va vers toujours plus gros : plus de paramètres, plus de calcul.
 
 Pourtant, l'essentiel de nos journées tient en tâches simples. Répondre à un mail. Mettre une facture dans un tableau. Préparer cinq diapositives. Trouver une source.
 
@@ -96,7 +98,7 @@ Bird propose. Vous décidez.
 
 **5. On dit ce qu'on ne sait pas.**
 Un petit modèle se trompe plus qu'un très grand. Nous préférons l'écrire ici que vous le laisser découvrir.
-*Preuve : la mention « Bird est un petit modèle : il peut se tromper » est affichée sous chaque conversation.*
+*Preuve : le produit l'écrit en clair : Bird est un petit modèle, il peut se tromper. Relisez ce qui compte.*
 
 ### Ce que fait Bird
 
@@ -198,7 +200,7 @@ On ne se demande pas « quel est le plus gros modèle possible ? ». On se deman
 
 Bird S 4B compte 4 milliards de paramètres. Il est spécialisé pour le travail courant : rédiger, résumer, chercher, produire des fichiers. En français et en anglais.
 
-Un modèle plus petit demande moins de calcul à chaque mot écrit. C'est le levier le plus direct sur la consommation.
+Un modèle plus petit demande moins de calcul à chaque mot écrit. C'est un levier direct sur le calcul ; l'énergie dépend aussi du matériel et de l'usage.
 
 ### 2. Mesurer, puis publier
 
@@ -226,7 +228,7 @@ Nous testons aussi la qualité. Notre banc d'essai interne compte 1 369 cas auto
 
 Bird fait plus d'erreurs que les très grands modèles. Il peut se tromper sur un calcul ou inventer un détail.
 
-Nous ne le cachons pas : c'est affiché sous chaque conversation. Et le produit est conçu pour que vous gardiez la main :
+Nous ne le cachons pas : le produit l'écrit en clair, « Bird est un petit modèle : il peut se tromper ». Et le produit est conçu pour que vous gardiez la main :
 
 - il montre ses étapes ;
 - il cite ses sources ;
@@ -382,7 +384,7 @@ Visual: `welcome` — alt: "Bird's welcome screen."
 
 ## Ever bigger. To do what?
 
-AI has gone one way: more parameters, more compute, more energy. Each generation is heavier than the last.
+The dominant race in AI is towards ever bigger: more parameters, more compute.
 
 Yet most of our working day is simple tasks. Reply to an email. Put an invoice into a spreadsheet. Build five slides. Find a source.
 
@@ -420,7 +422,7 @@ Bird suggests. You decide.
 
 **5. We say what we don't know.**
 A small model makes more mistakes than a very large one. We'd rather write it here than let you find out.
-*Proof: "Bird is a small model: it can be wrong" is shown under every conversation.*
+*Proof: the product says it plainly: Bird is a small model, it can be wrong. Check what matters.*
 
 ### What Bird does
 
@@ -522,7 +524,7 @@ We don't ask "what's the biggest model we can run?". We ask "what's the smallest
 
 Bird S 4B has 4 billion parameters. It's specialised for everyday work: drafting, summarising, searching, producing files. In French and English.
 
-A smaller model needs less compute for every word it writes. That's the most direct lever on consumption.
+A smaller model needs less compute for every word it writes. It is a direct lever on compute; energy also depends on hardware and utilisation.
 
 ### 2. Measure, then publish
 
@@ -550,7 +552,7 @@ We test quality too. Our internal benchmark has 1,369 automatic cases, scored 0 
 
 Bird makes more mistakes than very large models. It can get a calculation wrong or invent a detail.
 
-We don't hide it: it's shown under every conversation. And the product is built so you stay in charge:
+We don't hide it: the product says it plainly, “Bird is a small model: it can be wrong”. And the product is built so you stay in charge:
 
 - it shows its steps;
 - it cites its sources;

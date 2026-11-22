@@ -14,16 +14,17 @@ site/
 ├── config.js           URL du bouton « Essayer Bird » (une seule constante)
 ├── assets/             site.css, site.js, images WebP, favicon, marque
 ├── vercel.json         URL propres + en-têtes de sécurité (CSP stricte)
-├── .vercelignore       Exclut screenshots/, COPY.md et ce README du déploiement
-├── COPY.md             Texte de référence (non publié)
-└── screenshots/        Captures de contrôle (non publiées)
+├── .vercelignore       Exclut COPY.md, ce README (et un éventuel screenshots/) du déploiement
+└── COPY.md             Texte de référence (non publié)
 ```
 
 ## Avant la mise en ligne
 
 1. **Bouton « Essayer Bird »** : dans `config.js`, remplacer `TRY_URL: "#essayer"` par l'URL de l'application.
 2. **Adresse de contact** : remplacer `contact@birdmodels.example` (6 pages, section Contact) et supprimer l'étiquette `[À REMPLACER …]` / `[TO BE REPLACED …]`.
-3. **Poids affiché en pied de page** : si la page d'accueil change, remesurer et mettre à jour le nombre (338 Ko FR, 337 KB EN, mesuré dans Chromium, toutes images chargées, avant compression).
+3. **Poids affiché en pied de page** : chaque page affiche son propre poids. Si une page change, remesurer et mettre à jour son pied de page.
+   Méthode : charger la page dans Chromium (1440 px, cache désactivé), faire défiler jusqu'en bas pour charger toutes les images, additionner la taille des fichiers reçus, puis ajouter la favicon (`assets/favicon.svg`, que Chromium sans interface ne demande pas). 1 Ko = 1 000 octets. Le chiffre « compressé » est la même somme avec les fichiers texte (HTML, CSS, JS, SVG) compressés en gzip niveau 9 ; les images WebP sont comptées telles quelles.
+   Valeurs actuelles : accueil FR **205 Ko** (10 requêtes, ≈ 164 Ko compressés) ; accueil EN 204 KB (10) ; Notre démarche 46 Ko (5) ; Empreinte 85 Ko (6) ; Our approach 46 KB (5) ; Footprint 85 KB (6). Au premier affichage, avant les images différées, l'accueil charge environ 98 Ko en 5 requêtes.
 
 ## Déployer sur Vercel
 
@@ -55,6 +56,8 @@ python3 -m http.server 8890
 
 Avec `http.server`, les URL propres ne marchent pas : ouvrir `http://localhost:8890/demarche.html`
 ou passer par `npx vercel dev`, qui applique `vercel.json`.
+
+Les captures de contrôle ne sont pas rangées dans `site/` : elles alourdiraient le dépôt sans être publiées.
 
 ## Règles éditoriales
 

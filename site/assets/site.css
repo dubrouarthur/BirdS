@@ -295,7 +295,11 @@ strong {
   background: var(--accent);
   margin-left: 0.45rem;
 }
+.nav {
+  order: 1;
+}
 .tools {
+  order: 2;
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -500,7 +504,7 @@ strong {
 
 /* Hero */
 .hero {
-  padding-block: clamp(3rem, 8vw, 6.5rem) clamp(4rem, 9vw, 8rem);
+  padding-block: clamp(3rem, 8vw, 6.5rem) clamp(2.75rem, 6vw, 5.25rem);
   position: relative;
   overflow: hidden;
 }
@@ -541,9 +545,9 @@ strong {
 .hero-mark {
   position: absolute;
   z-index: 0;
-  width: 120%;
-  right: -32%;
-  top: -14%;
+  width: 112%;
+  right: 0;
+  top: -16%;
   color: var(--accent);
   opacity: 0.07;
   pointer-events: none;
@@ -1400,4 +1404,113 @@ figcaption.center { text-align: center; }
 @media (max-width: 960px) {
   .js .nav a { display: flex; width: 100%; }
   .js .nav.is-open { box-shadow: 0 24px 40px -24px rgba(11, 27, 63, 0.35); }
+}
+@media (max-width: 719px) {
+  .stack caption { display: block; width: 100%; }
+}
+@media (max-width: 719px) {
+  .stack.bench tr { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+  .stack.bench th, .stack.bench td { width: auto; }
+  .stack.bench td.score::before { content: none; }
+}
+
+/* Focus visible sur fonds sombres (bande, appel final, pied de page) : bleu ciel, 8,1:1 sur marine. */
+.band :focus-visible,
+.site-footer :focus-visible {
+  outline-color: var(--sky);
+}
+.band .btn:focus-visible {
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--band);
+}
+
+/* Ce que fait Bird : trois cases */
+.trio {
+  display: grid;
+  gap: clamp(2.5rem, 5vw, 2.5rem) clamp(1.5rem, 3vw, 2.5rem);
+  align-items: start;
+}
+@media (min-width: 880px) {
+  .trio { grid-template-columns: 1fr 1fr 0.75fr; }
+}
+.tile figcaption {
+  margin-top: 1.25rem;
+  font-size: 0.9375rem;
+  color: var(--ink-2);
+  max-width: 28rem;
+}
+.tile figcaption strong {
+  display: block;
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin-bottom: 0.35rem;
+}
+.tile .phone { max-width: 230px; margin-inline: 0; }
+@media (max-width: 879px) { .tile .phone { margin-inline: auto; } }
+.also {
+  margin-top: clamp(2.5rem, 5vw, 3.5rem);
+  color: var(--ink-2);
+  max-width: 46rem;
+  padding-left: 1rem;
+  border-left: 2px solid var(--accent);
+}
+.also + .cards { margin-top: 1.5rem; }
+
+/* Limites : une seule affirmation */
+.limits .quote { color: var(--ink); }
+.flag-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+.flag-note { font-size: 0.875rem; color: var(--muted); }
+
+/* Compteur par réponse */
+.meter-fig .shot img { width: 100%; }
+.em-grid > .figs { grid-template-columns: 1fr; }
+
+/* Poids de page, écho de « Petit par conviction » */
+.weight {
+  display: grid;
+  gap: 0.4rem 2.5rem;
+  align-items: end;
+  font-size: 0.875rem;
+  color: #b9c4db;
+}
+@media (min-width: 880px) {
+  .weight { grid-template-columns: auto 1fr auto; }
+}
+.weight-fig {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  color: #dce3f2;
+  font-size: 0.9375rem;
+}
+.weight .weight-num {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: clamp(2.25rem, 5vw, 3rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: #fff;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.weight-note { max-width: 40rem; }
+
+/* Cases de même hauteur ; marque du héros en plein cadre, recadrée par la fenêtre */
+.tile .shot img { aspect-ratio: 1 / 1; object-fit: cover; object-position: top; }
+.hero-copy { position: relative; z-index: 1; }
+.hero-visual { position: static; }
+.hero-visual figure { position: relative; z-index: 1; }
+.hero .hero-mark {
+  top: auto;
+  right: -14vw;
+  bottom: -26%;
+  width: min(74vw, 1100px);
+  opacity: 0.05;
+}
+@media (max-width: 999px) {
+  .hero .hero-mark { width: 120vw; right: -40vw; bottom: -8%; }
 }
