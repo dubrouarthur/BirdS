@@ -3846,7 +3846,6 @@ button.att-card {
     0 0 0 1px var(--line),
     var(--shadow);
   overflow: hidden;
-  touch-action: pan-y;
 }
 .deck-stage:focus-visible {
   outline: 2px solid var(--accent);
@@ -3976,6 +3975,95 @@ button.att-card {
   position: absolute;
   inset-block-start: 6px;
   inset-inline-end: 8px;
+}
+.deck-stage {
+  touch-action: pan-y pinch-zoom; /* swipe to change slide, pinch to read closer */
+}
+.deck-rotate {
+  display: none;
+}
+/* phone or short window: the full-screen view takes the whole screen, edge to edge, on black; the slide is as
+   wide as the screen allows (never smaller than in the chat) */
+@media (max-width: 700px), (max-height: 500px) {
+  .deck-dialog {
+    position: fixed;
+    inset: 0;
+    inline-size: 100dvw;
+    block-size: 100dvh;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    background: #000;
+    color: #fff;
+    box-shadow: none;
+    overflow: hidden;
+  }
+  .deck-dialog::backdrop {
+    background: #000;
+  }
+  .deck-dialog .btn {
+    color: #fff;
+  }
+  .deck-dialog .btn:disabled {
+    opacity: 0.35;
+  }
+  .deck-dialog .deck-count {
+    color: rgb(255 255 255 / 0.8);
+  }
+  .deck-dialog .deck-full {
+    block-size: 100%;
+    align-content: center;
+    gap: 4px;
+  }
+  .deck-dialog .deck-stage {
+    justify-self: center;
+    inline-size: min(100dvw, (100dvh - 132px) * 16 / 9);
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .deck-dialog .deck-bar {
+    padding-inline: 8px;
+  }
+  .deck-dialog .deck-film {
+    display: none;
+  }
+  .deck-dialog .deck-close {
+    z-index: 1;
+    inset-block-start: max(6px, env(safe-area-inset-top));
+  }
+}
+@media (max-width: 700px) and (orientation: portrait) {
+  .deck-dialog .deck-rotate {
+    display: block;
+    position: absolute;
+    inset: auto 16px max(20px, env(safe-area-inset-bottom));
+    text-align: center;
+    font-size: 0.85rem;
+    color: rgb(255 255 255 / 0.7);
+  }
+}
+/* landscape phone: the slide takes the full height, the controls stand in a column beside it */
+@media (max-height: 500px) and (orientation: landscape) {
+  .deck-dialog .deck-full {
+    grid-template-columns: 1fr 56px;
+    align-items: center;
+    gap: 0;
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  }
+  .deck-dialog .deck-stage {
+    inline-size: min(100dvw - 56px - env(safe-area-inset-left) - env(safe-area-inset-right), 100dvh * 16 / 9);
+  }
+  .deck-dialog .deck-bar {
+    flex-direction: column;
+    padding: 56px 0 8px;
+  }
+  .deck-dialog .deck-count {
+    min-inline-size: 0;
+    font-size: 0.75rem;
+  }
+  .deck-dialog .deck-prev .icon {
+    transform: scaleX(-1);
+  }
 }
 @media (max-width: 640px) {
   .file-card.file-slides .card-preview > :not(summary) {

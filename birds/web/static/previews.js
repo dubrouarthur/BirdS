@@ -191,15 +191,20 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
     else return;
     e.preventDefault();
   };
+  // swipe with one finger; two fingers are a pinch zoom, never a slide change
   let x0 = null;
-  stage.addEventListener(
-    "pointerdown",
-    (e) => (x0 = e.pointerType === "mouse" ? null : e.clientX),
-  );
+  let fingers = 0;
+  stage.addEventListener("pointerdown", (e) => {
+    fingers += e.pointerType === "touch" ? 1 : 0;
+    x0 = e.pointerType === "mouse" || fingers > 1 ? null : e.clientX;
+  });
+  const lift = (e) => (fingers = Math.max(0, fingers - (e.pointerType === "touch" ? 1 : 0)));
+  stage.addEventListener("pointercancel", (e) => ((x0 = null), lift(e)));
   stage.addEventListener("pointerup", (e) => {
-    if (x0 !== null && Math.abs(e.clientX - x0) > 40)
+    if (x0 !== null && fingers === 1 && Math.abs(e.clientX - x0) > 40)
       go(at + (e.clientX < x0 ? 1 : -1));
     x0 = null;
+    lift(e);
   });
   const root = h(
     "section",
@@ -236,6 +241,10 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
   return root;
 }
 
+// a phone or a short window: the full-screen view is the whole screen (edge to edge, real full screen and
+// landscape where the browser allows it), so it is never smaller than the slide in the chat
+const SMALL = "(max-width: 700px), (max-height: 500px)";
+
 function openFull(p, at, onDownload) {
   const deck = deckPreview(p, { onDownload, full: true });
   const close = button(
@@ -252,13 +261,38 @@ function openFull(p, at, onDownload) {
     },
     close,
     deck,
+    h("p", { class: "deck-rotate", text: t("files.deck.rotate") }),
   );
-  dlg.addEventListener("close", () => dlg.remove());
+  let fs = false;
+  dlg.addEventListener("close", () => {
+    if (fs && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    try {
+      screen.orientation?.unlock?.();
+    } catch {
+      /* not supported */
+    }
+    dlg.remove();
+  });
   dlg.addEventListener("click", (e) => e.target === dlg && dlg.close());
+  // leaving the browser's full screen (Esc, back gesture) leaves the view too
+  document.addEventListener("fullscreenchange", function off() {
+    if (document.fullscreenElement) return;
+    document.removeEventListener("fullscreenchange", off);
+    if (fs && dlg.open) dlg.close();
+  });
   document.body.append(dlg);
   dlg.showModal();
   deck.go(at);
   deck.querySelector(".deck-stage").focus();
+  if (window.matchMedia?.(SMALL).matches && document.documentElement.requestFullscreen) {
+    document.documentElement
+      .requestFullscreen({ navigationUI: "hide" })
+      .then(() => {
+        fs = true;
+        return screen.orientation?.lock?.("landscape");
+      })
+      .catch(() => {});
+  }
 }
 
 // ------------------------------------------------------------------ document: an A4 page
