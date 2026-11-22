@@ -436,10 +436,12 @@ function sectionLabel(text) {
   return label;
 }
 
-function sectionsHtml(run, first, ctx, level) {
+function sectionsHtml(run, first, ctx, level, grow) {
   const secs = run.map((node, k) => {
     const n = `<span class="md-ph-n">${first + k}.</span> `;
-    return `<section class="md-sec"><h4 class="md-ph">${n}${inline(sectionLabel(node.item.text), ctx)}</h4>${listHtml(node.children, ctx, level + 1)}</section>`;
+    const label = sectionLabel(node.item.text) ?? node.item.text; // the item still being written
+    const kids = listHtml(node.children, ctx, level + 1, { growing: grow && k === run.length - 1 });
+    return `<section class="md-sec"><h4 class="md-ph">${n}${inline(label, ctx)}</h4>${kids}</section>`;
   });
   return `<div class="md-sections">${secs.join("")}</div>`;
 }
@@ -459,20 +461,27 @@ function listHtml(nodes, ctx, level, opts = {}) {
     start = end;
     const ordered = run[0].item.ordered;
     const first = run[0].item.start;
-    const texts = run.map((n) => n.item.text);
+    // Still streaming: the last item is still being written, so the layout is decided from the finished items
+    // only, and the finer touches (keyed labels, airy spacing) wait until the list is complete. A class never
+    // flips back and forth while the reader watches.
+    const grow = Boolean(opts.growing) && start >= nodes.length;
+    const done = grow ? run.slice(0, -1) : run;
+    const texts = done.map((n) => n.item.text);
+    const avg = texts.reduce((a, t) => a + t.length, 0) / Math.max(texts.length, 1);
     // numbered labels over nested lists ("1. Prix" / "2. Intégrations"): sections with the in-answer heading style
     if (
       ctx.rich &&
       ordered &&
       level === 0 &&
-      run.length >= 2 &&
-      run.every((n) => n.children.length && sectionLabel(n.item.text))
+      done.length >= 2 &&
+      done.every((n) => n.children.length && sectionLabel(n.item.text))
     ) {
-      html += sectionsHtml(run, first, ctx, level);
+      html += sectionsHtml(run, first, ctx, level, grow);
       continue;
     }
     const keyed =
       ctx.rich &&
+      !grow &&
       run.length >= 2 &&
       texts.filter((t) => RE_KEYED.test(t) && !RE_BOLD_LEAD.test(t)).length >=
         Math.ceil(run.length * 0.8);
@@ -480,11 +489,9 @@ function listHtml(nodes, ctx, level, opts = {}) {
       ctx.rich &&
       ordered &&
       level === 0 &&
-      run.length >= 3 &&
-      (texts.filter((t) => RE_BOLD_LEAD.test(t)).length >= 2 ||
-        texts.reduce((a, t) => a + t.length, 0) / run.length > 50);
-    const airy =
-      ctx.rich && texts.reduce((a, t) => a + t.length, 0) / run.length > 120;
+      done.length >= 3 &&
+      (texts.filter((t) => RE_BOLD_LEAD.test(t)).length >= 2 || (!grow && avg > 50));
+    const airy = ctx.rich && !grow && !steps && avg > 120; // a step list has its own rhythm
     const fold = opts.fold && level === 0 && run.length > 12;
     const cls = [steps && "md-steps", airy && "md-airy", keyed && "md-keyed"]
       .filter(Boolean)
@@ -493,7 +500,7 @@ function listHtml(nodes, ctx, level, opts = {}) {
     let list = `<${tag}${ordered && first !== 1 ? ` start="${first}"` : ""}${cls ? ` class="${cls}"` : ""}>`;
     run.forEach((node, k) => {
       const kids = node.children.length
-        ? listHtml(node.children, ctx, level + 1)
+        ? listHtml(node.children, ctx, level + 1, { growing: grow && k === run.length - 1 })
         : "";
       const hidden = fold && k >= 8 ? " hidden" : "";
       if (steps) {
@@ -558,9 +565,11 @@ const RE_BEST =
   /[✅✓★]|\((?:meilleur|recommandé|recommandée|best|recommended)\)/i;
 const plainCell = (c) => c.replace(/\*\*|__|`/g, "").trim();
 
-function tableHtml(head, align, rows, ctx) {
+function tableHtml(head, align, rows, ctx, growing = false) {
   const ncol = head.length;
+  // numeric alignment is decided once the table is complete, so a column does not flip while rows arrive
   const num = head.map((_, k) => {
+    if (growing) return false;
     const vals = rows.map((r) => plainCell(r[k] ?? "")).filter(Boolean);
     return (
       ctx.rich &&
@@ -738,7 +747,8 @@ function paragraph(para, start, lines, i, ctx, depth) {
       };
   }
   if (rich) {
-    const kv = pairs(texts);
+    // still streaming the last paragraph: its lines are not all written, so label/value rows wait for it to end
+    const kv = growingAt(lines, i, ctx) ? null : pairs(texts);
     if (kv) {
       const dl = `<dl class="md-pairs">${kv.map(([k, v]) => `<div><dt>${inline(k, ctx)}</dt><dd>${inline(v, ctx)}</dd></div>`).join("")}</dl>`;
       const lead = CALLOUTS.find(
@@ -814,6 +824,9 @@ function quote(inner, ctx, depth) {
     .map((b) => b.html)
     .join("\n")}</blockquote>`;
 }
+
+/** While streaming: does the block that ended at line i reach the end of the text (so it is still being written)? */
+const growingAt = (lines, i, ctx) => !ctx.final && lines.slice(i).every((l) => !l.trim());
 
 const indentOf = (line) => line.match(/^\s*/)[0].replace(/\t/g, "    ").length;
 
@@ -905,7 +918,10 @@ function blockList(lines, ctx, depth) {
           );
         rows.push(cells);
       }
-      push({ kind: "table", html: tableHtml(head, align, rows, ctx) });
+      push({
+        kind: "table",
+        html: tableHtml(head, align, rows, ctx, growingAt(lines, i, ctx)),
+      });
       continue;
     }
     if (RE_QUOTE.test(line) && depth < 4) {
@@ -968,7 +984,10 @@ function blockList(lines, ctx, depth) {
       else
         push({
           kind: "list",
-          html: listHtml(nodes, ctx, 0, { fold: ctx.rich && ctx.final }),
+          html: listHtml(nodes, ctx, 0, {
+            fold: ctx.rich && ctx.final,
+            growing: growingAt(lines, i, ctx),
+          }),
         });
       continue;
     }
@@ -1002,7 +1021,12 @@ function blockList(lines, ctx, depth) {
       ctx.letter = true;
     // "Recommandation" alone on the first line of a paragraph of prose: a heading over that paragraph
     const lead =
-      ctx.rich && depth === 0 && para.length >= 2 && indentOf(para[0]) < 2 && (start === 0 || !lines[start - 1].trim())
+      ctx.rich &&
+      depth === 0 &&
+      para.length >= 2 &&
+      indentOf(para[0]) < 2 &&
+      !growingAt(lines, i, ctx) && // the paragraph is complete: no title that comes and goes per sentence
+      (start === 0 || !lines[start - 1].trim())
         ? leadHeading(para)
         : null;
     if (lead) {
@@ -1117,7 +1141,13 @@ export function renderMarkdown(source, options = {}) {
 export function stabilize(partial) {
   let text = clean(partial);
   const fences = (text.match(/^\s{0,3}(```|~~~)/gm) || []).length;
-  if (fences % 2 === 1) return text.replace(/\n\s{0,3}[`~]{1,2}$/, ""); // inside a code block: literal text
+  if (fences % 2 === 1) {
+    // the opening fence line itself is still being written ("```pyt"): wait for its end, so the label does not
+    // flicker through "J", "JavaScript", "JSON"
+    const cut = text.lastIndexOf("\n");
+    if (/^\s{0,3}(?:```|~~~)/.test(text.slice(cut + 1))) return text.slice(0, Math.max(cut, 0));
+    return text.replace(/\n\s{0,3}[`~]{1,2}$/, ""); // inside a code block: literal text
+  }
   text = text.replace(/\[[^\]\n]*\]\([^)\s]*$/, (m) =>
     m.slice(1, m.indexOf("]")),
   ); // [label](http…  -> label
@@ -1130,6 +1160,8 @@ export function stabilize(partial) {
   text = text.replace(/[*_`~#>|-]{1,3}$/, (m) =>
     /\n$|^$/.test(text.slice(0, -m.length)) ? "" : m,
   ); // marker alone on a new line
+  // "2" or "  2." starting the next item: wait for its text, so the list above does not look finished for a moment
+  text = text.replace(/(^|\n)[ \t]*(?:[-*+]|\d{1,9}[.)]?)[ \t]*$/, "$1");
   const cut = text.lastIndexOf("\n") + 1;
   let last = text.slice(cut);
   const odd = (str, re) => (str.match(re) || []).length % 2 === 1;

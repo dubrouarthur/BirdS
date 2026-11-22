@@ -387,3 +387,29 @@ test("numbered noun labels over nested lists are sections, not steps", () => {
   assert.doesNotMatch(steps, /md-sections/);
   assert.doesNotMatch(md("1. Prix\n2. Délais"), /md-sections/); // no nested lists: a plain list
 });
+
+/** The opening tag of each block while an answer streams character by character: how often each one changes. */
+function flips(src, sig = (h) => h.match(/^<[^>]*>/)[0].replace(/ data-lines="\d+"/, "")) {
+  const hist = [];
+  for (let i = 1; i <= src.length; i++) {
+    renderBlocks(stabilize(src.slice(0, i)), { rich: true, lang: "fr" }).forEach((h, k) => {
+      const s = sig(h) + (/class="md-li-k"/.test(h) ? "+keyed" : "");
+      hist[k] ||= [];
+      if (hist[k].at(-1) !== s) hist[k].push(s);
+    });
+  }
+  return hist;
+}
+
+test("streaming: no block changes its look more than once (keyed, airy, steps, sections, pairs, titles, numbers)", () => {
+  const extra = [
+    LEASING,
+    "Décision : valider le budget\nActions : Hugo envoie le calendrier\nÉchéance : 1er décembre\n\nSuite.",
+    "| Offre | Prix |\n|---|---|\n| A | 1 200 € |\n| B | sur devis |\n| C | 900 € |\n\nFin.",
+    "Recommandation\nPour une PME de 15 salariés, le leasing convient. Vérifiez le coût total. Comparez trois offres.\n\nFin.",
+  ];
+  const noCode = (h) => h.match(/^<[^>]*>/)[0].replace(/ data-(lines="\d+"|long|collapsed)/g, "");
+  for (const [id, src] of [...answers.map((a) => [a.id, a.answer]), ...extra.map((s, k) => [`extra${k}`, s])]) {
+    flips(src, noCode).forEach((h, k) => assert.ok(h.length <= 2, `${id} block ${k}: ${h.join(" -> ")}`));
+  }
+});
