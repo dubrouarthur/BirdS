@@ -84,13 +84,5 @@ os.sync()
 log("waiting for the bucket mount to flush")
 time.sleep(int(os.environ.get("FLUSH_WAIT", "240")))
 log("done", sorted(p.name for p in out.iterdir()))
-
-# sanity AFTER the files are safely in the bucket: a few greedy tokens are enough to see the new identity
-# (bf16 generation on CPU is very slow, so keep it short)
-tok_s = AutoTokenizer.from_pretrained(a.adapter if (Path(a.adapter) / "tokenizer_config.json").exists() else a.base)
-full.to(dev).eval()
-ids = tok_s.apply_chat_template([{"role": "user", "content": "Qui es-tu ?"}], add_generation_prompt=True,
-                                enable_thinking=False, return_tensors="pt", return_dict=True).to(dev)
-with torch.no_grad():
-    gen = full.generate(**ids, max_new_tokens=8 if dev == "cpu" else 40, do_sample=False)
-log("SANITY Qui es-tu ? ->", repr(tok_s.decode(gen[0][ids["input_ids"].shape[1]:], skip_special_tokens=True)))
+# The merged checkpoint is checked afterwards on a GPU (benchmark job with --model pointing at it):
+# generating on this CPU machine is too slow to be a useful check.
