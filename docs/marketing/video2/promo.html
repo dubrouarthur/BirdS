@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Bird S 4B — Plus petit. Exprès.</title>
+<meta name="viewport" content="width=1080">
+<!--
+  Deterministic composition: window.render(t) draws the frame at time t (seconds).
+  No CSS animations, no timers. Product footage = real Playwright captures of the
+  live Bird endpoint, shown unedited (only scaled / panned / sped up, with a visible
+  "Accéléré" chip while sped up). Assets are prepared by prep.py.
+-->
+<style>
+  :root { --navy:#0B1B3F; --blue:#1E5BD8; --light:#8FB3FF; --paper:#F6F5F0; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { width:1080px; height:1920px; overflow:hidden; background:var(--navy); }
+  #stage { position:relative; width:1080px; height:1920px; overflow:hidden; background:var(--navy);
+           font-family:'Inter', sans-serif; color:#fff; -webkit-font-smoothing:antialiased; }
+  .abs { position:absolute; }
+  #bg { inset:0; }
+  .disp { font-family:'Inter Display','Inter',sans-serif; font-weight:800; letter-spacing:-0.025em; }
+
+  /* hook */
+  #hook { inset:0; }
+  #h1 { left:0; right:0; top:700px; text-align:center; font-size:156px; color:var(--light); line-height:1.02; white-space:nowrap; }
+  #h2 { left:0; right:0; top:690px; text-align:center; font-size:142px; line-height:1.02; }
+  #h2 .l { display:block; white-space:nowrap; }
+  .w { display:inline-block; will-change:transform,opacity; }
+  #hmark { width:118px; height:103px; }
+  #hsub { left:0; right:0; top:1150px; text-align:center; font-size:40px; font-weight:500; color:var(--light); letter-spacing:0.005em; }
+  #hsub b { color:#fff; font-weight:600; }
+
+  /* device */
+  #device { left:0; top:0; transform-origin:0 0; width:608px; height:1283px; border-radius:76px;
+            background:linear-gradient(160deg,#2a3654 0%,#0d1428 38%,#05080f 100%);
+            box-shadow: 0 0 0 1.5px rgba(143,179,255,.28), 0 70px 140px rgba(0,0,0,.55), 0 0 220px rgba(30,91,216,.30); }
+  #device::before { content:''; position:absolute; inset:5px; border-radius:71px; border:1.5px solid rgba(255,255,255,.07); }
+  .btn { position:absolute; width:5px; background:#1b2540; border-radius:3px; }
+  #screen { position:absolute; left:14px; top:14px; width:580px; height:1255px; border-radius:62px; overflow:hidden; background:var(--paper); }
+  #screen img { position:absolute; left:0; top:0; width:580px; height:1255px; }
+  #dim { position:absolute; inset:0; background:var(--navy); opacity:0; }
+
+  /* caption */
+  #scrim { left:0; right:0; top:0; height:560px; background:linear-gradient(180deg,var(--navy) 0%,var(--navy) 86%,rgba(11,27,63,0) 100%); }
+  #cap { left:72px; right:72px; top:228px; }
+  #kick { display:flex; align-items:center; gap:16px; font-size:30px; font-weight:600; letter-spacing:.14em; color:var(--light); text-transform:uppercase; }
+  #kick .n { display:inline-flex; align-items:center; justify-content:center; width:54px; height:38px; border-radius:19px; background:rgba(143,179,255,.16); font-size:24px; letter-spacing:.02em; }
+  #ctext { margin-top:16px; font-size:90px; line-height:1.02; }
+  #ctext em { font-style:normal; color:var(--light); }
+  #csub { margin-top:12px; font-size:34px; font-weight:500; color:rgba(255,255,255,.72); }
+  #chip { right:72px; top:228px; height:40px; padding:0 16px 0 12px; border-radius:20px; background:rgba(30,91,216,.32);
+          border:1.5px solid rgba(143,179,255,.45); display:flex; align-items:center; gap:8px; font-size:22px; font-weight:600; color:#dfe8ff; letter-spacing:.02em; }
+
+  /* invoice card */
+  #inv { left:130px; top:548px; width:820px; transform-origin:50% 0; }
+  #invlab { position:absolute; z-index:2; left:22px; top:-20px; padding:8px 16px; border-radius:20px; background:var(--navy); border:1.5px solid rgba(143,179,255,.5); font-size:22px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--light); }
+  #invbox { position:relative; width:820px; height:512px; border-radius:22px; overflow:hidden; background:#fff;
+            box-shadow:0 40px 90px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.2); }
+  #invbox img { width:820px; height:512px; display:block; }
+  #invhl { position:absolute; left:0; top:0; }
+
+  /* deck grid */
+  #grid { left:0; top:0; width:1080px; height:1920px; }
+  .sl { position:absolute; width:466px; height:263px; border-radius:16px; overflow:hidden; box-shadow:0 28px 60px rgba(0,0,0,.45); background:#fff; }
+  .sl img { width:466px; height:263px; display:block; }
+
+  /* end card */
+  #end { inset:0; }
+  #emark { left:420px; top:470px; width:240px; height:210px; }
+  #credo { left:30px; right:30px; top:800px; text-align:center; font-size:50px; font-weight:500; line-height:1.3; color:#fff; }
+  #credo span { display:block; }
+  #ename { left:0; right:0; top:1150px; text-align:center; font-size:118px; }
+  #efr { left:0; right:0; top:1300px; text-align:center; font-size:38px; font-weight:500; color:var(--light); letter-spacing:.04em; }
+  #eline { left:490px; width:100px; top:1112px; height:6px; border-radius:3px; background:var(--blue); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="bg" class="abs" width="1080" height="1920"></canvas>
+
+  <div id="hook" class="abs">
+    <div id="h1" class="abs disp"><span class="w">Toujours</span><br><span class="w">plus</span> <span class="w">gros&nbsp;?</span></div>
+    <div id="h2" class="abs disp">
+      <span class="l"><span class="w">Nous,</span> <span class="w">on</span> <span class="w">fait</span></span>
+      <span class="l"><span class="w">tout</span> <span class="w" id="hpetit" style="color:var(--blue)">petit.</span><span class="w" id="hmarkw" style="margin-left:18px;vertical-align:0.38em"><svg id="hmark" viewBox="0 0 64 56"><g fill="#8FB3FF"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg></span></span>
+    </div>
+    <div id="hsub" class="abs">Performant. Sobre. <b>4&nbsp;milliards de paramètres.</b></div>
+  </div>
+
+  <div id="device" class="abs">
+    <div class="btn" style="left:-4px;top:250px;height:90px"></div>
+    <div class="btn" style="left:-4px;top:370px;height:150px"></div>
+    <div class="btn" style="right:-4px;top:320px;height:190px"></div>
+    <div id="screen"><img id="imA" alt=""><img id="imB" alt=""><div id="dim"></div></div>
+  </div>
+
+  <div id="grid" class="abs"></div>
+
+  <div id="inv" class="abs">
+    <div id="invlab">Photo jointe · facture fictive</div>
+    <div id="invbox"><img id="invimg" alt=""><svg id="invhl" width="820" height="512"><rect id="invrect" x="383" y="383" width="410" height="60" rx="10" fill="rgba(143,179,255,.18)" stroke="#8FB3FF" stroke-width="7"/></svg></div>
+  </div>
+
+  <div id="scrim" class="abs"></div>
+  <div id="cap" class="abs">
+    <div id="kick"><span class="n"></span><span class="k"></span></div>
+    <div id="ctext" class="disp"></div>
+    <div id="csub"></div>
+  </div>
+  <div id="chip" class="abs"><svg width="26" height="18" viewBox="0 0 26 18"><path d="M1 1l11 8-11 8zM13 1l11 8-11 8z" fill="#8FB3FF"/></svg><span id="chipt"></span></div>
+
+  <div id="end" class="abs">
+    <svg id="emark" class="abs" viewBox="0 0 64 56"><g fill="#fff"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z" fill="#8FB3FF"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>
+    <div id="credo" class="abs"><span>«&nbsp;Nous créons de tout petits modèles,</span><span>performants et sobres,</span><span>plutôt que toujours plus gros.&nbsp;»</span></div>
+    <div id="eline" class="abs"></div>
+    <div id="ename" class="abs disp">Bird S 4B</div>
+    <div id="efr" class="abs">Conçu en France</div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const ASSETS = params.get('assets') ||
+    'file:///tmp/claude-0/-home-user-BirdS/27eb98ec-b9ba-5cf1-a125-8008c93c0d55/scratchpad/video2/assets';
+  const C = window.CAPTURES;
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- timeline ----------
+  const S = {
+    hook:    [0.0, 3.0],
+    mail:    [3.0, 8.6],
+    deck:    [8.6, 14.6],
+    invoice: [14.6, 20.2],
+    receipt: [20.2, 25.6],
+    end:     [25.6, 29.4],
+  };
+  const DURATION = 29.4;
+  const WHIP = 0.2;            // 6 frames at 30 fps
+  const CONV = ['mail', 'deck', 'invoice', 'receipt'];
+
+  // Capture mapping: [u0, u1, c0, c1, chip]  (scene-local seconds -> capture seconds)
+  const MAP = {
+    mail:    [[0, 0.65, 0.30, 4.00, 1], [0.65, 2.25, 4.00, 8.90, 1]],
+    deck:    [[0, 0.65, 0.30, 4.50, 1], [0.65, 2.45, 4.50, 15.95, 1]],
+    invoice: [[0, 0.35, 0.13, 1.30, 0], [0.35, 1.00, 1.30, 4.25, 1], [1.00, 2.90, 4.25, 13.95, 1]],
+    receipt: [[0, 0.50, 0.12, 2.50, 1], [0.50, 1.15, 2.50, 3.90, 1], [3.60, 6.00, 7.20, 7.20, 0]],
+  };
+  // the factor shown on the chip = speed-up of the waiting/streaming segment
+  const CHIPX = { mail: 3, deck: 6, invoice: 5, receipt: 2 };
+
+  // Camera keyframes: [u, scale, focusY (capture px, 0..2532), canvasY]
+  const BASE = [1.115, 0, 522];
+  const CAM = {
+    mail:    [[0, ...BASE], [2.30, ...BASE], [3.20, 1.38, 600, 1000], [5.60, 1.45, 620, 1000]],
+    deck:    [[0, ...BASE], [2.45, ...BASE], [3.15, 1.42, 760, 1080], [3.60, 1.44, 760, 1080], [6.0, 1.30, 760, 1150]],
+    invoice: [[0, ...BASE], [2.90, ...BASE], [3.55, 1.40, 1070, 1250], [5.60, 1.45, 1070, 1250]],
+    receipt: [[0, ...BASE], [1.15, ...BASE], [1.90, 1.44, 1120, 1200], [3.60, 1.50, 1120, 1200],
+              [3.6001, 1.44, 900, 1210], [5.40, 1.52, 900, 1210]],
+  };
+
+  const CAPS = {
+    mail:    { n: '01', k: 'Mail', t: 'Un mail clair,<br><em>en 5 secondes.</em>', s: '' },
+    deck:    { n: '02', k: 'Présentation', t: 'Un deck PowerPoint,<br><em>prêt à télécharger.</em>', s: '' },
+    invoice: { n: '03', k: 'Image', t: 'Une photo de facture,<br><em>et c’est lu.</em>', s: '' },
+    receipt: { n: '04', k: 'Empreinte', t: 'Chaque réponse<br><em>affiche son coût.</em>', s: 'Énergie : estimation, borne haute.' },
+  };
+
+  // ---------- helpers ----------
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const prog = (t, a, b) => clamp((t - a) / (b - a));
+  const eio = (p) => p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+  const eout = (p) => 1 - Math.pow(1 - p, 3);
+  const ein = (p) => p * p * p;
+  const back = (p) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(p - 1, 3) + c1 * Math.pow(p - 1, 2); };
+
+  function capTime(key, u) {
+    const segs = MAP[key];
+    let c = segs[0][2];
+    for (const s of segs) {
+      if (u >= s[0]) c = u >= s[1] ? s[3] : lerp(s[2], s[3], (u - s[0]) / (s[1] - s[0]));
+    }
+    return c;
+  }
+  function chipOn(key, u) {
+    for (const s of MAP[key]) if (s[4] && u >= s[0] && u < s[1]) return true;
+    return false;
+  }
+  function frameSrc(key, c) {
+    const fr = C[key].frames;
+    let idx = fr[0][0];
+    for (const [i, t] of fr) { if (t <= c + 1e-6) idx = i; else break; }
+    return `${ASSETS}/${key}/${String(idx).padStart(4, '0')}.jpg`;
+  }
+  function cam(key, u) {
+    const ks = CAM[key];
+    if (u <= ks[0][0]) return ks[0].slice(1);
+    for (let i = 0; i < ks.length - 1; i++) {
+      const a = ks[i], b = ks[i + 1];
+      if (u <= b[0]) {
+        const p = eio((u - a[0]) / (b[0] - a[0]));
+        return [lerp(a[1], b[1], p), lerp(a[2], b[2], p), lerp(a[3], b[3], p)];
+      }
+    }
+    return ks[ks.length - 1].slice(1);
+  }
+
+  const K = 580 / 1170;      // capture px -> canvas px at scale 1
+  const B = 14;              // bezel
+  function placeDevice(s, fy, ty, dx = 0, dy = 0, extraScale = 1) {
+    s *= extraScale;
+    const L = 540 - 290 * s + dx;
+    const T = ty - fy * K * s + dy;
+    $('device').style.transform = `translate(${L - B * s}px, ${T - B * s}px) scale(${s})`;
+  }
+
+  // ---------- background ----------
+  const bg = $('bg').getContext('2d');
+  function drawBg(t) {
+    const tt = Math.min(t, 28.2); // frozen during the final hold
+    bg.fillStyle = '#0B1B3F'; bg.fillRect(0, 0, 1080, 1920);
+    const glow = (x, y, r, a) => {
+      const g = bg.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(30,91,216,${a})`); g.addColorStop(1, 'rgba(30,91,216,0)');
+      bg.fillStyle = g; bg.fillRect(0, 0, 1080, 1920);
+    };
+    glow(540 + 180 * Math.sin(tt * 0.35), 1250 + 120 * Math.cos(tt * 0.27), 900, 0.42);
+    glow(160 + 90 * Math.cos(tt * 0.22), 260, 620, 0.18);
+    const v = bg.createLinearGradient(0, 1500, 0, 1920);
+    v.addColorStop(0, 'rgba(5,10,26,0)'); v.addColorStop(1, 'rgba(5,10,26,0.55)');
+    bg.fillStyle = v; bg.fillRect(0, 1500, 1080, 420);
+  }
+
+  // ---------- deck grid ----------
+  const grid = $('grid');
+  const slides = [];
+  for (let n = 1; n <= 6; n++) {
+    const d = document.createElement('div'); d.className = 'sl';
+    const im = document.createElement('img'); im.src = `${ASSETS}/slides/slide${n}.png`;
+    d.appendChild(im); grid.appendChild(d); slides.push(d);
+  }
+  $('invimg').src = `${ASSETS}/invoice.png`;
+
+  function setWords(container, times, t, dur = 0.28, rise = 46) {
+    const ws = container.querySelectorAll('.w');
+    ws.forEach((w, i) => {
+      const p = eout(prog(t, times[i], times[i] + dur));
+      w.style.opacity = p;
+      w.style.transform = `translateY(${(1 - p) * rise}px) scale(${0.92 + 0.08 * p})`;
+    });
+  }
+
+  let lastSrc = { A: '', B: '' };
+  function setImg(which, src) {
+    const el = which === 'A' ? $('imA') : $('imB');
+    if (lastSrc[which] !== src) { el.src = src; lastSrc[which] = src; }
+    return el;
+  }
+
+  // ---------- render ----------
+  window.DURATION = DURATION;
+  window.render = async function (t) {
+    drawBg(t);
+    const hook = $('hook'), end = $('end'), dev = $('device');
+
+    // ---- HOOK ----
+    if (t < S.hook[1] + 0.15) {
+      hook.style.display = 'block';
+      const h1 = $('h1');
+      setWords(h1, [0.05, 0.22, 0.40], t, 0.26, 40);
+      const grow = 1 + 0.10 * eout(prog(t, 0.1, 0.78));
+      const sq = ein(prog(t, 0.78, 1.05));
+      h1.style.transform = `scale(${grow * (1 - 0.96 * sq)})`;
+      h1.style.opacity = 1 - prog(t, 0.98, 1.05);
+      h1.style.filter = `blur(${sq * 6}px)`;
+      const h2 = $('h2');
+      const ws = h2.querySelectorAll('.w');
+      const times = [1.10, 1.24, 1.38, 1.62, 1.78, 2.02];
+      ws.forEach((w, i) => {
+        if (w.id === 'hmarkw') {
+          const p = prog(t, times[i], times[i] + 0.36);
+          w.style.opacity = clamp(p * 4);
+          w.style.transform = `translate(${(1 - eout(p)) * 120}px, ${(1 - back(p)) * -150}px) rotate(${(1 - eout(p)) * -24}deg)`;
+        } else {
+          const p = eout(prog(t, times[i], times[i] + 0.26));
+          w.style.opacity = p;
+          w.style.transform = `translateY(${(1 - p) * 50}px)`;
+        }
+      });
+      const hs = eout(prog(t, 2.2, 2.5));
+      $('hsub').style.opacity = hs;
+      $('hsub').style.transform = `translateY(${(1 - hs) * 20}px)`;
+      // exit
+      const ex = ein(prog(t, S.hook[1] - 0.12, S.hook[1] + 0.08));
+      h2.style.transform = `translateY(${-ex * 260}px)`;
+      h2.style.opacity = 1 - ex; $('hsub').style.opacity = hs * (1 - ex);
+      h2.style.filter = `blur(${ex * 10}px)`;
+    } else hook.style.display = 'none';
+
+    // ---- CONVERSATIONS ----
+    const convStart = S.mail[0] - WHIP / 2, convEnd = S.receipt[1] + WHIP / 2;
+    const showDev = t >= convStart && t < convEnd;
+    dev.style.display = showDev ? 'block' : 'none';
+    const imA = $('imA'), imB = $('imB');
+    let waitImgs = [];
+    let curKey = null;
+    let gridOn = false, invOn = false;
+    if (showDev) {
+      // which scene(s)
+      let key = CONV.find((k) => t >= S[k][0] && t < S[k][1]) || (t < S.mail[0] ? 'mail' : 'receipt');
+      curKey = key;
+      const u = t - S[key][0];
+      let [s, fy, ty] = cam(key, u);
+      // whip between conversation scenes
+      let whip = null;
+      for (let i = 0; i < CONV.length - 1; i++) {
+        const Bt = S[CONV[i]][1];
+        if (t >= Bt - WHIP / 2 && t < Bt + WHIP / 2) whip = { from: CONV[i], to: CONV[i + 1], p: (t - (Bt - WHIP / 2)) / WHIP };
+      }
+      let dy = 0, extra = 1, rot = 0;
+      if (whip) {
+        const p = eio(whip.p);
+        const ca = cam(whip.from, S[whip.from][1] - S[whip.from][0]);
+        const cb = cam(whip.to, 0);
+        s = lerp(ca[0], cb[0], p); fy = lerp(ca[1], cb[1], p); ty = lerp(ca[2], cb[2], p);
+        const srcA = frameSrc(whip.from, capTime(whip.from, S[whip.from][1] - S[whip.from][0]));
+        const srcB = frameSrc(whip.to, capTime(whip.to, 0));
+        setImg('A', srcA); setImg('B', srcB);
+        const bl = Math.sin(Math.PI * whip.p) * 10;
+        imA.style.transform = `translateX(${-p * 100}%)`; imA.style.filter = `blur(${bl}px)`;
+        imB.style.transform = `translateX(${(1 - p) * 100}%)`; imB.style.filter = `blur(${bl}px)`;
+        imB.style.display = 'block';
+        waitImgs = [imA, imB];
+      } else {
+        const src = frameSrc(key, capTime(key, u));
+        setImg('A', src);
+        imA.style.transform = 'none'; imA.style.filter = 'none';
+        imB.style.display = 'none';
+        waitImgs = [imA];
+      }
+      // entrance from the hook / exit to the end card
+      if (t < S.mail[0] + WHIP / 2) {
+        const p = eout(prog(t, convStart, S.mail[0] + WHIP / 2));
+        dy = (1 - p) * 1200;
+      }
+      if (t > S.receipt[1] - WHIP / 2) {
+        const p = ein(prog(t, S.receipt[1] - WHIP / 2, convEnd));
+        dy = p * 1300; extra = 1 - 0.15 * p;
+      }
+      placeDevice(s, fy, ty, 0, dy, extra);
+
+      // deck: real slide previews fill the frame
+      let dimv = 0;
+      if (key === 'deck' && !whip) {
+        const g0 = 3.45;
+        const pin = prog(u, g0, g0 + 0.55);
+        const pout = prog(u, 5.75, 5.95);
+        dimv = 0.72 * eout(pin) * (1 - pout);
+        if (u >= g0) {
+          gridOn = true;
+          const push = 1 + 0.045 * eio(prog(u, g0 + 0.4, 5.9));
+          slides.forEach((d, i) => {
+            const col = i % 2, row = Math.floor(i / 2);
+            const tx = 54 + col * (466 + 40), tyy = 660 + row * (263 + 36);
+            const p = back(clamp((u - g0 - i * 0.09) / 0.5));
+            const pe = clamp((u - g0 - i * 0.09) / 0.5);
+            // start from the preview card position inside the phone
+            const sx = 300, sy = 1080;
+            const x = lerp(sx, tx, p), y = lerp(sy, tyy, p);
+            const sc = lerp(0.45, 1, eout(pe)) * push;
+            const cx = (x + 233 - 540) * push + 540 - 233, cy = (y + 131 - 1060) * push + 1060 - 131;
+            d.style.transform = `translate(${cx}px, ${cy}px) scale(${sc})`;
+            d.style.opacity = clamp(pe * 3) * (1 - pout);
+          });
+        }
+      }
+      $('dim').style.opacity = dimv;
+
+      // invoice: the attached photo, with the total highlighted
+      if (key === 'invoice' && !whip) {
+        const i0 = 2.95;
+        if (u >= i0) {
+          invOn = true;
+          const p = eout(prog(u, i0, i0 + 0.5));
+          const pout = prog(u, 5.35, 5.55);
+          const inv = $('inv');
+          inv.style.opacity = clamp(p * 1.5) * (1 - pout);
+          inv.style.transform = `translate(${(1 - p) * 120}px, ${(1 - p) * 90}px) scale(${lerp(0.55, 1, p) * (1 + 0.03 * prog(u, i0 + 0.5, 5.6))})`;
+          const r = $('invrect');
+          const L = 2 * (410 + 60);
+          const pd = eio(prog(u, 3.55, 4.15));
+          r.setAttribute('stroke-dasharray', `${L * pd} ${L}`);
+          r.setAttribute('fill', `rgba(143,179,255,${0.22 * prog(u, 4.0, 4.3)})`);
+        }
+      }
+    }
+    grid.style.display = gridOn ? 'block' : 'none';
+    $('inv').style.display = invOn ? 'block' : 'none';
+
+    // ---- CAPTION ----
+    const capEl = $('cap'), chip = $('chip');
+    let capKey = CONV.find((k) => t >= S[k][0] && t < S[k][1]);
+    if (capKey) {
+      const c = CAPS[capKey], u = t - S[capKey][0], len = S[capKey][1] - S[capKey][0];
+      capEl.style.display = 'block'; $('scrim').style.display = 'block';
+      $('scrim').style.height = (capKey === 'receipt' ? 560 + 70 * eio(prog(u, 1.6, 2.2)) : 560) + 'px';
+      capEl.querySelector('.n').textContent = c.n;
+      capEl.querySelector('.k').textContent = c.k;
+      $('ctext').innerHTML = c.t; $('csub').textContent = c.s;
+      const pin = eout(prog(u, 0.08, 0.42)), pout = ein(prog(u, len - 0.16, len));
+      capEl.style.opacity = pin * (1 - pout);
+      capEl.style.transform = `translateY(${(1 - pin) * -40 + pout * -24}px)`;
+      $('csub').style.opacity = eout(prog(u, 2.0, 2.4));
+      const on = chipOn(capKey, u) && u > 0.1;
+      chip.style.display = on ? 'flex' : 'none';
+      $('chipt').textContent = `Accéléré ×${CHIPX[capKey]}`;
+    } else {
+      capEl.style.display = 'none'; chip.style.display = 'none';
+      $('scrim').style.display = (t > S.mail[0] - 0.1 && t < S.receipt[1] + 0.1) ? 'block' : 'none';
+    }
+
+    // ---- END CARD ----
+    if (t >= S.end[0] - 0.05) {
+      end.style.display = 'block';
+      const e = t - S.end[0];
+      const pm = prog(e, 0.12, 0.62);
+      $('emark').style.opacity = clamp(pm * 3);
+      $('emark').style.transform = `scale(${0.2 + 0.8 * back(pm)})`;
+      const lines = $('credo').querySelectorAll('span');
+      lines.forEach((l, i) => {
+        const p = eout(prog(e, 0.55 + i * 0.22, 0.95 + i * 0.22));
+        l.style.opacity = p; l.style.transform = `translateY(${(1 - p) * 30}px)`;
+      });
+      const pl = eout(prog(e, 1.25, 1.6));
+      $('eline').style.transform = `scaleX(${pl})`; $('eline').style.opacity = pl;
+      const pn = eout(prog(e, 1.35, 1.75));
+      $('ename').style.opacity = pn; $('ename').style.transform = `translateY(${(1 - pn) * 36}px)`;
+      const pf = eout(prog(e, 1.7, 2.1));
+      $('efr').style.opacity = pf; $('efr').style.transform = `translateY(${(1 - pf) * 20}px)`;
+    } else end.style.display = 'none';
+
+    // wait for every image used in this frame
+    const imgs = [...waitImgs];
+    if (gridOn) slides.forEach((d) => imgs.push(d.firstChild));
+    if (invOn) imgs.push($('invimg'));
+    await Promise.all(imgs.map((im) => im.decode().catch(() => {})));
+    return true;
+  };
+
+  // preview in a browser: ?t=12.3
+  if (params.has('t')) document.fonts.ready.then(() => window.render(parseFloat(params.get('t'))));
+})();
+</script>
+</body>
+</html>
