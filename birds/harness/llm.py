@@ -217,8 +217,11 @@ class CompletionsClient:
         attempt, conservative = 0, False
         while True:
             cutter = _StopCutter(stop, on_token)
+            mark = {"start": time.monotonic(), "first": None}
 
-            def on_piece(piece, cutter=cutter):
+            def on_piece(piece, cutter=cutter, mark=mark):
+                if piece and mark["first"] is None:
+                    mark["first"] = time.monotonic()
                 cutter.feed(piece)
                 return cutter.done
 
@@ -246,13 +249,18 @@ class CompletionsClient:
                     on_status("waking", {"attempt": attempt, "retry_in": wait})
                 self.sleep(wait)
         text = cutter.finish()
+        end = time.monotonic()
         return {
             "text": text,
             "prompt_tokens": tin,
             "completion_tokens": tout,
             "prompt_chars": len(prompt),
             "completion_chars": len(text),
-            "seconds": round(time.monotonic() - t0, 3),
+            "seconds": round(end - t0, 3),
+            # the successful attempt only (waiting for a waking endpoint excluded): time the GPU worked for us,
+            # plus network latency, so an upper bound of the busy time
+            "busy_seconds": round(end - mark["start"], 3),
+            "first_token_seconds": round(mark["first"] - mark["start"], 3) if mark["first"] else None,
             "wake_attempts": attempt,
         }
 

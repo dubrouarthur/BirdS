@@ -23,7 +23,12 @@ class Config:
     timeout_s: float = 180.0  # wall clock for the whole run
     max_side_effects: int = 5  # draft_email / make_* / run_python calls per run
     # network
+    # web_search backend, first configured wins: SearXNG, Brave, Tavily, then the no-key default (tools/search.py)
     searxng_url: str | None = None  # operator-configured, so not subject to the egress policy
+    brave_api_key: str | None = field(default=None, repr=False)
+    tavily_api_key: str | None = field(default=None, repr=False)
+    search_default: str = "wikipedia"  # "wikipedia" (no key, always available) or "none" (web_search hidden)
+    search_contact: str | None = None  # contact put in the User-Agent sent to Wikipedia (URL or e-mail)
     http_timeout: float = 15.0
     max_bytes: int = 2_000_000
     max_redirects: int = 4
@@ -41,6 +46,10 @@ class Config:
     )
     wh_per_1k_tokens: float | None = None  # explicit calibration; reported as "estimated"
     calibration_source: str | None = None
+    # power x time estimate for a remote GPU we cannot read (None: off). Reported as "estimated", upper bound.
+    gpu_watts: float | None = None
+    gpu_label: str | None = None  # e.g. "NVIDIA L4, 72 W TDP"
+    pue: float = 1.0  # 1.0 = GPU only
     audit_file: str | None = "bird_audit.jsonl"  # None: audit lines go to stdout (serverless logs)
 
 
@@ -55,6 +64,7 @@ class Context:
     drafts: list[dict] = field(default_factory=list)  # email drafts for the UI (never sent)
     files: list[str] = field(default_factory=list)  # generated files
     bytes_fetched: int = 0
+    lang: str = "fr"  # language of the conversation (search backends that care, e.g. Wikipedia)
 
     @property
     def workspace(self) -> Path:

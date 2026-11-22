@@ -15,7 +15,7 @@ import httpx
 from birds.harness import guard, meter
 from birds.harness.config import Config, Context
 from birds.harness.llm import STOP, EndpointError
-from birds.harness.tools import TOOLS, SearxngBackend
+from birds.harness.tools import TOOLS, make_search
 from birds.parse import parse_output
 from birds.render import prompt as render_prompt
 from birds.sources.identity import DEFAULT_SYSTEM  # same text as docs/PERSONA.md
@@ -67,6 +67,7 @@ class Step:
     flags: list[str] = field(default_factory=list)
     decision: str = "allow"
     chars: int = 0
+    repairs: list[str] = field(default_factory=list)  # argument shapes fixed before validation (coerce.py)
 
 
 @dataclass
@@ -172,7 +173,9 @@ class Agent:
         self.hooks = hooks or Hooks()
         # trust_env=False: the fetch client ignores proxy variables unless the operator passes its own client
         self.http = http or httpx.Client(trust_env=False, follow_redirects=False)
-        self.search = search or (SearxngBackend(config.searxng_url, self.http) if config.searxng_url else None)
+        # The search backend is called at a fixed, operator-chosen address: it gets its own client, which may use
+        # the host's proxy settings (unlike read_page, whose target the model chooses).
+        self.search = search if search is not None else make_search(config, http or httpx.Client(timeout=15.0))
         self.audit = guard.Audit(config.workspace / config.audit_file if config.audit_file else None)
         self.tools = [t for t in BIRD_TOOLS if t["function"]["name"] in self._allowed()]
         params = inspect.signature(llm.generate).parameters
@@ -233,6 +236,7 @@ class Agent:
                 drafts=list(st["drafts"]),
                 files=list(st["files"]),
                 bytes_fetched=int(st["bytes_fetched"]),
+                lang=st["lang"],
             )
             messages, seen, queue = st["messages"], set(st["seen"]), list(st["queue"])
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
@@ -240,7 +244,7 @@ class Agent:
             forced = "confirmed" if decision is True else "denied_unconfirmed"
         else:
             run = Run(lang=lang or detect_lang(user))
-            ctx = Context(config=cfg, http=self.http, search=self.search)
+            ctx = Context(config=cfg, http=self.http, search=self.search, lang=run.lang)
             messages = list(history or [])
             if not messages or messages[0]["role"] != "system":
                 messages.insert(0, {"role": "system", "content": system or DEFAULT_SYSTEM[run.lang]})
@@ -271,7 +275,15 @@ class Agent:
                 run.usage.append(
                     {
                         k: out.get(k)
-                        for k in ("prompt_tokens", "completion_tokens", "seconds", "prompt_chars", "completion_chars")
+                        for k in (
+                            "prompt_tokens",
+                            "completion_tokens",
+                            "seconds",
+                            "busy_seconds",
+                            "first_token_seconds",
+                            "prompt_chars",
+                            "completion_chars",
+                        )
                         if k in out
                     }
                 )
@@ -382,6 +394,9 @@ class Agent:
             measured_wh=gpu.wh,
             wh_per_1k_tokens=cfg.wh_per_1k_tokens,
             calibration_source=cfg.calibration_source,
+            gpu_watts=cfg.gpu_watts,
+            gpu_label=cfg.gpu_label,
+            pue=cfg.pue,
         )
         self.audit.log(
             "run",
@@ -404,11 +419,12 @@ class Agent:
         """
         t0 = time.monotonic()
         step = Step(generation=gen, tool=name, arguments=raw_args if isinstance(raw_args, dict) else {})
-        args, err = guard.validate_args(name, raw_args, self.cfg.allowed_tools)
+        args, err = guard.validate_args(name, raw_args, self.cfg.allowed_tools, step.repairs)
         if self.hooks.on_step_start and forced is None:
             self.hooks.on_step_start(len(run.steps), str(name), step.arguments if err else args)
         if err:
-            step.decision, step.error, result = "rejected", err, f"Error: {err} Correct the call or answer without it."
+            tail = "" if err.startswith("invalid arguments") else " Correct the call or answer without it."
+            step.decision, step.error, result = "rejected", err, f"Error: {err}{tail}"
         else:
             step.arguments = args
             if name != "run_python" or self.cfg.allow_python:  # a switched-off tool only returns "not enabled"
@@ -448,6 +464,7 @@ class Agent:
             "tool_call",
             tool=name,
             arguments=guard.short_args(step.arguments),
+            repairs=step.repairs,
             seconds=step.seconds,
             chars=len(result),
             flags=step.flags,

@@ -8,33 +8,24 @@ from html.parser import HTMLParser
 
 from birds.harness import guard
 from birds.harness.guard import ToolError
-
-
-class SearxngBackend:
-    """SearXNG JSON API (`/search?format=json`; the instance must enable the json format).
-
-    The base URL is set by the operator, not by the model, so it may be a local address.
-    """
-
-    def __init__(self, base_url: str, http, timeout: float = 10.0):
-        self.url, self.http, self.timeout = base_url.rstrip("/") + "/search", http, timeout
-
-    def search(self, query: str, n: int) -> list[dict]:
-        r = self.http.get(self.url, params={"q": query, "format": "json"}, timeout=self.timeout)
-        r.raise_for_status()
-        return [
-            {"title": x.get("title") or "", "url": x.get("url") or "", "snippet": x.get("content") or ""}
-            for x in (r.json().get("results") or [])[:n]
-        ]
+from birds.harness.tools.search import (  # noqa: F401 - re-exported
+    BraveBackend,
+    SearxngBackend,
+    TavilyBackend,
+    WikipediaBackend,
+    make_search,
+)
 
 
 class StaticBackend:
     """Fixed results, for tests and demos."""
 
+    name, label = "static", "Static"
+
     def __init__(self, results: list[dict]):
         self.results = results
 
-    def search(self, query: str, n: int) -> list[dict]:
+    def search(self, query: str, n: int, lang: str | None = None) -> list[dict]:
         return self.results[:n]
 
 
@@ -42,7 +33,10 @@ def web_search(args: dict, ctx) -> str:
     if ctx.search is None:
         raise ToolError("web search is not configured on this deployment")
     try:
-        results = ctx.search.search(args["query"], args.get("max_results") or 5)
+        try:
+            results = ctx.search.search(args["query"], args.get("max_results") or 5, lang=ctx.lang)
+        except TypeError:  # a backend written before the lang parameter existed
+            results = ctx.search.search(args["query"], args.get("max_results") or 5)
     except Exception as e:
         raise ToolError(f"search backend failed ({type(e).__name__})") from e
     if not results:

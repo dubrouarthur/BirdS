@@ -2,7 +2,16 @@
 
 from birds.harness.tools.actions import draft_email, run_python
 from birds.harness.tools.files import make_document, make_sheet, make_slides, read_file
-from birds.harness.tools.web import SearxngBackend, StaticBackend, read_page, web_search
+from birds.harness.tools.web import (
+    BraveBackend,
+    SearxngBackend,
+    StaticBackend,
+    TavilyBackend,
+    WikipediaBackend,
+    make_search,
+    read_page,
+    web_search,
+)
 
 TOOLS = {
     "web_search": web_search,
@@ -15,4 +24,12 @@ TOOLS = {
     "run_python": run_python,
 }
 
-__all__ = ["TOOLS", "SearxngBackend", "StaticBackend"]
+__all__ = [
+    "TOOLS",
+    "BraveBackend",
+    "SearxngBackend",
+    "StaticBackend",
+    "TavilyBackend",
+    "WikipediaBackend",
+    "make_search",
+]

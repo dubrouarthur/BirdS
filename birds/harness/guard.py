@@ -5,6 +5,7 @@ Nothing here relies on the model behaving well. See docs/HARNESS.md for what eac
 
 from __future__ import annotations
 
+import copy
 import ipaddress
 import json
 import re
@@ -16,9 +17,26 @@ from pathlib import Path
 import httpx
 from jsonschema import Draft202012Validator
 
+from birds.harness.coerce import coerce_args
 from birds.tools import BIRD_TOOLS
 
-SCHEMAS = {t["function"]["name"]: t["function"]["parameters"] for t in BIRD_TOOLS}
+SCHEMAS = {t["function"]["name"]: copy.deepcopy(t["function"]["parameters"]) for t in BIRD_TOOLS}
+# Harness-side optional fields, accepted when given but NOT advertised to the model (the prompt keeps the trained
+# schemas of birds/tools.py byte for byte).
+SCHEMAS["make_slides"]["properties"]["slides"]["items"]["properties"]["notes"] = {"type": "string"}
+SCHEMAS["make_slides"]["properties"]["subtitle"] = {"type": "string"}
+SCHEMAS["make_document"]["properties"]["subtitle"] = {"type": "string"}
+# What a correct call looks like, quoted in the error message so the model knows exactly what to fix.
+EXAMPLES = {
+    "web_search": '{"query": "taux de TVA Belgique 2025"}',
+    "read_page": '{"url": "https://example.org/page"}',
+    "read_file": '{"path": "rapport.pdf"}',
+    "draft_email": '{"to": ["nom@example.org"], "subject": "Objet", "body": "Bonjour,\\n..."}',
+    "make_slides": '{"title": "Titre", "slides": [{"title": "Diapo 1", "bullets": ["Point A", "Point B"]}]}',
+    "make_document": '{"title": "Titre", "sections": [{"heading": "Contexte", "content": "Texte..."}]}',
+    "make_sheet": '{"title": "Titre", "columns": ["Poste", "Montant"], "rows": [["Loyer", 1200], ["Total", "=SUM(B2:B2)"]]}',
+    "run_python": '{"code": "print(1 + 1)"}',
+}
 SIDE_EFFECT_TOOLS = {"draft_email", "make_slides", "make_document", "make_sheet", "run_python"}
 EXTERNAL_TOOLS = {"web_search", "read_page", "read_file", "run_python"}  # results carry content we did not write
 UNTRUSTED_NOTE = {
@@ -178,21 +196,59 @@ def truncate(text: str, limit: int) -> str:
 # ---------------------------------------------------------------- validation and gating
 
 
-def validate_args(tool: str, args, allowed) -> tuple[dict, str | None]:
-    """(arguments, error). Arguments are checked against the tool's JSON schema; extra keys are refused."""
+def _expected(spec: dict) -> str:
+    t = spec.get("type")
+    if t == "array":
+        inner = spec.get("items") or {}
+        if inner.get("type") == "object":
+            return "a JSON array of objects with keys " + ", ".join(
+                f'"{k}"' for k in (inner.get("required") or inner.get("properties") or [])
+            )
+        return f"a JSON array of {inner.get('type') or 'values'}s"
+    return f"a {t}" if isinstance(t, str) else "a valid value"
+
+
+def explain(tool: str, error) -> str:
+    """One precise sentence: which argument is wrong, what it must be, and how a correct call looks."""
+    path = [str(p) for p in error.absolute_path]
+    where = "/".join(path) or "arguments"
+    schema = SCHEMAS[tool]
+    spec = error.schema if isinstance(error.schema, dict) else {}
+    if error.validator == "required":
+        what = error.message[:120]
+    elif error.validator == "additionalProperties":
+        what = f"{error.message[:120]}; allowed keys: {', '.join(schema['properties'])}"
+    elif error.validator == "type":
+        got = type(error.instance).__name__.replace("str", "string").replace("dict", "object").replace("list", "array")
+        what = f"`{where}` must be {_expected(spec)}, not a {got}"
+    else:
+        what = f"`{where}`: {error.message[:160]}"
+    return (
+        f"invalid arguments for {tool} ({where}): {what}. Call {tool} again with corrected arguments, "
+        f"for example {EXAMPLES.get(tool, '{}')}"
+    )
+
+
+def validate_args(tool: str, args, allowed, notes: list | None = None) -> tuple[dict, str | None]:
+    """(arguments, error). Arguments are repaired (birds.harness.coerce), then checked against the tool's JSON
+    schema; extra keys are refused. ``notes`` receives what the repair changed."""
     if tool not in SCHEMAS or tool not in allowed:
         return {}, f"unknown tool '{tool}'. Available tools: {', '.join(t for t in SCHEMAS if t in allowed)}."
     if not isinstance(args, dict):
-        return {}, "arguments must be an object"
-    schema, args = SCHEMAS[tool], dict(args)
+        return {}, f"arguments must be an object, for example {EXAMPLES.get(tool, '{}')}"
+    schema = SCHEMAS[tool]
+    args, fixed = coerce_args(tool, dict(args), schema)
+    if notes is not None:
+        notes.extend(fixed)
     for key, spec in schema["properties"].items():  # the XML parser JSON-decodes values: "42" arrives as 42
         if spec.get("type") == "string" and key in args and not isinstance(args[key], str):
             args[key] = json.dumps(args[key], ensure_ascii=False)
-    errors = sorted(Draft202012Validator({**schema, "additionalProperties": False}).iter_errors(args), key=str)
+    errors = sorted(
+        Draft202012Validator({**schema, "additionalProperties": False}).iter_errors(args),
+        key=lambda e: (len(list(e.absolute_path)), str(e)),
+    )
     if errors:
-        e = errors[0]
-        where = "/".join(str(p) for p in e.absolute_path) or "arguments"
-        return args, f"invalid arguments for {tool} ({where}): {e.message[:200]}"
+        return args, explain(tool, errors[0])
     return args, None
 
 

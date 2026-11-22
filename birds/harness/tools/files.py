@@ -110,43 +110,32 @@ def _done(ctx, p: Path, summary: str) -> str:
 
 
 def make_slides(args: dict, ctx) -> str:
-    prs = _need("pptx", "python-pptx").Presentation()
-    first = prs.slides.add_slide(prs.slide_layouts[0])
-    first.shapes.title.text = args["title"]
-    for s in args["slides"]:
-        slide = prs.slides.add_slide(prs.slide_layouts[1])
-        slide.shapes.title.text = s["title"]
-        frame = slide.placeholders[1].text_frame
-        for i, bullet in enumerate(s["bullets"]):
-            (frame.paragraphs[0] if i == 0 else frame.add_paragraph()).text = bullet
+    _need("pptx", "python-pptx")
+    from birds.harness.office import build_pptx
+
     p = _new_path(ctx, args["title"], ".pptx")
-    prs.save(str(p))
-    return _done(ctx, p, f"title slide + {len(args['slides'])} slides")
+    n = build_pptx(p, args["title"], args["slides"], args.get("subtitle") or "")
+    extra = f", {n - 1} after splitting long slides" if n - 1 != len(args["slides"]) else ""
+    return _done(ctx, p, f"title slide + {len(args['slides'])} slides{extra}")
 
 
 def make_document(args: dict, ctx) -> str:
-    doc = _need("docx", "python-docx").Document()
-    doc.add_heading(args["title"], level=0)
-    for s in args["sections"]:
-        doc.add_heading(s["heading"], level=1)
-        for para in s["content"].split("\n"):
-            if para.strip():
-                doc.add_paragraph(para.strip())
+    _need("docx", "python-docx")
+    from birds.harness.office import build_docx
+
     p = _new_path(ctx, args["title"], ".docx")
-    doc.save(str(p))
-    return _done(ctx, p, f"{len(args['sections'])} sections")
+    stats = build_docx(p, args["title"], args["sections"], args.get("subtitle") or "")
+    tables = f", {stats['tables']} table(s)" if stats["tables"] else ""
+    return _done(ctx, p, f"{len(args['sections'])} sections{tables}")
 
 
 def make_sheet(args: dict, ctx) -> str:
-    wb = _need("openpyxl", "openpyxl").Workbook()
-    ws = wb.active
-    ws.title = re.sub(r"[\[\]:*?/\\]", " ", args["title"])[:31] or "Sheet"
-    ws.append(list(args["columns"]))
-    for row in args["rows"]:
-        ws.append(list(row))
-        for cell in ws[ws.max_row]:
-            if isinstance(cell.value, str) and cell.value.startswith("="):
-                cell.data_type = "s"  # model-written cells stay plain text, never formulas
+    _need("openpyxl", "openpyxl")
+    from birds.harness.office import build_xlsx
+
     p = _new_path(ctx, args["title"], ".xlsx")
-    wb.save(str(p))
-    return _done(ctx, p, f"{len(args['columns'])} columns, {len(args['rows'])} rows")
+    stats = build_xlsx(p, args["title"], args["columns"], args["rows"])
+    extra = f", {stats['formulas']} formula(s)" if stats["formulas"] else ""
+    if stats["blocked_formulas"]:
+        extra += f", {stats['blocked_formulas']} formula(s) reaching outside the file written as text"
+    return _done(ctx, p, f"{len(args['columns'])} columns, {len(args['rows'])} rows{extra}")
