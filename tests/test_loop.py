@@ -151,3 +151,17 @@ def test_the_generic_fallback_stays_when_the_last_answer_is_empty_too(tmp_path):
     bad = "<tool_call>\n<function=web_search>\n<parameter=query>\n\n</parameter>\n</function>\n</tool_call>"
     run = Agent(FakeClient([bad, bad, ""]), Tok(), Config(workspace=tmp_path, max_steps=2)).run("Question ?", lang="fr")
     assert not run.salvaged and run.answer == FALLBACK["fr"]
+
+
+def test_an_announced_action_is_done_in_the_same_turn(tmp_path):
+    (tmp_path / "facture.jpg.txt").write_text("Total TTC : 1 250,00 €")
+    call = "<tool_call>\n<function=read_file>\n<parameter=path>\nfacture.jpg\n</parameter>\n</function>\n</tool_call>"
+    llm = FakeClient(["Je reviens sur l'image pour récupérer les totaux.", call, "Le total TTC est de 1 250,00 €."])
+    run = Agent(llm, Tok(), Config(workspace=tmp_path)).run("Il manque les totaux", lang="fr")
+    assert run.answer == "Le total TTC est de 1 250,00 €." and [s.tool for s in run.steps] == ["read_file"]
+
+
+def test_a_question_back_is_not_pushed(tmp_path):
+    llm = FakeClient(["Je vais vérifier : voulez-vous les montants HT ou TTC ?"])
+    run = Agent(llm, Tok(), Config(workspace=tmp_path)).run("Il manque les totaux", lang="fr")
+    assert run.answer.endswith("?") and len(llm.prompts) == 1

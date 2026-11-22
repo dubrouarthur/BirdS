@@ -134,6 +134,18 @@ def chart_nudge(request: str, messages: list[dict]) -> str:
 _ABOUT_CHARTS = re.compile(
     r"^\s*(?:explique|expliquez|explain|d[ée]finis|define|qu['’]est[- ]ce|what (?:is|are)|c['’]est quoi)\b", re.I
 )
+# an answer that only announces work the model could do now (« je reviens sur l'image », « je vais vérifier »)
+_PROMISE = re.compile(
+    r"\b(?:je (?:reviens|vais (?:relire|reprendre|vérifier|verifier|chercher|rechercher|récupérer|recuperer|compléter|"
+    r"completer|regarder|lire|analyser|créer|creer|préparer|preparer|refaire|corriger|ajouter|calculer)|m'en occupe|"
+    r"m'y (?:mets|remets))|let me (?:check|look|read|search|fix|add|redo|create)|i(?:'ll| will) (?:check|look|go back|"
+    r"read|search|fix|add|redo|create|re-?read))\b",
+    re.I,
+)
+DO_IT_NUDGE = (
+    "Do it now, in this turn: call the tool you need (for example read_file on the attached file or image) and then "
+    "answer with the result. Do not wait for the user to confirm."
+)
 # stop reasons after which a last answer is attempted before the generic fallback
 _SALVAGE = {"max_steps", "invalid_tool_calls", "loop", "empty_output", "malformed_output"}
 LAST_CHANCE = {
@@ -481,6 +493,7 @@ class Agent:
             messages, seen, queue = st["messages"], set(st["seen"]), list(st["queue"])
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
             nudged = bool(st.get("nudged", False))
+            promise_nudged = True  # a resumed run never re-nudges
             file_nudged = bool(st.get("file_nudged", False))
             withdrawn = set(st.get("withdrawn", []))
             routed = set(st.get("routed", []))
@@ -505,6 +518,7 @@ class Agent:
             words = user if request_text is None else request_text
             routed = route(words, attached) if cfg.route_tools else (route(words) & {"make_chart"})
             nudged, withdrawn, file_nudged = False, set(routed), False
+            promise_nudged = False
             gen, ok, forced = 0, 0, None
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
 
@@ -600,6 +614,26 @@ class Agent:
                         elif file_nudged and claims:
                             content = NO_FILE[run.lang]  # reminded once, and still claims a file: say so, plainly
                         # reminded once and now answering inline without a claim: that answer is kept
+                    if (
+                        run.stop_reason == "answer"
+                        and not promise_nudged
+                        and _PROMISE.search(content)
+                        and len(content) < 500
+                        and not content.rstrip().endswith("?")
+                        and gen < cfg.max_steps - 1
+                        and time.monotonic() < deadline
+                    ):
+                        # « Je reviens sur l'image pour récupérer les totaux. » and then nothing until the user says
+                        # « vas-y »: the model announced work it can do now. Tell it once to do it in this turn.
+                        promise_nudged = True
+                        if stream is not None and stream.streamed and hooks.on_reset:
+                            hooks.on_reset()
+                        messages.append(
+                            {"role": "assistant", "content": parsed["content"], "reasoning_content": parsed["reasoning"]}
+                        )
+                        messages.append({"role": "tool", "content": DO_IT_NUDGE})
+                        gen += 1
+                        continue
                     if (
                         run.stop_reason == "answer"
                         and not file_nudged
