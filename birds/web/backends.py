@@ -164,6 +164,32 @@ def usage_event(
     }
 
 
+def output_file(workspace: Path, rel: object) -> Path | None:
+    """``rel`` resolved inside ``<workspace>/bird_out``, or None: only files Bird made there are ever sent back.
+    A resumed run's state comes from a token; even a validly signed one must not name /proc or ../ paths."""
+    from birds.harness.tools.files import OUT_DIR, safe_path
+
+    if not isinstance(rel, str) or not rel or "\x00" in rel:
+        return None
+    try:
+        path = safe_path(workspace, rel)
+    except guard.Blocked:
+        return None
+    return path if (workspace / OUT_DIR).resolve() in path.parents else None
+
+
+def _resume_state(state: object, workspace: Path) -> dict:
+    """The agent state carried by a confirm token, with its types checked and its files kept to bird_out."""
+    if not isinstance(state, dict) or not isinstance(state.get("messages"), list):
+        raise ValueError("this confirmation carries an invalid state")
+    if not all(isinstance(m, dict) and isinstance(m.get("content", ""), str) for m in state["messages"]):
+        raise ValueError("this confirmation carries an invalid state")
+    files = state.get("files", [])
+    if not isinstance(files, list) or not all(isinstance(f, str) for f in files):
+        raise ValueError("this confirmation carries an invalid state")
+    return {**state, "files": [f for f in files if output_file(workspace, f) is not None]}
+
+
 def inline_file(path: Path, preview: dict | None, limit: int) -> dict:
     """A generated file as a JSON-safe entry: the browser turns ``data`` (base64) into a Blob download."""
     name = sanitize_filename(path.name)
@@ -1328,7 +1354,7 @@ class HarnessBackend:
                 if request.resume.get("k") != "harness":
                     raise ValueError("this confirmation does not belong to this backend")
                 carry = request.resume.get("carry") or carry
-                state = request.resume["state"]
+                state = _resume_state(request.resume.get("state"), workspace)
                 ui = request.resume.get("state_ui")
                 if isinstance(ui, int) and 0 <= ui < len(state["messages"]):
                     ctx.emit({"type": "user", "content": state["messages"][ui]["content"]})
@@ -1384,8 +1410,8 @@ class HarnessBackend:
             files = []
             for rel in run.files:
                 preview = next(previews, None)
-                path = workspace / rel
-                if path.is_file():  # files made before a pause were already delivered with the confirm event
+                path = output_file(workspace, rel)
+                if path is not None and path.is_file():  # files made before a pause were already delivered with the confirm event
                     files.append(inline_file(path, preview, ctx.max_inline_file_bytes))
             seconds = float(carry.get("seconds") or 0.0) + (time.monotonic() - t0)
             energy, energy_kind = report.get("energy_wh"), report.get("energy_kind")

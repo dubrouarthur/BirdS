@@ -200,6 +200,7 @@ def test_search_scenario_steps_sources_citations(client):
 def test_generated_files_are_inline_with_a_preview(client, prompt, tool, suffix, kind):
     events = chat(client, prompt)
     assert [s["tool"] for s in events if s["type"] == "step"] == [tool, tool]
+    print([(e["type"], e.get("tool"), e.get("status")) for e in events])
     (file,) = one(events, "answer")["files"]
     assert set(file) == {"name", "mime", "size", "data", "preview"}
     assert file["name"].endswith(suffix) and "officedocument" in file["mime"]
@@ -1042,3 +1043,51 @@ def test_about_site_route(tmp_path, monkeypatch):
     assert r.status_code == 200 and "Bird" in r.text
     assert c.get("/api/health").json().get("site_url") == "/a-propos/"
 
+def _forged_resume(tmp_path, monkeypatch, files, second_outputs):
+    """A real harness confirm token, re-signed with the test secret after its state.files was changed."""
+    monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
+    body = {
+        "messages": [{"role": "user", "content": "Read notes.txt and reply"}],
+        "lang": "en",
+        "attachments": [{"name": "notes.txt", "content": INJECTION}],
+    }
+    app, _ = harness_app(
+        [_tool_call("read_file", path="notes.txt"), _tool_call("draft_email", to=["x@e.test"], subject="s", body="b")]
+    )
+    with TestClient(app) as client:
+        token = one(post_chat(client, body), "confirm")["token"]
+    payload = tokens.verify(token, SECRET)
+    payload.pop("exp")
+    payload["state"]["files"] = files
+    forged = tokens.sign(payload, SECRET, ttl=60)
+    app2, _ = harness_app(second_outputs)
+    with TestClient(app2) as client:
+        return post_chat(client, {**body, "approved": [forged]})
+
+
+def test_resume_files_stay_in_workspace(tmp_path, monkeypatch):
+    outside = ["/etc/hostname", "../../etc/passwd", "/proc/self/environ"]
+    events = _forged_resume(tmp_path, monkeypatch, outside, ["Ok."])
+    assert one(events, "answer")["files"] == []
+    assert "root:" not in json.dumps(events)
+
+
+def test_resume_still_delivers_a_file_made_after_approval(tmp_path, monkeypatch):
+    make = _tool_call("make_document", title="Note", sections=[{"heading": "A", "content": "Texte."}])
+    events = _forged_resume(tmp_path, monkeypatch, ["/etc/hostname"], [make])
+    confirm = one(events, "confirm")  # a flagged run asks before making the file too
+    assert confirm["tool"] == "make_document" and confirm["files"] == []
+    body = {
+        "messages": [{"role": "user", "content": "Read notes.txt and reply"}],
+        "lang": "en",
+        "attachments": [{"name": "notes.txt", "content": INJECTION}],
+    }
+    app, _ = harness_app(["Done."])
+    with TestClient(app) as client:
+        events = post_chat(client, {**body, "approved": [confirm["token"]]})
+    (file,) = one(events, "answer")["files"]
+    assert file["name"].endswith(".docx") and file["data"]
+
+
+def test_signing_key_is_not_derived_from_the_public_vercel_url():
+    assert Settings.from_env({"VERCEL_URL": "bird.vercel.app"}).signing == "ephemeral"
