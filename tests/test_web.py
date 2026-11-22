@@ -226,7 +226,9 @@ def test_wake_scenario_reports_a_calm_status(client):
 def test_error_scenario(client):
     events = chat(client, "Simule une erreur")
     assert types(events) == ["step", "step", "error", "done"]
-    assert "démo" in one(events, "error")["message"] and one(events, "error")["code"] == "internal"
+    error = one(events, "error")
+    assert error["code"] == "internal" and error["message"] == "Une erreur interne est survenue."
+    assert "démo" in error["detail"]  # the raw text only as a technical detail
 
 
 def test_hostile_markdown_is_passed_as_text_not_altered(client):
@@ -548,13 +550,19 @@ def test_backend_failures_become_calm_error_events():
         assert types(events) == ["error", "done"]
         return events[0]
 
-    assert error(ValueError("boom")) == {"type": "error", "code": "internal", "message": "boom"}
+    assert error(ValueError("boom")) == {
+        "type": "error",
+        "code": "internal",
+        "message": "Une erreur interne est survenue.",
+        "detail": "boom",
+    }
+    assert error(KeyError("choices"), "en")["message"] == "Something went wrong on our side."
     waking = error(EndpointError("waking", "the endpoint is starting (HTTP 503)", 503))
     assert waking["code"] == "waking" and "se réveille" in waking["message"]
     assert "waking up" in error(EndpointError("waking", "x", 503), "en")["message"]
     assert error(EndpointError("unauthorized", "x", 401))["code"] == "unauthorized"
     leaked = error(RuntimeError("upstream said: Authorization: Bearer hf_abcdefghijklmnopqrstuvwxyz0123456789"))
-    assert "hf_abcdefghijklmnopqrstuvwxyz0123456789" not in leaked["message"] and "[REDACTED]" in leaked["message"]
+    assert "hf_abcdefghijklmnopqrstuvwxyz0123456789" not in leaked["detail"] and "[REDACTED]" in leaked["detail"]
 
 
 # ------------------------------------------------------------------ helpers

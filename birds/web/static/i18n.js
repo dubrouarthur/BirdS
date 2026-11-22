@@ -448,6 +448,10 @@ export const STRINGS = {
     "error.toolong":
       "La conversation est trop longue pour ce serveur. Commencez-en une nouvelle.",
     "error.settings": "Ouvrir les réglages",
+    "error.internal": "Une erreur interne est survenue.",
+    "error.details": "Détails techniques",
+    "error.steps.one": "1 étape terminée avant l'erreur.",
+    "error.steps.many": "{n} étapes terminées avant l'erreur.",
     "mode.demo": "démo",
     "mode.server": "serveur",
     "mode.user": "mon endpoint",
@@ -1001,6 +1005,10 @@ export const STRINGS = {
     "error.toolong":
       "The conversation is too long for this server. Start a new one.",
     "error.settings": "Open settings",
+    "error.internal": "Something went wrong on our side.",
+    "error.details": "Technical details",
+    "error.steps.one": "1 step finished before the error.",
+    "error.steps.many": "{n} steps finished before the error.",
     "mode.demo": "demo",
     "mode.server": "server",
     "mode.user": "my endpoint",

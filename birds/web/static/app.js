@@ -1123,6 +1123,7 @@ function handleEvent(turn, event) {
       turn.error = {
         code: event.code || "internal",
         message: String(event.message || t("turn.error")),
+        detail: event.detail ? String(event.detail) : "",
       };
       turn.status = "error";
       break;

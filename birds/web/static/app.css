@@ -2959,6 +2959,24 @@ button.att-card {
   box-shadow: 0 -8px 40px rgb(11 27 63 / 0.28);
   animation: rise 0.16s ease-out;
 }
+.notice-details {
+  margin-block-start: 6px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.notice-details summary {
+  cursor: pointer;
+}
+.notice-details pre {
+  margin-block-start: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 0.76rem/1.4 var(--mono);
+}
+.notice-steps {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
 .photo-scrim {
   position: fixed;
   inset: 0;
