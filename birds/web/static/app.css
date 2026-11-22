@@ -36,13 +36,21 @@
   --danger-line: #e6b9af;
   --series-in: #c4953f;
   --series-out: #12764a;
-  --shadow: 0 1px 2px rgb(18 26 46 / 0.05), 0 8px 24px -12px rgb(18 26 46 / 0.18);
-  --shadow-lg: 0 2px 6px rgb(18 26 46 / 0.06), 0 24px 48px -20px rgb(18 26 46 / 0.3);
+  --shadow:
+    0 1px 2px rgb(18 26 46 / 0.05), 0 8px 24px -12px rgb(18 26 46 / 0.18);
+  --shadow-lg:
+    0 2px 6px rgb(18 26 46 / 0.06), 0 24px 48px -20px rgb(18 26 46 / 0.3);
   --backdrop: rgb(11 27 63 / 0.4);
 
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif;
-  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif;
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans",
+    Arial, sans-serif;
+  --serif:
+    "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia,
+    "Times New Roman", serif;
+  --mono:
+    ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
   --radius: 14px;
   --radius-s: 9px;
   --col: 46rem;
@@ -1376,10 +1384,14 @@ details[open] > summary > .chev {
   border-radius: var(--radius-s);
   /* scroll shadows: an edge darkens while more code hides beyond it */
   background:
-    linear-gradient(to right, var(--surface) 30%, transparent) left / 28px 100% no-repeat local,
-    linear-gradient(to left, var(--surface) 30%, transparent) right / 28px 100% no-repeat local,
-    radial-gradient(farthest-side at 0 50%, var(--scroll-shade), transparent) left / 12px 100% no-repeat scroll,
-    radial-gradient(farthest-side at 100% 50%, var(--scroll-shade), transparent) right / 12px 100% no-repeat scroll,
+    linear-gradient(to right, var(--surface) 30%, transparent) left / 28px 100%
+      no-repeat local,
+    linear-gradient(to left, var(--surface) 30%, transparent) right / 28px 100%
+      no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--scroll-shade), transparent)
+      left / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--scroll-shade), transparent)
+      right / 12px 100% no-repeat scroll,
     var(--surface);
   overflow-x: auto;
   line-height: 1.5;
@@ -1454,10 +1466,14 @@ details[open] > summary > .chev {
   border-radius: var(--radius-s);
   /* scroll shadows: an edge darkens while columns hide beyond it */
   background:
-    linear-gradient(to right, var(--surface) 30%, transparent) left / 28px 100% no-repeat local,
-    linear-gradient(to left, var(--surface) 30%, transparent) right / 28px 100% no-repeat local,
-    radial-gradient(farthest-side at 0 50%, var(--scroll-shade), transparent) left / 12px 100% no-repeat scroll,
-    radial-gradient(farthest-side at 100% 50%, var(--scroll-shade), transparent) right / 12px 100% no-repeat scroll,
+    linear-gradient(to right, var(--surface) 30%, transparent) left / 28px 100%
+      no-repeat local,
+    linear-gradient(to left, var(--surface) 30%, transparent) right / 28px 100%
+      no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--scroll-shade), transparent)
+      left / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--scroll-shade), transparent)
+      right / 12px 100% no-repeat scroll,
     var(--surface);
 }
 .table-wrap:focus-visible {
@@ -3216,13 +3232,27 @@ button.att-card {
   font: 700 0.66rem/1 var(--sans);
   letter-spacing: 0.04em;
 }
-.k-pdf { --k: #b4372b; }
-.k-word { --k: #2b5cb8; }
-.k-excel { --k: #1d7a49; }
-.k-ppt { --k: #c4561d; }
-.k-sheet { --k: #1d7a49; }
-.k-text { --k: #586078; }
-.k-image { --k: #6b4fb3; }
+.k-pdf {
+  --k: #b4372b;
+}
+.k-word {
+  --k: #2b5cb8;
+}
+.k-excel {
+  --k: #1d7a49;
+}
+.k-ppt {
+  --k: #c4561d;
+}
+.k-sheet {
+  --k: #1d7a49;
+}
+.k-text {
+  --k: #586078;
+}
+.k-image {
+  --k: #6b4fb3;
+}
 .att-meta {
   display: grid;
   min-inline-size: 0;
@@ -5065,9 +5095,12 @@ button.att-card {
     padding-inline-start: 12px;
     gap: 8px;
   }
+  .md .code-block .code-file {
+    flex: 1 1 0; /* fills the first row (ellipsed), so the tools stay on it and the badge wraps below */
+  }
   .code-check {
     order: 5; /* its own row under the language and the file name */
-    margin-block: 0 6px;
+    margin-block: 0 8px;
   }
 }
 @media (pointer: coarse) {
