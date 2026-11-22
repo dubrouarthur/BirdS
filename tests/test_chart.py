@@ -251,9 +251,35 @@ def test_chart_source(tmp_path):
         return c.charts[0]["source"]
 
     assert src("T1 120 k€ et T2 135 k€") == "request"
-    assert src("fais un graphique", used=["read_file"]) == "file"
-    assert src("fais un graphique", used=["web_search"]) == "web"
+    assert src("fais un graphique", used=["read_file"], fetched=[["file", "T1 : 120 k€\nT2 : 135 k€"]]) == "file"
+    assert src("fais un graphique", used=["web_search"], fetched=[["web", "CA T1 120, T2 135 (rapport)"]]) == "web"
     assert src("fais un graphique") == "model"
+    # a tool that ran but returned none of the figures does not vouch for them
+    assert src("fais un graphique", used=["read_file"], fetched=[["file", "Facture n° 7"]]) == "model"
+    assert src("fais un graphique", used=["web_search"], fetched=[["web", "No results."]]) == "model"
+
+
+def test_made_up_figures_after_a_search_without_them_are_the_models(tmp_path):
+    search = StaticBackend(
+        [
+            {
+                "title": "Population des villes de France",
+                "url": "https://news.test/p",
+                "snippet": "Paris est la plus grande ville.",
+            }
+        ]
+    )
+    chart = call(
+        "make_chart",
+        title="Population",
+        type="bar",
+        columns=["Ville", "Habitants"],
+        rows=[["Paris", 2100000], ["Marseille", 870000], ["Lyon", 520000]],
+    )
+    agent, llm = make(tmp_path, [call("web_search", query="population villes France"), chart, "Voici le graphique."])
+    agent.search = search
+    run = agent.run("Cherche la population des 3 plus grandes villes de France et fais-en un graphique")
+    assert run.charts[0]["source"] == "model" and "unverified" in llm.prompts[-1]
 
 
 def test_model_figures_are_flagged_in_the_result(tmp_path):

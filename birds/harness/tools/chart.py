@@ -294,13 +294,27 @@ def reshaped_text(item: dict) -> str:
 
 
 def chart_source(spec: dict, ctx) -> str:
-    """Where the numbers come from: the user's words, a file they gave, the web, or the model itself."""
+    """Where the numbers come from: the user's words, a file they gave, the web, or the model itself. A chart is
+    credited to a file or the web only when every one of its numbers is in what those tools actually returned: a
+    search that found no figures does not turn figures the model made up into web data."""
     values = [float(v) for r in spec["rows"] for v in r[1:] if v is not None]
-    if values and all(v in _numbers_in(ctx.request) for v in values):
+    if not values:
+        return "model"
+
+    def found_in(*texts) -> bool:
+        seen: set[float] = set()
+        for text in texts:
+            seen |= _numbers_in(text)
+        return all(v in seen for v in values)
+
+    if found_in(ctx.request):
         return "request"
-    if "read_file" in ctx.used or (ctx.message != ctx.request and all(v in _numbers_in(ctx.message) for v in values)):
+    fetched = getattr(ctx, "fetched", [])
+    files = [t for k, t in fetched if k == "file"]
+    if (ctx.message != ctx.request or files) and found_in(ctx.message, *files):
         return "file"
-    if "web_search" in ctx.used or "read_page" in ctx.used:
+    web = [t for k, t in fetched if k == "web"]
+    if web and found_in(ctx.request, *web):
         return "web"
     return "model"
 

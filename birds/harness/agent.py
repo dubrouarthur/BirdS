@@ -435,6 +435,7 @@ class Agent:
                 message=str(st.get("message", "")),
                 found=[str(u) for u in st.get("found", [])],
                 used=[str(u) for u in st.get("used", [])],
+                fetched=[[str(k), str(v)] for k, v in st.get("fetched", []) if k in ("web", "file")],
                 charts=[c for c in st.get("charts", []) if isinstance(c, dict)],
                 images=[i for i in st.get("images", []) if isinstance(i, dict)],
             )
@@ -673,6 +674,7 @@ class Agent:
                     "request": ctx.request,
                     "message": ctx.message,
                     "used": ctx.used,
+                    "fetched": ctx.fetched,
                     "charts": ctx.charts,
                     "images": ctx.images,
                     "gen": gen,
@@ -777,6 +779,8 @@ class Agent:
                         _check_untrusted_url(args.get("url"), ctx)
                     result = guard.defang(guard.redact(str(TOOLS[name](args, ctx))))
                     ctx.used.append(name)
+                    if name in ("web_search", "read_page", "read_file"):
+                        ctx.fetched.append(["file" if name == "read_file" else "web", result[:40_000]])
                     if guard.scan_injection(result):
                         step.flags.append("possible_injection")
                         step.flagged_excerpt = guard.injection_excerpt(result)

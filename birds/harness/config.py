@@ -72,6 +72,9 @@ class Context:
     request: str = ""  # the user's own words for this run (make_slides checks that their figures made it in)
     message: str = ""  # the whole user message (own words + attachment notes + image transcriptions)
     used: list[str] = field(default_factory=list)  # tools that succeeded in this run, in order (make_chart's source)
+    # what web_search / read_page / read_file returned, as [kind, text] with kind "web" or "file": a chart's numbers
+    # are credited to the web or a file only if they appear there (make_chart's source)
+    fetched: list[list[str]] = field(default_factory=list)
     charts: list[dict] = field(default_factory=list)  # chart specs shown in the chat (make_chart)
     images: list[dict] = field(default_factory=list)  # web image candidates {src, page, title, alt, origin}
 
