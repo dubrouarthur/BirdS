@@ -74,6 +74,7 @@ BINARY_ATTACHMENTS = (".pdf", ".docx", ".xlsx", ".pptx")
 class ChatBody(BaseModel):
     messages: list[Message] = Field(min_length=1)
     thinking: bool = False
+    agent: Literal["auto", "on", "off"] = "auto"  # Mode Agent (birds.harness.crew): Auto, Activé, Désactivé
     lang: Literal["fr", "en"] = "fr"
     attachments: list[Attachment] = Field(default_factory=list)
     images: list[ImageIn] = Field(default_factory=list, max_length=3)  # for the last user message only
@@ -744,6 +745,7 @@ def create_app(
             images,
             conv_lang=body.conv_lang,
             conversation_id=body.conversation_id,
+            agent=body.agent,
         )
 
         loop = asyncio.get_running_loop()
