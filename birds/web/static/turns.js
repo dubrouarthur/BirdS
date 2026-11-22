@@ -22,6 +22,7 @@ import {
   modelLabel,
 } from "./core.js";
 import { renderBlocks, renderMarkdown, safeUrl, stabilize } from "./markdown.js";
+import { wrapPref } from "./richcode.js";
 import { docCard, imageCard, kindOf, middle } from "./attach.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
@@ -966,6 +967,13 @@ function paintMarkdown(turn, entry) {
     citeLabel: `${t("sources.title")} {n}`,
     copyCode: t("code.copy.label"),
     copyText: t("code.copy"),
+    rich: true, // answer mode: typography, pseudo-headings, callouts, steps, highlighted code
+    final: Boolean(turn.answer), // key numbers, pros/cons, folding and syntax badges wait for the whole answer
+    lang: state.conv?.lang || state.prefs.lang,
+    wrap: wrapPref(),
+    codeChecks: turn.answer?.code_checks,
+    suppress: turn.answer?.widgets?.length ? ["kpis"] : [], // a structured widget owns the key numbers
+    labels: mdLabels(),
   });
   const md = entry.md;
   let first = 0;
@@ -982,13 +990,37 @@ function paintMarkdown(turn, entry) {
   md.classList.toggle("streaming", streaming);
 }
 
+function mdLabels() {
+  return {
+    text: t("md.lang.text"),
+    wrap: t("code.wrap"),
+    download: t("code.download"),
+    downloadLabel: t("code.download.label"),
+    more: t("code.more"),
+    less: t("code.less"),
+    checkOk: t("code.check.ok"),
+    checkJson: t("code.check.json"),
+    checkTitle: t("code.check.title"),
+    checkErr: t("code.check.err"),
+    checkExcerpt: t("code.check.excerpt"),
+    copyFormula: t("code.copy.formula"),
+    copied: t("code.copied.formula"),
+    listMore: t("md.more"),
+    callout: { note: t("md.callout.note"), tip: t("md.callout.tip"), important: t("md.callout.important"), warn: t("md.callout.warn") },
+  };
+}
+
 export function plainText(turn) {
   const md = cache.get(turn.id)?.md;
   if (!md) return String(turn.answer?.content || "");
-  const heads = [...md.querySelectorAll(".code-head")]; // the language label and "Copy" are not part of the answer
+  // the code heads (language, Copy…), the fold buttons and the formula copy icons are not part of the answer
+  const heads = [...md.querySelectorAll(".code-head, .code-more, .md-more, .md-chip-copy")];
+  const folded = [...md.querySelectorAll(".md-fold li[hidden]")]; // folded items are copied too
   for (const el of heads) el.hidden = true;
+  for (const el of folded) el.hidden = false;
   const text = md.innerText.trim();
   for (const el of heads) el.hidden = false;
+  for (const el of folded) el.hidden = true;
   return text;
 }
 
