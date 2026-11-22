@@ -1,3 +1,0 @@
-    await page.keyboard.press('Escape'); await page.waitForTimeout(400);
-    const stillOpen = await page.evaluate(() => { const d = document.getElementById('welcome'); return !!d && (d.open || d.getBoundingClientRect().height > 0); });
-    if (stillOpen) { const cta = page.locator('
