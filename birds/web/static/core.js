@@ -74,8 +74,8 @@ export const modelLabel = () => state.health?.model_label || "Bird S 4B";
 export function activeModel() {
   const mode = activeMode();
   if (mode === "demo") return state.health?.demo_model || "bird-demo";
-  if (mode === "user") return state.prefs.model || "bird";
-  return state.health?.model || "bird";
+  if (mode === "user") return state.prefs.model || "adubrou/Bird-S-4B";
+  return state.health?.model || "adubrou/Bird-S-4B";
 }
 
 // ------------------------------------------------------------------ DOM

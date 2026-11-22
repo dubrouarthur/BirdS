@@ -73,7 +73,7 @@ La mise en veille arrête l'endpoint après une période sans requête (1 heure 
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `BIRD_BASE_URL` | L'« Endpoint URL » affichée sur la page de l'endpoint, telle quelle (`https://….endpoints.huggingface.cloud`). `/v1` est ajouté automatiquement.                                                                                                |
 | `BIRD_API_KEY`  | Un jeton d'accès Hugging Face autorisé à appeler l'endpoint (endpoint « Private » : le vôtre ou celui d'un membre de l'organisation).                                                                                                           |
-| `BIRD_MODEL`    | Le nom que le moteur attend dans le champ `model`. **Non vérifié par moteur** : avec vLLM c'est en général le nom du dépôt servi ; llama.cpp l'ignore le plus souvent. Le bouton « Tester la connexion » des réglages dit si le nom est refusé. |
+| `BIRD_MODEL`    | `adubrou/Bird-S-4B` (valeur par défaut si la variable est vide). Le nom que le moteur attend dans le champ `model`. **Non vérifié par moteur** : avec vLLM c'est en général le nom du dépôt servi ; llama.cpp l'ignore le plus souvent. Le bouton « Tester la connexion » des réglages dit si le nom est refusé. |
 
 ### Variante : « Mon endpoint », dans l'interface
 

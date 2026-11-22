@@ -575,7 +575,7 @@ export function renderSettings() {
     type: "text",
     autocomplete: "off",
     spellcheck: "false",
-    placeholder: "bird",
+    placeholder: "adubrou/Bird-S-4B",
     value: p.model,
     "aria-describedby": "set-model-hint",
   });
