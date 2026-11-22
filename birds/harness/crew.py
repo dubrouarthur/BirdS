@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import itertools
 import json
 import re
 import threading
@@ -56,6 +57,12 @@ FIX_MIN_LEFT = 45.0
 RESERVE_S = 20.0
 COLD_S = 120.0
 STATE_CAP = 24_000
+
+_OFFICIAL = re.compile(
+    r"(?:^|\.)(?:insee\.fr|gouv\.fr|dares\.travail-emploi\.gouv\.fr|ined\.fr|europa\.eu|banque-france\.fr|"
+    r"service-public\.fr|urssaf\.fr|cre\.fr|ademe\.fr|oecd\.org|ecb\.europa\.eu|bpifrance\.fr)$",
+    re.I,
+)
 
 # ------------------------------------------------------------------ routing (deterministic, own words only)
 
@@ -662,29 +669,46 @@ class Crew:
         if not windows:
             raise _Fallback("no_facts")
         cold = self._cold()
-        windows = sorted(windows, key=lambda w: -len(w["text"]))[: 1 if cold else 2]
+        # official statistics first, then the richest extracts; page 1 has its own reader, pages 2 and 3 share one
+        windows = sorted(windows, key=lambda w: (not _OFFICIAL.search(urlsplit(w["url"] or "").netloc), -len(w["text"])))
+        windows = windows[: 1 if cold else MAX_PAGES]
         if any(w["flagged"] for w in windows):  # a flagged page whose text reaches a model taints the run
             self.flagged = True
-        if len(windows) < 2:
+        groups = [windows[:1], windows[1:]] if len(windows) > 1 else [windows]
+        if len(groups) < 2:
             self._step("lecteur_2", "skipped", "brief")
 
-        def extract(k_w):
-            k, w = k_w
+        def extract(k_g):
+            k, group = k_g
             lane = f"lecteur_{k + 1}"
-            data = guard.wrap_untrusted(w["text"], self.lang)
+            parts = [f"[{k + 1 + j}] {w['title']}\n{w['text']}" if len(group) > 1 else w["text"] for j, w in enumerate(group)]
+            data = guard.wrap_untrusted("\n\n".join(parts), self.lang)
             instr = PROMPTS[self.lang]["extract"].format(n=k + 1, topic=topic)
-            g = self._gen(lane, "brief", self._user(data, instr), [RECORD_FACTS], 700, temperature=0.0,
-                          until=self.t0 + BRIEF_S)  # fmt: skip
+            g = self._gen(lane, "brief", self._user(data, instr), [RECORD_FACTS], 700 + 300 * (len(group) - 1),
+                          temperature=0.0, until=self.t0 + BRIEF_S)  # fmt: skip
             args = self._args(g, "record_facts") or {}
-            kept, dropped = cc.check_facts(args.get("facts"), w["text"])
+            found, dropped = [], 0
+            for f in args.get("facts") or []:  # each fact checked against each page of the group, kept on the first
+                for w in group:
+                    kept, _ = cc.check_facts([f], w["text"])
+                    if kept:
+                        found.append((w, kept[0]))
+                        break
+                else:
+                    dropped += 1
             if g:
                 self._step(lane, "done", "brief", tokens=g["tokens"], seconds=g["seconds"],
-                           detail=f"{len(kept)} chiffre(s) vérifié(s)" if self.lang == "fr" else f"{len(kept)} verified figure(s)")  # fmt: skip
-            return w, kept, dropped
+                           detail=f"{len(found)} chiffre(s) vérifié(s)" if self.lang == "fr" else f"{len(found)} verified figure(s)")  # fmt: skip
+            return found, dropped
 
-        n = 0
-        for w, kept, dropped in self.pool.map(extract, enumerate(windows)):
+        per_page: dict[str, list] = {}
+        for found, dropped in self.pool.map(extract, enumerate(groups)):
             b.dropped += dropped
+            for w, f in found:
+                per_page.setdefault(w["url"], []).append(f)
+        n = 0
+        for w in windows:
+            kept = per_page.get(w["url"]) or []
             if not kept:
                 continue
             n += 1
@@ -694,11 +718,14 @@ class Crew:
                 b.allowed |= cc.allowed_figures(f["value"], f["fact"], f["quote"])
         if not b.facts:
             raise _Fallback("no_facts")
-        b.must = [f"{f['fact']}" for f in b.facts[: b.n_slides]]
+        # the points every draft must carry: one fact of each page in turn, so no source read is left unused
+        by_n = [[f for f in b.facts if f["n"] == k] for k in range(1, n + 1)]
+        mixed = [f for row in itertools.zip_longest(*by_n) for f in row if f]
+        b.must = [f["fact"] for f in mixed[: b.n_slides]]
         if b.dropped:
             b.caveats.append(
-                f"{b.dropped} chiffre(s) relevé(s) mais introuvable(s) dans la page : écarté(s)"
-                if self.lang == "fr" else f"{b.dropped} figure(s) not found in the page: left out"
+                f"{b.dropped} chiffre(s) écarté(s) : valeur ou année absente de la même phrase de la page"
+                if self.lang == "fr" else f"{b.dropped} figure(s) left out: value or year not in one sentence of the page"
             )  # fmt: skip
         return b
 
@@ -1016,6 +1043,12 @@ class Crew:
                     if fr
                     else "end every bullet with a figure with its source [n]"
                 )
+            if len(b.sources) >= 2:  # every page read that gave a verified fact is used at least once
+                cited = {int(x) for x in re.findall(r"\[(\d{1,2})\]", json.dumps(slides, ensure_ascii=False))}
+                ok = cited >= {src["n"] for src in b.sources}
+                checks.append(ok)
+                if not ok:
+                    notes.append("utilise au moins un fait de chaque source " if fr else "use at least one fact of each source ")
             facts = cc.fold(b.instr + " " + " ".join(f["fact"] + " " + f.get("quote", "") for f in b.facts))
             bad = []
             for s in slides:

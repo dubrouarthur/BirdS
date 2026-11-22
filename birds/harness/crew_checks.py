@@ -300,34 +300,72 @@ def evidence(text: str, head: list[str], since: int | None = None, cap: int = 40
     return "\n".join(sorted(out, key=lambda p: order.get(p, 0)))
 
 
+_CHANGE_BEFORE = re.compile(
+    r"(?:croissance|hausse|augmentation|progression|baisse|recul|diminution|gain|perte|plus|moins|increase|growth|"
+    r"rise|decline|drop|fall)\s+(?:de\s+|d['’]|of\s+|by\s+)?(?:\S+\s+){0,1}$",
+    re.I,
+)
+_CHANGE_FACT = re.compile(
+    r"croiss|hauss|augment|progress|baiss|recul|diminu|gagn|perd|de plus|de moins|\+\s?\d|increas|grow|rise|declin|"
+    r"drop|fell|fall",
+    re.I,
+)
+_YEAR = re.compile(r"\b((?:19|20)\d\d)\b")
+
+
+def _positions(sent: str, v: float) -> list[int]:
+    return [m.start() for m in _NUM.finditer(sent) if abs(to_float(m.group(0)) - v) < 0.006 and not _is_year(m.group(0), v)]
+
+
+def _year_of(sent: str, p: int, years: list[tuple[int, str]]) -> str | None:
+    """The year a value at ``p`` belongs to: « 22 % en 2021 » (a year right after it, nothing in between), else the
+    nearest year before it (« En 2021, 22 % … »)."""
+    for at, y in years:
+        gap = sent[p:at]
+        if at > p and len(gap) <= 30 and len(_NUM.findall(gap)) <= 1 and not re.search(r"[.;]", gap):
+            return y
+    before = [(at, y) for at, y in years if at < p]
+    return before[-1][1] if before else None
+
+
+def _fact_sentence(sent: str, vals: set, year: str, fact: str) -> bool:
+    """Every value of the fact in this sentence, the claimed year in it and the nearest year to the value, and a
+    change (« en croissance de 700 000 ») never recorded as a level."""
+    have = allowed_figures(sent)
+    if not all(any(abs(v - w) < 0.006 for w in have) for v in vals):
+        return False
+    years = [(m.start(), m.group(1)) for m in _YEAR.finditer(sent)]
+    for v in vals:
+        pos = _positions(sent, v)
+        if not pos:
+            return False
+        if year:
+            if not years or year not in {y for _, y in years}:
+                return False
+            if not any(_year_of(sent, p, years) == year for p in pos):
+                return False
+        if any(_CHANGE_BEFORE.search(sent[max(0, p - 40) : p]) for p in pos) and not _CHANGE_FACT.search(fact):
+            return False
+    return True
+
+
 def check_facts(facts, window: str) -> tuple[list[dict], int]:
-    """Keep the facts whose value (every number in it) and year are in ``window`` and whose quote is in it
-    (whitespace and case folded). A fact without a usable quote is kept only when its value and year sit in the
-    same paragraph. Returns (kept, dropped)."""
+    """Keep the facts whose value (every number in it) sits in ONE sentence of ``window`` together with the claimed
+    year, that year being the nearest one to the value, and that do not turn a change into a level. From « En
+    croissance de 700 000 en 2019, ils sont 5,2 millions », « 2023 : 5,2 millions » (2023 is not in the sentence)
+    and « 2019 : 700 000 » (a growth, not a count) are both rejected. Returns (kept, dropped)."""
     kept, dropped = [], 0
-    paras = [fold(p) for p in (window or "").split("\n") if p.strip()]
-    whole = fold(window)
-    in_window = allowed_figures(window)
+    sents = sentences(window)
     for f in facts if isinstance(facts, list) else []:
         if not isinstance(f, dict):
             dropped += 1
             continue
         value, year = str(f.get("value") or ""), str(f.get("year") or "").strip()
-        quote, fact = fold(f.get("quote") or ""), str(f.get("fact") or "").strip()
+        fact = str(f.get("fact") or "").strip()
+        m = _YEAR.search(year)
+        year = m.group(1) if m else ""
         vals = allowed_figures(value) or allowed_figures(fact)
-        if not vals or not all(any(abs(v - w) < 0.006 for w in in_window) for v in vals):
-            dropped += 1
-            continue
-        if year and year not in (window or ""):
-            dropped += 1
-            continue
-        ok = len(quote) >= 12 and quote in whole
-        if not ok:
-            ok = any(
-                (not year or year in p) and all(any(abs(v - w) < 0.006 for w in allowed_figures(p)) for v in vals)
-                for p in paras
-            )
-        if not ok:
+        if not vals or not any(_fact_sentence(st, vals, year, fact + " " + value) for st in sents):
             dropped += 1
             continue
         kept.append({"year": year, "value": value.strip(), "fact": fact or value, "quote": f.get("quote") or ""})

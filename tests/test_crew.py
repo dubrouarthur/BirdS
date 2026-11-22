@@ -474,6 +474,38 @@ def test_planner_figures_never_reach_the_caveats(tmp_path):
     assert crew._left_out(b, s) == []
 
 
+def test_fact_check_needs_the_year_in_the_same_sentence_and_no_change_read_as_a_level():
+    """Live deck, task 1: « 2019 : 700 000 » and « 2023 : 5,2 millions » came from this one sentence."""
+    page = ("Le télétravail en France. En croissance de 700 000 en 2019, ils sont 5,2 millions. "
+            "En 2021, 22 % des salariés ont télétravaillé. Le taux atteint 26 % des salariés.")  # fmt: skip
+    facts = [
+        {"year": "2019", "value": "700 000", "fact": "700 000 télétravailleurs en 2019", "quote": "700 000 en 2019"},
+        {"year": "2023", "value": "5,2 millions", "fact": "5,2 millions de télétravailleurs en 2023", "quote": "5,2 millions"},
+        {"year": "2019", "value": "700 000", "fact": "Hausse de 700 000 télétravailleurs en 2019", "quote": "x"},
+        {"year": "2021", "value": "22 %", "fact": "22 % des salariés en 2021", "quote": "22 % des salariés"},
+        {"year": "2021", "value": "26 %", "fact": "26 % des salariés en 2021", "quote": "26 % des salariés"},  # no year there
+        {"year": "2019", "value": "22 %", "fact": "22 % en 2019", "quote": "22 %"},  # 2019 is not in that sentence
+    ]  # fmt: skip
+    kept, dropped = cc.check_facts(facts, page)
+    assert [f["fact"] for f in kept] == ["Hausse de 700 000 télétravailleurs en 2019", "22 % des salariés en 2021"]
+    assert dropped == 4
+    two = "Le taux passe de 4 % en 2019 à 22 % en 2021."
+    assert cc.check_facts([{"year": "2019", "value": "22 %", "fact": "22 % en 2019"}], two)[0] == []  # nearest year
+    assert len(cc.check_facts([{"year": "2021", "value": "22 %", "fact": "22 % en 2021"}], two)[0]) == 1
+
+
+def test_deck_uses_a_fact_of_every_page_that_gave_one(tmp_path):
+    run, llm, events = run_deck(tmp_path, deck_script(), delay=0.0)
+    extract = [json.loads(p)["messages"][-1]["content"] for p in llm.prompts if json.loads(p)["tools"] == ["record_facts"]]
+    assert len(extract) == 2  # page 1 has its reader, the other pages share the second one
+    assert run.sources == ["https://news.test/tt1", "https://news.test/tt2"]
+    crew = Crew(make_agent(tmp_path, llm), decide(ASK_DECK))
+    b = crew_mod.Brief(tool="make_slides", instr=ASK_DECK, n_slides=2, sources=[{"n": 1}, {"n": 2}])
+    one = {"title": "t", "slides": [{"title": "A", "bullets": ["4 % [1]"]}, {"title": "B", "bullets": ["22 % [1]"]}]}
+    structure, notes = crew._structure(b, one, "")
+    assert structure < 1 and any("chaque source" in n for n in notes)
+
+
 # ------------------------------------------------------------------ 3. JSON repair and salvage
 
 
@@ -692,7 +724,7 @@ def test_deck_runs_in_parallel_within_the_limits(tmp_path):
     assert wall < 4 * 0.3 * 0.8  # 2 extractors then 2 drafts: about 2 calls of wall time, not 4
     assert run.sources == ["https://news.test/tt1", "https://news.test/tt2"]
     assert "Sources" in run.answer and "6 diapositives" not in run.answer  # 6 + Sources slide: counted from the file
-    assert any("introuvable" in c for c in events[-1]["caveats"])  # the invented 61 % was dropped and said so
+    assert any("écarté" in c for c in events[-1]["caveats"])  # the invented 61 % was dropped and said so
 
 
 def test_the_generation_budget_is_never_exceeded(tmp_path, monkeypatch):

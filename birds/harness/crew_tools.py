@@ -153,9 +153,10 @@ ANGLES = {
 
 PROMPTS = {
     "fr": {
-        "extract": "Voici un extrait de page [{n}]. Relève au plus 8 chiffres utiles pour : {topic}. Pour chacun : "
-        "année, valeur exacte, phrase courte, et la citation exacte de l'extrait. N'invente rien ; si l'extrait n'a "
-        "aucun chiffre utile, appelle record_facts avec une liste vide. Appelle record_facts.",
+        "extract": "Voici un ou plusieurs extraits de pages (à partir de [{n}]). Relève au plus 8 chiffres utiles pour : "
+        "{topic}. Pour chacun : année (celle écrite dans la même phrase que le chiffre), valeur exacte, phrase "
+        "courte, et la citation exacte. Une hausse ou une baisse n'est pas un total : dis « hausse de ». N'invente "
+        "rien ; si aucun chiffre utile, appelle record_facts avec une liste vide. Appelle record_facts.",
         "actions": "Notes numérotées ci-dessus. Liste chaque action décidée : ligne, responsable (nom de la liste des "
         "présents), action, échéance telle qu'écrite (vide si aucune). Une décision n'est pas une action. "
         "Appelle record_actions.",
@@ -174,9 +175,10 @@ PROMPTS = {
         "fix": "Voici ta version :\n{draft}\n\nCorrige uniquement : {findings}. Garde tout le reste. Appelle {tool}.",
     },
     "en": {
-        "extract": "Here is a page extract [{n}]. Record at most 8 useful figures for: {topic}. For each: year, exact "
-        "value, a short sentence, and the exact quote from the extract. Invent nothing; if the extract has no useful "
-        "figure, call record_facts with an empty list. Call record_facts.",
+        "extract": "Here are one or more page extracts (from [{n}]). Record at most 8 useful figures for: {topic}. For "
+        "each: year (the one written in the same sentence as the figure), exact value, a short sentence, and the exact "
+        "quote. A rise or a fall is not a total: say « a rise of ». Invent nothing; if no useful figure, call "
+        "record_facts with an empty list. Call record_facts.",
         "actions": "Numbered notes above. List every action decided: line, owner (a name from the attendee list), "
         "action, due date as written (empty if none). A decision is not an action. Call record_actions.",
         "actions_repair": "These note lines may hold missed actions: {lines}. For these lines only, list each action: "
