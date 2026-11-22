@@ -492,3 +492,18 @@ def test_event_ask_withdraws_the_web_and_tells_the_model(tmp_path):
     b, _ = agent(tmp_path, ["ok"])
     b.run("Cherche les actualités de la réunion de l'OPEP demain")
     assert "Ajouter au calendrier" not in json.loads(b.llm.prompts[0])["messages"][-1]["content"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Rédige le compte rendu de la réunion de jeudi : présents Paul et Marie ; décisions : budget validé",
+        "Écris un mail pour annuler la réunion de demain avec Paul",
+        "Prépare l'ordre du jour de la réunion de lundi",
+    ],
+)
+def test_document_about_a_meeting_gets_no_event_note_nor_card(tmp_path, text):
+    a, _ = agent(tmp_path, ["ok"])
+    a.run(text)
+    assert "calendrier" not in json.loads(a.llm.prompts[0])["messages"][-1]["content"]
+    assert event_widget(text, NOW, "fr") is None

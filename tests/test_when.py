@@ -96,3 +96,44 @@ def test_offsets_follow_dst_and_default_duration_is_said():
 
 def test_matched_words_in_order():
     assert parse("visio dimanche 10h30 pendant 1h30", NOW, "fr")["matched"] == "dimanche 10h30 pendant 1h30"
+
+
+# ---------------------------------------------------------------- is it an ask to put an event in the diary?
+
+from birds.harness.when import event_ask  # noqa: E402
+
+EVENT_ASKS = [
+    "Organise une réunion avec Paul jeudi prochain à 14h",
+    "Cale un déjeuner avec l'équipe le 25 décembre à midi",
+    "Planifie un point avec Marie demain à 9h30",
+    "Ajoute à mon agenda la visio de lundi à 11h",
+    "Schedule a meeting with Anna on Friday at 3pm",
+    "rdv chez le client samedi à 10h",
+    "Écris un mail à Paul pour caler une réunion jeudi à 14h",
+]
+NOT_EVENT_ASKS = [
+    "Rédige le compte rendu de la réunion de jeudi : présents Paul et Marie ; décisions : budget validé",
+    "Écris un mail pour annuler la réunion de demain avec Paul",
+    "Le séminaire du 12 mars s'est bien passé, merci à tous",
+    "Prépare les slides pour le meeting de lundi",
+    "Fais une présentation pour le séminaire de vendredi",
+    "Quels documents apporter à l'entretien annuel de vendredi ?",
+    "Rédige une invitation au webinaire du 3 décembre",
+    "Prépare l'ordre du jour de la réunion de lundi",
+    "Où est la réunion de demain ?",
+    "Reporte la réunion de jeudi à vendredi",
+    "Envoie un remerciement pour le déjeuner d'hier",
+    "Write the minutes of Monday's meeting",
+    "Cancel tomorrow's call with John",
+    "réunion demain",
+]
+
+
+@pytest.mark.parametrize("text", EVENT_ASKS)
+def test_event_asks(text):
+    assert event_ask(text, NOW, "en" if text.startswith(("Schedule",)) else "fr") is not None, text
+
+
+@pytest.mark.parametrize("text", NOT_EVENT_ASKS)
+def test_documents_about_meetings_and_past_meetings_are_not_event_asks(text):
+    assert event_ask(text, NOW, "fr") is None and event_ask(text, NOW, "en") is None

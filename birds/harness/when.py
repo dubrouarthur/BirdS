@@ -250,12 +250,39 @@ _HOWTO = re.compile(
 )
 _WEAK = {"point", "formation", "programme", "programmer", "invitation", "invite", "cale", "caler", "book", "call"}
 _NOT_EVENT = re.compile(r"\b(?:actualit\w*|nouvelles|news|cherche\w*|recherche\w*|r[ée]sume\w*|summari[sz]e)\b", re.I)
+# a request to put something in the diary: a scheduling verb (the card and the note need one)
+_SCHEDULE = re.compile(
+    r"\b(?:organis\w*|planifi\w*|cal(?:e|er|ez|ons)|programm\w*|fix(?:e|er|ez|ons)|r[ée]serv\w*|bloqu\w*|"
+    r"pr[ée]voi[rst]|pr[ée]voyons|pr[ée]vu|pose[rz]?|prends?\s+(?:un\s+)?(?:rdv|rendez-vous)|prendre\s+(?:un\s+)?"
+    r"(?:rdv|rendez-vous)|(?:ajoute|mets|met|note|inscris|rajoute)[rz]?\s+(?:\w+\s+){0,4}?(?:dans|à|a|sur)\s+"
+    r"(?:l'|mon\s+|notre\s+|le\s+|mes\s+)?(?:agenda|calendrier)|schedul\w*|set\s+up|book\w*|arrange\w*|"
+    r"(?:add|put)\s+(?:\w+\s+){0,4}?(?:to|in|on)\s+(?:my\s+|the\s+|our\s+)?(?:calendar|diary)|"
+    r"plan\s+a\s+(?:meeting|call|lunch))\b",
+    re.I,
+)
+# a document ABOUT a meeting, or a meeting that is cancelled, moved or over: never a new event
+_ABOUT_MEETING = re.compile(
+    r"\b(?:comptes?[- ]rendus?|cr|ordres? du jour|slides?|diapos?\w*|pr[ée]sentations?|synth[èe]se|minutes|"
+    r"remerci\w*|thank(?:s|\s+you)|recap|summary|agenda\s+(?:for|of)|documents?\s+(?:(?:à|a)\s+)?apporter|"
+    r"annul\w*|report(?:e|er|ez|é|ée)|d[ée]cal\w*|cancel\w*|postpon\w*|reschedul\w*|s'est\s+(?:bien\s+|mal\s+)?"
+    r"pass(?:é|ée|és|ées)|a\s+eu\s+lieu|hier|yesterday|derni(?:er|[èe]re)|last|ago|il\s+y\s+a)\b",
+    re.I,
+)
+# terse diary line: "rdv chez le client samedi à 10h", "Réunion avec Paul jeudi 14h"
+_TERSE = re.compile(
+    r"^(?:(?:une?|la|le|l')\s*)?(?:r[ée]union|rendez-vous|rdv|meeting|call|visio|d[ée]jeuner|d[îi]ner|"
+    r"entretien|point)\b",
+    re.I,
+)
 
 
 def event_words(text: str) -> bool:
-    """The words ask to set up a meeting or an event (not a how-to, not a search, not a summary)."""
-    t = " ".join((text or "").split())
-    return bool(t and EVENT_ASK.search(t) and not _HOWTO.search(t) and not _NOT_EVENT.search(t))
+    """The words ask to put a meeting or an event in the diary: a scheduling verb (or a terse diary line), and
+    not a how-to, a search, a summary, a document about a meeting, nor a meeting cancelled, moved or over."""
+    t = " ".join((text or "").replace("’", "'").split())
+    if not t or not EVENT_ASK.search(t) or _HOWTO.search(t) or _NOT_EVENT.search(t) or _ABOUT_MEETING.search(t):
+        return False
+    return bool(_SCHEDULE.search(t) or _TERSE.search(t))
 
 
 def event_ask(text: str, now: datetime, lang: str = "fr") -> dict | None:
@@ -267,4 +294,6 @@ def event_ask(text: str, now: datetime, lang: str = "fr") -> dict | None:
     weak = {m.group(0).lower() for m in EVENT_ASK.finditer(t)} <= _WEAK
     if got is not None and weak and got["all_day"]:
         return None  # "fais le point sur les ventes d'aujourd'hui": a weak word with no time is not a meeting
+    if got is not None and _TERSE.search(t) and not _SCHEDULE.search(t) and got["all_day"]:
+        return None  # a terse line needs a time: "réunion demain" alone is not a request
     return got
