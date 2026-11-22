@@ -445,10 +445,80 @@ _ROSTER = re.compile(
     re.I | re.M,
 )
 _ACTION_MARK = re.compile(
-    r"->|→|\bpour le\b|\bavant le\b|\bla semaine du\b|\bs'en occupe\b|\brelance\b|\borganise\b|\bfournit\b|"
-    r"\btransmet\b|\bfait le\b|\bpr[ée]sentera\b|\b[a-zé]{3,}(?:era|ira|ra)\b|\bà réserver\b|\bà rédiger\b",
+    r"->|→|\bpour le\b|\bavant le\b|\bau plus tard\b|\bd'ici\b|\bla semaine du\b|\bs'en occupe\b|\brelance\b|"
+    r"\borganise\b|\bfournit\b|\btransmet\b|\bfait le\b|\bpr[ée]sente(?:ra)?\b|\b[a-zé]{3,}(?:era|ira|ra)\b|"
+    r"\bà (?:réserver|rédiger|faire|envoyer|prévoir)\b|\benvoie\b|\bcommande\b|\bchiffre\b|\bpr[ée]pare\b|"
+    r"\bv[ée]rifie\b|\binstalle\b|\bmet à jour\b|\br[ée]serve\b|\bprend\b|\bdoit\b|\bdoivent\b|\br[ée]dige\b|"
+    r"\bcontacte\b|\bappelle\b|\bplanifie\b|\bdemande\s+(?:à|au|aux|un|une|le|la|les|l')",
     re.I,
 )
+_DECISION_LINE = re.compile(r"^\s*[-*•]?\s*d[ée]cisions?\b", re.I)
+_MONTHS = (
+    "janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[ûu]t|septembre|octobre|novembre|d[ée]cembre|"
+    "january|february|march|april|may|june|july|august|september|october|november|december"
+)
+_WEEKDAY = r"(?:(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|monday|tuesday|wednesday|thursday|friday)\s+)?"
+_DATE = (
+    rf"{_WEEKDAY}(?:1er|\d{{1,2}})(?:\s*/\s*\d{{1,2}}(?:\s*/\s*\d{{2,4}})?|\s+(?:{_MONTHS})(?:\s+(?:19|20)\d\d)?)"
+    rf"|(?:fin|d[ée]but|mi-)\s*(?:{_MONTHS})"
+)
+_DUE = re.compile(
+    r"(?P<mark>d'ici\s+(?:le\s+|la\s+)?|pour\s+le\s+|avant\s+le\s+|au\s+plus\s+tard\s+(?:le\s+)?|"
+    r"(?:objectif\s+)?fin\s+le\s+|by\s+|before\s+)?(?:le\s+)?(?P<date>" + _DATE + r")"
+    r"|cette\s+semaine|la\s+semaine\s+(?:prochaine|du\s+\d{1,2}(?:\s*/\s*\d{1,2})?(?:\s+(?:" + _MONTHS + r"))?)|demain|"
+    r"(?:pour|avant)\s+la\s+prochaine\s+r[ée]union|d'ici\s+la\s+fin\s+(?:du\s+mois|de\s+la\s+semaine)|this\s+week|"
+    r"tomorrow|next\s+week",
+    re.I,
+)
+
+
+def due_on(line: str) -> str:
+    """The due date written on a note line, verbatim: « d'ici lundi 23/11 », « pour le 10/12 », « avant le 4/12 »,
+    « le 3 décembre », « cette semaine », « demain ». A date range (« entre le 18 et le 29 janvier », « du 4 au 15
+    janvier ») is not a due date; a date after « d'ici / pour le / avant le » wins over a bare one. Empty if none."""
+    marked, bare = [], []
+    line = line or ""
+    for m in _DUE.finditer(line):
+        before = line[max(0, m.start() - 16) : m.start()]
+        if re.search(r"(?:\bentre\b.*|\bet|\bdu|\bau|\bà partir du|\bdepuis le)\s*$", before, re.I):
+            continue
+        text = m.group(0).strip()
+        (marked if m.group("mark") or m.group("date") is None else bare).append(text)
+    return (marked + bare)[0] if marked or bare else ""
+
+
+_MONTH_NUM = {
+    "janvier": 1, "fevrier": 2, "mars": 3, "avril": 4, "mai": 5, "juin": 6, "juillet": 7, "aout": 8, "septembre": 9,
+    "octobre": 10, "novembre": 11, "decembre": 12, "january": 1, "february": 2, "march": 3, "april": 4, "may": 5,
+    "june": 6, "july": 7, "august": 8, "september": 9, "october": 10, "november": 11, "december": 12,
+}  # fmt: skip
+
+
+def fix_years(text: str, notes: str) -> tuple[str, int]:
+    """Every « <month> <year> » of a draft checked against the notes: the year the notes give that month, or, when
+    the notes name the month without a year, the one that follows the meeting date (training « en janvier » after a
+    meeting on 19 novembre 2026 is janvier 2027, never janvier 2026). Returns (text, years changed)."""
+    nf = fold(notes)
+    ref = re.search(r"\b(?:1er|\d{1,2})\s+(" + "|".join(_MONTH_NUM) + r")\s+((?:19|20)\d\d)\b", nf)
+    changed = 0
+
+    def repl(m):
+        nonlocal changed
+        mon, yr = fold(m.group(1)), m.group(2)
+        explicit = set(re.findall(rf"\b{mon}\s+((?:19|20)\d\d)\b", nf))
+        if yr in explicit or (not explicit and not re.search(rf"\b{mon}\b", nf)):
+            return m.group(0)
+        if len(explicit) == 1:
+            good = explicit.pop()
+        elif explicit or not ref:
+            return m.group(0)
+        else:
+            good = str(int(ref.group(2)) + (_MONTH_NUM[mon] < _MONTH_NUM[ref.group(1)]))
+        if good != yr:
+            changed += 1
+        return f"{m.group(1)} {good}"
+
+    return re.sub(rf"\b({_MONTHS})\s+((?:19|20)\d\d)\b", repl, text or "", flags=re.I), changed
 
 
 def number_lines(text: str) -> list[str]:
@@ -486,8 +556,9 @@ def _match_roster(owner: str, names: list[str]) -> str | None:
 
 
 def check_actions(actions, lines: list[str], names: list[str]) -> tuple[list[dict], int]:
-    """Keep actions whose owner(s) are in the roster AND on the cited line; a due date not written on that line is
-    blanked, never guessed. Returns (kept, dropped)."""
+    """Keep actions whose owner(s) are in the roster AND on the cited line, the line being neither a decision nor a
+    line without anything to do. The due date is read in code from that line (due_on); a date the model gives that
+    is not written there is blanked, never guessed. Returns (kept, dropped)."""
     kept, dropped = [], 0
     for a in actions if isinstance(actions, list) else []:
         if not isinstance(a, dict):
@@ -504,9 +575,13 @@ def check_actions(actions, lines: list[str], names: list[str]) -> tuple[list[dic
         if not line or not owners or not all(matched) or not all(_name_on(o, line) for o in owners):
             dropped += 1
             continue
+        # a decision is not an action (« Décision : on gèle… »), nor a line where nobody is to do anything
+        # (« Camille relaie la demande des bureaux… ») : no action verb and no due date
+        code_due = due_on(line)
+        if _DECISION_LINE.match(line) or not (code_due or _ACTION_MARK.search(line)):
+            continue
         due = str(a.get("due") or "").strip()
-        if due and fold(due) not in fold(line):
-            due = ""
+        due = code_due or (due if due and fold(due) in fold(line) else "")
         action = " ".join(str(a.get("action") or "").split())
         if not action:
             dropped += 1
@@ -521,7 +596,7 @@ def action_lines(lines: list[str], names: list[str]) -> list[int]:
     out = []
     for i, ln in enumerate(lines, 1):
         low = fold(ln)
-        if not ln.strip() or _ROSTER.match(ln) or re.match(r"^\s*[-*•]?\s*d[ée]cision", ln, re.I):
+        if not ln.strip() or _ROSTER.match(ln) or _DECISION_LINE.match(ln):
             continue
         if any(re.search(rf"\b{re.escape(f)}\b", low) for f in firsts) and _ACTION_MARK.search(ln):
             out.append(i)

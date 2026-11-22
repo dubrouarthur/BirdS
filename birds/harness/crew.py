@@ -1181,6 +1181,8 @@ class Crew:
             secs = []
             for s in args.get("sections") or []:
                 content = str(s.get("content") or "")
+                if b.pasted:  # « janvier 2026 » for a training the notes put in janvier 2027
+                    content, _ = cc.fix_years(content, b.instr + "\n" + b.pasted)
                 if b.actions:
                     content = "\n".join(ln for ln in content.split("\n") if not ln.lstrip().startswith("|"))
                 parts = re.split(r"(?<=[.!?])\s+|\n", content)

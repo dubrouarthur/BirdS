@@ -91,6 +91,32 @@ Côté agence (Studio Pixel) : Léa Morel (cheffe de projet), Hugo Lambert (dév
 - Paiement en ligne : Anne doit ouvrir le compte Stripe, pas de date fixée.
 - Hugo vérifie la compatibilité du logiciel de stock de Bruno (export CSV) avant le 27 novembre.
 - Point d'étape chaque lundi à 9 h en visio."""
+ERP_NOTES = """Réunion comité projet « Migration ERP » – jeudi 19 novembre 2026, 14 h – 15 h 30, salle Rhône + visio
+Présents : Sophie Martin (DSI, anime), Karim Benali (chef de projet), Julie Roux (finance), Thomas Leclerc (logistique), Élodie Petit (RH). Excusé : Marc Dubois (direction générale).
+
+1. Point d'avancement
+- Paramétrage modules achats et ventes terminé à 80 %. Module stock en retard (≈ 2 semaines) car les fiches articles ne sont pas nettoyées (≈ 12 000 références, 30 % de doublons estimés).
+- Recette utilisateurs prévue du 4 au 15 janvier 2027 → maintenue pour l'instant.
+- Karim : l'intégrateur (Axelor Conseil) demande la liste définitive des utilisateurs avant le 27/11 pour les licences.
+
+2. Budget
+- Julie : consommé 182 000 € sur 240 000 € budgétés (76 %). Dépassement probable de 15 000 € sur la reprise de données. Elle propose de prendre sur la ligne « imprévus » (20 000 €). Pas d'objection → validé sous réserve accord Marc.
+- Julie envoie le point budget à Marc d'ici lundi 23/11.
+
+3. Données / stock
+- Thomas prend le nettoyage des fiches articles avec 2 personnes de son équipe, objectif fin le 11 décembre.
+- Décision : on gèle la création de nouvelles références dans l'ancien système à partir du 1er décembre (sauf urgence validée par Thomas).
+
+4. Formation
+- Élodie : plan de formation à faire, 85 utilisateurs, sessions de 2 h par groupe de 10. Elle propose des sessions entre le 18 et le 29 janvier. Besoin de 2 salles équipées.
+- Sophie réserve les salles (Rhône et Saône) — à faire cette semaine.
+- Élodie envoie le planning des sessions aux managers pour le 10/12.
+
+5. Divers
+- Karim organise une démo du module stock pour Thomas le 3 décembre.
+- Risque soulevé par Sophie : départ en congé de l'expert stock de l'intégrateur fin décembre → Karim doit demander un remplaçant nommé à Axelor, réponse attendue avant le 4/12.
+- Prochaine réunion : jeudi 10 décembre 2026, 14 h.
+"""
 COPIERS = """Objet : Renouvellement du parc d'impression – synthèse des 3 offres reçues (consultation du 2 septembre)
 
 Contexte : notre contrat actuel avec Ricoh expire le 31 décembre. Besoin : 12 multifonctions couleur A3/A4 pour 3 sites (Lyon siège : 7, Grenoble : 3, Valence : 2), volume estimé 38 000 pages N&B et 9 000 pages couleur par mois, contrat de 48 mois, maintenance sur site incluse.
@@ -506,6 +532,37 @@ def test_deck_uses_a_fact_of_every_page_that_gave_one(tmp_path):
     assert structure < 1 and any("chaque source" in n for n in notes)
 
 
+def test_due_dates_are_read_in_code_from_the_note_line():
+    lines = {k: next(ln for ln in cc.number_lines(ERP_NOTES) if k in ln) for k in
+             ("point budget", "planning des sessions", "remplaçant", "réserve les salles", "plan de formation", "démo")}  # fmt: skip
+    assert cc.due_on(lines["point budget"]) == "d'ici lundi 23/11"
+    assert cc.due_on(lines["planning des sessions"]) == "pour le 10/12"
+    assert cc.due_on(lines["remplaçant"]) == "avant le 4/12"  # wins over the bare « fin décembre »
+    assert cc.due_on(lines["réserve les salles"]) == "cette semaine"
+    assert cc.due_on(lines["plan de formation"]) == ""  # « entre le 18 et le 29 janvier » is a range, not a deadline
+    assert cc.due_on(lines["démo"]) == "le 3 décembre"
+    assert cc.due_on("- Pierre met à jour l'affichage d'ici fin novembre.") == "d'ici fin novembre"
+
+
+def test_decisions_and_non_actions_never_reach_the_action_table():
+    lines, names = cc.number_lines(ERP_NOTES), cc.roster(ERP_NOTES)
+    at = {k: next(i for i, ln in enumerate(lines, 1) if k in ln) for k in ("Décision", "point budget")}
+    kept, _ = cc.check_actions([
+        {"line": at["Décision"], "owner": "Thomas", "action": "Geler la création de références", "due": ""},
+        {"line": at["point budget"], "owner": "Julie", "action": "Envoyer le point budget à Marc", "due": ""}], lines, names)  # fmt: skip
+    assert [(a["owner"], a["due"]) for a in kept] == [("Julie Roux", "d'ici lundi 23/11")]
+    cse = cc.number_lines(CSE)
+    relay = next(i for i, ln in enumerate(cse, 1) if "relaie" in ln)
+    assert cc.check_actions([{"line": relay, "owner": "Camille", "action": "Relayer la demande", "due": ""}], cse,
+                            cc.roster(CSE))[0] == []  # fmt: skip
+
+
+def test_years_in_the_minutes_follow_the_notes():
+    assert cc.fix_years("Formation en janvier 2026.", ERP_NOTES) == ("Formation en janvier 2027.", 1)
+    assert cc.fix_years("Mise en ligne en janvier 2026.", KICKOFF) == ("Mise en ligne en janvier 2027.", 1)
+    assert cc.fix_years("Prochaine réunion en décembre 2026.", ERP_NOTES) == ("Prochaine réunion en décembre 2026.", 0)
+
+
 # ------------------------------------------------------------------ 3. JSON repair and salvage
 
 
@@ -543,7 +600,7 @@ def test_reader_rejects_owners_not_on_the_line_and_blanks_guessed_dates():
         names,
     )
     assert dropped == 2 and [a["owner"] for a in kept] == ["Thomas Petit", "Karim Benali"]
-    assert kept[0]["due"] == "avant le 21/10" and kept[1]["due"] == ""
+    assert kept[0]["due"] == kept[1]["due"] == "avant le 21/10"  # read on the line, the guessed « le 30/11 » never
 
 
 def test_minutes_coverage_repair_runs_exactly_once(tmp_path):
