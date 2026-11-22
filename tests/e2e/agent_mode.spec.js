@@ -197,8 +197,50 @@ async function run(cfg) {
   await browser.close();
 }
 
+// The Send button stays inside the composer with text typed, at 320, 390 and 430 px, and the Agent pill keeps its
+// label (« AGENT » over the value) and its ✦ icon.
+async function composerFits() {
+  console.log("composer widths");
+  const browser = await chromium.launch();
+  for (const width of [320, 390, 430]) {
+    const ctx = await browser.newContext({
+      ...devices["iPhone 14"],
+      viewport: { width, height: 760 },
+      locale: "fr-FR",
+    });
+    const page = await ctx.newPage();
+    await page.goto(URL);
+    await page
+      .locator("#welcome-start")
+      .click({ timeout: 4000 })
+      .catch(() => {});
+    for (const text of ["Bonjour, peux-tu m'aider ?", "x".repeat(2500)]) {
+      await page.fill("#composer-input", text);
+      await page.waitForTimeout(150);
+      const g = await page.evaluate(() => {
+        const r = (s) => document.querySelector(s).getBoundingClientRect();
+        const vis = (s) => r(s).width > 2;
+        return {
+          send: r("#btn-send"),
+          box: r("#composer"),
+          label: vis(".agent-pill-label"),
+          icon: vis("#agent-pill .icon"),
+        };
+      });
+      check(
+        g.send.right <= g.box.right - 1 && g.send.left >= g.box.left,
+        `${width} px, ${text.length} chars: Send inside the composer (${g.send.right.toFixed(1)} <= ${g.box.right.toFixed(1)})`,
+      );
+      check(g.label && g.icon, `${width} px: the Agent pill shows its label and ✦`);
+    }
+    await ctx.close();
+  }
+  await browser.close();
+}
+
 (async () => {
   fs.mkdirSync(SHOTS, { recursive: true });
+  await composerFits();
   const only = process.argv.slice(2);
   for (const cfg of CONFIGS)
     if (!only.length || only.includes(cfg.name)) await run(cfg);

@@ -52,13 +52,51 @@
 .agent-pill select:focus {
   outline: none;
 }
+/* phones: the pill shrinks before anything else and keeps its label inside it, in two lines (« AGENT » over the
+   value), so the control is named at every width and the Send button never leaves the composer */
 @media (max-width: 640px) {
+  .composer-row {
+    gap: 4px;
+  }
+  .agent-pill {
+    display: inline-grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 4px;
+    row-gap: 0;
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    max-inline-size: 5.5rem;
+    min-block-size: 36px;
+    padding-inline: 7px 3px;
+    padding-block: 2px;
+  }
+  .agent-pill .icon {
+    grid-row: 1 / 3;
+    align-self: center;
+  }
   .agent-pill-label {
-    position: absolute;
-    inline-size: 1px;
-    block-size: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
+    grid-column: 2;
+    font-size: 0.56rem;
+    font-weight: 650;
+    letter-spacing: 0.06em;
+    line-height: 1.15;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .agent-pill select {
+    grid-column: 2;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    padding-block: 0;
+    padding-inline: 0 11px;
+    font-size: 0.78rem;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    background-position:
+      calc(100% - 6px) 55%,
+      calc(100% - 2px) 55%;
   }
 }
 
@@ -313,19 +351,6 @@
   }
   .crew-lane.is-running .crew-dot {
     animation: none;
-  }
-}
-/* phones: the composer row keeps attach, photo, Réflexion, Agent and Send on one line */
-@media (max-width: 420px) {
-  .agent-pill {
-    padding-inline: 6px 0;
-  }
-  .agent-pill .icon {
-    display: none;
-  }
-  .agent-pill select {
-    padding-inline-end: 11px;
-    font-size: 0.78rem;
   }
 }
 @media (max-width: 360px) {
