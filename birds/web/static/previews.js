@@ -82,7 +82,10 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
     (s) => s && Array.isArray(s.shapes),
   );
   if (!slides.length) return null;
-  const total = num(p.total) || slides.length;
+  const total = Math.max(num(p.total), slides.length);
+  // past the preview cap, the deck ends on a card that says how many slides the file still holds
+  const more = total - slides.length;
+  const last = slides.length - (more > 0 ? 0 : 1);
   let at = 0;
   const stage = h("div", {
     class: "deck-stage",
@@ -138,11 +141,35 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
     film.append(h("li", null, b));
     return b;
   });
+  const moreText = () => t("files.deck.more", { n: more });
+  if (more > 0) {
+    const b = h(
+      "button",
+      { type: "button", class: "deck-thumb deck-thumb-more", tabindex: "-1", onclick: () => go(slides.length) },
+      h("span", { class: "slide-frame" }, h("span", { class: "deck-more-n", text: moreText() })),
+    );
+    film.append(h("li", null, b));
+    thumbs.push(b);
+  }
+  function endCard() {
+    return h(
+      "div",
+      { class: "slide-frame deck-end" },
+      h(
+        "div",
+        { class: "deck-end-in" },
+        h("p", { class: "deck-end-n", text: moreText() }),
+        h("p", { text: t("files.deck.more.hint") }),
+        onDownload && button("btn-primary btn-small", "download", t("files.download"), onDownload),
+      ),
+    );
+  }
   function go(i) {
-    at = Math.max(0, Math.min(slides.length - 1, i));
-    const s = slides[at];
-    const frame = h("div", { class: "slide-frame" }, slideCanvas(s, true));
-    stage.replaceChildren(frame);
+    at = Math.max(0, Math.min(last, i));
+    const s = slides[at] || { n: `${slides.length + 1}–${total}`, title: moreText() };
+    stage.replaceChildren(
+      slides[at] ? h("div", { class: "slide-frame" }, slideCanvas(s, true)) : endCard(),
+    );
     stage.setAttribute(
       "aria-label",
       t("files.deck.goto", { n: s.n || at + 1, title: s.title || "" }),
@@ -156,7 +183,7 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
       }),
     );
     prev.disabled = at === 0;
-    next.disabled = at === slides.length - 1;
+    next.disabled = at === last;
     // one tab stop for the whole filmstrip (the current slide); arrows move within it
     thumbs.forEach((b, j) => {
       b.tabIndex = j === at ? 0 : -1;
@@ -175,10 +202,10 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
     if (e.key === "ArrowRight" || e.key === "PageDown") go(at + 1);
     else if (e.key === "ArrowLeft" || e.key === "PageUp") go(at - 1);
     else if (e.key === "Home") go(0);
-    else if (e.key === "End") go(slides.length - 1);
+    else if (e.key === "End") go(last);
     else return;
     e.preventDefault();
-    if (e.target.classList?.contains("deck-thumb")) thumbs[at].focus();
+    if (e.target.classList?.contains("deck-thumb")) thumbs[at]?.focus();
   };
   // swipe with one finger; two fingers are a pinch zoom, never a slide change
   let x0 = null;
@@ -345,6 +372,8 @@ export function docPreview(p) {
     else if (b.k === "table") page.append(docTable(b));
     else if (b.k === "p") page.append(runsOf(h("p", { class: "a4-p" }), b.r));
   }
+  if (num(p.more) > 0)
+    page.append(h("p", { class: "a4-cut", text: t("files.doc.more", { n: num(p.more) }) }));
   const wrap = h(
     "div",
     { class: "a4-wrap is-clipped" },

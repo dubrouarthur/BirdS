@@ -1748,9 +1748,12 @@ def doc_preview(doc, title: str) -> dict:
         shd = ppr.find(qn("w:shd")) if ppr is not None else None
         return (shd.get(qn("w:fill")) or "") if shd is not None else ""
 
+    more = 0  # blocks past the cap: the chat says the file goes on
     for el in doc.element.body.iterchildren():
         if len(blocks) >= _PREVIEW_BLOCKS:
-            break
+            if el.tag == qn("w:tbl") or (el.tag == qn("w:p") and "".join(t.text or "" for t in el.iter(qn("w:t")))):
+                more += 1
+            continue
         if el.tag == qn("w:p"):
             ppr = el.find(qn("w:pPr"))
             style_el = ppr.find(qn("w:pStyle")) if ppr is not None else None
@@ -1808,7 +1811,10 @@ def doc_preview(doc, title: str) -> dict:
                 rows.append(row)
             total_rows = sum(1 for _ in el.iterchildren(qn("w:tr")))
             blocks.append({"k": "table", "rows": rows, "more": max(0, total_rows - len(rows))})
-    return {"kind": "document", "v": 2, "title": _cut(plain(title), 160), "blocks": blocks}
+    out = {"kind": "document", "v": 2, "title": _cut(plain(title), 160), "blocks": blocks}
+    if more:
+        out["more"] = more
+    return out
 
 
 def docx_from_markdown(path, title: str, markdown: str) -> None:

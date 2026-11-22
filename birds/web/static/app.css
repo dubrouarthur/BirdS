@@ -4007,6 +4007,47 @@ button.att-card {
   font-size: 0.62rem;
   line-height: 1.4;
 }
+/* past the preview cap: an end card and a last filmstrip tile say how many slides the file still holds */
+.deck-end {
+  display: grid;
+  place-items: center;
+  background: #0b1b3f;
+  color: #fff;
+  text-align: center;
+}
+.deck-end-in {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 16px;
+}
+.deck-end .btn-primary {
+  background: #fff;
+  color: #0b1b3f;
+}
+.deck-end-n {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.deck-thumb-more .slide-frame {
+  display: grid;
+  place-items: center;
+  background: #0b1b3f;
+}
+.deck-more-n {
+  padding: 4px;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.a4-cut {
+  margin-block-start: 1.5em;
+  padding-block-start: 0.8em;
+  border-block-start: 1px dashed #b8c0d0;
+  color: #586078;
+  font-style: italic;
+}
 .deck-dialog {
   inline-size: min(100vw - 32px, (100dvh - 190px) * 16 / 9, 1600px);
   max-inline-size: none;

@@ -100,6 +100,16 @@ def test_document_preview_blocks(tmp_path):
     assert any(b["k"] == "quote" for b in blocks) and any(b["k"] == "code" and b["t"] == "code" for b in blocks)
 
 
+def test_document_preview_says_how_much_is_cut(tmp_path):
+    preview: dict = {}
+    sections = [{"heading": f"Partie {i}", "content": "\n\n".join(f"Paragraphe {j}." for j in range(5))} for i in range(40)]
+    build_docx(tmp_path / "d.docx", "Long", sections, "", preview)
+    assert len(preview["blocks"]) == 120 and preview["more"] == 2 + 40 * 6 - 120  # title, date, then 6 blocks a section
+    small: dict = {}
+    build_docx(tmp_path / "s.docx", "Court", sections[:2], "", small)
+    assert "more" not in small
+
+
 def test_sheet_preview_shows_formats_and_computed_totals(tmp_path):
     preview: dict = {}
     build_xlsx(
