@@ -1706,7 +1706,8 @@ class HarnessBackend:
                 else:
                     decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
                     run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
-                                            system=system, lang=rl, names=names, workspace=workspace)  # fmt: skip
+                                            system=system, lang=rl, names=names, workspace=workspace,
+                                            history=kept)  # fmt: skip
                 if run is None:
                     run = agent.run(
                         user_sent,

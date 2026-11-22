@@ -396,6 +396,24 @@ def test_pasted_text_never_sets_the_intent():
     assert sig["pasted"] and not sig["web"] and not sig["figures"]
 
 
+def test_auto_mid_conversation_only_for_a_request_that_stands_on_its_own():
+    assert decide(ASK_DECK, history=True).recipe == "deck_research"  # its own topic
+    assert decide(ASK_NOTES, history=True).recipe == "minutes_actions"  # its own pasted notes
+    follow = "Refais la présentation sur le télétravail en France depuis 2019 avec plus de chiffres sourcés"
+    assert decide(follow).recipe == "deck_research" and decide(follow, history=True).recipe is None
+
+
+def test_activated_team_gets_a_compact_digest_of_the_last_turn(tmp_path):
+    crew = Crew(make_agent(tmp_path, Script(lambda *a: "")), decide("refais la présentation en 8 diapos", mode="on"))
+    history = [{"role": "user", "content": ASK_DECK},
+               {"role": "assistant", "content": "La présentation est prête : 6 diapositives. " + "x" * 5000
+                + "\n\n[Mémo de ce tour — outils : make_slides « Le télétravail »]"}]  # fmt: skip
+    digest = crew._digest(history)
+    assert len(digest) <= crew.HISTORY_CAP and "télétravail en France" in digest and "[Mémo de ce tour" in digest
+    crew.history, crew.instr = digest, "refais la présentation en 8 diapos"
+    assert crew._shared(crew_mod.Brief(tool="make_slides", instr=crew.instr)).startswith("Contexte de la conversation")
+
+
 def test_activated_and_disabled_modes():
     assert decide("Bonjour", mode="on").no_deliverable and decide("Bonjour", mode="on").recipe is None
     assert decide("écris un mail court à Paul pour décaler notre point", mode="on").recipe == "generic"

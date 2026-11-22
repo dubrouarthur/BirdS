@@ -220,9 +220,12 @@ def decide(
     resume: bool = False,
     lang: str = "fr",
     recipes: dict | None = None,
+    history: bool = False,
 ) -> Decision:
     """Whether this request runs as a team, and which recipe. No model call: the user's own words only (pasted text
-    counts for its size, its offers and its attendee list, never for the intent)."""
+    counts for its size, its offers and its attendee list, never for the intent). ``history``: the conversation
+    already has an answer; Auto then starts the team only for a request that stands on its own (its own pasted text
+    or attachment, or a topic of its own), never for a follow-up that leans on earlier turns."""
     lang = "en" if lang == "en" else "fr"
     mode = mode if mode in ("auto", "on", "off") else "auto"
     recipes = recipes or RECIPES
@@ -254,7 +257,23 @@ def decide(
     ]
     if sum(map(bool, heavy)) < 2:
         return Decision(None, mode=mode, signals=sig)
+    if history and not standalone(instr, sig):
+        return Decision(None, mode=mode, signals=sig)
     return Decision(recipe, reason, mode, False, sig["deliverable"], sig)
+
+
+_TOPIC = re.compile(r"\b(?:sur|à propos de|concernant|au sujet de|about|on)\s+(?:l['’]|la |le |les |the )?[\wÀ-ÿ-]{4,}", re.I)
+_LEANS = re.compile(r"\b(?:refai[st]|reprend|modifi|corrig|ajoute|enl[eè]ve|retire|change|remplace|la m[êe]me|"
+                    r"le m[êe]me|ce (?:document|mail|fichier)|cette (?:pr[ée]sentation|version)|redo|again|same)\w*",
+                    re.I)  # fmt: skip
+
+
+def standalone(instr: str, sig: dict) -> bool:
+    """A request that carries what it needs: pasted text or an attachment, or a topic of its own (« une présentation
+    sur l'emploi des seniors »), and no word that points back at an earlier answer (« refais », « la même »)."""
+    if _LEANS.search(instr):
+        return False
+    return bool(sig["pasted"] or _TOPIC.search(instr))
 
 
 # ------------------------------------------------------------------ the team
@@ -390,7 +409,7 @@ class Crew:
         self.flagged, self.found, self.bytes, self.images = False, [], 0, []
         self.lanes: list[dict] = []
         self.n_drafts = DRAFTS
-        self.own = self.message = self.instr = self.pasted = ""
+        self.own = self.message = self.instr = self.pasted = self.history = ""
         self.docs: list[tuple[str, str]] = []
         self._last_progress: dict[str, float] = {}
 
@@ -584,10 +603,12 @@ class Crew:
         return self.deadline - time.monotonic()
 
     # -------------------------------------------------------------- entry points
-    def run(self, message: str, own: str, *, docs: list[tuple[str, str]] | None = None) -> Run:
+    def run(self, message: str, own: str, *, docs: list[tuple[str, str]] | None = None, history=None) -> Run:
         """``message``: the whole user message the model would get; ``own``: the user's own words (pasted text
-        included, attachment notes excluded); ``docs``: (name, text) of attached documents."""
+        included, attachment notes excluded); ``docs``: (name, text) of attached documents; ``history``: the kept
+        conversation messages (a compact digest of the last turn goes into the shared brief)."""
         self.message, self.own, self.docs = message, own, list(docs or [])
+        self.history, self.kept = self._digest(history or []), list(history or [])
         self.instr, self.pasted = split_request(own)
         if not self.pasted and self.docs:
             self.pasted = "\n\n".join(f"{n}\n{t}" for n, t in self.docs)[:20000]
@@ -606,6 +627,29 @@ class Crew:
             return self._fallback("error", brief)
         finally:
             self.pool.shutdown(wait=False, cancel_futures=True)
+
+    HISTORY_CAP = 2000
+
+    def _digest(self, history: list[dict]) -> str:
+        """The previous request and answer (with its memo: tools, files, sources), at most HISTORY_CAP characters,
+        so a follow-up such as « refais la présentation en 8 diapos » does not start from nothing."""
+        last_a = next((m for m in reversed(history) if m.get("role") == "assistant" and m.get("content")), None)
+        if last_a is None:
+            return ""
+        i = history.index(last_a)
+        last_u = next((m for m in reversed(history[:i]) if m.get("role") == "user"), None)
+        fr = self.lang == "fr"
+        answer = str(last_a["content"])
+        memo_at = max(answer.rfind("[Mémo de ce tour"), answer.rfind("[Memo of this turn"))
+        memo = answer[memo_at:] if memo_at >= 0 else ""
+        answer = (answer[:memo_at] if memo_at >= 0 else answer).strip()
+        ask = " ".join(str((last_u or {}).get("content") or "").split())[:300]
+        head = [("Demande précédente : " if fr else "Previous request: ") + ask] if ask else []
+        room = self.HISTORY_CAP - sum(map(len, head)) - len(memo[:800]) - 40
+        head.append(("Réponse précédente : " if fr else "Previous answer: ") + answer[: max(200, room)])
+        if memo:
+            head.append(memo[:800])
+        return "\n".join(head)[: self.HISTORY_CAP]
 
     def _plan(self) -> list[tuple[str, str]]:
         r = self.d.recipe
@@ -922,7 +966,8 @@ class Crew:
     def _brief_generic(self) -> Brief:
         tool = self.d.deliverable or "make_document"
         b = self._new_brief(tool)
-        data = self.instr + ("\n\n" + self.pasted[:4000] if self.pasted else "")
+        data = (self.history + "\n\n" if getattr(self, "history", "") else "") + self.instr
+        data += "\n\n" + self.pasted[:4000] if self.pasted else ""
         g = self._gen("planificateur", "brief", self._user(data, PROMPTS[self.lang]["planner"]), [], 400,
                       temperature=0.0, until=self.t0 + BRIEF_S)  # fmt: skip
         plan = cc.json_repair((g or {}).get("parsed", {}).get("content", "")) if g else None
@@ -958,7 +1003,11 @@ class Crew:
     # -------------------------------------------------------------- drafts, check, fix
     def _shared(self, b: Brief) -> str:
         fr = self.lang == "fr"
-        out = [("Demande : " if fr else "Request: ") + b.instr]
+        out = []
+        if getattr(self, "history", ""):
+            out.append(("Contexte de la conversation (tour précédent) :\n" if fr else "Conversation so far (last turn):\n")
+                       + self.history)  # fmt: skip
+        out.append(("Demande : " if fr else "Request: ") + b.instr)
         c = b.constraints
         if c:
             bits = []
@@ -1564,8 +1613,8 @@ class Crew:
         agent.cfg = dataclasses.replace(self.cfg, timeout_s=max(10.0, self._left() - 5))
         context = self._context(b)
         user = self.message + ("\n\n" + context if context else "")
-        run = agent.run(user, system=self.system, thinking=self.thinking, lang=self.lang, request_text=self.own,
-                        attached=self.attached)  # fmt: skip
+        run = agent.run(user, history=getattr(self, "kept", None) or None, system=self.system, thinking=self.thinking,
+                        lang=self.lang, request_text=self.own, attached=self.attached)  # fmt: skip
         if run.stop_reason == "confirm":
             return run  # the single agent's own pause and resume (k: "harness")
         crew_steps = [s for _, s in sorted(self.steps, key=lambda x: x[0])]

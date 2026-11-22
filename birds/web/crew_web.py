@@ -41,6 +41,7 @@ def on_agent(ctx: RunContext, lang: str, offset, step_end):
 def decide_for(request: ChatRequest, words: str, n_docs: int, n_images: int, lang: str):
     from birds.harness.crew import decide
 
+    prior = any(m.get("role") == "assistant" and str(m.get("content") or "").strip() for m in request.messages[:-1])
     return decide(
         words,
         attachments=n_docs,
@@ -48,11 +49,13 @@ def decide_for(request: ChatRequest, words: str, n_docs: int, n_images: int, lan
         mode=getattr(request, "agent", "auto") or "auto",
         resume=request.resume is not None,
         lang=lang,
+        history=prior,
     )
 
 
 def run_crew(
-    agent, decision, request: ChatRequest, ctx: RunContext, *, user_sent, words, system, lang, names, workspace
+    agent, decision, request: ChatRequest, ctx: RunContext, *, user_sent, words, system, lang, names, workspace,
+    history=None,
 ):
     """The crew run for this request, or None when the single agent answers (no recipe, mode off...).
     Activé with nothing to split up: an agent_done event tells the chip, then the single agent answers."""
@@ -73,7 +76,7 @@ def run_crew(
         deadline=ctx.deadline - 10,
         attached=bool(names),
     )
-    return crew.run(user_sent, words, docs=docs)
+    return crew.run(user_sent, words, docs=docs, history=history)
 
 
 def resume_crew(agent, request: ChatRequest, ctx: RunContext):
