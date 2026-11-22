@@ -563,7 +563,9 @@ def test_csp_and_security_headers_everywhere(client):
         assert response.headers["x-content-type-options"] == "nosniff"
         assert response.headers["referrer-policy"] == "no-referrer"
     assert "default-src 'none'" in CSP and "script-src 'self'" in CSP and "style-src 'self'" in CSP
-    assert "unsafe" not in CSP and "http" not in CSP and "*" not in CSP and "data:" not in CSP and "blob:" not in CSP
+    assert "unsafe" not in CSP and "http" not in CSP and "*" not in CSP and "data:" not in CSP
+    # blob: only for images: thumbnails of attached images are object URLs made by the page itself
+    assert CSP.count("blob:") == 1 and "img-src 'self' blob:;" in CSP
     assert client.get("/api/health").headers["cache-control"] == "no-store"
     assert client.get("/files/anything").status_code == 404  # no file is served from a server-side workspace any more
 
@@ -601,7 +603,9 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
 def test_static_payload_budget():
     files = [p for p in STATIC_DIR.rglob("*") if p.is_file()]
     total = sum(p.stat().st_size for p in files)
-    assert total < 250_000, f"static payload is {total} bytes"
+    # raised from 250 kB when images, attachments, previews and the savings report were added; what travels is
+    # gzip-compressed (about 80 kB for all the text files)
+    assert total < 340_000, f"static payload is {total} bytes"
 
 
 def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():

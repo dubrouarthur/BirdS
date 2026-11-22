@@ -85,6 +85,25 @@ async function decode(file) {
   }
 }
 
+function canvasOf(source, w, h) {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, w, h);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(source, 0, 0, w, h);
+  return canvas;
+}
+
+/** A blob: URL for display (the CSP allows blob: images, never data:). */
+function blobUrl(source, w, h) {
+  return new Promise((resolve) =>
+    canvasOf(source, w, h).toBlob((blob) => resolve(blob ? URL.createObjectURL(blob) : ""), "image/jpeg", 0.82),
+  );
+}
+
 function encode(source, w, h, type, quality) {
   const canvas = document.createElement("canvas");
   canvas.width = w;
@@ -151,7 +170,7 @@ export async function addImage(file, onChange) {
   const hgt = Math.round(h0 * scale);
   let url = encode(bitmap, w, hgt, "image/jpeg", 0.88);
   if (url.length > 1_300_000) url = encode(bitmap, w, hgt, "image/jpeg", 0.72);
-  const ts = 160 / Math.max(w, hgt);
+  const ts = 240 / Math.max(w, hgt);
   item.thumb = encode(
     bitmap,
     Math.max(1, Math.round(w * ts)),
@@ -368,14 +387,14 @@ let at = 0;
 function paintLightbox() {
   const item = gallery[at];
   if (!item) return;
-  $("lightbox-img").src = item.url || item.thumb;
+  $("lightbox-img").src = item.view || item.thumb;
   $("lightbox-img").alt = item.name;
   $("lightbox-cap").textContent =
     `${item.name}${item.w ? ` · ${item.w}×${item.h}` : ""}${gallery.length > 1 ? ` · ${at + 1}/${gallery.length}` : ""}`;
   $("lightbox-prev").hidden = $("lightbox-next").hidden = gallery.length < 2;
 }
 export function openLightbox(items, index) {
-  gallery = items.filter((x) => x.thumb || x.url);
+  gallery = items.filter((x) => x.thumb || x.view);
   at = Math.max(0, gallery.indexOf(items[index]));
   paintLightbox();
   const d = $("lightbox");

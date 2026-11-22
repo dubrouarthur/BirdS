@@ -25,6 +25,7 @@ import {
   forgetRendered,
   renderConversation,
   setHandlers,
+  tick,
   updateStream,
   updateTurn,
 } from "./turns.js";
@@ -792,6 +793,7 @@ function newAssistantTurn() {
     error: null,
     confirm: null,
     status: "running",
+    started: Date.now(),
     thinking: state.thinking,
     mode: activeMode(),
     ts: Date.now(),
@@ -891,7 +893,7 @@ function handleEvent(turn, event) {
       turn.text = "";
       break;
     case "status":
-      turn.live = event.state === "waking" ? event : null;
+      turn.live = event.state === "waking" ? { ...event, since: turn.live?.since || Date.now() } : null;
       if (event.state === "waking" && (event.attempt || 1) === 1)
         announce(t("live.waking"));
       break;
@@ -960,6 +962,8 @@ async function runTurn(turn, extra = {}) {
   updateComposer();
   updateTurn(turn);
   let finished = false;
+  turn.started = Date.now();
+  const ticker = window.setInterval(tick, 1000);
   try {
     const body = {
       messages: apiMessages(),
@@ -1040,6 +1044,7 @@ async function runTurn(turn, extra = {}) {
         );
     }
   } finally {
+    window.clearInterval(ticker);
     state.abort = null;
     state.busy = false;
     turn.live = null;
@@ -1095,7 +1100,7 @@ function send(text) {
         size: size || (c ? c.length : 0),
         encoding: encoding || "text",
       })),
-      images: images.map(({ name, w, h: hh, sent, thumb }) => ({ name, w, h: hh, sent, thumb })),
+      images: images.map(({ name, w, h: hh, sent, thumb, view }) => ({ name, w, h: hh, sent, thumb, view })),
     },
     turn,
   );
@@ -1140,6 +1145,7 @@ async function retryStep(turn, step) {
     if (!response.ok) throw new Error(httpMessage(response.status, data?.detail));
     if (!data.ok) return toast(t("retry.failed", { error: String(data.error || "").slice(0, 220) }), "error");
     turn.files.push(...(data.files || []));
+    step.retried = true;
     step.status = "done";
     step.summary = t("retry.done");
     updateTurn(turn);
@@ -1433,7 +1439,7 @@ async function loadHealth() {
     if (!response.ok) throw new Error(String(response.status));
     state.health = await response.json();
     showBanner("");
-    if (state.prefs.mode === "demo" && state.health?.modes?.server) {
+    if (state.prefs.mode === "demo" && !state.prefs.demoChosen && state.health?.modes?.server) {
       // a visitor who tried the demo before the operator connected a model would otherwise stay in demo mode
       state.prefs.mode = "";
       savePrefs();

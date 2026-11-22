@@ -11,6 +11,7 @@ import {
   fmtEnergy,
   fmtInt,
   fmtSeconds,
+  fmtSig,
   h,
   hasEnergy,
   icon,
@@ -20,7 +21,8 @@ import {
   toolLabel,
   modelLabel,
 } from "./core.js";
-import { renderBlocks, safeUrl, stabilize } from "./markdown.js";
+import { renderBlocks, renderMarkdown, safeUrl, stabilize } from "./markdown.js";
+import { docCard, imageCard, kindOf, middle } from "./attach.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -40,7 +42,7 @@ function target(tool, args) {
       .filter(Boolean)
       .join(" — ");
   if (str("url")) return hostOf(str("url")) || str("url");
-  return str("query") || str("path") || str("title") || str("subject") || "";
+  return str("query") || str("path") || str("title") || str("subject") || str("name") || "";
 }
 
 function details(cls, open, remember, summaryChildren, ...body) {
@@ -76,6 +78,11 @@ function liveLine(turn) {
     text = what ? `${label} : ${what}…` : `${label}…`;
   } else if (turn.text) text = t("live.writing");
   else text = t(turn.thinking ? "live.thinking" : "live.starting");
+  if (!sub && !turn.text && !running && !calm) sub = t("live.first");
+  if (running?.tool === "web_search" && state.health?.tools_info?.search?.label)
+    sub = t("live.search.via", { label: state.health.tools_info.search.label });
+  if (running?.tool === "read_image") sub = t("live.read_image.sub");
+  const since = turn.live?.since || turn.started || Date.now();
   return h(
     "div",
     { class: `live${calm ? " live-calm" : ""}` },
@@ -83,10 +90,24 @@ function liveLine(turn) {
     h(
       "div",
       null,
-      h("p", { class: "live-text", text }),
+      h(
+        "p",
+        { class: "live-text" },
+        h("span", { text }),
+        h("span", { class: "live-time num", "data-since": String(since), "aria-hidden": "true", text: elapsed(since) }),
+      ),
       sub && h("p", { class: "live-sub", text: sub }),
     ),
   );
+}
+
+const elapsed = (since) => {
+  const s = Math.max(0, Math.round((Date.now() - Number(since)) / 1000));
+  return s < 1 ? "" : s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")}`;
+};
+/** Called every second while a request runs: only the small timers change, nothing else is redrawn. */
+export function tick() {
+  for (const el of document.querySelectorAll("[data-since]")) el.textContent = elapsed(el.dataset.since);
 }
 
 // ------------------------------------------------------------------ steps
@@ -111,6 +132,33 @@ function argRows(args) {
       }),
     );
   });
+}
+
+function renderFailedFiles(turn) {
+  if (turn.status === "running") return null;
+  const failed = turn.steps.filter(
+    (s) => s.status === "error" && /^make_(slides|document|sheet)$/.test(s.tool) && !s.retried,
+  );
+  const made = (turn.files || []).length;
+  if (!failed.length || made >= failed.length) return null;
+  return h(
+    "div",
+    { class: "notice notice-warn", role: "status" },
+    icon("alert"),
+    h(
+      "div",
+      { class: "notice-text" },
+      h("strong", { text: t("retry.title") }),
+      h("p", { text: t("retry.text", { tool: toolLabel(failed[0].tool) }) }),
+    ),
+    h(
+      "div",
+      { class: "notice-actions" },
+      button("btn-primary btn-small", "retry", t("retry.step"), () => handlers.onRetryStep(turn, failed[0]), {
+        "data-retry": "1",
+      }),
+    ),
+  );
 }
 
 function renderSteps(turn) {
@@ -142,6 +190,14 @@ function renderSteps(turn) {
             h("span", { class: "step-label", text: toolLabel(step.tool) }),
             what && h("span", { class: "step-target", text: what }),
           ),
+          step.info?.label &&
+            h("span", {
+              class: `badge badge-src${step.info.fallback_from ? " badge-warn" : ""}`,
+              title: step.info.fallback_from
+                ? t("steps.fallback", { from: step.info.fallback_from, label: step.info.label })
+                : t("steps.via", { label: step.info.label }),
+              text: step.info.label,
+            }),
           injection &&
             h(
               "span",
@@ -178,6 +234,19 @@ function renderSteps(turn) {
             h("p", { class: "eyebrow", text: t("steps.result") }),
           step.summary && h("p", { class: "step-summary", text: step.summary }),
           step.preview && h("p", { class: "step-preview", text: step.preview }),
+          step.info?.fallback_from &&
+            h("p", {
+              class: "hint",
+              text: t("steps.fallback", { from: step.info.fallback_from, label: step.info.label }),
+            }),
+          (step.repairs || []).length > 0 &&
+            h("p", { class: "step-repairs" }, icon("check"), t("steps.repaired", { n: step.repairs.length })),
+          step.status === "error" &&
+            /^make_(slides|document|sheet)$/.test(step.tool) &&
+            turn.status !== "running" &&
+            button("btn-outline btn-small", "retry", t("retry.step"), () => handlers.onRetryStep(turn, step), {
+              "data-retry-step": String(step.index),
+            }),
         ),
       ),
     );
@@ -326,44 +395,63 @@ function renderSources(turn) {
   );
 }
 
+function slideStrip(preview) {
+  const slides = preview.slides || [];
+  const card = (n, title, body, cls = "") =>
+    h(
+      "li",
+      { class: `slide ${cls}`, "aria-label": t("files.slide.n", { n }) },
+      h("div", { class: "slide-inner" }, h("p", { class: "slide-title", text: title }), body),
+      h("span", { class: "slide-num num", "aria-hidden": "true", text: String(n) }),
+    );
+  return h(
+    "ol",
+    { class: "slide-strip", tabindex: "0", "aria-label": t("files.preview") },
+    card(1, String(preview.title || ""), h("p", { class: "slide-sub", text: preview.subtitle || "" }), "slide-cover"),
+    slides.map((s, i) => {
+      const bullets = (s.bullets || []).filter((b) => String(b).trim());
+      return card(
+        i + 2,
+        String(s.title || ""),
+        bullets.length
+          ? h(
+              "ul",
+              null,
+              bullets.slice(0, 6).map((b) =>
+                h("li", { class: /^(\s{2,}|-{1,2}\s|>\s?|◦)/.test(b) ? "sub" : "", text: String(b).replace(/^(\s+|-{1,2}\s|>\s?|◦\s?)/, "") }),
+              ),
+              bullets.length > 6 && h("li", { class: "more", text: t("files.more.bullets", { n: bullets.length - 6 }) }),
+            )
+          : null,
+        bullets.length ? "" : "slide-section",
+      );
+    }),
+  );
+}
+
 function filePreview(preview) {
   if (!preview || typeof preview !== "object") return null;
   if (preview.kind === "slides") {
+    const notes = (preview.slides || []).filter((s) => s.notes);
     return h(
-      "ol",
-      { class: "outline" },
-      (preview.slides || []).map((s, i) =>
-        h(
-          "li",
-          null,
-          h("span", { class: "outline-n num", text: String(i + 1) }),
-          h(
-            "div",
-            null,
-            h("p", { class: "outline-title", text: String(s.title || "") }),
-            h(
-              "ul",
-              null,
-              (s.bullets || []).map((b) => h("li", { text: String(b) })),
-            ),
-          ),
-        ),
-      ),
+      "div",
+      null,
+      slideStrip(preview),
+      notes.length > 0 && h("p", { class: "hint", text: t("files.notes", { n: notes.length }) }),
     );
   }
   if (preview.kind === "document") {
-    return h(
-      "div",
-      { class: "doc-preview" },
-      (preview.sections || []).map((s) =>
-        h(
-          "section",
-          null,
-          h("p", { class: "outline-title", text: String(s.heading || "") }),
-          h("p", { text: String(s.content || "") }),
-        ),
-      ),
-    );
+    const doc = h("div", { class: "doc-preview" });
+    const page = h("div", { class: "doc-page" }, h("p", { class: "doc-title", text: String(preview.title || "") }));
+    for (const s of preview.sections || []) {
+      page.append(h("p", { class: "doc-h", text: String(s.heading || "") }));
+      const body = h("div", { class: "md md-small" });
+      // Safe by construction: renderMarkdown escapes the model's text before emitting its own tags.
+      body.innerHTML = renderMarkdown(String(s.content || ""));
+      page.append(body);
+    }
+    doc.append(page);
+    return doc;
   }
   if (preview.kind === "sheet") {
     const more = (preview.total_rows || 0) - (preview.rows || []).length;
@@ -589,6 +677,12 @@ export function meterRows(usage) {
       tokenWhy("why.completion"),
     ],
     ["row.seconds", fmtSeconds(usage.seconds), "measured", "why.seconds"],
+    typeof usage.first_token_seconds === "number" && [
+      "row.first",
+      fmtSeconds(usage.first_token_seconds),
+      "measured",
+      "why.first",
+    ],
     ["row.tools", fmtInt(usage.tool_calls), "counted", "why.tools"],
     [
       "row.fetched",
@@ -601,8 +695,14 @@ export function meterRows(usage) {
           "row.energy",
           fmtEnergy(usage.energy_wh, usage.energy_kind),
           usage.energy_kind,
-          `why.energy.${usage.energy_kind}`,
-          { source: usage.energy_source || "?" },
+          usage.energy_method === "power_time" ? "why.energy.power" : `why.energy.${usage.energy_kind}`,
+          usage.energy_method === "power_time"
+            ? {
+                gpu: usage.energy_basis?.gpu || "GPU",
+                s: fmtSig(usage.energy_basis?.busy_seconds || 0),
+                pue: fmtSig(usage.energy_basis?.pue || 1),
+              }
+            : { source: usage.energy_source || "?" },
         ]
       : [
           "row.energy",
@@ -641,7 +741,7 @@ export function meterTable(usage) {
     h(
       "tbody",
       null,
-      meterRows(usage).map(([label, value, kind, why, vars]) =>
+      meterRows(usage).filter(Boolean).map(([label, value, kind, why, vars]) =>
         h(
           "tr",
           { class: `kind-${kind}` },
@@ -701,7 +801,7 @@ function renderReceipt(turn) {
           ? figure(
               fmtEnergy(u.energy_wh, u.energy_kind),
               t("meter.energy"),
-              t(`kind.${u.energy_kind}`),
+              u.energy_method === "power_time" ? t("meter.energy.upper") : t(`kind.${u.energy_kind}`),
               "fig-energy",
             )
           : figure(t("meter.energy.none"), t("meter.energy"), null, "fig-none"),
@@ -792,6 +892,13 @@ function renderActions(turn, isLast) {
       () => copyText(turn.answer.content, t("toast.copied.md")),
       { "data-act": "copy-md" },
     ),
+    button("btn-quiet btn-small btn-export", "word", t("act.export.docx"), () => handlers.onExport(turn, "docx"), {
+      "data-act": "export-docx",
+      title: t("act.export.docx.hint"),
+    }),
+    button("btn-quiet btn-icon btn-small", "download", t("act.export.md"), () => handlers.onExport(turn, "md"), {
+      "data-act": "export-md",
+    }),
     isLast &&
       !state.busy &&
       button(
@@ -876,6 +983,44 @@ function renderError(turn, isLast) {
   );
 }
 
+/** "D'après : facture.pdf" — the attachments this answer actually read, linked to their card in the message. */
+function basedOn(turn) {
+  if (!turn.answer) return null;
+  const names = [
+    ...new Set(
+      turn.steps
+        .filter((s) => (s.tool === "read_file" || s.tool === "read_image") && s.status === "done")
+        .map((s) => String(s.arguments?.path || s.arguments?.name || "").split("/").pop())
+        .filter(Boolean),
+    ),
+  ];
+  if (!names.length) return null;
+  return h(
+    "p",
+    { class: "based-on" },
+    h("span", { class: "based-label", text: t("att.basedon") }),
+    names.map((name) =>
+      h(
+        "button",
+        {
+          class: `based-chip ${kindOf(name).cls}`,
+          type: "button",
+          title: name,
+          onclick: () => {
+            const card = [...document.querySelectorAll("[data-att]")].find((x) => x.dataset.att === name);
+            if (card) {
+              card.scrollIntoView({ block: "center" });
+              card.focus();
+            }
+          },
+        },
+        icon(/\.(jpe?g|png|webp)$/i.test(name) ? "image" : "file"),
+        middle(name, 28),
+      ),
+    ),
+  );
+}
+
 function fillAssistant(el, turn, isLast) {
   let entry = cache.get(turn.id);
   if (!entry) {
@@ -907,9 +1052,11 @@ function fillAssistant(el, turn, isLast) {
         h("div", { class: "reasoning-body", text: turn.reasoning }),
       ),
     hasText && entry.md,
+    basedOn(turn),
     liveLine(turn),
     renderConfirm(turn),
     renderSources(turn),
+    renderFailedFiles(turn),
     renderFiles(turn),
     renderEmail(turn),
     renderError(turn, isLast),
@@ -942,14 +1089,32 @@ function renderUser(turn, isLastUser) {
       h(
         "div",
         { class: "bubble" },
+        (turn.images || []).length > 0 &&
+          h(
+            "div",
+            { class: "bubble-gallery", role: "list", "aria-label": t("att.gallery") },
+            turn.images.map((img, i) =>
+              h(
+                "div",
+                { role: "listitem", "data-att": img.name },
+                imageCard(img, {
+                  compact: true,
+                  onOpen: () => handlers.onLightbox(turn.images, i),
+                }),
+              ),
+            ),
+          ),
         h("p", { class: "bubble-text", text: turn.content }),
         (turn.attachments || []).length > 0 &&
           h(
-            "p",
+            "div",
             { class: "bubble-files" },
-            turn.attachments.map((name) =>
-              h("span", { class: "chip-file" }, icon("file"), name),
-            ),
+            turn.attachments.map((a) => {
+              const doc = typeof a === "string" ? { name: a } : a;
+              const full = (state.conv?.attachments || []).find((x) => x.name === doc.name);
+              const excerpt = full && full.encoding !== "base64" && full.content ? full.content : "";
+              return docCard(doc, { compact: true, excerpt });
+            }),
           ),
       ),
     ),

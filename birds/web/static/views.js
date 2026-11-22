@@ -343,6 +343,124 @@ function comparison(usages) {
   );
 }
 
+// ------------------------------------------------------------------ what Bird saves (defensible comparisons only)
+
+function bar(label, value, max, text, cls = "") {
+  const pct = Math.max(1.5, Math.min(100, (value / max) * 100));
+  const fill = h("span", { class: "sbar-fill" });
+  fill.style.setProperty("--w", `${pct.toFixed(1)}%`); // CSSOM, allowed by the CSP (no inline style attribute)
+  return h(
+    "div",
+    { class: `sbar ${cls}` },
+    h("span", { class: "sbar-label", text: label }),
+    h("span", { class: "sbar-track", "aria-hidden": "true" }, fill),
+    h("span", { class: "sbar-value num", text }),
+  );
+}
+
+function savings(usages, s) {
+  const cmp = state.health?.compare;
+  if (!cmp) return null;
+  const lang = state.prefs.lang === "en" ? "en" : "fr";
+  const bird = Number(cmp.active_params_b) || 4;
+  const tokens = s.prompt + s.completion;
+  const gflop = (params, n) => 2 * params * n; // GFLOP: 2 x active parameters (in billions) per token
+  const fmtFlop = (g) => (g >= 1000 ? `${fmtSig(g / 1000)} TFLOP` : `${fmtSig(g)} GFLOP`);
+  const classes = (cmp.classes || []).filter((c) => c.active_params_b > 0);
+  const max = Math.max(bird, ...classes.map((c) => c.active_params_b));
+  const theory = h(
+    "div",
+    { class: "save-block", "data-save": "compute" },
+    h("p", { class: "save-title", text: t("save.compute.title") }),
+    h("p", { class: "hint", text: t("save.compute.label") }),
+    bar(t("save.bird", { b: fmtSig(bird) }), bird, max, `${fmtSig(2 * bird)} GFLOP/token`, "sbar-bird"),
+    classes.map((c) =>
+      bar(
+        `${c[lang] || c.fr} (~${fmtSig(c.active_params_b)} Md)`,
+        c.active_params_b,
+        max,
+        t("save.times", { x: fmtSig(c.active_params_b / bird) }),
+      ),
+    ),
+    tokens > 0 &&
+      h("p", {
+        class: "save-line",
+        text: t("save.compute.here", {
+          n: fmtInt(tokens),
+          bird: fmtFlop(gflop(bird, tokens)),
+          big: fmtFlop(gflop(classes[0]?.active_params_b || bird, tokens)),
+          label: classes[0]?.[lang] || "",
+        }),
+      }),
+  );
+  const ref = cmp.reference;
+  const withE = usages.filter(hasEnergy);
+  const avg = withE.length ? withE.reduce((a, u) => a + u.energy_wh, 0) / withE.length : null;
+  const energy =
+    ref && ref.wh > 0 && ref.source
+      ? h(
+          "div",
+          { class: "save-block", "data-save": "energy" },
+          h("p", { class: "save-title", text: t("save.energy.title") }),
+          avg === null
+            ? h("p", { class: "hint", text: t("save.energy.none") })
+            : [
+                bar(t("save.energy.bird"), avg, Math.max(avg, ref.wh), `≈ ${fmtSig(avg)} Wh`, "sbar-bird"),
+                bar(ref[`label_${lang}`] || ref.label_fr || "", ref.wh, Math.max(avg, ref.wh), `${fmtSig(ref.wh)} Wh`),
+                h("p", {
+                  class: "save-line",
+                  text:
+                    avg < ref.wh
+                      ? t("save.energy.less", { x: fmtSig(ref.wh / avg) })
+                      : t("save.energy.more", { x: fmtSig(avg / ref.wh) }),
+                }),
+              ],
+          h(
+            "p",
+            { class: "hint" },
+            t("save.energy.scope"),
+            " ",
+            h("a", { href: ref.source, target: "_blank", rel: "noopener noreferrer", text: t("save.source") }),
+          ),
+        )
+      : h("p", { class: "hint", text: t("save.energy.unset") });
+  const on = usages.filter((u) => u.thinking);
+  const off = usages.filter((u) => !u.thinking);
+  const avgTok = (l) => (l.length ? l.reduce((a, u) => a + u.completion_tokens, 0) / l.length : 0);
+  const levers = h(
+    "ul",
+    { class: "levers" },
+    h("li", null, h("strong", { text: t("save.lever.small") }), " ", t("save.lever.small.p", { b: fmtSig(bird) })),
+    h("li", null, h("strong", { text: t("save.lever.zero") }), " ", t("save.lever.zero.p")),
+    h(
+      "li",
+      null,
+      h("strong", { text: t("save.lever.short") }),
+      " ",
+      off.length ? t("save.lever.short.p", { n: fmtInt(Math.round(avgTok(off))) }) : t("save.lever.short.none"),
+    ),
+    h(
+      "li",
+      null,
+      h("strong", { text: t("save.lever.think") }),
+      " ",
+      on.length && off.length
+        ? t("save.lever.think.p", { on: fmtInt(Math.round(avgTok(on))), off: fmtInt(Math.round(avgTok(off))) })
+        : t("save.lever.think.none"),
+    ),
+  );
+  return h(
+    "section",
+    { class: "panel panel-save", "aria-labelledby": "save-title", "data-savings": "1" },
+    h("h3", { id: "save-title", class: "save-head", text: t("save.title") }),
+    theory,
+    energy,
+    h("p", { class: "save-candid" }, icon("info"), h("span", { text: t("save.candid") })),
+    h("p", { class: "save-title", text: t("save.levers") }),
+    levers,
+  );
+}
+
 let scope = "conv";
 export function renderFootprint() {
   const body = $("view-footprint-body");
@@ -481,6 +599,7 @@ export function renderFootprint() {
     ),
     equivalent,
     chart(usages),
+    savings(usages, s),
     scope === "conv" ? comparison(usages) : null,
     splits(usages),
     how,
@@ -505,6 +624,41 @@ function field(id, label, hint, control) {
     h("label", { for: id, text: label }),
     control,
     hint && h("p", { class: "hint", id: `${id}-hint`, text: hint }),
+  );
+}
+
+/** Which tools Bird may use on this deployment, and why the others are off. */
+export function toolsPanel() {
+  const info = state.health?.tools_info;
+  if (!info) return null;
+  const lang = state.prefs.lang === "en" ? "en" : "fr";
+  const demo = activeMode() === "demo";
+  const label = { on: t("tools.on"), off: t("tools.off"), attach: t("tools.attach") };
+  return h(
+    "section",
+    { class: "panel tools-panel", id: "settings-tools", "aria-labelledby": "set-tools-title" },
+    h("h3", { id: "set-tools-title", text: t("tools.title") }),
+    h("p", { class: "hint", text: demo ? t("tools.demo") : t("tools.lead") }),
+    h(
+      "ul",
+      { class: "tools-list" },
+      info.tools.map((x) =>
+        h(
+          "li",
+          { class: `tool-row tool-${x.state}`, "data-tool": x.name },
+          h("span", { class: "card-icon" }, icon(x.name)),
+          h(
+            "span",
+            { class: "tool-text" },
+            h("span", { class: "tool-name", text: t(`tool.${x.name}`) }),
+            h("span", { class: "tool-why", text: x[lang] || "" }),
+          ),
+          h("span", { class: `tag tag-tool-${x.state}`, text: label[x.state] || x.state }),
+        ),
+      ),
+    ),
+    info.search?.fallback &&
+      h("p", { class: "hint", text: t("tools.fallback", { label: info.search.label, fallback: info.search.fallback }) }),
   );
 }
 
@@ -535,7 +689,7 @@ export function renderSettings() {
         value,
         checked: mode === value,
         disabled: !enabled,
-        onchange: () => apply({ mode: value }),
+        onchange: () => apply({ mode: value, demoChosen: value === "demo" }),
       }),
       h(
         "span",
@@ -640,6 +794,7 @@ export function renderSettings() {
     ", ",
   );
   put(body, 
+    toolsPanel(),
     h(
       "section",
       {
@@ -832,30 +987,30 @@ export function renderAbout() {
 
 export function openWelcome() {
   const dialog = $("welcome");
-  const point = (ico, title, text) =>
+  const pillar = (ico, title, text, cls) =>
     h(
       "li",
-      null,
-      h("span", { class: "card-icon" }, icon(ico)),
-      h(
-        "div",
-        null,
-        h("p", { class: "welcome-point", text: title }),
-        h("p", { text }),
-      ),
+      { class: `pillar ${cls}` },
+      h("span", { class: "pillar-icon" }, icon(ico)),
+      h("p", { class: "pillar-title", text: title }),
+      h("p", { class: "pillar-text", text }),
     );
   put($("welcome-body"), 
+    h("p", { class: "welcome-kicker", text: t("welcome.kicker") }),
+    h("p", { class: "welcome-lead", text: t("welcome.lead") }),
     h(
       "ul",
-      { class: "welcome-list" },
-      point("spark", t("welcome.small"), t("welcome.small.p")),
-      point("leaf", t("welcome.frugal"), t("welcome.frugal.p")),
-      point("eye", t("welcome.honest"), t("welcome.honest.p")),
+      { class: "pillars" },
+      pillar("spark", t("welcome.fr"), t("welcome.fr.p"), "p-fr"),
+      pillar("leaf", t("welcome.tiny"), t("welcome.tiny.p"), "p-tiny"),
+      pillar("eye", t("welcome.sober"), t("welcome.sober.p"), "p-sober"),
     ),
-    h("p", { class: "hint", text: t("welcome.local") }),
+    h("p", { class: "welcome-deal" }, h("strong", { text: t("welcome.deal") }), " ", t("welcome.deal.p")),
+    h("p", { class: "hint welcome-local", text: t("welcome.local") }),
   );
   if (!dialog.open) dialog.showModal();
-  $("welcome-start").focus();
+  $("welcome-start").focus({ preventScroll: true });
+  dialog.scrollTop = 0;
 }
 
 export function openShortcuts() {

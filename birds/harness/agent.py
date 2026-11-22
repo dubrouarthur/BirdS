@@ -52,6 +52,30 @@ def compact(messages: list[dict]) -> list[dict]:
     ]
 
 
+_FILE_ASK = re.compile(
+    r"\b(?:pr[ée]sentation|diapo\w*|slides?|pptx|powerpoint|deck|document|docx|word|compte[- ]rendu|note de|"
+    r"proc[ée]dure|rapport|report|minutes|memo|tableur|excel|xlsx|spreadsheet|feuille de calcul|mail|e-?mail|courriel)\b",
+    re.I,
+)
+_NEEDS_WEB = re.compile(
+    r"https?://|www\.|\b(?:cherch|recherch|search|look up|web|internet|en ligne|online|actualit|news|r[ée]cent|"
+    r"latest|dernier|derni[èe]re|aujourd|today|cette ann[ée]e|this year|prix|price|taux|rate|cours|v[ée]rifi|"
+    r"source|cite|20[2-3]\d)",
+    re.I,
+)
+
+
+def route(user: str) -> set[str]:
+    """Tools NOT worth offering for this request (a smaller prompt, and fewer detours for a small model).
+
+    A request for a file or a draft that names no need for outside information gets no web tools: the live model,
+    offered web_search, searched first on "make a 4-slide deck on remote work" and then never made the deck.
+    """
+    if _FILE_ASK.search(user or "") and not _NEEDS_WEB.search(user or ""):
+        return {"web_search", "read_page"}
+    return set()
+
+
 PAUSE = guard.PAUSE  # a confirm callback returns this to end the run with a pending action (see Agent.run)
 _TOOL_OPEN = "<tool_call>"
 
@@ -242,6 +266,7 @@ class Agent:
             messages, seen, queue = st["messages"], set(st["seen"]), list(st["queue"])
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
             nudged = bool(st.get("nudged", False))
+            withdrawn = set(st.get("withdrawn", []))
             gen, ok, content = st["gen"], st["ok"], st.get("content", "")
             forced = "confirmed" if decision is True else "denied_unconfirmed"
         else:
@@ -253,7 +278,7 @@ class Agent:
             messages.append({"role": "user", "content": guard.defang(user)})
             seen, queue = set(), []
             budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
-            nudged = False
+            nudged, withdrawn = False, (route(user) if cfg.route_tools else set())
             gen, ok, forced = 0, 0, None
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
 
@@ -268,7 +293,14 @@ class Agent:
                 try:
                     with gpu:
                         out, stream = self._generate(
-                            render_prompt(self.tok, messages, self.tools, thinking), thinking, deadline
+                            render_prompt(
+                                self.tok,
+                                messages,
+                                [t for t in self.tools if t["function"]["name"] not in withdrawn],
+                                thinking,
+                            ),
+                            thinking,
+                            deadline,
                         )
                 except EndpointError as e:
                     if e.kind != "timeout":
@@ -319,8 +351,10 @@ class Agent:
                     if nudged:
                         run.stop_reason = "loop"  # the same call with the same arguments again, after a reminder
                         break
-                    # A small model sometimes repeats a call it already made. Tell it once, then go on.
+                    # A small model sometimes repeats a call it already made. Tell it once, withdraw that tool for
+                    # the rest of the run (so the next generation must use the result), then go on.
                     nudged = True
+                    withdrawn.update(c["name"] for c in calls)
                     messages.append(
                         {
                             "role": "assistant",
@@ -384,6 +418,7 @@ class Agent:
                     "side_effects": side_effects,
                     "bad_streak": bad_streak,
                     "nudged": nudged,
+                    "withdrawn": sorted(withdrawn),
                     "gen": gen,
                     "ok": ok,
                     "content": content,

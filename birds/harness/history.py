@@ -103,7 +103,7 @@ def _summary(turns: list[list[dict]], lang: str) -> str:
         extra = []
         for m in t:
             for chunk in re.findall(
-                r"\b(?:fichiers créés|files created|sources) : ([^|\]]+)", str(m.get("memo") or "")
+                r"\b(?:fichiers créés|files created|sources) : [^|\]]+", str(m.get("memo") or "")
             ):
                 extra.append(_plain(chunk, 160))
         lines.append("- " + first + (" → " + " ; ".join(extra) if extra else ""))
