@@ -558,3 +558,49 @@ def test_demo_routing_keeps_document_scenarios(text, scenario):
     from birds.web.backends import pick_scenario
 
     assert pick_scenario(text) == scenario
+
+
+# ---------------------------------------------------------------- widgets.js under Node with a tiny DOM (fakedom.mjs)
+
+STATIC = Path(__file__).resolve().parents[1] / "birds" / "web" / "static"
+needs_node = pytest.mark.skipif(not __import__("shutil").which("node"), reason="node not installed")
+
+
+def demo_widget(tool, args, lang="fr", static=True):
+    _, info, _ = demo_widgets.run_tool(tool, args, lang)
+    ws = build_widgets([SimpleNamespace(tool=tool, info=info, error=None)], "", lang, NOW, b"k")
+    return demo_widgets.localise_maps(ws)[0] if static else ws[0]
+
+
+def run_js(body: str, lang: str = "fr", **data):
+    """Runs ``body`` (an async module body; ``W`` = widgets.js, ``C`` = core.js, ``D`` = the fake document,
+    ``data`` = the keyword arguments as JSON) and returns what it passes to ``out(...)``."""
+    import subprocess
+
+    script = (
+        f"import {{ install }} from '{(FIX.parent / 'fakedom.mjs').as_uri()}';\n"
+        "const D = install();\n"
+        f"const C = await import('{(STATIC / 'core.js').as_uri()}');\n"
+        f"C.state.prefs.lang = {json.dumps(lang)};\n"
+        f"const W = await import('{(STATIC / 'widgets.js').as_uri()}');\n"
+        f"const data = {json.dumps(data, ensure_ascii=False)};\n"
+        "const out = (v) => process.stdout.write(JSON.stringify(v));\n"
+        "const render = (w) => { const el = W.renderWidgets({ id: 't1', answer: { widgets: [w] } }); "
+        "D.body.append(el); return el; };\n" + body
+    )
+    res = subprocess.run(["node", "--input-type=module", "-e", script], capture_output=True, text=True)
+    assert res.returncode == 0, res.stderr
+    return json.loads(res.stdout)
+
+
+@needs_node
+def test_static_map_frame_has_no_stray_text_node():
+    w = demo_widget("find_places", {"query": "restaurant", "near": "gare de Lyon"})
+    assert w["map"]["static"]
+    got = run_js(
+        "const el = render(data.w); const f = el.querySelector('.map-frame');"
+        "out({ kinds: f.childNodes.map((n) => n.nodeType), text: f.childNodes.filter((n) => n.nodeType === 3)"
+        ".map((n) => n.data), zoom: !!f.querySelector('.map-zoom') });",
+        w=w,
+    )
+    assert got["kinds"] and set(got["kinds"]) == {1} and not got["text"] and not got["zoom"]

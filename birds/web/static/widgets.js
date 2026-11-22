@@ -161,7 +161,8 @@ function mapFrame(w, places, center, opts = {}) {
     t("map.zoomOut"),
     zoom(-1),
   );
-  frame.append(
+  // native append() would print `false` as a text node: falsy children are filtered first (h() does it itself)
+  const children = [
     img,
     layer,
     h("p", { class: "map-unavailable", text: t("map.unavailable") }),
@@ -177,7 +178,8 @@ function mapFrame(w, places, center, opts = {}) {
       h("span", { text: w.attribution || "© OpenStreetMap contributors" }),
     ),
     !m.static && h("div", { class: "map-zoom" }, zin, zout),
-  );
+  ];
+  frame.append(...children.filter(Boolean));
   frame._pins = pins;
   return frame;
 }
