@@ -4878,6 +4878,35 @@ button.att-card {
   margin: 0;
   font-size: 0.84rem;
 }
+/* touch screens: card actions become pills of at least 40 px, other links get taller hit areas */
+@media (pointer: coarse) {
+  .place-actions {
+    gap: 8px;
+  }
+  .place-actions a.widget-link {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    text-decoration: none;
+  }
+  .place-actions .btn {
+    min-block-size: 40px;
+  }
+  .widget-head-links a,
+  .widget-source a,
+  .company-candidates a,
+  .place-hours-all summary {
+    display: inline-block;
+    padding-block: 10px;
+  }
+  .map-attr {
+    padding: 5px 8px;
+  }
+}
 /* narrow: the amount and its currency on one row, the result alone and large below (no dangling "=") */
 @media (max-width: 420px) {
   .fx-eq {

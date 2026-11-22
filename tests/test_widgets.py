@@ -760,3 +760,12 @@ def test_fx_card_shows_no_figure_for_empty_or_negative_amounts():
         w=w,
     )
     assert "091,90" in got[0] and got[1] == "—" and got[2] == "—" and "9,09" in got[3]
+
+
+def test_card_links_have_touch_sized_targets():
+    import re
+
+    css = (STATIC / "app.css").read_text(encoding="utf-8")
+    coarse = "".join(re.findall(r"@media \(pointer: coarse\) \{(.*?)\n\}", css, re.S))
+    assert re.search(r"\.place-actions a\.widget-link \{[^}]*min-block-size: 40px", coarse)
+    assert ".map-attr" in coarse and ".map-zoom .btn" in coarse and "inline-size: 44px" in coarse
