@@ -17,6 +17,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlsplit
@@ -1084,6 +1085,41 @@ def log_id(cid: str | None) -> str | None:
     return hashlib.sha256(b"bird-log-v1\0" + cid.encode("ascii")).hexdigest()[:16] if cid else None
 
 
+_WEEKDAYS = {
+    "fr": ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"),
+    "en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+}
+_MONTHS = {
+    "fr": (
+        "janvier", "février", "mars", "avril", "mai", "juin",
+        "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+    ),
+    "en": (
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ),
+}  # fmt: skip
+
+
+def paris_now() -> datetime:
+    try:
+        from zoneinfo import ZoneInfo
+
+        return datetime.now(ZoneInfo("Europe/Paris"))
+    except Exception:  # no tz database on this machine: UTC is close enough for a date
+        return datetime.now(UTC)
+
+
+def date_line(lang: str, now: datetime) -> str:
+    """'Date du jour : dimanche 22 novembre 2026 (Europe/Paris).' A day, never a time: the prompt prefix the model
+    server caches changes at most once a day."""
+    lang = "en" if lang == "en" else "fr"
+    day, month = _WEEKDAYS[lang][now.weekday()], _MONTHS[lang][now.month - 1]
+    if lang == "en":
+        return f"Today: {day} {now.day} {month} {now.year} (Europe/Paris)."
+    return f"Date du jour : {day} {now.day} {month} {now.year} (Europe/Paris)."
+
+
 def prepare_turn(
     messages: list[dict],
     conv: str,
@@ -1092,6 +1128,7 @@ def prepare_turn(
     image_texts: list[tuple[str, str]],
     history_tokens: int,
     msg_cap_tokens: int,
+    clock: Callable[[], datetime] = paris_now,
 ):
     """Pure: (system, kept history, user_sent, stats) for one request. user_sent is EXACTLY the text the model gets
     as this turn's user message; the client stores it and sends it back as that turn's content afterwards."""
@@ -1113,6 +1150,7 @@ def prepare_turn(
     kept, summary, stats = window(history, history_tokens, lang=conv, msg_cap_tokens=msg_cap_tokens)
     kept = [{**m, "content": guard.defang(m["content"])} for m in kept]
     system = DEFAULT_SYSTEM[conv] + ("\n\n" + summary if summary else "")
+    system += "\n\n" + date_line(conv, clock())  # last: a small model otherwise guesses "today" with confidence
     return system, kept, user_sent, stats
 
 

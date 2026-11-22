@@ -223,3 +223,15 @@ def test_u14_cache_salt():
         c.post("/api/chat", json={"messages": [{"role": "user", "content": "x"}], "conversation_id": CID})
         bad = c.post("/api/chat", json={"messages": [{"role": "user", "content": "x"}], "conversation_id": "123"})
     assert seen == [cache_salt(CID)] and bad.status_code == 422
+def test_system_message_ends_with_the_date_of_the_day():
+    from datetime import datetime
+
+    msgs = [{"role": "user", "content": "Quel jour sommes-nous ?"}]
+    morning = lambda: datetime(2026, 11, 22, 8, 1)  # noqa: E731
+    evening = lambda: datetime(2026, 11, 22, 23, 59)  # noqa: E731
+    fr, *_ = prepare_turn(msgs, "fr", "fr", [], [], 6000, 3168, clock=morning)
+    en, *_ = prepare_turn(msgs, "en", "en", [], [], 6000, 3168, clock=morning)
+    assert fr.endswith("Date du jour : dimanche 22 novembre 2026 (Europe/Paris).")
+    assert en.endswith("Today: Sunday 22 November 2026 (Europe/Paris).")
+    again, *_ = prepare_turn(msgs, "fr", "fr", [], [], 6000, 3168, clock=evening)
+    assert again == fr  # same day, byte-identical: the cached prompt prefix survives
