@@ -638,3 +638,15 @@ def test_event_chips_follow_the_fields():
     assert "Week-end (samedi)" in got["c"]
     assert "Journée entière" in got["d"] and "Durée par défaut" not in got["d"]
     assert got["pure"] == [["warn", "Jour férié : 11 novembre"]]
+
+
+def test_widget_buttons_have_distinct_names():
+    """'Copier' is the turn's own action: a card's copy button says what it copies (one accessible name each)."""
+    import re
+
+    js = (STATIC / "i18n.js").read_text(encoding="utf-8")
+    for lang_block in js.split('"act.copy":')[1:]:
+        plain = re.search(r'^\s*"([^"]+)"', lang_block).group(1)
+        for key in ("event.copy", "company.copySiren"):
+            v = re.search(rf'"{re.escape(key)}":\s*"([^"]+)"', lang_block).group(1)
+            assert v != plain and len(v) > len(plain)
