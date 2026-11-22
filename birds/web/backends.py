@@ -325,6 +325,16 @@ def pick_scenario(text: str, has_attachment: bool = False) -> str:
             return name
     if has_attachment:
         return "attachment"
+    # a named format or a document topic wins over a widget: "prépare les slides pour le meeting de lundi" is a deck
+    first = [
+        ("slides", ("pptx", "powerpoint", "diapo", "slide", "présentation", "presentation")),
+        ("sheet", ("xlsx", "tableur", "excel", "spreadsheet", "feuille de calcul")),
+        ("document", ("docx",)),
+        ("minutes", ("compte rendu", "compte-rendu", "minutes", "ordre du jour")),
+    ]
+    for name, keys in first:
+        if any(k in low for k in keys):
+            return name
     widget = widget_scenario(text)
     if widget:
         return widget

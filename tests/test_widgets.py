@@ -507,3 +507,23 @@ def test_document_about_a_meeting_gets_no_event_note_nor_card(tmp_path, text):
     a.run(text)
     assert "calendrier" not in json.loads(a.llm.prompts[0])["messages"][-1]["content"]
     assert event_widget(text, NOW, "fr") is None
+
+
+@pytest.mark.parametrize(
+    "text,scenario",
+    [
+        ("Prépare les slides pour le meeting de lundi", "slides"),
+        ("Fais une présentation pour le séminaire de vendredi", "slides"),
+        ("Rédige le compte rendu de la réunion de jeudi", "minutes"),
+        ("Écris un mail pour annuler la réunion de demain", "email"),
+        ("Quels documents apporter à l'entretien annuel de vendredi ?", "document"),
+        ("Rédige une invitation au webinaire du 3 décembre", "search"),  # as before the widgets
+        ("Organise une réunion avec Paul jeudi prochain à 14h", "event"),
+        ("Restaurants près de la gare de Lyon", "places"),
+        ("Convertis 1 200 dollars en euros dans un tableur", "sheet"),
+    ],
+)
+def test_demo_routing_keeps_document_scenarios(text, scenario):
+    from birds.web.backends import pick_scenario
+
+    assert pick_scenario(text) == scenario
