@@ -1358,6 +1358,8 @@ function regenerate() {
   if (state.busy) return;
   const turns = state.conv.turns;
   if (!turns.length || turns[turns.length - 1].role !== "assistant") return;
+  const conv = state.conv;
+  const previous = turns[turns.length - 1];
   const turn = newAssistantTurn();
   turns[turns.length - 1] = turn;
   renderChat();
@@ -1368,7 +1370,27 @@ function regenerate() {
     user.sent = undefined; // the images are still here: read them again
     again = { images: lastImages };
   } else if (user?.sent) again = { resend: true }; // reuse the exact text, transcriptions included
-  runTurn(turn, again);
+  const running = runTurn(turn, again);
+  // the replaced answer (text, files, receipt) can come back for 8 s; what the new run cost stays counted
+  toast(t("toast.regenerated"), "info", {
+    ms: 8000,
+    action: {
+      label: t("act.undo"),
+      run: async () => {
+        if (state.conv !== conv || conv.turns[conv.turns.length - 1] !== turn) return;
+        if (state.abort && state.busy) state.abort.abort();
+        await running;
+        if (state.conv !== conv || conv.turns[conv.turns.length - 1] !== turn) return;
+        conv.turns[conv.turns.length - 1] = previous;
+        forgetRendered();
+        renderChat();
+        saveConv();
+        updateComposer();
+        announce(t("toast.restored"));
+        input().focus();
+      },
+    },
+  });
 }
 
 // ------------------------------------------------------------------ helpers that need no model

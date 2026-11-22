@@ -2666,6 +2666,32 @@ kbd {
   gap: 8px;
   pointer-events: none;
 }
+.toast.has-action {
+  pointer-events: auto;
+  padding-inline-end: 6px;
+}
+.toast-action {
+  min-block-size: 36px;
+  margin-inline-start: 4px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 18%, transparent);
+  color: var(--bg);
+  font: 700 0.86rem var(--sans);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.toast-action:focus-visible {
+  outline: 2px solid var(--bg);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .toast-action {
+    min-block-size: 44px;
+  }
+}
 .toast {
   display: flex;
   align-items: center;

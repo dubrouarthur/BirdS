@@ -210,16 +210,36 @@ export function announce(text) {
   window.setTimeout(() => (live.textContent = text), 30);
 }
 
-export function toast(text, kind = "info") {
+/** A short message. `action` ({label, run}) adds one button (e.g. "Annuler"); `ms` overrides how long it stays. */
+export function toast(text, kind = "info", { action, ms } = {}) {
   const host = $("toasts");
-  for (const old of host.children) if (old.textContent === text && !old.classList.contains("toast-out")) old.remove(); // the same message once
-  const el = h("div", { class: `toast toast-${kind}`, role: kind === "error" ? "alert" : "status" }, icon(kind === "error" ? "alert" : kind === "ok" ? "check" : "info"), h("span", { text }));
-  host.append(el);
-  while (host.children.length > 3) host.firstChild.remove();
-  window.setTimeout(() => {
+  for (const old of [...host.children]) if (old.dataset.text === text && !old.classList.contains("toast-out")) old.remove(); // the same message once
+  const el = h(
+    "div",
+    { class: `toast toast-${kind}${action ? " has-action" : ""}`, role: kind === "error" ? "alert" : "status", "data-text": text },
+    icon(kind === "error" ? "alert" : kind === "ok" ? "check" : "info"),
+    h("span", { text }),
+  );
+  const close = () => {
     el.classList.add("toast-out");
     window.setTimeout(() => el.remove(), 250);
-  }, kind === "error" ? 6000 : 2600);
+  };
+  if (action)
+    el.append(
+      h("button", {
+        class: "toast-action",
+        type: "button",
+        text: action.label,
+        onclick: () => {
+          close();
+          action.run();
+        },
+      }),
+    );
+  host.append(el);
+  while (host.children.length > 3) host.firstChild.remove();
+  window.setTimeout(close, ms || (kind === "error" ? 6000 : 2600));
+  return el;
 }
 
 export async function copyText(text, message) {
