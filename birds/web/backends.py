@@ -269,27 +269,40 @@ _DEMO_OFFER_EN = (
 )
 
 
+_DEMO_MARKERS = {
+    # test scenarios answer only to an explicit phrase: "Corrige les erreurs de ce texte" is a real request
+    "xss": ("test xss", "/demo xss", "injection html", "html injection"),
+    "error": (
+        "simule une erreur", "simule une panne", "simuler une erreur", "simulate an error", "simulate a failure",
+        "simulate an outage", "test erreur", "test error", "/demo erreur", "/demo error",
+    ),
+    "wake": (
+        "simule un réveil", "simule un reveil", "test réveil", "test reveil", "simulate a wake", "test wake",
+        "/demo réveil", "/demo reveil", "/demo wake",
+    ),
+}  # fmt: skip
+
+
 def pick_scenario(text: str, has_attachment: bool = False) -> str:
-    """Map the last user message to a scripted scenario (deterministic keyword match)."""
-    low = text.lower()
+    """Map the last user message to a scripted scenario (deterministic keyword match). Test scenarios need an
+    explicit phrase; then a named file format wins over the topic ("présentation pptx sur notre budget": slides)."""
+    low = " ".join(text.lower().split())
+    for name, keys in _DEMO_MARKERS.items():
+        if any(k in low for k in keys):
+            return name
+    if has_attachment:
+        return "attachment"
     rules = [
-        ("xss", ("xss", "injection html", "html injection")),
-        ("error", ("erreur", "error", "panne")),
-        ("wake", ("réveil", "reveil", "wake")),
-        ("attachment", ()),
-        ("sheet", ("tableur", "spreadsheet", "xlsx", "budget")),
-        ("slides", ("diapo", "slide", "présentation", "presentation", "pptx")),
+        ("slides", ("pptx", "powerpoint", "diapo", "slide", "présentation", "presentation")),
+        ("sheet", ("xlsx", "tableur", "excel", "spreadsheet", "feuille de calcul")),
+        ("document", ("docx",)),
         ("reply", ("réponds à", "reponds a", "reply to")),  # a self-contained reply: no page, no approval
         ("email", ("mail", "courriel")),
         ("search", ("cherche", "search", "web", "source", "compare", "trouve", "find")),
         ("minutes", ("compte rendu", "compte-rendu", "minutes", "réunion", "reunion", "meeting")),
-        ("document", ("document", "docx", "note de synthèse", "memo")),
+        ("document", ("document", "note de synthèse", "memo")),
     ]
     for name, keys in rules:
-        if name == "attachment":
-            if has_attachment:
-                return name
-            continue
         if any(k in low for k in keys):
             return name
     return "plain"

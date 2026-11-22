@@ -1120,3 +1120,27 @@ def test_answer_event_carries_the_recipient_to_complete():
     with TestClient(app) as client:
         draft = one(chat(client, "Écris un mail à Marc Petit pour fixer un point"), "answer")["draft_email"]
     assert draft["to"] == "" and draft["to_hint"] == "Marc Petit"
+@pytest.mark.parametrize(
+    ("text", "expected", "never"),
+    [
+        ("Corrige les erreurs de ce texte", None, "error"),
+        ("What is an error budget?", None, "error"),
+        ("Le réveil du serveur est lent, pourquoi ?", None, "wake"),
+        ("Qu'est-ce qu'une faille XSS ?", None, "xss"),
+        ("Fais une présentation pptx de 5 diapos sur notre budget", "slides", None),
+        ("Rédige le compte rendu de la réunion budget", "minutes", "sheet"),
+        ("Rédige une note docx sur le budget", "document", None),
+        ("Fais un tableur excel des dépenses", "sheet", None),
+        ("simule une erreur", "error", None),
+        ("Simule une panne", "error", None),
+        ("test réveil du modèle", "wake", None),
+        ("/demo wake", "wake", None),
+        ("test xss", "xss", None),
+    ],
+)
+def test_demo_routing_needs_explicit_markers_and_formats_win(text, expected, never):
+    got = pick_scenario(text)
+    if expected:
+        assert got == expected
+    if never:
+        assert got != never

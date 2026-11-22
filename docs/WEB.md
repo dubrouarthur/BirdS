@@ -17,7 +17,7 @@ uv pip install --python .venv/bin/python -e ".[web,harness]"    # avec le vrai m
 .venv/bin/python scripts/serve.py --demo            # puis http://127.0.0.1:8000
 ```
 
-Les réponses sont **écrites à l'avance** (`DemoBackend`) et l'interface l'affiche partout (« démo »). Les quatre exemples de l'écran d'accueil déclenchent chacun un scénario : mail (page signalée comme suspecte, puis demande d'autorisation), compte rendu (tableau), diapositives (fichier .pptx téléchargeable), recherche web (étapes, sources citées). Deux scénarios de test : un message contenant « erreur » simule une panne ; « test xss » renvoie du contenu hostile pour vérifier le rendu Markdown.
+Les réponses sont **écrites à l'avance** (`DemoBackend`) et l'interface l'affiche partout (« démo »). Les quatre exemples de l'écran d'accueil déclenchent chacun un scénario : mail (page signalée comme suspecte, puis demande d'autorisation), compte rendu (tableau), diapositives (fichier .pptx téléchargeable), recherche web (étapes, sources citées). Trois scénarios de test, déclenchés seulement par une phrase explicite (un simple « erreur » ou « réveil » dans une vraie demande ne les déclenche pas) : « simule une erreur » simule une panne ; « test réveil » simule l'attente d'un endpoint en veille ; « test xss » renvoie du contenu hostile pour vérifier le rendu Markdown. Un format nommé (pptx, diapo, xlsx, tableur, docx) l'emporte sur le sujet de la demande.
 
 ## Mode réel (modèle derrière le harnais)
 
