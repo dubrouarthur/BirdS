@@ -550,6 +550,7 @@ function renderEmpty() {
             type: "button",
             "data-example": key,
             title: t(`ex.${key}.prompt`),
+            "aria-label": `${t(`ex.${key}.title`)} — ${t(`ex.${key}.prompt`)}`,
             onclick: () => send(t(`ex.${key}.prompt`)),
           },
           h("span", { class: "chip-icon" }, icon(ico)),

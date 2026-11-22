@@ -765,6 +765,74 @@ html[data-side="closed"] body:not(.side-open) .side {
   color: var(--muted);
 }
 
+/* compact empty state on short screens (phones): a small mark, a one-line title, the candid line, 4 chips */
+.empty-mark {
+  display: none;
+}
+@media (max-height: 700px) {
+  .empty {
+    padding-block-start: 0;
+  }
+  .empty .lockup {
+    display: none !important;
+  }
+  .empty-mark {
+    display: block;
+    inline-size: 46px;
+    block-size: 40px;
+  }
+  .empty-title {
+    margin-block-start: 8px;
+    font-size: clamp(1.35rem, 6vw, 1.9rem);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .empty-p1 {
+    display: none;
+  }
+  .empty-candid {
+    margin-block-start: 6px;
+    font-size: 1rem;
+  }
+  .demo-note {
+    margin-block-start: 8px;
+    padding: 3px 10px;
+    font-size: 0.8rem;
+  }
+  .empty .eyebrow {
+    margin-block-start: 14px;
+  }
+  .examples {
+    margin-block-start: 8px;
+    gap: 8px;
+  }
+}
+@media (max-width: 520px) {
+  .empty .examples {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .empty .chip {
+    align-items: center;
+    gap: 8px;
+    min-block-size: 48px;
+    padding: 8px 10px;
+  }
+  .empty .chip-icon {
+    inline-size: 28px;
+    block-size: 28px;
+    border-radius: 8px;
+  }
+  .empty .chip-prompt {
+    display: none;
+  }
+  .empty .chip-title {
+    font-size: 0.9rem;
+    line-height: 1.25;
+  }
+}
+
 /* ------------------------------------------------------------ turns */
 .conversation {
   display: grid;
