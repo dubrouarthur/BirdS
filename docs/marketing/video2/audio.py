@@ -152,19 +152,19 @@ def music(dur):
     # credo (25-31 s): sustained, warm Fmaj9 -> Cmaj9 -> Fadd9 tag
     for t0, ch, d in (
         (25.0, [41, 53, 57, 60, 64, 67], 3.2),
-        (28.0, [36, 48, 55, 59, 62, 64], 3.3),
+        (28.5, [36, 48, 55, 59, 62, 64], 2.8),
         (31.1, [41, 53, 60, 64, 67, 72], 1.6),
     ):
         for m in ch:
             for side, det in ((L, -0.002), (R, 0.002)):
                 x = tone(note(m), d + 0.4, harm=(1.0, 0.2), detune=det) * env_adsr(int((d + 0.4) * SR), 0.5, 0.8)
-                add(side, x, t0, 0.045)
+                add(side, x, t0, 0.032)
     for i in range(10):  # slow bell arpeggio under the credo
         tt = 25.3 + i * 0.6
         m = [72, 76, 79, 84, 79, 76, 72, 74, 79, 84][i]
         x = tone(note(m), 1.2, harm=(1.0, 0.1)) * np.exp(-np.arange(int(1.2 * SR)) / SR / 0.4)
-        add(L, x, tt, 0.022)
-        add(R, x, tt, 0.022)
+        add(L, x, tt, 0.012)
+        add(R, x, tt, 0.012)
     return L, R
 
 
@@ -272,7 +272,7 @@ def main():
         hold -= 1
         acc += (up if tgt > acc else dn) * (tgt - acc)
         env[i] = acc
-    duck = 1 - 0.55 * env
+    duck = 1 - 0.68 * env
     L = mL * duck + voice * 0.82 + fx * 0.9
     R = mR * duck + voice * 0.82 + fx * 0.9
     # fades
