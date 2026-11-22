@@ -99,7 +99,7 @@ function soundtrackAndMux() {
   soundtrackAndMux();
 
   // contact sheet: 8 key frames, 4x2
-  // key moments (T, s): mission, plus petit, mail, deck, invoice, footprint, un seul GPU, call to action
+  // key moments (T, s): mission, plus petit, mail, deck, invoice, footprint, sobriety, call to action
   const picks = [4.6, 7.5, 10.4, 13.6, 16.3, 20.0, 23.6, 30.2].map((x) => Math.min(n - 1, Math.round(x * FPS)));
   const list = picks.map((p) =>
     path.join(FRAMES, `f${String(p).padStart(5, "0")}.png`),

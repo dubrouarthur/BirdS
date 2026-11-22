@@ -64,6 +64,8 @@
   /* size: toujours plus gros vs plus petit */
   #sz { inset:0; display:none; }
   .szh { left:0; right:0; top:290px; text-align:center; font-size:112px; line-height:1.0; z-index:2; }
+  #szh2 { font-size:104px; }
+  #ghost { left:540px; top:1130px; width:1200px; height:1200px; margin:-600px 0 0 -600px; border-radius:50%; border:3px dashed rgba(143,179,255,.45); }
   .szh .row { display:block; }
   #szh2 .row:last-child { color:var(--green); }
   /* giant: 1200 px across (wider than the frame), centred at y = 1130; Bird's dot = 1/10 of
@@ -81,8 +83,8 @@
   #glab span { display:block; margin-top:4px; font-size:32px; font-weight:500; color:#dbe6ff; }
   #dot { left:480px; top:1070px; width:120px; height:120px; border-radius:50%; background:var(--green); box-shadow:0 0 60px rgba(91,214,155,.7), 0 0 0 10px rgba(91,214,155,.14); }
   #tinyl { left:0; right:0; top:1214px; text-align:center; }
-  #tinyl b { display:block; font-family:'Inter Display','Inter',sans-serif; font-weight:800; font-size:66px; letter-spacing:-0.025em; line-height:1.05; }
-  #tinyl span { display:block; font-size:38px; font-weight:600; color:var(--green); margin-top:6px; }
+  #tinyl b { display:block; font-family:'Inter Display','Inter',sans-serif; font-weight:800; font-size:84px; letter-spacing:-0.025em; line-height:1.05; }
+  #tinyl span { display:block; font-size:48px; font-weight:600; color:var(--green); margin-top:8px; }
   #szsub { left:60px; right:60px; top:1404px; text-align:center; font-size:42px; font-weight:600; color:#fff; line-height:1.28; }
   #szsub em { font-style:normal; color:var(--green); }
   #sznote { left:60px; right:60px; top:1556px; text-align:center; font-size:31px; font-weight:500; color:#d3defa; line-height:1.3; }
@@ -135,19 +137,20 @@
   #gridlab { left:0; right:0; top:1586px; text-align:center; font-size:44px; font-weight:700; color:#fff; }
   #gridlab span { color:var(--light); }
 
-  /* sobriety: one GPU, asleep when idle, goal */
+  /* sobriety: asleep when idle, goal (no hardware count on purpose) */
   #gpu { inset:0; display:none; }
   #gk { left:0; right:0; top:300px; justify-content:center; color:var(--green); }
   #gk .leaf { width:44px; height:44px; }
-  #g1 { left:0; right:0; top:372px; text-align:center; font-size:150px; line-height:1; }
-  #gchipw { left:390px; top:590px; width:300px; height:300px; }
+  #g1 { left:0; right:0; top:360px; text-align:center; font-size:112px; line-height:1.02; }
+  #g1 .row:last-child { color:var(--green); }
+  #gchipw { left:390px; top:620px; width:300px; height:300px; }
   #gchipw svg { width:300px; height:300px; display:block; }
-  #gsleep { left:0; right:0; top:906px; text-align:center; }
+  #gsleep { left:0; right:0; top:930px; text-align:center; }
   #gsleep span { display:inline-flex; align-items:center; gap:12px; height:52px; padding:0 24px; border-radius:26px; background:rgba(143,179,255,.14);
                  border:1.5px solid rgba(143,179,255,.45); font-size:28px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--light); }
-  #g2 { left:0; right:0; top:1000px; text-align:center; font-size:76px; line-height:1.08; }
+  #g2 { left:0; right:0; top:1020px; text-align:center; font-size:76px; line-height:1.08; }
   #g2 .row:last-child { color:var(--light); }
-  #goal { left:80px; right:80px; top:1262px; padding:34px 44px 38px; border-radius:36px; background:rgba(91,214,155,.10); border:2px solid rgba(91,214,155,.5); text-align:center; }
+  #goal { left:80px; right:80px; top:1280px; padding:34px 44px 38px; border-radius:36px; background:rgba(91,214,155,.10); border:2px solid rgba(91,214,155,.5); text-align:center; }
   #goal .gl { display:inline-flex; align-items:center; gap:12px; height:46px; padding:0 20px; border-radius:23px; background:var(--green); color:var(--navy); font-size:26px; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
   #goal .gt { margin-top:20px; font-size:46px; font-weight:600; line-height:1.25; color:#fff; }
   #goal .gt b { color:var(--green); font-weight:700; }
@@ -211,14 +214,12 @@
   <!-- size: toujours plus gros vs plus petit -->
   <div id="sz" class="abs">
     <div id="szh1" class="abs szh disp"><span class="row"><span class="w">Toujours</span></span><span class="row"><span class="w">plus</span> <span class="w">gros&nbsp;?</span></span></div>
-    <div id="szh2" class="abs szh disp"><span class="row"><span class="w">Nous&nbsp;:</span></span><span class="row"><span class="w">plus</span> <span class="w">petit.</span></span></div>
-    <div id="giant" class="abs"><div id="gring"></div><div id="gfill"></div>
-      <div id="gtxt"><div class="gt">Les géants de l’IA</div><div class="gs">des centaines de milliards<br>de paramètres</div></div>
-      <div id="glab"><b>Les géants de l’IA</b><span>des centaines de milliards de paramètres</span></div></div>
+    <div id="szh2" class="abs szh disp"><span class="row"><span class="w">Nous&nbsp;:</span></span><span class="row"><span class="w">100×</span> <span class="w">plus</span> <span class="w">petit.</span></span></div>
+    <div id="ghost" class="abs"></div>
+    <div id="giant" class="abs"><div id="gfill"></div>
+      <div id="gtxt"><div class="gt">Les géants de l’IA</div><div class="gs">des centaines de milliards<br>de paramètres</div></div></div>
     <div id="dot" class="abs"></div>
-    <div id="tinyl" class="abs"><b>Bird S 4B</b><span>4 milliards de paramètres</span></div>
-    <div id="szsub" class="abs">≈ 100× moins de paramètres&nbsp;:<br><em>bien moins de calcul par mot, en théorie.</em></div>
-    <div id="sznote" class="abs">Surfaces proportionnelles au nombre de paramètres<br>(ordre de grandeur).</div>
+    <div id="tinyl" class="abs"><b>Bird</b><span>4 milliards de paramètres</span></div>
   </div>
 
   <!-- product -->
@@ -240,14 +241,14 @@
 
   <!-- sobriety -->
   <div id="gpu" class="abs">
-    <div id="gk" class="abs kick"><span class="leaf lf"></span><span>Sobre par conception</span></div>
-    <div id="g1" class="abs disp"><span class="w">Un</span> <span class="w">seul</span> <span class="w">GPU.</span></div>
+    <div id="gk" class="abs kick"><span class="leaf lf"></span><span>Sobriété</span></div>
+    <div id="g1" class="abs disp"><span class="row"><span class="w">Sobre</span></span><span class="row"><span class="w">par</span> <span class="w">conception.</span></span></div>
     <div id="gchipw" class="abs"><svg viewBox="0 0 300 300">
       <g id="gpins" stroke="#8FB3FF" stroke-width="8" stroke-linecap="round" opacity=".7">
         <path d="M90 40v28M130 40v28M170 40v28M210 40v28M90 232v28M130 232v28M170 232v28M210 232v28M40 90h28M40 130h28M40 170h28M40 210h28M232 90h28M232 130h28M232 170h28M232 210h28"/></g>
       <rect x="68" y="68" width="164" height="164" rx="26" fill="#14306f" stroke="#8FB3FF" stroke-width="5"/>
       <rect id="gcore" x="104" y="104" width="92" height="92" rx="14" fill="#1E5BD8"/>
-      <text x="150" y="162" text-anchor="middle" font-family="Inter Display, Inter, sans-serif" font-weight="800" font-size="40" fill="#fff" letter-spacing="-1">GPU</text>
+      <path d="M150 124v26M136 132a26 26 0 1 0 28 0" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
       <circle id="gled" cx="206" cy="94" r="11" fill="#5BD69B"/>
     </svg></div>
     <div id="gsleep" class="abs"><span><svg width="26" height="26" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="#8FB3FF"/></svg>Veille</span></div>
@@ -311,7 +312,7 @@
     deck:    [10.5, 13.5],
     invoice: [13.5, 16.5],
     receipt: [16.5, 20.5],  // the footprint, 4 s (real time, no speed-up beyond the chip)
-    gpu:     [20.5, 23.5],  // un seul GPU, en veille, objectif 2030
+    gpu:     [20.5, 23.5],  // sobre par conception, en veille, objectif 2030
     credo:   [23.5, 26.0],
     cta:     [26.0, 30.0],  // le futur de l'IA sera petit. + call to action
   };
@@ -602,27 +603,25 @@
       // phase 2 (a+1.25, on the beat): it settles at exactly 1200 px and turns into a ghost ring;
       // Bird's dot (120 px = 1/10 of the diameter, 1/100 of the area) sits alone in its centre.
       const SW = a + 1.25;
-      const sw = prog(t, SW - 0.04, SW + 0.1);
+      const sw = prog(t, SW - 0.16, SW - 0.02);  // the question is gone before the answer lands
       $('szh1').style.opacity = 1 - sw; $('szh1').style.transform = `translateY(${-sw * 50}px)`;
       const h2 = $('szh2').querySelectorAll('.w');
       $('szh2').style.display = t >= SW - 0.01 ? 'block' : 'none';
-      slam(h2[0], t, SW, 0.2, 1.4); slam(h2[1], t, SW + 0.08, 0.2, 1.4);
-      // "petit." lands from big to its size: it shrinks into place
-      slam(h2[2], t, SW + 0.15, 0.28, 2.4);
+      slam(h2[0], t, SW, 0.2, 1.4); slam(h2[1], t, SW + 0.08, 0.2, 1.6); slam(h2[2], t, SW + 0.14, 0.2, 1.4);
+      // "petit." lands from big to its size: it shrinks into place, like the giant below
+      slam(h2[3], t, SW + 0.2, 0.28, 2.4);
       const gi = $('giant');
       const pg = prog(t, a, a + 0.5);
-      const swell = 1 + 0.07 * eout(prog(t, a + 0.5, SW)) * (1 - eio(prog(t, SW, SW + 0.22)));
-      gi.style.opacity = clamp(pg * 3);
-      gi.style.transform = `scale(${lerp(0.15, 1, back(pg, 1.5)) * swell})`;
-      const gh = eio(prog(t, SW, SW + 0.22));                      // fill -> ghost ring
-      $('gfill').style.opacity = 1 - 0.92 * gh;
-      $('gring').style.opacity = gh;
+      const swell = 1 + 0.07 * eout(prog(t, a + 0.5, SW));
+      // phase 2: the giant itself SHRINKS to Bird's dot (1/10 of the diameter = 1/100 of the area)
+      const sk = eio(prog(t, SW, SW + 0.5));
+      gi.style.opacity = clamp(pg * 3) * (1 - prog(t, SW + 0.44, SW + 0.52));
+      gi.style.transform = `scale(${lerp(0.15, 1, back(pg, 1.5)) * lerp(swell, 0.1, sk)})`;
       $('gtxt').style.opacity = eout(prog(t, a + 0.3, a + 0.55)) * (1 - prog(t, SW - 0.05, SW + 0.08));
-      $('glab').style.opacity = eout(prog(t, SW + 0.25, SW + 0.5));
-      popIn($('dot'), t, SW + 0.06, 0.32);
-      rise($('tinyl'), t, SW + 0.16, 0.26, 30);
-      rise($('szsub'), t, SW + 0.45, 0.28, 30);
-      rise($('sznote'), t, SW + 0.6, 0.28, 20);
+      // a faint outline keeps the giant's size on screen for scale
+      $('ghost').style.opacity = 0.9 * eout(prog(t, SW + 0.05, SW + 0.35));
+      popIn($('dot'), t, SW + 0.46, 0.3);
+      rise($('tinyl'), t, SW + 0.56, 0.26, 30);
     }
 
     // wipe into the product (6.9 -> 7.75)
@@ -794,7 +793,7 @@
       pr.querySelectorAll('b').forEach((bb, i) => { bb.style.transform = `scaleX(${prog(t, S[CONV[i]][0], S[CONV[i]][1])})`; });
     }
 
-    // ===== SOBRIETY: un seul GPU, en veille, objectif =====
+    // ===== SOBRIETY: sobre par conception, en veille, objectif =====
     const gpu = $('gpu');
     if (show(gpu, t >= S.gpu[0] - 0.02 && t < S.gpu[1] + 0.02)) {
       const a = S.gpu[0];
