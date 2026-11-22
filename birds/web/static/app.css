@@ -5117,18 +5117,38 @@ button.att-card {
     clip-path: inset(50%);
     white-space: nowrap;
   }
+  /* one row for every block on phones: language, check mark, file name (ellipsed) on the left, icon tools on the
+     right. The check sits right after the language it qualifies, as an icon chip (its words stay for screen
+     readers and in the tooltip). */
   .md .code-block .code-head {
-    flex-wrap: wrap;
-    row-gap: 0;
+    flex-wrap: nowrap;
     padding-inline-start: 12px;
-    gap: 8px;
+    gap: 6px;
+  }
+  .md .code-block .code-lang {
+    order: 0;
+    flex: none;
+  }
+  .md .code-block .code-check {
+    order: 1;
   }
   .md .code-block .code-file {
-    flex: 1 1 0; /* fills the first row (ellipsed), so the tools stay on it and the badge wraps below */
+    order: 2;
+    flex: 0 1 auto;
   }
-  .code-check {
-    order: 5; /* its own row under the language and the file name */
-    margin-block: 0 8px;
+  .md .code-block .code-tools {
+    order: 3;
+  }
+  .code-check:is(.code-check--ok, .code-check--err) {
+    padding: 3px;
+  }
+  .code-check:is(.code-check--ok, .code-check--err) > span {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 @media (pointer: coarse) {
