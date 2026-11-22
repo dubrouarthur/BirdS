@@ -157,6 +157,17 @@ def test_rows_as_objects_and_broken_json_text():
     assert spec["rows"] == [["Janv", 3], ["Févr", 4]]
 
 
+def test_rows_as_broken_lines_seen_live():
+    # Bird S 4B on the live endpoint, prompt « CA 2025 par trimestre » (opening brackets missing)
+    text = '["T1", 120],\n"T2", 135],\n"T3", 128],\n"T4", 150]'
+    spec = norm({"title": "CA", "type": "bar", "columns": ["Trimestre", "CA (k€)"], "rows": text, "unit": "k€"})
+    assert spec["rows"] == [["T1", 120], ["T2", 135], ["T3", 128], ["T4", 150]]
+    # same endpoint, « website visits »: outer brackets forgotten
+    text = '["Mon", 120], ["Tue", 98], ["Wed", 143], ["Thu", 110]'
+    spec = norm({"title": "Visits", "type": "bar", "columns": ["Day", "Visits"], "rows": text})
+    assert spec["rows"] == [["Mon", 120], ["Tue", 98], ["Wed", 143], ["Thu", 110]]
+
+
 def test_type_synonyms():
     assert norm({**Q, "type": "Histogramme"})["type"] == "bar"
     assert norm({**Q, "type": "courbe"})["type"] == "line"

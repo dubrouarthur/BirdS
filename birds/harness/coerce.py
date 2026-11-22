@@ -57,7 +57,9 @@ def parse_json_like(text: str):
         except ValueError:
             pass
     try:  # Python-style literal: single quotes, True/False/None
-        return ast.literal_eval(_balance(s))
+        value = ast.literal_eval(_balance(s))
+        # '["Mon", 120], ["Tue", 98]' (outer brackets forgotten, seen live) reads as a tuple: it is a list
+        return list(value) if isinstance(value, tuple) else value
     except (ValueError, SyntaxError, MemoryError, RecursionError):
         raise ValueError("not JSON") from None
 
@@ -208,12 +210,31 @@ def _fold(text: str) -> str:
 
 
 def _decoded(value):
-    if isinstance(value, str) and value.strip()[:1] in "[{`":
+    if isinstance(value, str) and value.strip()[:1] in '[{`"':
         try:
             return parse_json_like(value)
         except ValueError:
-            return value
+            return _row_lines(value)
     return value
+
+
+def _row_lines(text: str):
+    """Rows written as broken JSON text, one row per line, with brackets missing (seen live on make_chart):
+    '["T1", 120],\\n"T2", 135],\\n"T3", 128]'. Each line is read as one row; anything else stays text."""
+    lines = [ln.strip() for ln in text.strip().strip("[]").splitlines() if ln.strip()]
+    if len(lines) < 2:
+        return text
+    rows = []
+    for ln in lines:
+        body = re.sub(r"^\[+|[\],\s]+$", "", ln)
+        try:
+            row = json.loads("[" + body + "]")
+        except ValueError:
+            return text
+        if not isinstance(row, list) or len(row) < 2 or any(isinstance(c, list | dict) for c in row):
+            return text
+        rows.append(row)
+    return rows
 
 
 def _series_list(series) -> list:

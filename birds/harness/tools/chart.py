@@ -312,7 +312,7 @@ def make_chart(args: dict, ctx) -> str:
     out = (
         f"Chart shown to the user in the chat: {kind} « {spec['title']} », {len(spec['rows'])} labels, "
         f"{len(series)} series ({', '.join(series)}), values from {_fmt(min(values))} to {_fmt(max(values))}{unit}. "
-        "Do not draw it again in text or as a table; comment on it in 1 to 3 sentences."
+        "Do not draw it again or list its figures, in text or as a table: comment on it in 1 to 3 sentences."
     )
     if spec["reshaped"]:
         out += "\nAdjusted: " + "; ".join(spec["reshaped"])
