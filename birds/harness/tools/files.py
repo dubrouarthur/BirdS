@@ -167,7 +167,7 @@ def _new_path(ctx, title: str, suffix: str) -> Path:
 def _done(ctx, p: Path, summary: str) -> str:
     rel = str(p.relative_to(ctx.workspace.resolve()))
     ctx.files.append(rel)
-    return f"File created: {rel} ({summary})"
+    return f"File created and shown to the user as a download card: {p.name} ({summary}). Do not write its path."
 
 
 def make_slides(args: dict, ctx) -> str:

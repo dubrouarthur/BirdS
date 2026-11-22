@@ -1091,3 +1091,31 @@ def test_resume_still_delivers_a_file_made_after_approval(tmp_path, monkeypatch)
 
 def test_signing_key_is_not_derived_from_the_public_vercel_url():
     assert Settings.from_env({"VERCEL_URL": "bird.vercel.app"}).signing == "ephemeral"
+def test_draft_email_result_says_bird_cannot_send_and_keeps_names_apart():
+    from birds.harness.config import Context
+    from birds.harness.tools.actions import draft_email
+
+    c = Context(config=Config(workspace=Path(".")), http=None)
+    r = draft_email({"to": ["Marc Petit"], "subject": "Point", "body": "Bonjour Marc"}, c)
+    assert "cannot send" in r and "Draft saved" in r and "Marc Petit" in r
+    assert c.drafts[0]["to"] == [] and c.drafts[0]["to_hint"] == "Marc Petit"
+    draft_email({"to": ["Marc <marc@example.org>", "a@example.org"], "subject": "s", "body": "b"}, c)
+    assert c.drafts[1]["to"] == ["marc@example.org", "a@example.org"] and "to_hint" not in c.drafts[1]
+
+
+def test_answer_event_never_shows_the_server_output_path():
+    make = _tool_call("make_document", title="Note", sections=[{"heading": "A", "content": "Texte."}])
+    app, _ = harness_app([make, "Le fichier `bird_out/x-2026.docx` est prêt."])
+    with TestClient(app) as client:
+        events = chat(client, "Rédige une note")
+    answer = one(events, "answer")
+    assert "bird_out/" not in answer["content"] and "x-2026.docx" in answer["content"]
+    assert answer["files"] and answer["files"][0]["name"].endswith(".docx")
+
+
+def test_answer_event_carries_the_recipient_to_complete():
+    call = _tool_call("draft_email", to=["Marc Petit"], subject="Point", body="Bonjour Marc")
+    app, _ = harness_app([call, "Le brouillon est prêt à relire."])
+    with TestClient(app) as client:
+        draft = one(chat(client, "Écris un mail à Marc Petit pour fixer un point"), "answer")["draft_email"]
+    assert draft["to"] == "" and draft["to_hint"] == "Marc Petit"

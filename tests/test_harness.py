@@ -352,7 +352,8 @@ def test_generated_files_open_and_read_back(tmp_path):
     r = TOOLS["make_slides"](
         {"title": "Bilan / 2026", "slides": [{"title": "Ventes", "bullets": ["+4 %", "Deux sites"]}]}, c
     )
-    assert r.startswith("File created: bird_out/bilan-2026-") and "1 slides" in r
+    assert r.startswith("File created and shown to the user as a download card: bilan-2026-") and "1 slides" in r
+    assert "bird_out" not in r and c.files[0].startswith("bird_out/bilan-2026-")
     prs = pptx.Presentation(str(tmp_path / c.files[0]))
     assert len(prs.slides) == 2 and prs.slides[1].shapes.title.text == "Ventes"
     TOOLS["make_document"](

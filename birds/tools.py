@@ -50,7 +50,7 @@ BIRD_TOOLS: list[dict] = [
     ),
     _fn(
         "draft_email",
-        "Prepare an email draft for the user to review. Nothing is sent.",
+        "Prepare an email draft for the user to review. Nothing is sent: Bird cannot send it.",
         {
             "to": {"type": "array", "items": _STR, "description": "Recipient email addresses."},
             "subject": {"type": "string", "description": "Subject line."},

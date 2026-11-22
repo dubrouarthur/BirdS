@@ -165,6 +165,15 @@ def usage_event(
     }
 
 
+_OUT_PATH = re.compile(r"`?(?:\./)?\bbird_out/(?:[^\s`/]+/)*([^\s`/)\]]+?)([.,;:!?]?)`?(?=[\s)\]]|$)")
+
+
+def hide_out_paths(text: str) -> str:
+    """'bird_out/x-2026.docx' -> 'x-2026.docx': that server folder is gone after the request; the file is the
+    download card under the answer."""
+    return _OUT_PATH.sub(lambda m: sanitize_filename(m.group(1)) + m.group(2), text)
+
+
 def output_file(workspace: Path, rel: object) -> Path | None:
     """``rel`` resolved inside ``<workspace>/bird_out``, or None: only files Bird made there are ever sent back.
     A resumed run's state comes from a token; even a validly signed one must not name /proc or ../ paths."""
@@ -1515,7 +1524,7 @@ class HarnessBackend:
             ctx.emit(
                 {
                     "type": "answer",
-                    "content": strip_memo(str(run.answer)),
+                    "content": hide_out_paths(strip_memo(str(run.answer))),
                     "sources": sources,
                     "files": files,
                     "draft_email": None
@@ -1526,6 +1535,7 @@ class HarnessBackend:
                         else str(draft.get("to") or ""),
                         "subject": str(draft.get("subject") or ""),
                         "body": str(draft.get("body") or ""),
+                        **({"to_hint": str(draft["to_hint"])} if draft.get("to_hint") else {}),
                     },
                     "stop_reason": run.stop_reason,
                     "memo": turn_memo,

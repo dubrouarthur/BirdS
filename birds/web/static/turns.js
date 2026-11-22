@@ -662,11 +662,16 @@ function renderEmail(turn) {
     : String(draft.to ?? "");
   const subject = String(draft.subject ?? "");
   const body = String(draft.body ?? "");
-  // A mailto: link the user chooses to click. It only opens their own mail app with the draft: nothing is sent.
-  const mailto = `mailto:${to
-    .split(",")
-    .map((s) => encodeURIComponent(s.trim()))
+  // a bare name ("Marc Petit") is not an address: shown to complete, never put in the mailto: link
+  const isAddress = (s) => /^[^@\s<>,;]+@[^@\s<>,;]+\.[^@\s<>,;]+$/.test(s);
+  const parts = to.split(",").map((s) => s.trim()).filter(Boolean);
+  const hint = [String(draft.to_hint ?? "").trim(), ...parts.filter((s) => !isAddress(s))]
     .filter(Boolean)
+    .join(", ");
+  const addresses = parts.filter(isAddress);
+  // A mailto: link the user chooses to click. It only opens their own mail app with the draft: nothing is sent.
+  const mailto = `mailto:${addresses
+    .map((s) => encodeURIComponent(s))
     .join(
       ",",
     )}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -681,7 +686,15 @@ function renderEmail(turn) {
         "div",
         { class: "card-title" },
         h("p", { class: "card-name", text: subject || t("email.title") }),
-        h("p", { class: "card-meta", text: `${t("email.to")} ${to || "—"}` }),
+        h("p", {
+          class: "card-meta",
+          text: [
+            addresses.length || !hint ? `${t("email.to")} ${addresses.join(", ") || "—"}` : "",
+            hint ? `${t("email.tohint")} ${hint}` : "",
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        }),
       ),
     ),
     h("div", { class: "email-body", text: body }),
