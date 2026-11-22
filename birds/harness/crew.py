@@ -595,7 +595,7 @@ class Crew:
             named = [e for e in b.emails if any(f and f in cc.fold(e.split("@")[0]) for f in firsts)]
             b.to = named[0] if named else (b.emails[0] if len(b.emails) == 1 else "")
         b.constraints = cc.constraints(self.instr + "\n" + cc.requirement_lines(self.pasted))
-        b.allowed = cc.allowed_figures(self.instr, self.pasted)
+        b.allowed = cc.allowed_figures(self.instr, self.pasted, *(t for _, t in self.docs))
         return b
 
     # -------------------------------------------------------------- recipes: the brief
@@ -866,7 +866,9 @@ class Crew:
                       temperature=0.0, until=self.t0 + BRIEF_S)  # fmt: skip
         plan = cc.json_repair((g or {}).get("parsed", {}).get("content", "")) if g else None
         plan = plan if isinstance(plan, dict) else {}
-        b.points = [str(p)[:160] for p in plan.get("points") or [] if str(p).strip()][:8]
+        # a planner point with a figure the user never gave is the model's own arithmetic: not a point to check
+        b.points = [str(p)[:160] for p in plan.get("points") or [] if str(p).strip()
+                    and not cc.unsupported(str(p), b.allowed)][:8]  # fmt: skip
         searches = [str(q)[:120] for q in plan.get("recherches") or plan.get("searches") or [] if str(q).strip()][:3]
         if g:
             self._step("planificateur", "done", "brief", tokens=g["tokens"], seconds=g["seconds"],
@@ -1106,8 +1108,27 @@ class Crew:
         return f"{name}: {round(s['points'] * 100)}% of points, {fig}" + (" ✓ kept" if chosen else "")
 
     # -------------------------------------------------------------- post-processing and build
-    def _post(self, b: Brief, args: dict) -> tuple[dict, int]:
-        """Unsupported figures removed, a Sources slide/section appended, the checked action table put in."""
+    def _left_out(self, b: Brief, s: dict) -> list[str]:
+        """What the user should know is missing from the file, in plain words. Never the model's own planning
+        points (a 4B planner's arithmetic, seen live as « dépasse le budget de 3 10 € »): only what the user gave
+        or the team verified."""
+        fr, out = self.lang == "fr", []
+        if self.d.recipe == "compare_write":
+            out += [("offre non mentionnée : " if fr else "offer not mentioned: ") + p for p in s["missing_points"]]
+        elif self.d.recipe == "minutes_actions":
+            out += [("décision non reprise : " if fr else "decision not included: ") + p[:120]
+                    for p in s["missing_points"]]  # fmt: skip
+        for m in s["missing_must"][:3]:
+            if b.facts:
+                out.append(("chiffre vérifié non repris : " if fr else "verified figure not used: ") + m[:120])
+            elif self.d.recipe == "compare_write":
+                out.append(("offre recommandée absente du texte : " if fr else "recommended offer missing: ") + m)
+        return out
+
+    def _post(self, b: Brief, args: dict, alts: list | None = None) -> tuple[dict, int]:
+        """Unsupported figures removed, a Sources slide/section appended, the checked action table put in. A
+        section left empty by the removals takes the same section of the other draft when that one is clean, or
+        goes: a heading over nothing never reaches the file."""
         args, removed = copy.deepcopy(args), 0
         fr = self.lang == "fr"
         if not b.sources:  # no source was read: a « [3] » would point at nothing (seen live in a mail)
@@ -1132,7 +1153,12 @@ class Crew:
                 parts = re.split(r"(?<=[.!?])\s+|\n", content)
                 keep = [p for p in parts if not self._bad(b, p)]
                 removed += sum(1 for p in parts if p.strip()) - sum(1 for p in keep if p.strip())
-                secs.append({**s, "content": "\n".join(p for p in keep if p.strip()) if removed else content})
+                text = "\n".join(p for p in keep if p.strip()) if removed else content
+                if not text.strip():
+                    text = self._clean_alt(b, s.get("heading"), alts)
+                    if not text:
+                        continue
+                secs.append({**s, "content": text})
             if b.actions:
                 table = {
                     "heading": "Actions" if not fr else "Tableau des actions",
@@ -1173,6 +1199,16 @@ class Crew:
             if src:
                 args["body"] = str(args.get("body") or "").rstrip() + "\n\nSources :\n" + "\n".join(src)
         return args, removed
+
+    def _clean_alt(self, b: Brief, heading, alts) -> str:
+        """The content of the same section in another draft, if it carries no figure to remove."""
+        h = cc.fold(heading or "")
+        for a in alts or []:
+            for sec in (a or {}).get("sections") or []:
+                text = str(sec.get("content") or "").strip()
+                if h and cc.fold(sec.get("heading") or "") == h and text and not self._bad(b, text):
+                    return text
+        return ""
 
     def _answer_ctx(self, b: Brief, args: dict, n_points: int = 0) -> dict:
         ctx = {
@@ -1321,13 +1357,12 @@ class Crew:
                 self._step("correcteur", "error", "fix")
         else:
             self._step("correcteur", "skipped", "fix")
-        args, removed = self._post(b, best.args)
+        args, removed = self._post(b, best.args, alts=[d.args for d in drafts if d is not best and d.args])
         caveats = list(b.caveats)
         if removed:
             caveats.insert(0, f"{removed} passage(s) avec un chiffre sans source retiré(s)" if self.lang == "fr"
                            else f"{removed} passage(s) with an unsourced figure removed")  # fmt: skip
-        left = self._findings(b, {**best.score, "bad": []})
-        caveats += left[:3]
+        caveats += self._left_out(b, self._score(b, Draft(best.lane, args, 0.0)))[:3]
         if b.tool == "draft_email" and best.score["bad"]:
             caveats.append(("chiffres à vérifier dans le mail : " if self.lang == "fr" else "figures to check in the email: ")
                            + ", ".join(best.score["bad"][:6]))  # fmt: skip

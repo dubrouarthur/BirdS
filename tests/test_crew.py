@@ -441,12 +441,37 @@ def test_minutes_table_is_written_by_code(tmp_path):
     actions = [{"line": 9, "owner": "Thomas Petit", "action": "Planning révisé", "due": "avant le 21/10"}] * 4
     b = crew_mod.Brief(tool="make_document", instr=ASK_NOTES, actions=actions)
     crew = Crew(make_agent(tmp_path, Script(lambda *a: "")), decide(ASK_NOTES))
-    args = {"title": "CR", "sections": [{"heading": "Décisions", "content": "| a | b |\n|---|---|\n| faux | x |"},
+    args = {"title": "CR", "sections": [{"heading": "Décisions", "content": "Go-live validé.\n| a | b |\n|---|---|\n| faux | x |"},
                                          {"heading": "Prochaine réunion", "content": "Le 4 novembre."}]}  # fmt: skip
     out, _ = crew._post(b, args)
     heads = [s["heading"] for s in out["sections"]]
     assert heads == ["Décisions", "Tableau des actions", "Prochaine réunion"]
     assert "faux" not in out["sections"][0]["content"] and out["sections"][1]["content"].count("Thomas Petit") == 4
+
+
+def test_generic_keeps_pasted_figures_and_never_ships_an_empty_section(tmp_path):
+    ask = "Compare ces deux devis et rédige un document de synthèse pour le comité.\n\n" + BACKUP
+    crew = Crew(make_agent(tmp_path, Script(lambda *a: "")), decide(ask, mode="on"))
+    crew.instr, crew.pasted = crew_mod.split_request(ask)
+    b = crew._new_brief("make_document")
+    a = {"title": "Synthèse", "sections": [
+        {"heading": "Contexte", "content": "Budget maximal de 3 000 € HT, 1,8 To, rétention 60 jours."},
+        {"heading": "Coûts", "content": "Sauvegardia coûte 9 999 € la première année."},
+        {"heading": "Vide", "content": ""}]}  # fmt: skip
+    other = {"title": "x", "sections": [{"heading": "Coûts", "content": "Sauvegardia : 195 € HT par mois et 450 € HT."}]}
+    out, removed = crew._post(b, a, alts=[other])
+    heads = {s["heading"]: s["content"] for s in out["sections"]}
+    assert heads["Contexte"].startswith("Budget maximal de 3 000 €")  # the user's own figures are sourced
+    assert heads["Coûts"] == other["sections"][0]["content"] and "Vide" not in heads and removed == 1
+    out, _ = crew._post(b, a)
+    assert "Coûts" not in {s["heading"] for s in out["sections"]}
+
+
+def test_planner_figures_never_reach_the_caveats(tmp_path):
+    crew = Crew(make_agent(tmp_path, Script(lambda *a: "")), decide("Fais un document sur X", mode="on"))
+    b = crew_mod.Brief(tool="make_document", instr="x")
+    s = {"missing_points": ["Devis 1 dépasse le budget de 3 10 €"], "missing_must": []}
+    assert crew._left_out(b, s) == []
 
 
 # ------------------------------------------------------------------ 3. JSON repair and salvage
