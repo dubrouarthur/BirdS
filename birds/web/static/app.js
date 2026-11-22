@@ -1354,6 +1354,12 @@ async function runTurn(turn, extra = {}) {
     }
     const shown = state.conv === conv;
     if (shown) renderConversation(); // the last-turn actions (regenerate, edit) depend on the busy state
+    if (shown && turn.status === "stopped") announce(t("turn.stopped"));
+    else if (shown && turn.status === "error" && turn.error) {
+      // the sentence the error notice shows (a raw internal message is never read out)
+      const shownText = document.querySelector(`[data-turn="${turn.id}"] .notice-text p`)?.textContent;
+      announce(shownText || turn.error.message);
+    }
     updateComposer();
     updateTop();
     saveConv(conv);
@@ -1431,6 +1437,7 @@ function regenerate() {
   const previous = turns[turns.length - 1];
   const turn = newAssistantTurn();
   turns[turns.length - 1] = turn;
+  if ($("scroll").contains(document.activeElement)) keepFocus(); // the Regenerate button is about to be redrawn
   renderChat();
   scrollToEnd(true);
   const user = turns[turns.length - 2];
@@ -1572,8 +1579,16 @@ function answerConfirm(turn, allow, { refine = false } = {}) {
   runTurn(turn, allow ? { approved: [token] } : { denied: [token] });
 }
 
+/** Keep the keyboard user's place when the button they pressed disappears (Stop, Regenerate). On a touch
+ * screen the focus is left alone: moving it would pop the keyboard up. */
+function keepFocus() {
+  if (window.matchMedia?.("(pointer: fine)").matches) input().focus({ preventScroll: true });
+}
+
 function stop() {
-  state.abort?.abort();
+  if (!state.abort) return;
+  if (document.activeElement?.id === "btn-stop") keepFocus();
+  state.abort.abort();
 }
 
 // ------------------------------------------------------------------ wiring
@@ -1803,11 +1818,22 @@ function bind() {
       e.preventDefault();
       setSidebar(!document.body.classList.contains("side-open"));
     } else if (e.key === "Escape") {
-      if (document.querySelector("dialog[open]")) return;
+      if (e.defaultPrevented || document.querySelector("dialog[open]")) return;
+      const target = e.target;
+      // Escape in another field (the conversation search, a rename box) is that field's own: it clears it,
+      // it never stops the answer that is being written
+      if (
+        /^(INPUT|SELECT|TEXTAREA)$/.test(target?.tagName || "") &&
+        target.id !== "composer-input"
+      )
+        return;
       if (isNarrow() && document.body.classList.contains("side-open"))
         setSidebar(false); // the open drawer is on top: Escape closes it first, an answer keeps streaming
-      else if (state.busy) stop();
-      else if (state.view !== "chat") showView("chat");
+      else if (state.busy) {
+        const where = target?.id || (target === document.body ? "body" : "");
+        if (!target || ["composer-input", "body", "scroll", "btn-stop"].includes(where))
+          stop();
+      } else if (state.view !== "chat") showView("chat");
     } else if (!typing && !mod && !e.altKey && e.key === "/") {
       e.preventDefault();
       if (state.view !== "chat") showView("chat");
