@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Bird — Une goutte, pas un verre</title>
+<style>
+  :root { --navy:#0B1B3F; --blue:#1E5BD8; --paper:#F6F5F0; --ink2:#4A5468; --water:#5B9BF0; --water-d:#2F6FD6; --line:#D9DCE3; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { width:1080px; height:1350px; }
+  body { background:var(--paper); color:var(--navy); font-family:"Inter","Inter Display",system-ui,sans-serif; position:relative; overflow:hidden; }
+  .glow { position:absolute; width:900px; height:900px; border-radius:50%; background:radial-gradient(circle, rgba(30,91,216,.10), rgba(30,91,216,0) 62%); left:90px; top:300px; }
+  header { position:absolute; top:64px; left:80px; right:80px; display:flex; align-items:center; justify-content:space-between; }
+  .brand { display:flex; align-items:center; gap:16px; }
+  .brand svg { width:64px; height:56px; }
+  .brand b { font-family:"Inter Display","Inter",sans-serif; font-size:44px; font-weight:800; letter-spacing:-1px; }
+  .brand span { color:var(--blue); font-size:30px; font-weight:800; margin-left:4px; }
+  .tag { font-size:20px; font-weight:600; color:var(--ink2); border:2px solid var(--line); padding:10px 20px; border-radius:999px; display:flex; align-items:center; gap:10px; }
+  .tri { display:inline-flex; height:14px; width:30px; border-radius:3px; overflow:hidden; }
+  .tri i { flex:1; } .tri i:nth-child(1){background:#1E3A8A} .tri i:nth-child(2){background:#fff;border-top:1px solid #ddd;border-bottom:1px solid #ddd} .tri i:nth-child(3){background:#D3312F}
+  h1 { position:absolute; top:186px; left:80px; right:80px; font-family:"Inter Display","Inter",sans-serif; font-size:98px; line-height:1.0; font-weight:800; letter-spacing:-3px; }
+  h1 em { font-style:normal; color:var(--blue); }
+  .lead { position:absolute; top:410px; left:80px; width:880px; font-size:31px; line-height:1.35; color:var(--ink2); font-weight:500; }
+  .scene { position:absolute; top:520px; left:80px; right:80px; height:410px; display:flex; align-items:flex-end; justify-content:space-around; }
+  .col { display:flex; flex-direction:column; align-items:center; gap:22px; width:400px; }
+  .col .art { height:330px; display:flex; align-items:flex-end; justify-content:center; }
+  .label { text-align:center; }
+  .label b { display:block; font-size:30px; font-weight:800; letter-spacing:-.5px; }
+  .label small { display:block; margin-top:6px; font-size:22px; color:var(--ink2); font-weight:500; }
+  .vs { align-self:center; font-size:30px; font-weight:800; color:#9AA3B5; margin-bottom:120px; }
+  .stat { position:absolute; top:965px; left:80px; right:80px; background:var(--navy); color:#fff; border-radius:28px; padding:34px 44px; display:flex; align-items:center; gap:34px; }
+  .stat .n { font-family:"Inter Display","Inter",sans-serif; font-size:96px; font-weight:800; letter-spacing:-3px; line-height:1; white-space:nowrap; }
+  .stat .n sup { font-size:48px; vertical-align:30px; margin-left:2px; color:#8FB3FF; }
+  .stat p { font-size:30px; line-height:1.3; font-weight:600; }
+  .stat p span { display:block; font-size:21px; font-weight:500; color:#B8C4DD; margin-top:6px; }
+  .pills { position:absolute; top:1158px; left:80px; display:flex; gap:14px; }
+  .pill { font-size:21px; font-weight:700; padding:10px 18px; border-radius:999px; background:#E7EDF9; color:var(--navy); }
+  .note { position:absolute; left:80px; right:80px; bottom:30px; font-size:14.5px; line-height:1.4; color:#6B7486; }
+</style></head>
+<body>
+  <div class="glow"></div>
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 64 56" aria-hidden="true"><g fill="#0B1B3F"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>
+      <b>Bird</b><span>S 4B</span>
+    </div>
+    <div class="tag"><span class="tri"><i></i><i></i><i></i></span>Conçu en France</div>
+  </header>
+
+  <h1>Une goutte,<br><em>pas un verre.</em></h1>
+  <p class="lead">Pour un mail, une synthèse ou un tableau, inutile de mobiliser un géant. Bird fait le travail du quotidien avec une fraction du calcul.</p>
+
+  <div class="scene">
+    <div class="col">
+      <div class="art">
+        <svg width="120" height="160" viewBox="0 0 120 160" aria-hidden="true">
+          <defs><linearGradient id="d" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8FC0FF"/><stop offset="1" stop-color="#1E5BD8"/></linearGradient></defs>
+          <path d="M60 6C60 6 14 66 14 104a46 46 0 0 0 92 0C106 66 60 6 60 6z" fill="url(#d)"/>
+          <path d="M38 104c0-14 8-28 14-38" stroke="#fff" stroke-opacity=".7" stroke-width="7" stroke-linecap="round" fill="none"/>
+        </svg>
+      </div>
+      <div class="label"><b>Bird S 4B</b><small>4 milliards de paramètres</small></div>
+    </div>
+    <div class="vs">vs</div>
+    <div class="col">
+      <div class="art">
+        <svg width="250" height="330" viewBox="0 0 250 330" aria-hidden="true">
+          <defs>
+            <linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7DB0F5"/><stop offset="1" stop-color="#2F6FD6"/></linearGradient>
+            <clipPath id="g"><path d="M22 18h206l-24 290a16 16 0 0 1-16 14H62a16 16 0 0 1-16-14z"/></clipPath>
+          </defs>
+          <g clip-path="url(#g)">
+            <rect x="0" y="0" width="250" height="330" fill="#EEF3FB"/>
+            <path d="M0 70c40-12 80 12 125 0s85-12 125 0V330H0z" fill="url(#w)"/>
+            <path d="M0 70c40-12 80 12 125 0s85-12 125 0" stroke="#fff" stroke-opacity=".55" stroke-width="5" fill="none"/>
+          </g>
+          <path d="M22 18h206l-24 290a16 16 0 0 1-16 14H62a16 16 0 0 1-16-14z" fill="none" stroke="#0B1B3F" stroke-opacity=".28" stroke-width="6" stroke-linejoin="round"/>
+          <path d="M48 44l20 248" stroke="#fff" stroke-opacity=".55" stroke-width="9" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div class="label"><b>Un très grand modèle</b><small>des centaines de milliards de paramètres</small></div>
+    </div>
+  </div>
+
+  <div class="stat">
+    <div class="n">×100<sup>*</sup></div>
+    <p>moins de calcul pour chaque mot généré.<span>Petit par conviction. Et il le dit : relisez ce qui compte.</span></p>
+  </div>
+
+  <div class="pills"><span class="pill">Tout petit</span><span class="pill">Sobre</span><span class="pill">Français et anglais</span></div>
+
+  <p class="note">* Illustration. Rapport du calcul théorique par token (≈ 2 × paramètres actifs) entre Bird (4 milliards de paramètres) et un modèle dense de 400 milliards de paramètres, à conditions de service égales. La goutte et le verre sont une image : ce n'est pas une mesure de consommation d'eau. Consommation mesurée de Bird : 0,36 Wh pour 1 000 tokens générés (GPU NVIDIA A10G, traitement par lots, GPU seul).</p>
+</body></html>
