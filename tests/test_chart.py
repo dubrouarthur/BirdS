@@ -347,6 +347,20 @@ def test_agent_text_only_chart_answer_gets_one_nudge(tmp_path):
     assert run.charts and run.answer == "Voilà." and len(llm.prompts) == 3
 
 
+def test_follow_up_nudge_points_to_the_memo_and_an_empty_claim_is_replaced(tmp_path):
+    # live: « refais-le en courbe » after a bar chart, answered twice with "Voici la courbe :" and no call
+    memo_line = "[Mémo de ce tour — graphique affiché : « CA » (bar) colonnes T / CA — T1 120 ; T2 135]"
+    history = [
+        {"role": "user", "content": "graphique du CA"},
+        {"role": "assistant", "content": "Voilà.\n\n" + memo_line},
+    ]
+    agent, llm = make(tmp_path, ["Voici la courbe du CA :", "Voici la courbe du CA :"])
+    run = agent.run("refais-le en courbe", history=history)
+    nudge = json.loads(llm.prompts[1])["messages"][-1]["content"]
+    assert "memo of your previous answer" in nudge and '"type": "line"' in nudge
+    assert run.answer.startswith("Je n'ai pas pu afficher le graphique")
+
+
 def test_no_nudge_for_questions_about_charts(tmp_path):
     agent, llm = make(tmp_path, ["Un histogramme montre la répartition d'une variable."])
     agent.run("Explique ce qu'est un histogramme en statistiques.")

@@ -68,6 +68,35 @@ _CHART_ASK = re.compile(
     r"plotting|barres?|secteurs|visualis\w*|visualiz\w*|repr[ée]sent\w* graphiquement)\b",
     re.I,
 )
+NO_CHART = {
+    "fr": "Je n'ai pas pu afficher le graphique cette fois. Redemandez-le en redonnant les chiffres.",
+    "en": "I could not show the chart this time. Ask again, with the figures.",
+}
+# An answer that presents a chart ("Voici la courbe du CA :") although none was shown.
+_CHART_CLAIM = re.compile(
+    r"\b(?:voici|voil[àa]|ci-dessous|here(?: is|'s)|below)\b.{0,30}\b(?:graphique|graphe|courbe|camembert|diagramme|"
+    r"histogramme|chart|graph|plot)",
+    re.I | re.S,
+)
+_TYPE_WORDS = (("line", r"courbe|line|évolution|evolution"), ("pie", r"camembert|secteurs|pie|donut"),
+               ("bar", r"barres?|bâtons|histogramme|bar"))  # fmt: skip
+
+
+def chart_nudge(request: str, messages: list[dict]) -> str:
+    """NO_CHART_NUDGE, plus what a follow-up ("refais-le en courbe") needs: where the data is, and the type asked.
+    Live model, « refais-le en courbe » after a bar chart: reminded with the bare nudge, it wrote "Voici la courbe :"
+    again without calling the tool."""
+    out = NO_CHART_NUDGE
+    if any(
+        "graphique affiché :" in str(m.get("content")) or "chart shown :" in str(m.get("content")) for m in messages
+    ):
+        out += " The earlier chart's columns and rows are in the memo of your previous answer: reuse them."
+    kind = next((k for k, rx in _TYPE_WORDS if re.search(rf"\b(?:{rx})\b", request or "", re.I)), None)
+    if kind:
+        out += f' Use "type": "{kind}".'
+    return out
+
+
 # "Explique ce qu'est un histogramme": a question about charts, not a request for one (no nudge).
 _ABOUT_CHARTS = re.compile(
     r"^\s*(?:explique|expliquez|explain|d[ée]finis|define|qu['’]est[- ]ce|what (?:is|are)|c['’]est quoi)\b", re.I
@@ -507,9 +536,16 @@ class Agent:
                                 "reasoning_content": parsed["reasoning"],
                             }
                         )
-                        messages.append({"role": "tool", "content": NO_CHART_NUDGE})
+                        messages.append({"role": "tool", "content": chart_nudge(ctx.request, messages)})
                         gen += 1
                         continue
+                    if (
+                        run.stop_reason == "answer"
+                        and chart_ask(ctx.request)
+                        and not ctx.charts
+                        and _CHART_CLAIM.search(content)
+                    ):
+                        content = NO_CHART[run.lang]  # "Voici la courbe :" with no chart: say so, plainly
                     break
                 if gen == cfg.max_steps - 1:
                     run.stop_reason = "max_steps"  # the last allowed generation still asks for tools: they are not run
