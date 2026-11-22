@@ -552,6 +552,7 @@ function filePreview(preview) {
                 h("td", {
                   class: /^-?[\d\s.,]+$/.test(String(c)) ? "num al-right" : "",
                   text: String(c),
+                  title: String(c), // the whole cell on hover: the preview shows one line of it
                 }),
               ),
             ),

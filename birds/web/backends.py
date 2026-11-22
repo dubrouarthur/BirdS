@@ -213,7 +213,11 @@ def inline_file(path: Path, preview: dict | None, limit: int) -> dict:
 def file_preview(tool: str, args: dict) -> dict | None:
     """What a make_* call asked for, trimmed, so the UI can show the outline before the download."""
     a = args if isinstance(args, dict) else {}
-    cut = lambda v, n: str(v if v is not None else "")[:n]  # noqa: E731
+    def cut(v, n: int) -> str:
+        """At most n characters; a cut text ends with '…', so a sliced cell never looks like a broken file."""
+        s = str(v if v is not None else "")
+        return s if len(s) <= n else s[: n - 1].rstrip() + "…"
+
     if tool == "make_slides":
         slides = [
             {
@@ -243,7 +247,7 @@ def file_preview(tool: str, args: dict) -> dict | None:
             "kind": "sheet",
             "title": cut(a.get("title"), 160),
             "columns": [cut(c, 60) for c in (a.get("columns") or [])[:12]],
-            "rows": [[cut(c, 60) for c in r[:12]] for r in rows[:8]],
+            "rows": [[cut(c, 160) for c in r[:12]] for r in rows[:8]],
             "total_rows": len(rows),
         }
     return None

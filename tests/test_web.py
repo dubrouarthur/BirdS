@@ -585,7 +585,7 @@ def test_sanitize_filename():
 def test_file_preview_is_trimmed():
     rows = [[i, "x" * 200] for i in range(50)]
     sheet = file_preview("make_sheet", {"title": "T", "columns": ["a", "b"], "rows": rows})
-    assert sheet["total_rows"] == 50 and len(sheet["rows"]) == 8 and len(sheet["rows"][0][1]) == 60
+    assert sheet["total_rows"] == 50 and len(sheet["rows"]) == 8 and len(sheet["rows"][0][1]) == 160 and sheet["rows"][0][1].endswith("…")
     slides = file_preview("make_slides", {"title": "T", "slides": [{"title": "S", "bullets": ["b"] * 20}]})
     assert slides["kind"] == "slides" and len(slides["slides"][0]["bullets"]) == 14
     assert file_preview("draft_email", {}) is None and file_preview("make_slides", "not a dict")["slides"] == []
@@ -1144,3 +1144,13 @@ def test_demo_routing_needs_explicit_markers_and_formats_win(text, expected, nev
         assert got == expected
     if never:
         assert got != never
+def test_sheet_preview_cells_end_with_an_ellipsis_when_cut():
+    from birds.web.backends import file_preview
+
+    long = "mot " * 50  # 200 characters
+    p = file_preview("make_sheet", {"title": "T", "columns": ["A", "B"], "rows": [[long, "court"]]})
+    cell, short = p["rows"][0]
+    assert cell.endswith("…") and len(cell) <= 160 and cell.startswith("mot mot")
+    assert short == "court"
+    slides = file_preview("make_slides", {"title": "x" * 300, "slides": []})
+    assert slides["title"].endswith("…") and len(slides["title"]) == 160

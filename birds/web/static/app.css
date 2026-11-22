@@ -1686,6 +1686,13 @@ details[open] > summary > .chev {
 .sheet-preview {
   font-size: 0.86rem;
 }
+/* a long cell stays on one line with an ellipsis (its whole text is in the title): the preview never looks cut */
+.sheet-preview td {
+  max-inline-size: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .email-body {
   margin: 0 14px;
   padding: 12px 14px;
