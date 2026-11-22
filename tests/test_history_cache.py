@@ -158,7 +158,7 @@ def test_u8_user_event_and_worst_case_extra():
     assert kinds.index("user") < kinds.index("answer")
     user = events[kinds.index("user")]["content"]
     assert user == json.loads(llm.prompts[0])["messages"][-1]["content"] == "Lis\n\n[Fichier joint : notes.txt]"
-    names = [("n" * 160, "T" * 4000)] * 3
+    names = [("n" * 160, "T" * (IMAGE_TEXT_CHARS + 500))] * 3
     _, _, sent, _ = prepare_turn([{"role": "user", "content": ""}], "fr", "fr", ["a" * 160] * 4, names, 6000, 3168)
     assert len(sent) <= user_sent_extra(Settings()) and sent.count("T" * IMAGE_TEXT_CHARS) == 3
     assert "T" * (IMAGE_TEXT_CHARS + 1) not in sent and "[Donnée externe" in sent

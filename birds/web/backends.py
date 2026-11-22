@@ -908,6 +908,16 @@ _IMAGE_PROMPT = {
     "word for word (tables in Markdown), then one or two sentences on what the image shows. Invent nothing: write "
     "[illegible] for what you cannot read.",
 }
+_OCR_PROMPT = {
+    "fr": "Recopie exactement tout le texte de cette image, dans l'ordre de lecture, de haut en bas : en-têtes, "
+    "adresses, dates, montants, notes et pieds de page compris. Garde les retours à la ligne et les paragraphes ; "
+    "les tableaux en Markdown. Ne résume pas, ne décris pas l'image, n'ajoute aucun commentaire. Écris [illisible] "
+    "seulement pour un mot que tu ne peux vraiment pas lire.",
+    "en": "Copy out exactly all the text of this image, in reading order, top to bottom: headers, addresses, dates, "
+    "amounts, notes and footers included. Keep line breaks and paragraphs; tables in Markdown. Do not summarise, do "
+    "not describe the image, add no comment. Write [illegible] only for a word you really cannot read.",
+}
+MAX_SCAN_PAGES = 6  # scanned PDF pages read as images in one request (about 10 s each on one GPU)
 _IMAGE_NOTE = {"fr": "Image jointe", "en": "Attached image"}
 _SEARCH_CODES = {
     "search_quota": ("Quota de recherche atteint", "Search quota reached"),
@@ -921,7 +931,7 @@ _SEARCH_CODES = {
 }
 
 
-IMAGE_TEXT_CHARS = 2400  # hard cap of one image transcription, applied before it is used anywhere
+IMAGE_TEXT_CHARS = 6000  # hard cap of one image transcription (a dense A4 page), applied before any use
 
 
 def own_words(content: str) -> str:
@@ -936,7 +946,8 @@ def own_words(content: str) -> str:
 
 
 _OCR_ASK = re.compile(
-    r"\b(?:ocr|transcri\w*|retranscri\w*|recopie\w*|d[ée]chiffre\w*|extrai\w*|extract\w*|copy|lis|lire|read)\b"
+    r"\b(?:ocr|transcri\w*|retranscri\w*|recopi\w*|d[ée]chiffr\w*)\b"
+    r"|\b(?:extrai\w*|extract\w*|copy|copie\w*|r[ée]cup[èe]r\w*|sors|donne|give)\b.{0,16}\b(?:texte|text)\b"
     r"|qu.est.ce qu(?:i est |.il y a d.)[ée]crit|que dit|what does .{0,20}say|what.s written",
     re.I,
 )
@@ -960,6 +971,38 @@ def ocr_only(words: str) -> bool:
     if _OTHER_WORK.search(_OCR_ASK.sub(" ", w)) or _FILE_ASK.search(w) or _NEEDS_WEB.search(w):
         return False
     return True
+
+
+def guard_truncate(text: str) -> str:
+    from birds.harness import guard
+
+    return guard.truncate(text or "", IMAGE_TEXT_CHARS)
+
+
+def document_text(path: Path, lang: str) -> str:
+    """An attachment's text for the user (a pure OCR request): text layer and scanned pages read as images,
+    page by page; unreadable pages are named, never filled in."""
+    import json
+
+    from birds.harness.tools.files import READERS, SCANNED_CHARS, pdf_pages, pdf_sidecar
+
+    try:
+        if path.suffix.lower() == ".pdf":
+            pages = pdf_pages(path)
+            side = pdf_sidecar(path)
+            read = json.loads(side.read_text(encoding="utf-8")) if side.is_file() else {}
+            parts = []
+            for i, text in enumerate(pages, 1):
+                body = text if len(text) >= SCANNED_CHARS else (read.get(str(i)) or "").strip()
+                if not body:
+                    body = _t(lang, "_(page scannée : texte illisible)_", "_(scanned page: text could not be read)_")
+                parts.append((f"**Page {i}**\n\n" if len(pages) > 1 else "") + body)
+            return "\n\n".join(parts)
+        if path.suffix.lower() in READERS:
+            return READERS[path.suffix.lower()](path)
+        return path.read_bytes().decode("utf-8", errors="replace")
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 _OCR_HEAD = {
@@ -1141,17 +1184,63 @@ class HarnessBackend:
         )
         return run
 
+    def _read_scanned_pdfs(self, paths, ctx: RunContext, lang: str, first_index: int, question: str, salt):
+        """Pages of attached PDFs that have no text layer (scans, photos) are read by the vision model, at most
+        MAX_SCAN_PAGES per request and while time remains; read_file then returns what was read (sidecar file).
+        Pages left unread are reported as unknown by read_file, so the model never fills them in."""
+        import json
+
+        from birds.harness.tools.files import pdf_pages, pdf_scanned, pdf_sidecar, render_pdf_page
+
+        usages, budget = [], MAX_SCAN_PAGES
+        for p in paths:
+            if p.suffix.lower() != ".pdf" or not self.images or budget <= 0:
+                continue
+            try:
+                scanned = pdf_scanned(pdf_pages(p))
+            except Exception:  # noqa: BLE001 - an unreadable PDF is reported by read_file itself
+                continue
+            read = {}
+            for number in scanned[:budget]:
+                if ctx.seconds_left() < 45:
+                    break
+                try:
+                    url = render_pdf_page(p, number)
+                except Exception:  # noqa: BLE001 - a page that cannot be rendered stays unknown
+                    continue
+                name = _t(lang, f"{p.name}, page {number}", f"{p.name}, page {number}")
+                texts, used = self._read_images(
+                    [{"name": name, "url": url}], ctx, lang, first_index + len(usages), question, salt, verbatim=True
+                )
+                usages += used
+                budget -= 1
+                if texts and texts[0][1]:
+                    read[str(number)] = guard_truncate(texts[0][1])
+            if read:
+                pdf_sidecar(p).write_text(json.dumps(read, ensure_ascii=False), encoding="utf-8")
+        return usages
+
     def _read_images(
-        self, request: ChatRequest, ctx: RunContext, lang: str, first_index: int, question: str, salt: str | None = None
+        self,
+        images: list[dict],
+        ctx: RunContext,
+        lang: str,
+        first_index: int,
+        question: str,
+        salt: str | None = None,
+        verbatim: bool = False,
     ):
-        """Transcribe each attached image (one chat-completions call per image, no tools). Returns (texts, usages)."""
+        """Transcribe each image (one chat-completions call per image, no tools). Returns (texts, usages).
+
+        ``verbatim``: the exact text only (an OCR request, or a page of a scanned PDF), with room for a full page;
+        otherwise the text plus one or two sentences on what the image shows."""
         texts, usages = [], []
-        for k, img in enumerate(request.images):
+        for k, img in enumerate(images):
             index = first_index + k
             args = {"name": img["name"]}
             ctx.check()
             ctx.emit(step_event(index, "read_image", args, "running"))
-            prompt = _IMAGE_PROMPT[lang] + (
+            prompt = (_OCR_PROMPT if verbatim else _IMAGE_PROMPT)[lang] + (
                 f"\n\n(Demande de l'utilisateur, pour contexte : {question[:300]})"
                 if lang == "fr"
                 else f"\n\n(User request, for context: {question[:300]})"
@@ -1168,7 +1257,7 @@ class HarnessBackend:
             t0 = time.monotonic()
             out = self.llm.chat(
                 messages,
-                700,
+                1800 if verbatim else 900,
                 on_status=lambda state, info: ctx.emit({"type": "status", "state": state, **(info or {})}),
                 deadline=ctx.deadline - 20,
                 **({"extra": {"cache_salt": salt}} if salt else {}),
@@ -1249,26 +1338,33 @@ class HarnessBackend:
                 last = request.messages[-1]
                 conv = conv_lang(request)
                 rl = run_lang(last["content"], conv)
+                words = own_words(last["content"])
+                pure_ocr = ocr_only(words)
                 if request.images:
                     if not self.images:
                         raise HarnessUnavailable(
                             _t(lang, "ce modèle ne peut pas lire d'images ici", "this model cannot read images here")
                         )
                     image_texts, image_usage = self._read_images(
-                        request, ctx, rl, 0, last["content"], salt=cfg.cache_salt
+                        request.images, ctx, rl, 0, last["content"], salt=cfg.cache_salt, verbatim=pure_ocr
                     )
                     for name, text in image_texts:  # read_file("photo.jpg") returns what was read in it
                         (workspace / (sanitize_filename(name) + ".txt")).write_text(
                             guard.truncate(text or "", IMAGE_TEXT_CHARS), encoding="utf-8"
                         )
+                scan_usage = self._read_scanned_pdfs(
+                    [workspace / n for n in names], ctx, rl, len(request.images), last["content"], cfg.cache_salt
+                )
+                image_usage += scan_usage
+                offset = len(request.images) + len(scan_usage)  # the agent's steps come after these
                 system, kept, user_sent, hist_stats = prepare_turn(
                     request.messages, conv, rl, names, image_texts, self.history_tokens, self.msg_cap_tokens
                 )
                 state_ui = len(kept) + 1  # index of this turn's user message in the agent's messages
                 ctx.emit({"type": "user", "content": user_sent})
-                words = own_words(last["content"])
-                if image_texts and not names and ocr_only(words):
-                    run = self._ocr_answer(image_texts, image_usage, rl, cfg, time.monotonic() - t0)
+                if pure_ocr and (image_texts or names):
+                    docs = [(Path(n).name, document_text(workspace / n, rl)) for n in names]
+                    run = self._ocr_answer(image_texts + docs, image_usage, rl, cfg, time.monotonic() - t0)
                     image_usage = []  # already counted in run.report
                 else:
                     run = agent.run(

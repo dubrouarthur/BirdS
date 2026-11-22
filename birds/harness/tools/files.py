@@ -31,9 +31,65 @@ def _need(module: str, package: str):
         raise ToolError(f"this file type needs the '{package}' package, which is not installed") from None
 
 
-def _pdf(p: Path) -> str:
+SCANNED_CHARS = 40  # a PDF page with less extractable text than this is treated as a scanned image
+
+
+def pdf_pages(p: Path) -> list[str]:
+    """The text layer of each page ('' for a scanned page)."""
     reader = _need("pypdf", "pypdf").PdfReader(str(p))
-    return "\n\n".join(f"[page {i}]\n{(page.extract_text() or '').strip()}" for i, page in enumerate(reader.pages, 1))
+    return [(page.extract_text() or "").strip() for page in reader.pages]
+
+
+def pdf_scanned(pages: list[str]) -> list[int]:
+    """1-based numbers of the pages that carry (almost) no text: scans or photos to be read as images."""
+    return [i for i, t in enumerate(pages, 1) if len(t) < SCANNED_CHARS]
+
+
+def pdf_sidecar(p: Path) -> Path:
+    """Where the transcriptions of a PDF's scanned pages are kept for read_file (written by the web backend)."""
+    return p.with_name(f".{p.name}.pages.json")
+
+
+def render_pdf_page(p: Path, number: int, max_side: int = 1568) -> str:
+    """One page as a JPEG data URL for the vision model (pypdfium2; long side ``max_side`` px)."""
+    import base64
+    import io
+
+    pdfium = _need("pypdfium2", "pypdfium2")
+    doc = pdfium.PdfDocument(str(p))
+    try:
+        page = doc[number - 1]
+        w, h = page.get_size()
+        image = page.render(scale=max_side / max(w, h)).to_pil().convert("RGB")
+    finally:
+        doc.close()
+    buf = io.BytesIO()
+    image.save(buf, "JPEG", quality=88)
+    return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def _pdf(p: Path) -> str:
+    import json
+
+    pages = pdf_pages(p)
+    side = pdf_sidecar(p)
+    read = json.loads(side.read_text(encoding="utf-8")) if side.is_file() else {}
+    parts, unknown = [], []
+    for i, text in enumerate(pages, 1):
+        if len(text) >= SCANNED_CHARS:
+            parts.append(f"[page {i}]\n{text}")
+        elif read.get(str(i)):
+            parts.append(f"[page {i}, scanned, read as an image]\n{read[str(i)].strip()}")
+        else:
+            unknown.append(i)
+            parts.append(f"[page {i}: scanned image, its text could not be read]")
+    if unknown:
+        parts.insert(
+            0,
+            f"Note: {len(unknown)} page(s) of this PDF ({', '.join(map(str, unknown[:20]))}) are images without a "
+            "text layer and could not be read. Their content is unknown: say so, never guess or invent it.",
+        )
+    return "\n\n".join(parts)
 
 
 def _docx(p: Path) -> str:

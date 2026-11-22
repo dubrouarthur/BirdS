@@ -393,7 +393,12 @@ def test_read_pdf(tmp_path):
     w.add_blank_page(width=200, height=200)
     with open(tmp_path / "a.pdf", "wb") as f:
         w.write(f)
-    assert TOOLS["read_file"]({"path": "a.pdf"}, ctx(tmp_path)).startswith("[page 1]")
+    blank = TOOLS["read_file"]({"path": "a.pdf"}, ctx(tmp_path))  # a page with no text layer, like a scan
+    assert blank.startswith("Note: 1 page(s)") and "never guess" in blank and "[page 1: scanned image" in blank
+    (tmp_path / ".a.pdf.pages.json").write_text('{"1": "Texte lu sur la page scannée."}')
+    assert "[page 1, scanned, read as an image]\nTexte lu sur la page scannée." in TOOLS["read_file"](
+        {"path": "a.pdf"}, ctx(tmp_path)
+    )
     (tmp_path / "broken.pdf").write_text("not a pdf")
     with pytest.raises(guard.ToolError, match="could not read"):
         TOOLS["read_file"]({"path": "broken.pdf"}, ctx(tmp_path))
