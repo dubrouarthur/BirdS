@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Bird — vidéo</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { width:1080px; height:1920px; overflow:hidden; }
+  body { background:#0B1B3F; color:#fff; font-family:"Inter","Inter Display",system-ui,sans-serif; position:relative; }
+  #bg { position:absolute; inset:0; background:radial-gradient(90% 60% at 50% 40%, #16357A 0%, #0B1B3F 60%, #060E24 100%); }
+  .layer { position:absolute; inset:0; opacity:0; }
+  .kick { position:absolute; left:90px; right:90px; font-size:34px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:#8FB3FF; }
+  .big { position:absolute; left:90px; right:90px; font-family:"Inter Display","Inter",sans-serif; font-weight:800; letter-spacing:-4px; line-height:1; }
+  .bubble { position:absolute; left:90px; right:90px; top:820px; background:rgba(255,255,255,.08); border:2px solid rgba(255,255,255,.2); border-radius:40px 40px 40px 12px; padding:44px 52px; font-size:64px; font-weight:700; min-height:180px; }
+  .caret { display:inline-block; width:5px; height:64px; background:#8FB3FF; vertical-align:-8px; margin-left:6px; }
+  .lab { position:absolute; left:0; right:0; text-align:center; font-size:40px; font-weight:700; }
+  .lab small { display:block; font-size:30px; font-weight:500; color:#A9B7D6; margin-top:10px; }
+  .tri { display:inline-flex; height:22px; width:48px; border-radius:4px; overflow:hidden; vertical-align:2px; margin-right:16px; } .tri i { flex:1; } .tri i:nth-child(1){background:#3B5BDB} .tri i:nth-child(2){background:#fff} .tri i:nth-child(3){background:#E03131}
+</style></head>
+<body>
+<div id="bg"></div>
+
+<div class="layer" id="s1">
+  <div class="kick" style="top:600px">Un mail de trois mots</div>
+  <div class="bubble"><span id="typed"></span><span class="caret" id="caret"></span></div>
+</div>
+
+<div class="layer" id="s2">
+  <div class="big" style="top:250px; font-size:96px">Pour ça, on ouvre<br>tout le robinet.</div>
+  <svg id="glass" style="position:absolute; left:290px; top:640px" width="500" height="820" viewBox="0 0 500 820">
+    <defs>
+      <linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7DB0F5"/><stop offset="1" stop-color="#2C5DB8"/></linearGradient>
+      <clipPath id="gc"><path d="M30 20h440l-42 760a24 24 0 0 1-24 22H96a24 24 0 0 1-24-22z"/></clipPath>
+    </defs>
+    <g clip-path="url(#gc)">
+      <rect x="0" y="0" width="500" height="820" fill="rgba(255,255,255,.05)"/>
+      <g id="water"><path id="wave" d="M0 0c80-18 160 18 250 0s170-18 250 0V900H0z" fill="url(#w)"/></g>
+    </g>
+    <path d="M30 20h440l-42 760a24 24 0 0 1-24 22H96a24 24 0 0 1-24-22z" fill="none" stroke="#C5CEDF" stroke-opacity=".55" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M70 60l36 700" stroke="#fff" stroke-opacity=".16" stroke-width="14" stroke-linecap="round"/>
+  </svg>
+  <div class="lab" style="top:1520px">Un modèle géant<small>des centaines de milliards de paramètres</small></div>
+</div>
+
+<div class="layer" id="s3">
+  <div class="big" style="top:250px; font-size:120px">Une goutte<br><span style="color:#8FB3FF">suffit.</span></div>
+  <svg id="drop" style="position:absolute; left:440px; top:0" width="200" height="270" viewBox="0 0 120 160">
+    <defs><radialGradient id="d" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#E3EEFF"/><stop offset=".45" stop-color="#8FB3FF"/><stop offset="1" stop-color="#2F6FD6"/></radialGradient></defs>
+    <path d="M60 6C60 6 14 66 14 104a46 46 0 0 0 92 0C106 66 60 6 60 6z" fill="url(#d)"/>
+    <path d="M38 104c0-14 8-28 14-38" stroke="#fff" stroke-opacity=".8" stroke-width="7" stroke-linecap="round" fill="none"/>
+  </svg>
+  <svg id="ripple" style="position:absolute; left:290px; top:1270px" width="500" height="120" viewBox="0 0 500 120"><ellipse id="rip1" cx="250" cy="60" rx="40" ry="10" fill="none" stroke="#8FB3FF" stroke-width="4"/><ellipse id="rip2" cx="250" cy="60" rx="20" ry="5" fill="none" stroke="#8FB3FF" stroke-width="3"/></svg>
+  <div class="lab" style="top:1460px">Bird<small>4 milliards de paramètres</small></div>
+</div>
+
+<div class="layer" id="s4">
+  <svg style="position:absolute; left:390px; top:520px" width="300" height="262" viewBox="0 0 64 56"><g fill="#fff"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>
+  <div class="big" style="top:860px; text-align:center; font-size:150px">Bird <span style="color:#8FB3FF; font-size:96px; letter-spacing:-2px">S 4B</span></div>
+  <div class="lab" style="top:1060px; font-size:52px; font-weight:800">Un tout petit modèle,<br>conçu en France.</div>
+  <div class="lab" style="top:1290px; font-size:34px; font-weight:600; color:#A9B7D6"><span class="tri"><i></i><i></i><i></i></span>Petit par conviction.</div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = (x) => { x = clamp(x); return x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x + 2, 3)/2; };
+const fade = (t, a, b, c, d) => clamp((t - a) / (b - a)) * (1 - clamp((t - c) / (d - c)));
+const TEXT = "Réponds : « Bien reçu, merci. »";
+window.render = (t) => {
+  // scene 1: 0 – 3.6 s
+  $("s1").style.opacity = fade(t, 0, .5, 3.2, 3.6);
+  const n = Math.round(clamp((t - .6) / 1.8) * TEXT.length);
+  $("typed").textContent = TEXT.slice(0, n);
+  $("caret").style.opacity = (n < TEXT.length || Math.floor(t * 2.5) % 2 === 0) ? 1 : 0;
+  $("s1").style.transform = `translateY(${(1 - ease(t / .6)) * 40}px)`;
+  // scene 2: 3.4 – 7.6 s : glass fills
+  $("s2").style.opacity = fade(t, 3.4, 3.9, 7.2, 7.6);
+  const lvl = ease((t - 3.8) / 2.6);
+  const y = 800 - lvl * 700;
+  const ph = t * 3;
+  $("wave").setAttribute("d", `M0 ${y}c80 ${-18*Math.cos(ph)} 160 ${18*Math.cos(ph)} 250 0s170 ${-18*Math.cos(ph)} 250 0V900H0z`);
+  // scene 3: 7.4 – 11.4 s : one drop falls
+  $("s3").style.opacity = fade(t, 7.4, 7.8, 11.0, 11.4);
+  const fall = ease((t - 7.9) / 1.1);
+  $("drop").style.transform = `translateY(${-300 + fall * 1300}px)`;
+  const r = clamp((t - 9.0) / 1.2);
+  for (const [id, k] of [["rip1", 1], ["rip2", .6]]) {
+    const e = $(id); e.setAttribute("rx", 30 + r * 200 * k); e.setAttribute("ry", 8 + r * 40 * k); e.style.opacity = r > 0 ? (1 - r) : 0;
+  }
+  // scene 4: 11.2 – 15 s : end card
+  $("s4").style.opacity = fade(t, 11.2, 11.8, 99, 100);
+  $("s4").style.transform = `scale(${1.04 - .04 * ease((t - 11.2) / 1.2)})`;
+};
+render(0);
+</script>
+</body></html>
