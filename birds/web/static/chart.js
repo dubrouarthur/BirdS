@@ -77,6 +77,33 @@ export function textWidth(text) {
   return str.length * 6.6;
 }
 
+/** ``text`` cut with "…" to fit ``maxW`` px. */
+function fitText(text, maxW) {
+  let str = String(text);
+  if (textWidth(str) <= maxW) return str;
+  while (str.length > 1 && textWidth(`${str}…`) > maxW) str = str.slice(0, -1);
+  return `${str.trimEnd()}…`;
+}
+
+/** A label on at most 2 lines of ``maxW`` px (words kept whole when they fit). */
+function wrapLabel(label, maxW) {
+  const lines = [""];
+  for (const word of String(label).split(/\s+/).filter(Boolean)) {
+    const last = lines[lines.length - 1];
+    const cand = last ? `${last} ${word}` : word;
+    if (!last || textWidth(cand) <= maxW) lines[lines.length - 1] = cand;
+    else if (lines.length < 2) lines.push(word);
+    else lines[1] = cand;
+  }
+  return lines.map((l) => fitText(l, maxW));
+}
+
+/** Show every k-th tick label so that two labels never touch (at least 12px apart). */
+function tickStep(ticks, tf, spacing) {
+  const widest = Math.max(...ticks.map((tk) => textWidth(tf(tk))));
+  return Math.max(1, Math.ceil((widest + 12) / Math.max(1, spacing)));
+}
+
 /** Left margin that fits the longest y tick label (8px gap), within [36, 40% of the width]. */
 function leftFor(ticks, tf) {
   const widest = Math.max(...ticks.map((tk) => textWidth(tf(tk))));
@@ -252,11 +279,25 @@ function drawBars(spec, fmt) {
   const rowH =
     Math.max(22, Math.min(28, 240 / labels.length)) * Math.max(1, nS * 0.8);
   const tall = labels.length > 14; // ticks are repeated above the rows, so the scale stays in view
-  const m = { l: W < 600 ? 112 : 150, r: 40, t: tall ? 28 : 12, b: 32 };
-  const H = Math.round(m.t + m.b + rowH * labels.length + 8);
+  // labels on up to 2 lines in at most ~36% of the width (170px on a wide card); the margin fits the longest line
+  const wrapped = labels.map((l) => wrapLabel(l, W < 600 ? W * 0.36 - 14 : 170));
+  const twoLines = wrapped.some((w) => w.length > 1);
+  const rowHt = twoLines ? Math.max(rowH, 34) : rowH;
+  const widestLabel = Math.max(...wrapped.flat().map((l) => textWidth(l)));
+  const widestValue = valueLabels
+    ? Math.max(...vals.map((v) => textWidth(fmt(v))))
+    : 0;
+  const m = {
+    l: Math.round(widestLabel + 14),
+    r: Math.round(valueLabels ? widestValue + 12 : 16),
+    t: tall ? 28 : 12,
+    b: 32,
+  };
+  const H = Math.round(m.t + m.b + rowHt * labels.length + 8);
   const pw = W - m.l - m.r;
   const x = (v) => m.l + ((v - t0) / (t1 - t0)) * pw;
-  for (const tk of ticks) {
+  const every = tickStep(ticks, tf, pw / Math.max(1, ticks.length - 1));
+  for (const [k, tk] of ticks.entries()) {
     g.append(
       s("line", {
         class: "chart-grid",
@@ -266,6 +307,7 @@ function drawBars(spec, fmt) {
         y2: H - m.b,
       }),
     );
+    if (k % every) continue;
     g.append(
       s(
         "text",
@@ -289,7 +331,7 @@ function drawBars(spec, fmt) {
   }
   const bh = (rowH * 0.76) / nS;
   labels.forEach((label, i) => {
-    const y0 = m.t + rowH * i + (rowH - bh * nS) / 2;
+    const y0 = m.t + rowHt * i + (rowHt - bh * nS) / 2;
     const group = [];
     for (let j = 0; j < nS; j++) {
       const v = spec.rows[i][j + 1];
@@ -317,25 +359,31 @@ function drawBars(spec, fmt) {
         );
     }
     marks.push(group);
+    const lines = wrapped[i];
+    const cy = m.t + rowHt * i + rowHt / 2;
     g.append(
       s(
         "text",
         {
           class: "chart-label",
           x: m.l - 8,
-          y: m.t + rowH * i + rowH / 2 + 4,
+          y: lines.length > 1 ? cy - 3 : cy + 4,
           "text-anchor": "end",
         },
-        cut(label, W < 600 ? 16 : 22),
+        lines.length > 1
+          ? lines.map((line, k) =>
+              s("tspan", { x: m.l - 8, dy: k ? 14 : 0 }, line),
+            )
+          : lines[0],
       ),
     );
     hits.push({
       x: 0,
-      y: m.t + rowH * i,
+      y: m.t + rowHt * i,
       w: W,
-      h: rowH,
+      h: rowHt,
       tipX: 0.5,
-      tipY: (m.t + rowH * i) / H,
+      tipY: (m.t + rowHt * i) / H,
     });
   });
   g.append(
