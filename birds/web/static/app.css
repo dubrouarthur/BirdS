@@ -3441,6 +3441,18 @@ button.att-card {
   --w-paper: #f6f5f0;
   --w-ink: #0b1b3f;
   --w-blue: #1e5bd8;
+  --w-muted: #39435c;
+  --w-faint: #586078;
+  --w-surface: #fff;
+  --w-line: #e2e3e8;
+  --w-tag-line: #d9dce3;
+  --w-chip: #e2e9f8;
+  --w-chip-hover: #cfdcf6;
+  --w-cta-bg: #0b1b3f;
+  --w-cta-ink: #fff;
+  --w-warn-bg: #f8ecc8;
+  --w-warn-ink: #734700;
+  --w-warn-line: #e0cb8c;
   background: var(--w-paper);
   color: var(--w-ink);
 }
@@ -3488,7 +3500,7 @@ button.att-card {
   align-items: center;
   gap: 8px;
   padding: 5px 12px;
-  border: 1.5px solid #d9dce3;
+  border: 1.5px solid var(--w-tag-line);
   border-radius: 999px;
   font: 600 0.8rem var(--sans);
   white-space: nowrap;
@@ -3521,7 +3533,7 @@ button.att-card {
 .w-lead {
   font-size: 1rem;
   line-height: 1.45;
-  color: #39435c;
+  color: var(--w-muted);
 }
 .w-actions {
   display: flex;
@@ -3538,8 +3550,8 @@ button.att-card {
   min-block-size: 46px;
   padding-inline: 26px;
   border-radius: 999px;
-  background: var(--w-ink);
-  color: #fff;
+  background: var(--w-cta-bg);
+  color: var(--w-cta-ink);
   font-size: 1rem;
 }
 .w-pillars {
@@ -3552,9 +3564,9 @@ button.att-card {
   align-content: start;
   gap: 4px;
   padding: 12px;
-  border: 1px solid #e2e3e8;
+  border: 1px solid var(--w-line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--w-surface);
 }
 .w-picon {
   display: grid;
@@ -3563,7 +3575,7 @@ button.att-card {
   block-size: 30px;
   margin-block-end: 2px;
   border-radius: 9px;
-  background: #e2e9f8;
+  background: var(--w-chip);
   color: var(--w-blue);
 }
 .w-ptitle {
@@ -3572,7 +3584,7 @@ button.att-card {
 .w-ptext {
   font-size: 0.82rem;
   line-height: 1.4;
-  color: #39435c;
+  color: var(--w-muted);
 }
 .w-sub {
   font-weight: 650;
@@ -3592,24 +3604,24 @@ button.att-card {
   padding: 0 14px 0 10px;
   border: 0;
   border-radius: 999px;
-  background: #e2e9f8;
+  background: var(--w-chip);
   color: var(--w-ink);
   font: 600 0.88rem var(--sans);
   cursor: pointer;
 }
 .w-ex:hover,
 .w-ex:focus-visible {
-  background: #cfdcf6;
+  background: var(--w-chip-hover);
 }
 .w-ex .icon {
   color: var(--w-blue);
 }
 .w-deal {
   padding: 10px 12px;
-  border-inline-start: 3px solid #e0cb8c;
+  border-inline-start: 3px solid var(--w-warn-line);
   border-radius: 4px 10px 10px 4px;
-  background: #f8ecc8;
-  color: #734700;
+  background: var(--w-warn-bg);
+  color: var(--w-warn-ink);
   font-size: 0.88rem;
 }
 .w-privacy {
@@ -3617,45 +3629,44 @@ button.att-card {
   align-items: center;
   gap: 7px;
   font-size: 0.8rem;
-  color: #586078;
+  color: var(--w-faint);
 }
+/* dark welcome: only the tokens change (dark OS unless Light is chosen, and Dark chosen on any OS) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .welcome {
     --w-paper: #0f1729;
     --w-ink: #eef2fa;
     --w-blue: #8fb3ff;
+    --w-muted: #c5cddd;
+    --w-faint: #a9b3c8;
+    --w-surface: #16213a;
+    --w-line: #26324f;
+    --w-tag-line: #2c3854;
+    --w-chip: #1d2d55;
+    --w-chip-hover: #283c6e;
+    --w-cta-bg: #eef2fa;
+    --w-cta-ink: #0b1b3f;
+    --w-warn-bg: #2a2410;
+    --w-warn-ink: #f1d58a;
+    --w-warn-line: #6b5a22;
   }
 }
 :root[data-theme="dark"] .welcome {
   --w-paper: #0f1729;
   --w-ink: #eef2fa;
   --w-blue: #8fb3ff;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .welcome .w-lead,
-  :root:not([data-theme="light"]) .welcome .w-ptext {
-    color: #c5cddd;
-  }
-  :root:not([data-theme="light"]) .welcome .btn-cta {
-    background: #eef2fa;
-    color: #0b1b3f;
-  }
-  :root:not([data-theme="light"]) .welcome .w-pillar {
-    background: #16213a;
-    border-color: #26324f;
-  }
-  :root:not([data-theme="light"]) .welcome .w-tag {
-    border-color: #2c3854;
-  }
-  :root:not([data-theme="light"]) .welcome .w-deal {
-    background: #2e2614;
-    border-color: #8a6d24;
-    color: #f2d58f;
-  }
-  :root:not([data-theme="light"]) .welcome .w-ex,
-  :root:not([data-theme="light"]) .welcome .w-picon {
-    background: #1d2d55;
-  }
+  --w-muted: #c5cddd;
+  --w-faint: #a9b3c8;
+  --w-surface: #16213a;
+  --w-line: #26324f;
+  --w-tag-line: #2c3854;
+  --w-chip: #1d2d55;
+  --w-chip-hover: #283c6e;
+  --w-cta-bg: #eef2fa;
+  --w-cta-ink: #0b1b3f;
+  --w-warn-bg: #2a2410;
+  --w-warn-ink: #f1d58a;
+  --w-warn-line: #6b5a22;
 }
 @media (max-width: 520px) {
   .w-step {
