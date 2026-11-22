@@ -1615,15 +1615,22 @@ class Crew:
         user = self.message + ("\n\n" + context if context else "")
         run = agent.run(user, history=getattr(self, "kept", None) or None, system=self.system, thinking=self.thinking,
                         lang=self.lang, request_text=self.own, attached=self.attached)  # fmt: skip
-        if run.stop_reason == "confirm":
-            return run  # the single agent's own pause and resume (k: "harness")
         crew_steps = [s for _, s in sorted(self.steps, key=lambda x: x[0])]
+        single = list(run.usage)
         run.steps = crew_steps + run.steps
-        extra_busy = sum(float(u.get("busy_seconds") or u.get("seconds") or 0) for u in run.usage)
-        report = self._report(extra_usage=run.usage, extra_busy=extra_busy)
+        extra_busy = sum(float(u.get("busy_seconds") or u.get("seconds") or 0) for u in single)
+        report = self._report(extra_usage=single, extra_busy=extra_busy)
         report["tool_calls"] = len(run.steps)
-        run.usage = list(self.usage) + run.usage
+        run.usage = list(self.usage) + single
         run.report = report
+        if run.stop_reason == "confirm" and isinstance(run.state, dict):
+            # the single agent's own pause (k: "harness"): its signed state carries the team's work as ONE usage
+            # entry whose busy time is the union of the team's parallel calls, so the resumed request's energy
+            # report counts the team once, not as the sum of its calls and not zero
+            team = {"role": "crew", "busy_seconds": self._union(), "seconds": self._union(),
+                    "prompt_tokens": sum(int(u.get("prompt_tokens") or 0) for u in self.usage),
+                    "completion_tokens": sum(int(u.get("completion_tokens") or 0) for u in self.usage)}  # fmt: skip
+            run.state["usage"] = ([team] if self.usage else []) + list(run.state.get("usage") or [])
         return run
 
     # -------------------------------------------------------------- resume after a confirmation

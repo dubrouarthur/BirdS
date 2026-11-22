@@ -872,6 +872,24 @@ def test_an_exception_hands_over_to_the_single_agent(tmp_path, monkeypatch):
     assert run.answer == "Réponse simple." and events[-1]["reason"] == "error"
 
 
+def test_a_hand_over_that_pauses_keeps_the_team_in_the_energy_report(tmp_path, monkeypatch):
+    from birds.harness.agent import Run
+
+    def single(self, user, **kw):
+        run = Run(lang="fr", stop_reason="confirm")
+        run.usage = [{"prompt_tokens": 100, "completion_tokens": 10, "busy_seconds": 2.0, "seconds": 2.0}]
+        run.pending = {"tool": "draft_email", "arguments": {}}
+        run.state = {"usage": run.usage, "steps": [], "messages": []}
+        return run
+
+    monkeypatch.setattr(Agent, "run", single)
+    run, llm, events = run_deck(tmp_path, deck_script(facts=False), delay=0.05)
+    assert run.stop_reason == "confirm" and len(run.usage) == 3  # 2 extractors + the single agent's call
+    team = run.state["usage"][0]
+    assert team["role"] == "crew" and 0.05 <= team["busy_seconds"] < 0.2 and team["prompt_tokens"] > 0
+    assert run.report["gpu_seconds_union"] >= 2.0 and run.report["crew_calls"] == 3
+
+
 def test_without_time_left_the_answer_is_an_honest_abstention(tmp_path):
     run, llm, events = run_deck(tmp_path, deck_script(facts=False), deadline=time.monotonic() + 30)
     assert "chiffres inventés" in run.answer and not run.files
