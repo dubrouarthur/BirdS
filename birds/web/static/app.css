@@ -4264,3 +4264,9 @@ button.att-card {
     line-height: 1.35;
   }
 }
+.stat .tag,
+.fig .tag {
+  justify-self: start;
+  align-self: center;
+  inline-size: max-content;
+}

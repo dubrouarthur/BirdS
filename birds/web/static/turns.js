@@ -850,7 +850,8 @@ function renderReceipt(turn, isLast = true) {
       },
     },
     icon("leaf"),
-    h("span", { class: "receipt-chip-text num" }, `${fmtInt(u.prompt_tokens + u.completion_tokens)} ${t("meter.tokens")} · ${fmtSeconds(u.seconds)} · ${energy}`),
+    h("span", { class: "receipt-chip-text num" }, `${u.tokens_kind === "estimated" ? "≈ " : ""}${fmtInt(u.prompt_tokens + u.completion_tokens)} ${t("meter.tokens")} · ${fmtSeconds(u.seconds)} · ${energy}`),
+    u.tokens_kind === "scripted" && h("span", { class: "tag tag-scripted", text: t("kind.scripted") }),
     icon("chevron", "chev"),
   );
   return h("div", { class: `receipt-fold${open ? " is-open" : ""}` }, chip, open && h("div", { id }, fullReceipt(turn)));
@@ -859,10 +860,10 @@ function renderReceipt(turn, isLast = true) {
 function fullReceipt(turn) {
   const u = turn.usage;
   const energy = hasEnergy(u);
-  const figure = (value, label, sub, cls = "") => {
+  const figure = (value, label, sub, cls = "", tag = null) => {
     const v = h("span", { class: "fig-value num", text: value });
     const l = h("span", { class: "fig-label", text: cls.includes("fig-none") ? `${label} :` : label });
-    return h("div", { class: `fig ${cls}` }, cls.includes("fig-none") ? [l, v] : [v, l], sub && h("span", { class: "fig-sub", text: sub }));
+    return h("div", { class: `fig ${cls}` }, cls.includes("fig-none") ? [l, v] : [v, l], tag, sub && h("span", { class: "fig-sub", text: sub }));
   };
   const chips = [
     u.tool_calls === 0
@@ -885,12 +886,14 @@ function fullReceipt(turn) {
         "div",
         { class: "figs" },
         figure(
-          fmtInt(u.prompt_tokens + u.completion_tokens),
+          `${u.tokens_kind === "estimated" ? "≈ " : ""}${fmtInt(u.prompt_tokens + u.completion_tokens)}`,
           t("meter.tokens"),
           t("meter.tokens.split", {
             in: fmtInt(u.prompt_tokens),
             out: fmtInt(u.completion_tokens),
           }),
+          "",
+          u.tokens_kind === "scripted" && h("span", { class: "tag tag-scripted", text: t("kind.scripted") }),
         ),
         figure(fmtSeconds(u.seconds), t("meter.time"), turn.wake_s > 0 ? t("meter.wake", { s: fmtSeconds(turn.wake_s) }) : null),
         energy

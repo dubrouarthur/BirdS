@@ -263,6 +263,8 @@ export const STRINGS = {
     "kind.estimated": "estimé",
     "kind.unavailable": "indisponible",
     "kind.scripted": "scripté",
+    "fp.demo.excluded": "dont {n} réponses de démo, exclues des totaux",
+    "fp.demo.excluded.one": "dont 1 réponse de démo, exclue des totaux",
     "kind.configured": "déclaré",
     "why.prompt":
       "Tout ce que le modèle relit pour cette réponse : consigne, conversation, documents, résultats d'outils. Compté par le serveur du modèle.",
@@ -860,6 +862,8 @@ export const STRINGS = {
     "kind.estimated": "estimated",
     "kind.unavailable": "unavailable",
     "kind.scripted": "scripted",
+    "fp.demo.excluded": "including {n} demo answers, left out of the totals",
+    "fp.demo.excluded.one": "including 1 demo answer, left out of the totals",
     "kind.configured": "declared",
     "why.prompt":
       "Everything the model re-reads for this answer: instructions, conversation, documents, tool results. Counted by the model server.",

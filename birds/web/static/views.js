@@ -391,7 +391,7 @@ function bar(label, value, max, text, cls = "") {
   );
 }
 
-function savings(usages, s) {
+function savings(usages, s, scripted = false) {
   const cmp = state.health?.compare;
   if (!cmp) return null;
   const lang = state.prefs.lang === "en" ? "en" : "fr";
@@ -416,6 +416,7 @@ function savings(usages, s) {
       ),
     ),
     tokens > 0 &&
+      !scripted && // no FLOP figure computed from scripted token counts
       h("p", {
         class: "save-line",
         text: t("save.compute.here", {
@@ -515,8 +516,15 @@ let scope = "conv";
 export function renderFootprint() {
   const body = $("view-footprint-body");
   const usages = scope === "all" ? ledgerAll() : convUsages(state.conv);
-  const s = totals(usages);
-  const demo = activeMode() === "demo";
+  // scripted (demo) answers never count in the totals when real ones exist; if all are scripted, they are shown
+  // but tagged as such
+  const real = usages.filter((u) => u.tokens_kind !== "scripted");
+  const demoN = usages.length - real.length;
+  const allScripted = usages.length > 0 && !real.length;
+  const counted = allScripted ? usages : real;
+  const s = totals(counted);
+  const demo = activeMode() === "demo" || allScripted;
+  const scriptedTag = allScripted ? h("span", { class: "tag tag-scripted", text: t("kind.scripted") }) : null;
   const gi = state.health?.grid_intensity_g_per_kwh;
   const eq = state.health?.equivalent;
   const partial = (k) => (k < s.n ? t("fp.partial", { k, n: s.n }) : "");
@@ -529,6 +537,7 @@ export function renderFootprint() {
         "dd",
         null,
         h("span", { class: "stat-value num", text: value }),
+        cls.includes("stat-scripted") && scriptedTag?.cloneNode(true),
         sub && h("span", { class: "stat-sub", text: sub }),
       ),
     );
@@ -589,7 +598,7 @@ export function renderFootprint() {
     : stat(
         t("fp.energy"),
         t("meter.energy.none.long"),
-        t(demo && scope === "conv" ? "why.energy.demo" : "why.energy.none"),
+        t(usages.some((u) => u.tokens_kind === "scripted") && !real.some(hasEnergy) ? "why.energy.demo" : "why.energy.none"),
         "stat-wide stat-none",
       );
   const co2Stat = s.co2N
@@ -628,6 +637,7 @@ export function renderFootprint() {
       : null;
   put(body, 
     head,
+    allScripted && h("p", { class: "demo-note", text: t("demo.note") }),
     h(
       "dl",
       { class: "stats" },
@@ -638,22 +648,23 @@ export function renderFootprint() {
           in: fmtInt(s.prompt),
           out: fmtInt(s.completion),
         }),
-        "stat-hero",
+        `stat-hero${allScripted ? " stat-scripted" : ""}`,
       ),
       stat(t("fp.answers"), fmtInt(s.n)),
-      stat(t("fp.time"), fmtSeconds(s.seconds)),
+      stat(t("fp.time"), fmtSeconds(s.seconds), null, allScripted ? "stat-scripted" : ""),
       stat(t("fp.tools"), fmtInt(s.tools)),
       stat(t("fp.fetched"), fmtBytes(s.bytes)),
       energyStat,
       co2Stat,
     ),
     equivalent,
+    demoN > 0 && !allScripted && h("p", { class: "hint fp-demo-excluded", text: t(demoN === 1 ? "fp.demo.excluded.one" : "fp.demo.excluded", { n: demoN }) }),
     chart(usages),
-    savings(usages, s),
-    scope === "conv" ? comparison(usages) : null,
-    splits(usages),
+    savings(counted, s, allScripted),
+    scope === "conv" ? comparison(counted) : null,
+    splits(counted),
     how,
-    demo && h("p", { class: "demo-note", text: t("demo.note") }),
+    demo && !allScripted && h("p", { class: "demo-note", text: t("demo.note") }),
     h("p", { class: "hint", text: t("fp.note") }),
     scope === "all" &&
       button("btn-outline btn-small", "trash", t("fp.reset"), () => {
