@@ -24,6 +24,7 @@ from urllib.parse import urlsplit
 
 from birds.harness import guard
 from birds.harness.llm import Cancelled, accepts  # Cancelled: the client went away or pressed stop
+from birds.web.tidy import code_checks, tidy
 
 Event = dict[str, Any]
 
@@ -521,6 +522,7 @@ class _DemoRun:
                 "stop_reason": "answer",
                 "charts": charts or [],
                 "web_images": web_images or [],
+                "code_checks": code_checks(content),
             }
         )
         prompt = 60 + sum(len(m["content"]) for m in self.req.messages) // 4 + self.extra_prompt
@@ -1786,10 +1788,12 @@ class HarnessBackend:
                 if request.resume is not None
                 else own_words(request.messages[-1]["content"])
             )
+            tidied = tidy(str(run.answer), run.stop_reason)
+            content = hide_out_paths(strip_tool_echo(strip_memo(tidied.text)))
             ctx.emit(
                 {
                     "type": "answer",
-                    "content": answer_text,
+                    "content": content,
                     "sources": sources,
                     "charts": _plain(list(getattr(run, "charts", []) or [])),
                     "web_images": pick_web_images(run, answer_text, request_words, sources, ctx.sign_image),
@@ -1804,8 +1808,10 @@ class HarnessBackend:
                         "body": str(draft.get("body") or ""),
                         **({"to_hint": str(draft["to_hint"])} if draft.get("to_hint") else {}),
                     },
-                    "stop_reason": run.stop_reason,
+                    "stop_reason": tidied.stop_reason,
                     "memo": turn_memo,
+                    "code_checks": code_checks(content),
+                    "tidy": tidied.repairs,
                     "images": [{"name": n, "text": t[:4000]} for n, t in image_texts],
                 }
             )

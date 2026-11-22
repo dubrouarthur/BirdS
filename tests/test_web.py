@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -145,7 +146,7 @@ def test_plain_answer_streams_then_gives_the_full_answer(client, lang):
     events = chat(client, "Bonjour" if lang == "fr" else "Hello", lang=lang)
     assert types(events) == ["answer", "usage", "done"]
     answer, usage = one(events, "answer"), one(events, "usage")
-    assert set(answer) == {"type", "content", "sources", "files", "draft_email", "stop_reason", "charts", "web_images"}
+    assert set(answer) == {"type", "content", "sources", "files", "draft_email", "stop_reason", "charts", "web_images", "code_checks"}
     assert answer["charts"] == [] and answer["web_images"] == []
     assert "Bird" in answer["content"] and ("démo" in answer["content"] or "demo" in answer["content"])
     assert len([e for e in events if e["type"] == "delta"]) > 5
@@ -631,7 +632,7 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
     assert "@import" not in css and css.count("@font-face") == 2
     for name in ("carlito-regular.woff2", "carlito-bold.woff2", "OFL.txt"):
         assert client.get(f"/static/fonts/{name}").status_code == 200
-    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "previews.js", "chart.js"]
+    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "previews.js", "chart.js", "richcode.js"]
     brand = [
         "mark.svg",
         "mark-dark.svg",
@@ -660,9 +661,9 @@ def test_static_payload_budget():
     # raised from 250 kB when images, attachments, previews and the savings report were added; what travels is
     # gzip-compressed (about 80 kB for all the text files); raised to 400 kB for the P1 UX backlog (welcome toggle,
     # code-block headers, action menu, chart keyboard support, approval and stop states); then raised for the file
-    # previews drawn from the written file (slide stage, filmstrip, full screen, A4 page, styled sheet) and for the
-    # in-chat charts (chart.js, no library) with web image cards and the chart review fixes
-    assert total < 490_000, f"static payload is {total} bytes"
+    # previews (slide stage, filmstrip, full screen, A4 page, styled sheet), the in-chat charts with web image cards,
+    # and rich answer text (richcode.js highlighter, rich blocks, code-block tools)
+    assert total < 580_000, f"static payload is {total} bytes"  # about 150 kB once gzipped
 
 
 def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
@@ -716,7 +717,8 @@ for (let i = 1; i <= text.length; i++) prefixes.push(renderBlocks(stabilize(text
 console.log(JSON.stringify({ out, prefixes, full: renderBlocks(text, { cites: [1], anchor: "src-t" }) }));
 """
 ALLOWED_TAG = re.compile(
-    r"</?(?:p|br|strong|em|code|pre|ul|ol|li|h[2-5]|hr|blockquote|table|thead|tbody|tr|th|td|sup|div|a|span|button)(?:\s[^<>]*)?>"
+    r"</?(?:p|br|strong|em|code|pre|ul|ol|li|h[2-5]|hr|blockquote|table|thead|tbody|tr|th|td|sup|div|a|span|button"
+    r"|figure|figcaption|cite|small|section|dl|dt|dd|svg|path|rect|circle)(?:\s[^<>]*)?/?>"
 )
 
 
@@ -725,7 +727,9 @@ def assert_inert(name: str, html: str) -> None:
     leftover = ALLOWED_TAG.sub("", html)
     assert "<" not in leftover and ">" not in leftover, (name, html)  # every tag is one the renderer wrote
     for tag in re.findall(r"<[a-z][^>]*>", html):
+        tag = re.sub(r'"[^"]*"', '""', tag)  # escaped text inside a quoted value is not an attribute
         assert not re.search(r"\son\w+=", tag), (name, tag)  # no event-handler attribute inside any tag
+        assert not re.search(r"\sstyle=", tag), (name, tag)  # the CSP blocks inline styles: classes only
     for href in re.findall(r'href="([^"]*)"', html):
         assert href.startswith(("https://", "http://", "#src-t-")), (name, href)
 
@@ -795,6 +799,76 @@ def test_streaming_markdown_is_inert_and_stable_at_every_prefix(rendered):
         previous = blocks
     assert changed_early == 0
     assert rendered["prefixes"][-1] == rendered["full"]  # the end state is the plain rendering
+
+
+RICH_SCRIPT = """
+import { renderMarkdown, renderBlocks, stabilize } from %s;
+const [cases, answers, stream] = JSON.parse(process.argv[1]);
+const o = { cites: [1], anchor: "src-t", rich: true, final: true, lang: "fr",
+  codeChecks: [{ i: 0, n: 1, lang: "python", ok: false, kind: "error", line: 1, msg: "<img src=x onerror=alert(1)>" }] };
+const out = {};
+for (const [k, v] of Object.entries(cases)) out[k] = renderMarkdown(v, o);
+for (const a of answers) out[a.id] = renderMarkdown(a.answer, o);
+const prefixes = [];
+for (let i = 1; i <= stream.length; i += 2) prefixes.push(renderBlocks(stabilize(stream.slice(0, i)), { ...o, final: false }));
+console.log(JSON.stringify({ out, prefixes }));
+"""
+RICH_CASES = {
+    **MD_CASES,
+    "callout_xss": "Attention : <img src=x onerror=alert(1)>\n\n> [!NOTE]\n> <script>x</script>",
+    "pairs_xss": 'Décision : <b onclick="x">a</b>\nActions : [x](javascript:alert(1))',
+    "kpi_xss": "- <i>A</i> : 3 %\n- B<script> : 4 €\n- C : 5 j",
+    "file_xss": 'Fichier : `a"onmouseover="x.py`\n```python\nprint("<b>")\n```',
+    "code_xss": '```\n</span></code></pre><script>alert(1)</script>\n```\n```bash\necho "$(<img>)" <<EOF\n</span>\nEOF\n```',
+    "chip_xss": '- formule :\n  `=SI(A1="<b>";1;0)`',
+    "heading_xss": "<svg onload=alert(1)>\n- a",
+    "steps_xss": "1. **<u>a</u>** : x\n2. **b** : y\n3. **c** : z",
+    "quote_xss": "> x\n> — [s](javascript:alert(1)) <img src=x>",
+    "table_xss": '| **<b>a</b>** | b (recommandé) |\n|---|---|\n| 1 200 € | <img src=x onerror="y"> |',
+    "long_url": "https://example.org/" + "a" * 80 + '"onmouseover="x',
+    "py_err": "```python\nx(\n```",
+}
+
+
+@pytest.fixture(scope="module")
+def rich_rendered():
+    if shutil.which("node") is None:
+        pytest.skip("Node not installed")
+    script = RICH_SCRIPT % json.dumps((STATIC_DIR / "markdown.js").as_uri())
+    answers = json.loads((Path(__file__).parent / "fixtures" / "answers_fr.json").read_text())
+    payload = json.dumps([RICH_CASES, answers, STREAM_TEXT + "\n\n" + answers[10]["answer"]])
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", script, payload], capture_output=True, text=True, timeout=60
+    )
+    assert result.returncode == 0, result.stderr[-500:]
+    return json.loads(result.stdout)
+
+
+def test_rich_renderer_is_inert_on_hostile_input_and_live_answers(rich_rendered):
+    """Answer mode adds blocks (callouts, steps, key numbers, highlighted code): every tag is still one we wrote."""
+    for name, html in rich_rendered["out"].items():
+        assert_inert(name, html)
+    for i, blocks in enumerate(rich_rendered["prefixes"]):
+        assert_inert(f"rich prefix {i}", "".join(blocks))
+    out = rich_rendered["out"]
+    assert "&lt;img src=x onerror=alert(1)&gt;" in out["callout_xss"] and "md-callout--warn" in out["callout_xss"]
+    assert "&lt;script&gt;" in out["code_xss"] and "<script" not in out["code_xss"]
+    assert 'title="Vérification de la syntaxe uniquement' in out["py_err"] and "&lt;img" in out["py_err"]
+    assert "md-chip" in out["chip_xss"] and "&lt;b&gt;" in out["chip_xss"]
+
+
+def test_rich_renderer_node_unit_tests():
+    """tests/js/rich.test.mjs: every detector with its near misses, the highlighter, streaming stability, speed."""
+    if shutil.which("node") is None:
+        pytest.skip("Node not installed")
+    result = subprocess.run(
+        ["node", "--test", str(Path(__file__).parent / "js" / "rich.test.mjs")],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={**os.environ, "CI": "1"},
+    )
+    assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-1000:]
 
 
 # ------------------------------------------------------------------ HarnessBackend (scripted model, no network)

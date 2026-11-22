@@ -22,6 +22,7 @@ import {
   uid,
   modelLabel,
 } from "./core.js";
+import { wire as wireRich } from "./richcode.js";
 import {
   exportMarkdown,
   forgetRendered,
@@ -1209,6 +1210,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         images: event.images || [],
         charts: Array.isArray(event.charts) ? event.charts : [],
         web_images: Array.isArray(event.web_images) ? event.web_images : [],
+        code_checks: Array.isArray(event.code_checks) ? event.code_checks.slice(0, 50) : [], // syntax badges
       };
       turn.files.push(...(event.files || []));
       turn.text = "";
@@ -1825,6 +1827,8 @@ function bind() {
     (target || el).focus();
   });
 
+  // Code blocks: wrap, download, expand; formula chips; folded lists (delegated once, see richcode.js).
+  wireRich($("conversation"), { copy: (text, done) => copyText(text, done), download });
   // Code blocks: copy only the code (read at click time, so a block redrawn while streaming copies its latest text).
   $("conversation").addEventListener("click", (e) => {
     const btn = e.target.closest?.("[data-copy-code]");
