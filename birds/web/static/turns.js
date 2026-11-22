@@ -835,6 +835,7 @@ function renderError(turn, isLast) {
     "access_code",
     "unauthorized",
     "wrong_route",
+    "unknown_model",
     "blocked",
     "disabled",
     "not_configured",

@@ -10,6 +10,7 @@ ourselves (birds.parse).
 from __future__ import annotations
 
 import json
+import re
 import time
 
 STOP = ["<|im_end|>"]
@@ -24,7 +25,7 @@ def _cut(text: str, stop: list[str]) -> str:
 class EndpointError(Exception):
     """The model endpoint could not serve the request. ``kind`` is stable; the message never contains credentials.
 
-    kinds: unauthorized, waking (scaled to zero / still loading), wrong_route, bad_request, server, unreachable,
+    kinds: unauthorized, waking (scaled to zero / still loading), unknown_model, wrong_route, bad_request, server, unreachable,
     timeout, blocked (egress policy).
     """
 
@@ -275,6 +276,9 @@ def _http_error(status: int, detail: str) -> EndpointError:
         return EndpointError("unauthorized", f"the endpoint refused the access token (HTTP {status})", status)
     if status in CompletionsClient.WAKE_STATUS:
         return EndpointError("waking", f"the endpoint is starting or scaled to zero (HTTP {status})", status)
+    if status == 404 and re.search(r"model .{0,80}(does not exist|not found)|valid aliases", detail, re.I):
+        # vLLM answers 404 "The model `x` does not exist. Valid aliases: y." for a wrong `model` name
+        return EndpointError("unknown_model", f"the endpoint does not serve this model name: {detail}", status)
     if status in (404, 405) or 300 <= status < 400:
         return EndpointError("wrong_route", f"no /v1/completions route at this address (HTTP {status})", status)
     if status in (400, 422):

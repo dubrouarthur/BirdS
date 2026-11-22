@@ -523,3 +523,12 @@ def test_bad_user_endpoint_is_refused_before_any_request(dns, monkeypatch):
             )
             assert response.status_code == 400 and response.json()["detail"]["code"] == code
             assert url not in response.text
+
+
+def test_wrong_model_name_is_reported_as_such():
+    from birds.harness.llm import _http_error
+
+    vllm = '{"error":{"message":"The model `bird` does not exist. Valid aliases: adubrou/Bird-S-4B.","code":404}}'
+    err = _http_error(404, vllm)
+    assert err.kind == "unknown_model" and "adubrou/Bird-S-4B" in str(err)
+    assert _http_error(404, "Not Found").kind == "wrong_route"
