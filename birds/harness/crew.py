@@ -305,6 +305,7 @@ class Brief:
     must: list = field(default_factory=list)
     constraints: dict = field(default_factory=dict)
     blocks: dict = field(default_factory=dict)  # compare_write: offer name -> its pasted block
+    emails: list = field(default_factory=list)  # every address written in the request or the pasted text
     allowed: set = field(default_factory=set)
     caveats: list = field(default_factory=list)
     dropped: int = 0
@@ -587,8 +588,12 @@ class Crew:
         b = Brief(tool=tool, instr=self.instr, pasted=self.pasted)
         m = re.search(r"(\d{1,2})\s*(?:slides?|diapo\w*|diapositives?|pages?)", self.instr, re.I)
         b.n_slides = max(2, min(12, int(m.group(1)))) if m else 6
-        m = re.search(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", self.instr)
-        b.to = m.group(0) if m else ""
+        b.emails = cc.emails(self.instr + "\n" + self.pasted)
+        b.to = (cc.emails(self.instr) or [""])[0]
+        if not b.to and b.emails:  # « un mail à Nathalie » and the text gives nathalie.roux@…: that address
+            firsts = [cc.fold(w) for w in re.findall(r"\b[A-ZÀ-Ý][a-zà-ÿ]{2,}", self.instr)]
+            named = [e for e in b.emails if any(f and f in cc.fold(e.split("@")[0]) for f in firsts)]
+            b.to = named[0] if named else (b.emails[0] if len(b.emails) == 1 else "")
         b.constraints = cc.constraints(self.instr + "\n" + cc.requirement_lines(self.pasted))
         b.allowed = cc.allowed_figures(self.instr, self.pasted)
         return b
@@ -1152,8 +1157,10 @@ class Crew:
                 secs.append({"heading": "Sources", "content": "\n".join(src)})
             args["sections"] = secs
         elif b.tool == "draft_email":
+            args["to"] = cc.fix_recipients(args.get("to"), b.emails, b.to)
             if b.to and not any(b.to.lower() == str(t).lower() for t in args.get("to") or []):
                 args["to"] = [b.to]
+            args["body"], _ = cc.strip_signature(str(args.get("body") or ""), self.own)
             if b.costs:  # a sentence with a wrong cost goes: a short true mail beats a long wrong one
                 lines = []
                 for ln in str(args.get("body") or "").split("\n"):

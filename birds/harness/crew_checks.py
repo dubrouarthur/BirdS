@@ -334,6 +334,69 @@ def check_facts(facts, window: str) -> tuple[list[dict], int]:
     return kept, dropped
 
 
+# ------------------------------------------------------------------ email recipient and signature
+
+_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+_CLOSING = re.compile(
+    r"^\s*(bien\s+cordialement|cordialement|bien\s+[àa]\s+(?:vous|toi)|tr[èe]s\s+cordialement|sinc[èe]res\s+salutations|"
+    r"salutations(?:\s+distingu[ée]es)?|[àa]\s+bient[ôo]t|merci(?:\s+d.avance)?|best\s+regards|kind\s+regards|regards|"
+    r"sincerely|best\s+wishes|thanks)\b\s*[,.!]?",
+    re.I,
+)
+
+
+def emails(text: str) -> list[str]:
+    return list(dict.fromkeys(m.group(0).rstrip(".") for m in _EMAIL.finditer(text or "")))
+
+
+def fix_recipients(to, known: list[str], preferred: str = "") -> list[str]:
+    """Each address of a draft that is not written in the user's text replaced by the one it was meant to be: the
+    same local part (« nathalie.roux@alvea.fr » -> « nathalie.roux@groupe-alvea.fr »), else the closest, else the
+    recipient chosen from the request. Without any address in the text, the draft's own addresses are kept."""
+    import difflib
+
+    to = [str(t).strip() for t in (to if isinstance(to, list) else [to] if to else []) if str(t).strip()]
+    if not known:
+        return to or ([preferred] if preferred else [])
+    low = {k.lower(): k for k in known}
+    out = []
+    for t in to:
+        if t.lower() in low:
+            out.append(low[t.lower()])
+            continue
+        local = t.split("@")[0].lower()
+        same = [k for k in known if k.split("@")[0].lower() == local]
+        near = difflib.get_close_matches(t.lower(), list(low), n=1, cutoff=0.6)
+        out.append(same[0] if same else low[near[0]] if near else preferred or "")
+    out = [x for x in dict.fromkeys(out) if x]
+    return out or ([preferred] if preferred else [])
+
+
+def strip_signature(body: str, user_text: str) -> tuple[str, int]:
+    """Signature lines after the closing formula that the user never wrote (« Pierre Dubois », « Responsable
+    informatique », « La direction de la communication ») removed; a placeholder like « [Votre nom] » is kept.
+    Returns (body, lines removed)."""
+    lines = str(body or "").split("\n")
+    at = max((i for i, ln in enumerate(lines) if _CLOSING.match(ln)), default=None)
+    if at is None or at < len(lines) - 6:
+        return body, 0
+    whole = fold(user_text)
+    head = _CLOSING.match(lines[at])
+    rest_inline = lines[at][head.end() :].strip(" ,")
+    removed = 0
+    if rest_inline and fold(rest_inline) not in whole and not re.fullmatch(r"\[[^\]]+\]", rest_inline):
+        lines[at] = lines[at][: head.end()].rstrip()
+        removed += 1
+    keep = lines[: at + 1]
+    for ln in lines[at + 1 :]:
+        x = ln.strip()
+        if not x or re.fullmatch(r"\[[^\]]+\]", x) or (len(fold(x)) >= 3 and fold(x) in whole):
+            keep.append(ln)
+        else:
+            removed += 1
+    return "\n".join(keep).rstrip(), removed
+
+
 # ------------------------------------------------------------------ meeting notes
 
 # « Présents : », « Participants : », « Excusé : », and per side: « Côté client (Maison Vernet) : », « Pour le client : »

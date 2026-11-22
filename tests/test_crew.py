@@ -595,6 +595,31 @@ def test_the_analyst_is_replaced_where_the_code_reads_the_offer():
     assert {o["name"] for o in offers} >= {"Canon", "Sharp"}
 
 
+def test_recipient_is_an_address_of_the_text_and_invented_signatures_go():
+    known = cc.emails(COPIERS)
+    assert known == ["nathalie.roux@groupe-alvea.fr"]
+    assert cc.fix_recipients(["nathalie.roux@alvea.fr"], known) == ["nathalie.roux@groupe-alvea.fr"]
+    assert cc.fix_recipients(["n.roux@groupe-alvea.fr"], known) == ["nathalie.roux@groupe-alvea.fr"]
+    assert cc.fix_recipients(["paul@x.fr"], [], "") == ["paul@x.fr"]  # nothing to check against
+    body = "Bonjour Nathalie,\n\nJe recommande Canon.\n\nCordialement,\nPierre Dubois\nResponsable informatique"
+    out, n = cc.strip_signature(body, COPIERS)
+    assert out.endswith("Cordialement,") and n == 2
+    assert cc.strip_signature("Merci.\n\nBien à vous,\nNathalie Roux", COPIERS)[1] == 0  # written by the user
+    assert cc.strip_signature("Cordialement,\n[Votre nom]", COPIERS) == ("Cordialement,\n[Votre nom]", 0)
+    assert cc.strip_signature("Cordialement, La direction de la communication", VOIP_TEXT)[0] == "Cordialement,"
+
+
+def test_mail_to_a_first_name_gets_the_address_written_in_the_text(tmp_path):
+    ask = "Compare ces 3 offres de copieurs et rédige un mail de recommandation à Nathalie.\n\n" + COPIERS
+    crew = Crew(make_agent(tmp_path, Script(lambda *a: "")), decide(ask))
+    crew.instr, crew.pasted = crew_mod.split_request(ask)
+    crew.own = ask
+    b = crew._new_brief("draft_email")
+    assert b.to == "nathalie.roux@groupe-alvea.fr"
+    out, _ = crew._post(b, {"to": ["nathalie.roux@alvea.fr"], "subject": "x", "body": "Bonjour,\n\nCordialement,\nPierre Dubois"})
+    assert out["to"] == ["nathalie.roux@groupe-alvea.fr"] and "Pierre" not in out["body"]
+
+
 def test_compare_write_end_to_end(tmp_path):
     table = {
         "columns": ["Offre", "Prix"],
