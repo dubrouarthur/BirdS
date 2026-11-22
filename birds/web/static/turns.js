@@ -77,12 +77,20 @@ function liveLine(turn) {
     const what = target(running.tool, running.arguments);
     text = what ? `${label} : ${what}…` : `${label}…`;
   } else if (turn.text) text = t("live.writing");
+  else if (turn.steps.some((s) => s.status === "done")) text = t("live.reading"); // a tool finished: Bird reads it, then writes
   else text = t(turn.thinking ? "live.thinking" : "live.starting");
-  if (!sub && !turn.text && !running && !calm) sub = t("live.first");
   if (running?.tool === "web_search" && state.health?.tools_info?.search?.label)
     sub = t("live.search.via", { label: state.health.tools_info.search.label });
   if (running?.tool === "read_image") sub = t("live.read_image.sub");
   const since = turn.live?.since || turn.started || Date.now();
+  // no fixed promise: the "first word in 2 s" line only in the first 3 s of a plain request, then honest updates
+  let auto = null;
+  if (!sub && !calm && !turn.text) {
+    const first = !turn.steps.length && !turn.thinking ? "1" : "";
+    const started = String(turn.started || Date.now());
+    const line = autoSub(Number(started), first);
+    auto = h("p", { class: "live-sub", "data-auto-sub": first, "data-started": started, hidden: !line, text: line });
+  }
   return h(
     "div",
     { class: `live${calm ? " live-calm" : ""}` },
@@ -96,9 +104,16 @@ function liveLine(turn) {
         h("span", { text }),
         h("span", { class: "live-time num", "data-since": String(since), "aria-hidden": "true", text: elapsed(since) }),
       ),
-      sub && h("p", { class: "live-sub", text: sub }),
+      sub ? h("p", { class: "live-sub", text: sub }) : auto,
     ),
   );
+}
+
+function autoSub(started, first) {
+  const s = (Date.now() - started) / 1000;
+  if (s < 3) return first ? t("live.first") : "";
+  if (s < 8) return "";
+  return t(s < 20 ? "live.slow" : "live.slower");
 }
 
 const elapsed = (since) => {
@@ -108,6 +123,11 @@ const elapsed = (since) => {
 /** Called every second while a request runs: only the small timers change, nothing else is redrawn. */
 export function tick() {
   for (const el of document.querySelectorAll("[data-since]")) el.textContent = elapsed(el.dataset.since);
+  for (const el of document.querySelectorAll("[data-auto-sub]")) {
+    const line = autoSub(Number(el.dataset.started), el.dataset.autoSub);
+    if (el.textContent !== line) el.textContent = line;
+    el.hidden = !line;
+  }
 }
 
 // ------------------------------------------------------------------ steps
