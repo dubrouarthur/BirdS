@@ -1,0 +1,8 @@
+Bright Tomorrow - John Bartmann (album "Machine Learning")
+Licence: CC0 1.0 Universal (public domain dedication) - commercial use OK, no attribution required.
+Source: https://freemusicarchive.org/music/John_Bartmann/machine-learning/bright-tomorrow/
+Licence: https://creativecommons.org/publicdomain/zero/1.0/
+Retrieved 2026-11-22. SHA-256 of John_Bartmann_-_Bright_Tomorrow.mp3:
+bfae394b1b54096dde982f6d9159264afe558f8aaed0ed056965cf7826ffc5f0
+Optional courtesy credit: "Musique : John Bartmann - Bright Tomorrow (CC0)".
+Real track by a human musician (page states "AI generated? No"); used unedited apart from excerpting/fades.
