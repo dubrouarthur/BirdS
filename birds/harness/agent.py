@@ -93,6 +93,7 @@ class Step:
     chars: int = 0
     repairs: list[str] = field(default_factory=list)  # argument shapes fixed before validation (coerce.py)
     info: dict = field(default_factory=dict)  # tool-provided details for the UI (search backend used...)
+    flagged_excerpt: str = ""  # the sentence that looked like an instruction (plain text, redacted), for the UI
 
 
 @dataclass
@@ -512,6 +513,7 @@ class Agent:
                     result = guard.defang(guard.redact(str(TOOLS[name](args, ctx))))
                     if guard.scan_injection(result):
                         step.flags.append("possible_injection")
+                        step.flagged_excerpt = guard.injection_excerpt(result)
                         run.flagged = True
                     if name in guard.EXTERNAL_TOOLS:
                         result = guard.wrap_untrusted(result, run.lang)

@@ -180,6 +180,33 @@ def scan_injection(text: str) -> bool:
     return bool(_INJECTION.search(_INVISIBLE.sub("", unicodedata.normalize("NFKC", text))))
 
 
+def injection_excerpt(text: str, size: int = 240) -> str:
+    """The sentence that looked like an instruction, with a little context (160-300 characters), for the person.
+
+    Credentials are redacted, whitespace is collapsed and the cut ends get an ellipsis. Empty if nothing matches.
+    The text is shown as plain text by the UI, never as Markdown or a link.
+    """
+    clean = " ".join(_INVISIBLE.sub("", unicodedata.normalize("NFKC", str(text or ""))).split())
+    m = _INJECTION.search(clean)
+    if not m:
+        return ""
+    size = max(160, min(300, size))
+    room = max(0, size - (m.end() - m.start()))
+    start = max(0, m.start() - room // 3)
+    # begin at a sentence start when one is close, so the quote reads naturally
+    cut = max(clean.rfind(". ", start, m.start()), clean.rfind("« ", start, m.start()), clean.rfind('"', start, m.start()))
+    if cut >= 0 and m.start() - cut < room:
+        start = cut + (1 if clean[cut] != "." else 2)
+    end = min(len(clean), max(m.end() + 40, start + size))
+    end = min(end, start + 300)
+    if end < len(clean):
+        space = clean.rfind(" ", m.end(), end)
+        if space > m.end():
+            end = space
+    out = clean[start:end].strip()
+    return redact(("…" if start > 0 else "") + out + ("…" if end < len(clean) else ""))
+
+
 def defang(text: str) -> str:
     """Neutralise chat-template control markers so external text cannot close the tool message or open a turn."""
     return _CONTROL.sub("&lt;", text)

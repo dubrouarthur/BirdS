@@ -56,6 +56,7 @@ USAGE_KEYS = {
 }
 STEP_KEYS = {
     "type",
+    "flagged_excerpt",
     "index",
     "tool",
     "arguments",
@@ -127,6 +128,11 @@ def test_health(client):
     assert data["model_label"] == "Bird S 4B"
     assert data["modes"] == {"demo": True, "server": False, "user": False}
     assert set(data["tools"]) >= {"web_search", "read_page", "draft_email", "make_slides"}
+    for tool in data["tools_info"]["tools"]:  # every description is a whole sentence, never "Recherche :"
+        assert tool["fr"].strip() and not tool["fr"].rstrip().endswith(":"), tool
+        assert tool["en"].strip() and not tool["en"].rstrip().endswith(":"), tool
+    search = next(x for x in data["tools_info"]["tools"] if x["name"] == "web_search")
+    assert search["state"] == "on" and search["fr"] == "Cherche sur le web et cite ses sources"
     assert data["thinking_default"] is False and data["access_required"] is False
     assert data["grid_intensity_g_per_kwh"] is None and data["equivalent"] is None
     assert data["endpoint_hosts"] == ["*.endpoints.huggingface.cloud"]
@@ -226,7 +232,9 @@ def test_wake_scenario_reports_a_calm_status(client):
 def test_error_scenario(client):
     events = chat(client, "Simule une erreur")
     assert types(events) == ["step", "step", "error", "done"]
-    assert "démo" in one(events, "error")["message"] and one(events, "error")["code"] == "internal"
+    error = one(events, "error")
+    assert error["code"] == "internal" and error["message"] == "Une erreur interne est survenue."
+    assert "démo" in error["detail"]  # the raw text only as a technical detail
 
 
 def test_hostile_markdown_is_passed_as_text_not_altered(client):
@@ -237,11 +245,29 @@ def test_hostile_markdown_is_passed_as_text_not_altered(client):
 def test_scenario_routing():
     assert pick_scenario("Bonjour") == "plain"
     assert pick_scenario("Draft a reply email") == "email"
+    assert pick_scenario("Réponds à Camille : son offre nous convient") == "reply"
+    assert pick_scenario("Reply to Camille: her offer works for us") == "reply"
     assert pick_scenario("Prepare a 5-slide deck") == "slides"
     assert pick_scenario("Search why small models use less energy") == "search"
     assert pick_scenario("Write the minutes of our project meeting") == "minutes"
     assert pick_scenario("simulate an error") == "error"
     assert pick_scenario("Résume", has_attachment=True) == "attachment"
+
+
+def test_first_example_is_a_safe_reply_without_approval(client):
+    """The first example must show a finished draft, never the prompt-injection approval scenario."""
+    for lang, prompt in [
+        (
+            "fr",
+            "Réponds à Camille : son offre nous convient, demande le délai de livraison et les conditions de paiement.",
+        ),
+        ("en", "Reply to Camille: her offer works for us, ask for the delivery time and the payment terms."),
+    ]:
+        events = post_chat(client, {"messages": [{"role": "user", "content": prompt}], "lang": lang})
+        assert "confirm" not in types(events) and types(events)[-1] == "done"
+        assert not any(e.get("flags") for e in events if e["type"] == "step")
+        answer = one(events, "answer")
+        assert answer["draft_email"] and answer["draft_email"]["to"] == "camille@example.org"
 
 
 def test_heartbeat_comments_keep_the_stream_open():
@@ -530,13 +556,19 @@ def test_backend_failures_become_calm_error_events():
         assert types(events) == ["error", "done"]
         return events[0]
 
-    assert error(ValueError("boom")) == {"type": "error", "code": "internal", "message": "boom"}
+    assert error(ValueError("boom")) == {
+        "type": "error",
+        "code": "internal",
+        "message": "Une erreur interne est survenue.",
+        "detail": "boom",
+    }
+    assert error(KeyError("choices"), "en")["message"] == "Something went wrong on our side."
     waking = error(EndpointError("waking", "the endpoint is starting (HTTP 503)", 503))
     assert waking["code"] == "waking" and "se réveille" in waking["message"]
     assert "waking up" in error(EndpointError("waking", "x", 503), "en")["message"]
     assert error(EndpointError("unauthorized", "x", 401))["code"] == "unauthorized"
     leaked = error(RuntimeError("upstream said: Authorization: Bearer hf_abcdefghijklmnopqrstuvwxyz0123456789"))
-    assert "hf_abcdefghijklmnopqrstuvwxyz0123456789" not in leaked["message"] and "[REDACTED]" in leaked["message"]
+    assert "hf_abcdefghijklmnopqrstuvwxyz0123456789" not in leaked["detail"] and "[REDACTED]" in leaked["detail"]
 
 
 # ------------------------------------------------------------------ helpers
@@ -609,8 +641,9 @@ def test_static_payload_budget():
     files = [p for p in STATIC_DIR.rglob("*") if p.is_file()]
     total = sum(p.stat().st_size for p in files)
     # raised from 250 kB when images, attachments, previews and the savings report were added; what travels is
-    # gzip-compressed (about 80 kB for all the text files)
-    assert total < 340_000, f"static payload is {total} bytes"
+    # gzip-compressed (about 80 kB for all the text files); raised to 400 kB for the P1 UX backlog (welcome toggle,
+    # code-block headers, action menu, chart keyboard support, approval and stop states)
+    assert total < 400_000, f"static payload is {total} bytes"
 
 
 def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
@@ -642,6 +675,9 @@ MD_CASES = {
     "table": "| a | b |\n|---|---|\n| <i>1</i> | **2** |",
     "heading": "# <u>t</u>\n\n- one\n- two\n\n1. x\n2. y",
     "nul": "a\u0000<b>0\u0000",
+    "table_pipes": "| a | b |\n|---|---|\n| x \\| y | `c|d` |",
+    "table_short": "| a | b | c |\n|---|---|---|\n| 1 |",
+    "table_long": "| a | b |\n|---|---|\n| 1 | 2 | 3 | 4 |",
 }
 STREAM_TEXT = (
     "## Titre\n\nUn **gras**, de l'*italique*, du `code <b>` et un [lien](https://e.org/x) [1].\n\n"
@@ -659,7 +695,7 @@ for (let i = 1; i <= text.length; i++) prefixes.push(renderBlocks(stabilize(text
 console.log(JSON.stringify({ out, prefixes, full: renderBlocks(text, { cites: [1], anchor: "src-t" }) }));
 """
 ALLOWED_TAG = re.compile(
-    r"</?(?:p|br|strong|em|code|pre|ul|ol|li|h[2-5]|hr|blockquote|table|thead|tbody|tr|th|td|sup|div|a)(?:\s[^<>]*)?>"
+    r"</?(?:p|br|strong|em|code|pre|ul|ol|li|h[2-5]|hr|blockquote|table|thead|tbody|tr|th|td|sup|div|a|span|button)(?:\s[^<>]*)?>"
 )
 
 
@@ -702,6 +738,14 @@ def test_markdown_renderer_is_safe(rendered):
     assert "<h3>" in out["heading"] and "<ul><li>one</li><li>two</li></ul>" in out["heading"]
     assert "<ol><li>x</li><li>y</li></ol>" in out["heading"]
     assert "<code>&lt;b&gt;x&lt;/b&gt;</code>" in out["code"]
+
+
+def test_markdown_table_cells_keep_escaped_and_code_pipes(rendered):
+    """A pipe escaped with a backslash or inside a code span stays in its cell; no cell content is ever dropped."""
+    out = rendered["out"]
+    assert "<tbody><tr><td>x | y</td><td><code>c|d</code></td></tr></tbody>" in out["table_pipes"]
+    assert "<tbody><tr><td>1</td><td></td><td></td></tr></tbody>" in out["table_short"]  # short row: padded
+    assert "<tbody><tr><td>1</td><td>2 | 3 | 4</td></tr></tbody>" in out["table_long"]  # long row: rejoined
 
 
 def test_streaming_markdown_is_inert_and_stable_at_every_prefix(rendered):

@@ -6,6 +6,7 @@ import {
   activeModel,
   announce,
   button,
+  copyText,
   download,
   fmtDate,
   fmtInt,
@@ -63,7 +64,10 @@ const randomId = () =>
   globalThis.crypto?.randomUUID
     ? crypto.randomUUID()
     : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
-        (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16),
+        (
+          c ^
+          (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))
+        ).toString(16),
       );
 const newConv = () => ({
   id: uid("c"),
@@ -90,7 +94,12 @@ function slim(conv) {
           return {
             ...turn,
             // images are never stored: only their name and size survive a reload
-            images: (turn.images || []).map(({ name, w, h: hh, sent }) => ({ name, w, h: hh, sent })),
+            images: (turn.images || []).map(({ name, w, h: hh, sent }) => ({
+              name,
+              w,
+              h: hh,
+              sent,
+            })),
           };
         const { ui, live, text, ...rest } = turn;
         return {
@@ -268,9 +277,15 @@ function renderSidebar() {
         c.att &&
           h(
             "span",
-            { class: "conv-att", title: t(c.att === "image" ? "att.has.image" : "att.has.doc") },
+            {
+              class: "conv-att",
+              title: t(c.att === "image" ? "att.has.image" : "att.has.doc"),
+            },
             icon(c.att === "image" ? "image" : "clip"),
-            h("span", { class: "sr-only", text: t(c.att === "image" ? "att.has.image" : "att.has.doc") }),
+            h("span", {
+              class: "sr-only",
+              text: t(c.att === "image" ? "att.has.image" : "att.has.doc"),
+            }),
           ),
       ),
       h(
@@ -338,7 +353,7 @@ function exportConv(id) {
     (conv.title || "bird")
       .toLowerCase()
       .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "")
       .slice(0, 40) || "bird"
@@ -370,16 +385,54 @@ function clearAll() {
   toast(t("toast.cleared"), "ok");
 }
 
+const photoItems = () => [...$("photo-menu").querySelectorAll("[role=menuitem]")].filter((b) => !b.hidden);
+/** Open or close the photo sheet and its scrim; `refocus` puts focus back on the button that opened it. */
+function setPhotoMenu(open, refocus = false) {
+  $("photo-menu").hidden = !open;
+  $("photo-scrim").hidden = !open;
+  $("btn-photo").setAttribute("aria-expanded", String(open));
+  if (!open && refocus) $("btn-photo").focus();
+}
+
 const isNarrow = () => window.matchMedia("(max-width: 900px)").matches;
 function setSidebar(open) {
+  const side = $("sidebar");
+  const modal = open && isNarrow(); // on phones and tablets the open drawer is a modal: what is behind it is inert
   document.body.classList.toggle("side-open", open);
   document.body.classList.toggle("side-closed", !open);
   delete document.documentElement.dataset.side;
   $("btn-menu").setAttribute("aria-expanded", String(open));
-  $("backdrop").hidden = !(open && isNarrow());
-  $("sidebar").inert = !open;
+  $("backdrop").hidden = !modal;
+  for (const el of document.querySelectorAll(".main, .skip")) el.inert = modal;
+  // focus leaves the drawer before it turns inert, back to the button that opened it
+  if (!open && side.contains(document.activeElement)) $("btn-menu").focus();
+  side.inert = !open;
   if (!isNarrow()) store.set("bird.side", open ? "1" : "0");
-  if (open && isNarrow()) $("btn-new").focus();
+  if (modal) $("btn-new").focus();
+}
+/** Tab and Shift+Tab wrap inside the open drawer on narrow screens, so focus never leaves the modal. */
+function trapDrawer(e) {
+  if (
+    e.key !== "Tab" ||
+    !isNarrow() ||
+    !document.body.classList.contains("side-open")
+  )
+    return;
+  const items = [
+    ...$("sidebar").querySelectorAll(
+      "button, input, a[href], [tabindex]:not([tabindex='-1'])",
+    ),
+  ].filter((el) => !el.disabled && !el.hidden && el.getClientRects().length);
+  if (!items.length) return;
+  const first = items[0];
+  const last = items[items.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
 }
 const closeDrawer = () => isNarrow() && setSidebar(false);
 
@@ -411,19 +464,29 @@ function updateTop() {
   };
   $("top-title").textContent =
     titles[state.view] || state.conv?.title || t("side.untitled");
-  const model = isDemo() ? `${modelLabel()} · ${t("demo.badge")}` : modelLabel();
+  const model = isDemo()
+    ? `${modelLabel()} · ${t("demo.badge")}`
+    : modelLabel();
   $("model-name").textContent = model;
   $("btn-model").classList.toggle("is-demo", isDemo());
-  const label = t("nav.model", { model: isDemo() ? model : `${model} (${activeModel()})` });
+  const label = t("nav.model", {
+    model: isDemo() ? model : `${model} (${activeModel()})`,
+  });
   $("btn-model").setAttribute("aria-label", label);
   $("btn-model").title = label;
   const s = totals(convUsages(state.conv));
   $("footprint-total").textContent = s.n
     ? `${fmtInt(s.prompt + s.completion)} tokens`
     : t("nav.footprint");
-  document.title = state.conv?.title
-    ? `${state.conv.title} — Bird`
-    : t("app.title");
+  syncTitle();
+}
+
+/** While the model wakes up and the tab is in the background, the tab title says so. */
+function syncTitle() {
+  const base = state.conv?.title ? `${state.conv.title} — Bird` : t("app.title");
+  const last = state.conv?.turns?.[state.conv.turns.length - 1];
+  const waking = state.busy && last?.live?.state === "waking";
+  document.title = waking && document.hidden ? `${t("title.waking")} · ${base}` : base;
 }
 
 function applyTheme() {
@@ -494,6 +557,7 @@ function renderEmpty() {
             type: "button",
             "data-example": key,
             title: t(`ex.${key}.prompt`),
+            "aria-label": `${t(`ex.${key}.title`)} — ${t(`ex.${key}.prompt`)}`,
             onclick: () => send(t(`ex.${key}.prompt`)),
           },
           h("span", { class: "chip-icon" }, icon(ico)),
@@ -520,18 +584,66 @@ function renderChat() {
 // ------------------------------------------------------------------ scrolling
 
 let stick = true;
+// pinned: a long answer reached the top of the view; we hold it there so it is read from its start, and the scroll
+// listener never clears this (only an explicit jump, a send or opening a conversation does)
+let pinned = false;
+let followTurn = null; // id of the answer being streamed: the only one we anchor to
 const scroller = () => $("scroll");
 const nearBottom = () =>
   scroller().scrollHeight - scroller().scrollTop - scroller().clientHeight <
   120;
+/** Top of the user turn that asked for `turnId`, in the scroller's content coordinates (null when not found). */
+function anchorOf(turnId) {
+  const el = turnId && document.querySelector(`[data-turn="${turnId}"]`);
+  if (!el) return null;
+  const prev = el.previousElementSibling;
+  const target = prev?.classList.contains("turn-user") ? prev : el;
+  const sc = scroller();
+  return (
+    target.getBoundingClientRect().top -
+    sc.getBoundingClientRect().top +
+    sc.scrollTop
+  );
+}
 function scrollToEnd(force) {
-  if (force) stick = true;
-  if (stick) scroller().scrollTop = scroller().scrollHeight;
+  const sc = scroller();
+  if (state.view === "chat" && !(state.conv?.turns || []).length) {
+    // an empty chat opens at its top (the welcome lines and the examples), never scrolled to its bottom
+    stick = true;
+    pinned = false;
+    sc.scrollTop = 0;
+    updateJump();
+    return;
+  }
+  if (force) {
+    stick = true;
+    pinned = false;
+    followTurn = null;
+  }
+  const bottom = sc.scrollHeight - sc.clientHeight;
+  // once the stream is over, an answer that overflows by less than the "near bottom" margin just ends at the bottom
+  const slack = state.busy ? 0 : 120;
+  if (pinned && !state.busy && bottom - sc.scrollTop <= slack) pinned = false;
+  if (stick && !pinned) {
+    const anchor = anchorOf(followTurn);
+    if (anchor !== null && anchor - 8 < bottom - slack) {
+      sc.scrollTop = Math.max(0, anchor - 8); // the answer is taller than the view: stop at its question
+      pinned = true;
+    } else sc.scrollTop = sc.scrollHeight;
+  }
   updateJump();
 }
 function updateJump() {
-  $("btn-jump").hidden =
-    state.view !== "chat" || stick || !(state.conv?.turns || []).length;
+  const btn = $("btn-jump");
+  const away = pinned ? !nearBottom() : !stick;
+  btn.hidden =
+    state.view !== "chat" || !away || !(state.conv?.turns || []).length;
+  const key = pinned && state.busy ? "turn.jump.more" : "turn.jump";
+  const label = btn.querySelector("span");
+  if (label && label.dataset.i18n !== key) {
+    label.dataset.i18n = key;
+    label.textContent = t(key);
+  }
 }
 
 // ------------------------------------------------------------------ composer
@@ -541,7 +653,25 @@ const input = () => $("composer-input");
 function autosize() {
   const el = input();
   el.style.height = "auto";
-  el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+  // never more than 28% of what is visible (the keyboard takes the rest on phones), never more than 240px
+  const visible = window.visualViewport?.height || window.innerHeight || 857;
+  el.style.height = `${Math.min(el.scrollHeight, Math.round(visible * 0.28), 240)}px`;
+}
+
+// The app fills the visual viewport, so the dock stays above an on-screen keyboard.
+function trackViewport() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  let frame = 0;
+  const apply = () => {
+    frame = 0;
+    document.documentElement.style.setProperty("--vvh", `${Math.round(vv.height)}px`);
+    autosize();
+  };
+  const soon = () => frame || (frame = requestAnimationFrame(apply));
+  vv.addEventListener("resize", soon);
+  vv.addEventListener("scroll", soon);
+  apply();
 }
 
 function pendingConfirm() {
@@ -569,10 +699,14 @@ function updateComposer() {
           : !text.trim() && !images
             ? "composer.send.empty"
             : "";
-  const nAtt = images + (state.conv?.attachments || []).filter((a) => !a.sent && !a.lost).length;
+  const nAtt =
+    images +
+    (state.conv?.attachments || []).filter((a) => !a.sent && !a.lost).length;
   send.disabled = !!reason;
   send.hidden = state.busy;
-  const label = nAtt ? t(nAtt === 1 ? "att.send.one" : "att.send.many", { n: nAtt }) : t("composer.send");
+  const label = nAtt
+    ? t(nAtt === 1 ? "att.send.one" : "att.send.many", { n: nAtt })
+    : t("composer.send");
   send.title = reason ? t(reason) : label;
   send.setAttribute("aria-label", label);
   const photo = $("btn-photo");
@@ -580,11 +714,31 @@ function updateComposer() {
   photo.setAttribute("aria-disabled", String(!canImages));
   photo.title = canImages ? t("att.photo") : t("att.img.unsupported");
   $("photo-take").hidden = $("photo-pick").hidden = !canImages;
-  $("photo-note").textContent = canImages ? t("att.photo.note") : t("att.img.unsupported");
+  $("photo-note").textContent = canImages
+    ? t("att.photo.note")
+    : t("att.img.unsupported");
   const nDocs = nAtt - images;
   $("btn-attach").dataset.count = nDocs ? String(nDocs) : "";
   $("btn-photo").dataset.count = images ? String(images) : "";
-  $("send-why").textContent = reason ? t(reason) : "";
+  // most reasons stay for screen readers only; a pending approval is shown, with a way to reach the request
+  const why = $("send-why");
+  const shown = reason === "composer.send.pending" || reason === "composer.send.offline";
+  why.className = shown ? "send-why" : "sr-only";
+  why.replaceChildren(
+    reason ? h("span", { text: t(reason) }) : "",
+    reason === "composer.send.pending"
+      ? h("button", {
+          class: "link",
+          type: "button",
+          text: t("composer.send.pending.see"),
+          onclick: () => {
+            const deny = document.querySelector("[data-confirm-deny]");
+            deny?.scrollIntoView({ block: "center" });
+            deny?.focus();
+          },
+        })
+      : "",
+  );
   $("btn-stop").hidden = !state.busy;
   const count = $("composer-count");
   if (text.length > 1200) {
@@ -599,10 +753,26 @@ function updateComposer() {
 
 const shownAttachments = new Set(); // the entrance animation plays once per attachment, not at every redraw
 const isNew = (key) => !shownAttachments.has(key) && shownAttachments.add(key);
+/** Where focus goes after the tray is redrawn: the same card, else the one now at that place, else the input. */
+function keepTrayFocus(box, draw) {
+  const removes = () => [...box.querySelectorAll(".att-x")];
+  const was = document.activeElement;
+  const index = removes().indexOf(was);
+  const key = index >= 0 ? was.closest("[data-att]")?.dataset.att : null;
+  draw();
+  if (index < 0 || box.contains(document.activeElement)) return;
+  const now = removes();
+  const same = key && now.find((b) => b.closest("[data-att]")?.dataset.att === key);
+  (same || now[index] || now[index - 1] || input()).focus();
+}
+
 function renderAttachments() {
+  const box = $("attachments");
+  keepTrayFocus(box, () => drawAttachments(box));
+}
+function drawAttachments(box) {
   const docs = state.conv?.attachments || [];
   const imgs = pending.images;
-  const box = $("attachments");
   box.hidden = !docs.length && !imgs.length;
   if (box.hidden) return box.replaceChildren();
   const rerender = () => (renderAttachments(), updateComposer());
@@ -623,7 +793,8 @@ function renderAttachments() {
           { class: `att-in${isNew(img.id) ? " att-new" : ""}` },
           imageCard(img, {
             onRemove: () => removeImage(img.id, rerender),
-            onOpen: () => openLightbox(readyImages(), readyImages().indexOf(img)),
+            onOpen: () =>
+              openLightbox(readyImages(), readyImages().indexOf(img)),
           }),
         ),
       ),
@@ -632,7 +803,10 @@ function renderAttachments() {
           "li",
           { class: `att-in${isNew(doc.name) ? " att-new" : ""}` },
           docCard(
-            { ...doc, size: doc.size || (doc.content ? doc.content.length : 0) },
+            {
+              ...doc,
+              size: doc.size || (doc.content ? doc.content.length : 0),
+            },
             {
               onRemove: removeDoc(i),
               status: doc.lost
@@ -674,7 +848,7 @@ function addAttachment(name, content, encoding = "text", size = 0) {
   let safe =
     name
       .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^A-Za-z0-9._-]+/g, "-")
       .replace(/^[-.]+|[-.]+$/g, "")
       .slice(0, 60) || "document.txt";
@@ -697,18 +871,27 @@ function addAttachment(name, content, encoding = "text", size = 0) {
 function imagesAvailable() {
   const modes = state.health?.images_modes || {};
   const mode = activeMode();
-  if (mode === "user") return modes.user !== false && state.prefs.userImages !== false;
+  if (mode === "user")
+    return modes.user !== false && state.prefs.userImages !== false;
   return !!modes[mode];
 }
 
 async function onFiles(files) {
   const imageMode = imagesAvailable();
+  const maxImages = state.health?.image_limits?.max || 3;
+  let room = Math.max(0, maxImages - pending.images.length); // computed once: one message for the whole drop
+  let skipped = 0;
   for (const file of files) {
     if (isImageFile(file)) {
       if (!imageMode) {
         toast(t("att.img.unsupported"), "error");
         continue;
       }
+      if (room <= 0) {
+        skipped++;
+        continue;
+      }
+      room--;
       addImage(file, () => (renderAttachments(), updateComposer()));
       continue;
     }
@@ -730,6 +913,7 @@ async function onFiles(files) {
     }
     addAttachment(doc.name, doc.content, doc.encoding, doc.size);
   }
+  if (skipped) toast(t(skipped > 1 ? "att.img.skipped" : "att.img.skipped1", { n: skipped, max: maxImages }), "error");
   input().focus();
 }
 
@@ -831,7 +1015,8 @@ function apiMessages(resend = false) {
   const lastUser = turns.map((x) => x.role).lastIndexOf("user");
   turns.forEach((turn, i) => {
     if (turn.role === "user") {
-      const answered = turns[i + 1]?.role === "assistant" && turns[i + 1].answer?.content;
+      const answered =
+        turns[i + 1]?.role === "assistant" && turns[i + 1].answer?.content;
       if (i !== lastUser && !answered) return; // a request that never got an answer is not history
       // the exact text the model received for that turn (image transcriptions and notes included)
       if (turn.sent && (i !== lastUser || resend)) {
@@ -842,12 +1027,18 @@ function apiMessages(resend = false) {
       const notes =
         i === lastUser
           ? []
-          : (turn.images || []).map((img) => `[${t("att.img.note")} : ${img.name}]`);
-      messages.push({ role: "user", content: [turn.content, ...notes].join("\n") });
+          : (turn.images || []).map(
+              (img) => `[${t("att.img.note")} : ${img.name}]`,
+            );
+      messages.push({
+        role: "user",
+        content: [turn.content, ...notes].join("\n"),
+      });
     } else if (turn.answer?.content) {
       const m = { role: "assistant", content: turn.answer.content };
       if (turn.answer.memo) m.memo = turn.answer.memo;
-      if (["stopped", "length"].includes(turn.answer.stop_reason)) m.interrupted = true;
+      if (["stopped", "length"].includes(turn.answer.stop_reason))
+        m.interrupted = true;
       messages.push(m);
     }
   });
@@ -914,26 +1105,46 @@ function paintSoon(turn) {
   });
 }
 
+/** The model answered after a wake-up: keep how long the wait was, for the receipt. */
+function endWake(turn) {
+  if (turn.wakeStart && !turn.wake_s) turn.wake_s = Math.round((Date.now() - turn.wakeStart) / 100) / 10;
+  turn.wakeStart = 0;
+  if (turn.live?.state === "waking") {
+    turn.live = null;
+    syncTitle();
+  }
+}
+
 function handleEvent(turn, event) {
+  if (turn.wakeStart && event.type !== "status") endWake(turn);
   switch (event.type) {
     case "delta":
       turn.text += String(event.content ?? "");
+      if (turn.live) endWake(turn);
       turn.live = null;
       return paintSoon(turn);
     case "user": {
       // the exact user text the model got: stored on the user turn and sent back as history from now on
       const turns = state.conv.turns;
       const userTurn = turns[turns.indexOf(turn) - 1];
-      if (userTurn?.role === "user") userTurn.sent = String(event.content ?? "");
+      if (userTurn?.role === "user")
+        userTurn.sent = String(event.content ?? "");
       return;
     }
     case "delta_reset":
       turn.text = "";
       break;
     case "status":
-      turn.live = event.state === "waking" ? { ...event, since: turn.live?.since || Date.now() } : null;
+      if (event.state === "waking") {
+        turn.wakeStart = turn.wakeStart || Date.now();
+        turn.live = { ...event, since: turn.live?.since || Date.now(), at: Date.now() };
+      } else {
+        endWake(turn);
+        turn.live = null;
+      }
       if (event.state === "waking" && (event.attempt || 1) === 1)
         announce(t("live.waking"));
+      syncTitle();
       break;
     case "step": {
       const i = turn.steps.findIndex((s) => s.index === event.index);
@@ -981,6 +1192,7 @@ function handleEvent(turn, event) {
       turn.error = {
         code: event.code || "internal",
         message: String(event.message || t("turn.error")),
+        detail: event.detail ? String(event.detail) : "",
       };
       turn.status = "error";
       break;
@@ -999,6 +1211,7 @@ async function runTurn(turn, extra = {}) {
   turn.error = null;
   updateComposer();
   updateTurn(turn);
+  followTurn = turn.id;
   let finished = false;
   turn.started = Date.now();
   const ticker = window.setInterval(tick, 1000);
@@ -1006,7 +1219,8 @@ async function runTurn(turn, extra = {}) {
     const { resend, ...rest } = extra;
     extra = rest;
     if (!state.conv.cid) state.conv.cid = randomId();
-    if (!state.conv.lang) state.conv.lang = state.prefs.lang === "en" ? "en" : "fr"; // pinned for the conversation
+    if (!state.conv.lang)
+      state.conv.lang = state.prefs.lang === "en" ? "en" : "fr"; // pinned for the conversation
     const body = {
       messages: apiMessages(!!resend),
       conv_lang: state.conv.lang,
@@ -1015,7 +1229,11 @@ async function runTurn(turn, extra = {}) {
       lang: state.prefs.lang,
       attachments: state.conv.attachments
         .filter((a) => a.content && !a.lost)
-        .map(({ name, content, encoding }) => ({ name, content, encoding: encoding || "text" })),
+        .map(({ name, content, encoding }) => ({
+          name,
+          content,
+          encoding: encoding || "text",
+        })),
       ...extra,
     };
     const response = await fetch("/api/chat", {
@@ -1091,11 +1309,15 @@ async function runTurn(turn, extra = {}) {
     window.clearInterval(ticker);
     state.abort = null;
     state.busy = false;
+    if (turn.wakeStart) endWake(turn);
     turn.live = null;
+    syncTitle();
     if (turn.status !== "confirm")
       for (const step of turn.steps)
-        if (step.status === "running")
-          step.status = turn.status === "stopped" ? "denied" : "error";
+        if (step.status === "running") {
+          if (turn.status === "stopped") turn.stoppedAt = step.tool; // named in the notice
+          step.status = turn.status === "stopped" ? "stopped" : "error";
+        }
     if (turn.status === "stopped" && turn.text && !turn.answer)
       turn.answer = {
         content: turn.text,
@@ -1121,7 +1343,14 @@ function send(text) {
   const images = readyImages();
   let content = String(text ?? "").trim();
   if (!content && images.length) content = t("att.img.default");
-  if (!content || state.busy || pendingConfirm() || !state.online || busyImages()) return;
+  if (
+    !content ||
+    state.busy ||
+    pendingConfirm() ||
+    !state.online ||
+    busyImages()
+  )
+    return;
   const conv = state.conv;
   if (state.editing) {
     while (
@@ -1144,7 +1373,14 @@ function send(text) {
         size: size || (c ? c.length : 0),
         encoding: encoding || "text",
       })),
-      images: images.map(({ name, w, h: hh, sent, thumb, view }) => ({ name, w, h: hh, sent, thumb, view })),
+      images: images.map(({ name, w, h: hh, sent, thumb, view }) => ({
+        name,
+        w,
+        h: hh,
+        sent,
+        thumb,
+        view,
+      })),
     },
     turn,
   );
@@ -1166,6 +1402,8 @@ function regenerate() {
   if (state.busy) return;
   const turns = state.conv.turns;
   if (!turns.length || turns[turns.length - 1].role !== "assistant") return;
+  const conv = state.conv;
+  const previous = turns[turns.length - 1];
   const turn = newAssistantTurn();
   turns[turns.length - 1] = turn;
   renderChat();
@@ -1176,7 +1414,27 @@ function regenerate() {
     user.sent = undefined; // the images are still here: read them again
     again = { images: lastImages };
   } else if (user?.sent) again = { resend: true }; // reuse the exact text, transcriptions included
-  runTurn(turn, again);
+  const running = runTurn(turn, again);
+  // the replaced answer (text, files, receipt) can come back for 8 s; what the new run cost stays counted
+  toast(t("toast.regenerated"), "info", {
+    ms: 8000,
+    action: {
+      label: t("act.undo"),
+      run: async () => {
+        if (state.conv !== conv || conv.turns[conv.turns.length - 1] !== turn) return;
+        if (state.abort && state.busy) state.abort.abort();
+        await running;
+        if (state.conv !== conv || conv.turns[conv.turns.length - 1] !== turn) return;
+        conv.turns[conv.turns.length - 1] = previous;
+        forgetRendered();
+        renderChat();
+        saveConv();
+        updateComposer();
+        announce(t("toast.restored"));
+        input().focus();
+      },
+    },
+  });
 }
 
 // ------------------------------------------------------------------ helpers that need no model
@@ -1187,11 +1445,20 @@ async function retryStep(turn, step) {
     const response = await fetch("/api/tool", {
       method: "POST",
       headers: requestHeaders(),
-      body: JSON.stringify({ tool: step.tool, arguments: step.arguments || {}, lang: state.prefs.lang }),
+      body: JSON.stringify({
+        tool: step.tool,
+        arguments: step.arguments || {},
+        lang: state.prefs.lang,
+      }),
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(httpMessage(response.status, data?.detail));
-    if (!data.ok) return toast(t("retry.failed", { error: String(data.error || "").slice(0, 220) }), "error");
+    if (!response.ok)
+      throw new Error(httpMessage(response.status, data?.detail));
+    if (!data.ok)
+      return toast(
+        t("retry.failed", { error: String(data.error || "").slice(0, 220) }),
+        "error",
+      );
     turn.files.push(...(data.files || []));
     step.retried = true;
     step.status = "done";
@@ -1216,7 +1483,12 @@ async function exportAnswer(turn, format) {
       .replace(/[^A-Za-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 50) || "bird";
-  if (format === "md") return download(`${base}.md`, "text/markdown", new Blob([content], { type: "text/markdown" }));
+  if (format === "md")
+    return download(
+      `${base}.md`,
+      "text/markdown",
+      new Blob([content], { type: "text/markdown" }),
+    );
   try {
     const response = await fetch("/api/export", {
       method: "POST",
@@ -1224,11 +1496,19 @@ async function exportAnswer(turn, format) {
       body: JSON.stringify({ format: "docx", title, content }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    download(`${base}.docx`, mime, new Blob([await response.arrayBuffer()], { type: mime }));
+    const mime =
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    download(
+      `${base}.docx`,
+      mime,
+      new Blob([await response.arrayBuffer()], { type: mime }),
+    );
     toast(t("export.done"), "ok");
   } catch (error) {
-    toast(t("export.failed", { error: String(error?.message || error) }), "error");
+    toast(
+      t("export.failed", { error: String(error?.message || error) }),
+      "error",
+    );
   }
 }
 
@@ -1245,12 +1525,17 @@ function editLast() {
   input().focus();
 }
 
-function answerConfirm(turn, allow) {
+function answerConfirm(turn, allow, { refine = false } = {}) {
   if (state.busy || turn.status !== "confirm" || !turn.confirm) return;
   const token = turn.confirm.token;
   turn.confirm.decision = allow;
   turn.confirm.token = null; // one use: the server continues the paused run from this token
-  input().focus();
+  const el = input();
+  el.focus(); // whatever was typed meanwhile stays in the composer
+  if (refine) {
+    el.setSelectionRange(el.value.length, el.value.length);
+    announce(t("confirm.refine.next"));
+  }
   runTurn(turn, allow ? { approved: [token] } : { denied: [token] });
 }
 
@@ -1266,6 +1551,8 @@ function bind() {
     e.preventDefault();
     send(el.value);
   });
+  // a tap on Send keeps the focus (and the phone keyboard) in the message box, so the layout does not move under the finger
+  $("btn-send").addEventListener("mousedown", (e) => e.preventDefault());
   el.addEventListener("input", () => {
     slashIndex = 0;
     autosize();
@@ -1318,22 +1605,45 @@ function bind() {
     $(id).addEventListener("change", (e) => {
       onFiles([...e.target.files]);
       e.target.value = "";
-      $("photo-menu").hidden = true;
-      $("btn-photo").setAttribute("aria-expanded", "false");
+      setPhotoMenu(false);
     });
   $("btn-photo").addEventListener("click", () => {
-    const menu = $("photo-menu");
-    menu.hidden = !menu.hidden;
-    $("btn-photo").setAttribute("aria-expanded", String(!menu.hidden));
-    if (!menu.hidden) $("photo-take").focus();
+    const open = $("photo-menu").hidden;
+    setPhotoMenu(open);
+    if (open) photoItems()[0]?.focus();
   });
   $("photo-take").addEventListener("click", () => $("photo-camera").click());
   $("photo-pick").addEventListener("click", () => $("photo-library").click());
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest?.("#photo-menu, #btn-photo")) {
-      $("photo-menu").hidden = true;
-      $("btn-photo").setAttribute("aria-expanded", "false");
+  // the scrim takes the tap that closes the sheet, so it never reaches the example card under it
+  $("photo-scrim").addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setPhotoMenu(false, true);
+  });
+  $("photo-menu").addEventListener("keydown", (e) => {
+    const items = photoItems();
+    const i = items.indexOf(document.activeElement);
+    let next = null;
+    if (e.key === "Escape") {
+      e.stopPropagation(); // never reaches the global Escape, which would stop a streaming answer
+      e.preventDefault();
+      setPhotoMenu(false, true);
+      return;
     }
+    if (e.key === "ArrowDown") next = items[(i + 1) % items.length];
+    else if (e.key === "ArrowUp") next = items[(i - 1 + items.length) % items.length];
+    else if (e.key === "Home") next = items[0];
+    else if (e.key === "End") next = items[items.length - 1];
+    if (next) {
+      e.preventDefault();
+      next.focus();
+    }
+  });
+  $("photo-menu").addEventListener("focusout", (e) => {
+    if (e.relatedTarget && !e.relatedTarget.closest("#photo-menu, #btn-photo")) setPhotoMenu(false);
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest?.("#photo-menu, #btn-photo")) setPhotoMenu(false);
   });
   // drag-and-drop anywhere on the composer
   const zone = $("composer");
@@ -1345,7 +1655,8 @@ function bind() {
     zone.classList.add("is-drop");
   });
   zone.addEventListener("dragover", (e) => {
-    if ([...(e.dataTransfer?.types || [])].includes("Files")) e.preventDefault();
+    if ([...(e.dataTransfer?.types || [])].includes("Files"))
+      e.preventDefault();
   });
   zone.addEventListener("dragleave", () => {
     depth = Math.max(0, depth - 1);
@@ -1379,6 +1690,7 @@ function bind() {
   );
   $("btn-side-close").addEventListener("click", () => setSidebar(false));
   $("backdrop").addEventListener("click", () => setSidebar(false));
+  $("sidebar").addEventListener("keydown", trapDrawer);
   $("btn-clear").addEventListener("click", clearAll);
   $("conv-search").addEventListener("input", (e) => {
     search = e.target.value;
@@ -1399,6 +1711,7 @@ function bind() {
   });
   $("nav-shortcuts").addEventListener("click", openShortcuts);
   $("btn-jump").addEventListener("click", () => scrollToEnd(true));
+  document.addEventListener("visibilitychange", syncTitle);
   scroller().addEventListener(
     "scroll",
     () => {
@@ -1417,9 +1730,20 @@ function bind() {
   $("welcome").addEventListener("close", () => {
     state.prefs.welcomed = true;
     savePrefs();
-    el.focus();
+    const back = $("welcome").returnTo;
+    $("welcome").returnTo = null;
+    // reopened from About: focus goes back to its button (redrawn if the language changed meanwhile)
+    const target = back?.isConnected && back !== document.body ? back : back?.id && $(back.id);
+    (target || el).focus();
   });
 
+  // Code blocks: copy only the code (read at click time, so a block redrawn while streaming copies its latest text).
+  $("conversation").addEventListener("click", (e) => {
+    const btn = e.target.closest?.("[data-copy-code]");
+    if (!btn) return;
+    const code = btn.closest(".code-block")?.querySelector("pre code");
+    if (code) copyText(code.textContent, t("code.copied"));
+  });
   // Citation links move focus to the source entry.
   $("conversation").addEventListener("click", (e) => {
     const link = e.target.closest?.(".cite a");
@@ -1447,9 +1771,9 @@ function bind() {
       setSidebar(!document.body.classList.contains("side-open"));
     } else if (e.key === "Escape") {
       if (document.querySelector("dialog[open]")) return;
-      if (state.busy) stop();
-      else if (isNarrow() && document.body.classList.contains("side-open"))
-        setSidebar(false);
+      if (isNarrow() && document.body.classList.contains("side-open"))
+        setSidebar(false); // the open drawer is on top: Escape closes it first, an answer keeps streaming
+      else if (state.busy) stop();
       else if (state.view !== "chat") showView("chat");
     } else if (!typing && !mod && !e.altKey && e.key === "/") {
       e.preventDefault();
@@ -1486,7 +1810,11 @@ async function loadHealth() {
     if (!response.ok) throw new Error(String(response.status));
     state.health = await response.json();
     showBanner("");
-    if (state.prefs.mode === "demo" && !state.prefs.demoChosen && state.health?.modes?.server) {
+    if (
+      state.prefs.mode === "demo" &&
+      !state.prefs.demoChosen &&
+      state.health?.modes?.server
+    ) {
       // a visitor who tried the demo before the operator connected a model would otherwise stay in demo mode
       state.prefs.mode = "";
       savePrefs();
@@ -1536,12 +1864,17 @@ async function init() {
     },
     onSaved: updateTop,
     onExample: (text) => send(text),
+    onGuardDemo: (text) => {
+      openConv(null); // the protection demo runs in a fresh conversation, never appended to the one being read
+      send(text);
+    },
     testEndpoint,
   });
   state.convs = store.json("bird.convs", []).filter((c) => c && c.id);
   const current = store.get("bird.current");
   state.conv = (current && loadConv(current)) || newConv();
   bind();
+  trackViewport();
   applyTheme();
   applyStrings();
   setSidebar(!isNarrow() && store.get("bird.side") !== "0");

@@ -86,45 +86,45 @@ def clean_model(model: str | None, default: str = "bird") -> str:
 
 MESSAGES = {
     "ok": (
-        "Connexion réussie : l'endpoint répond sur /v1/completions.",
-        "Connected: the endpoint answers on /v1/completions.",
+        "Connexion réussie : le serveur du modèle répond sur /v1/completions.",
+        "Connected: the model server answers on /v1/completions.",
     ),
     "ok_no_usage": (
-        "Connexion réussie. L'endpoint ne renvoie pas le nombre de tokens : il sera estimé, et étiqueté comme tel.",
-        "Connected. The endpoint does not report token counts: they will be estimated, and labelled as such.",
+        "Connexion réussie. Le serveur du modèle ne renvoie pas le nombre de tokens : il sera estimé, et étiqueté comme tel.",
+        "Connected. The model server does not report token counts: they will be estimated, and labelled as such.",
     ),
     "unauthorized": (
-        "L'endpoint refuse le jeton d'accès. Vérifiez qu'il est valide et qu'il a le droit d'appeler cet endpoint.",
-        "The endpoint refuses the access token. Check that it is valid and allowed to call this endpoint.",
+        "Le serveur du modèle refuse le jeton d'accès. Vérifiez qu'il est valide et qu'il a le droit d'appeler ce serveur.",
+        "The model server refuses the access token. Check that it is valid and allowed to call this server.",
     ),
     "waking": (
-        "Le modèle se réveille (endpoint en veille ou en cours de démarrage). Cela peut prendre quelques minutes : réessayez dans un instant.",
-        "The model is waking up (endpoint scaled to zero or still starting). This can take a few minutes: try again shortly.",
+        "Le modèle se réveille (serveur en veille ou en cours de démarrage). Cela peut prendre quelques minutes : réessayez dans un instant.",
+        "The model is waking up (server scaled to zero or still starting). This can take a few minutes: try again shortly.",
     ),
     "unknown_model": (
-        "L'endpoint répond, mais ne connaît pas ce nom de modèle. Mettez dans « Nom du modèle » (ou BIRD_MODEL) le nom indiqué par l'endpoint après « Valid aliases ».",
-        'The endpoint answers but does not know this model name. Set the model name (or BIRD_MODEL) to the name the endpoint lists after "Valid aliases".',
+        "Le serveur du modèle répond, mais ne connaît pas ce nom de modèle. Mettez dans « Nom du modèle » (ou BIRD_MODEL) le nom indiqué par le serveur du modèle après « Valid aliases ».",
+        'The model server answers but does not know this model name. Set the model name (or BIRD_MODEL) to the name the model server lists after "Valid aliases".',
     ),
     "wrong_route": (
         "L'adresse répond, mais pas sur /v1/completions. Vérifiez l'URL et que le moteur expose l'API compatible OpenAI.",
         "The address answers, but not on /v1/completions. Check the URL and that the engine exposes the OpenAI-compatible API.",
     ),
     "bad_request": (
-        "L'endpoint a rejeté la requête. Le nom du modèle est peut-être incorrect pour ce moteur.",
-        "The endpoint rejected the request. The model name may be wrong for this engine.",
+        "Le serveur du modèle a rejeté la requête. Le nom du modèle est peut-être incorrect pour ce moteur.",
+        "The model server rejected the request. The model name may be wrong for this engine.",
     ),
     "server": (
-        "L'endpoint a répondu par une erreur. Consultez ses journaux.",
-        "The endpoint answered with an error. Check its logs.",
+        "Le serveur du modèle a répondu par une erreur. Consultez ses journaux.",
+        "The model server answered with an error. Check its logs.",
     ),
     "unreachable": (
-        "Impossible de joindre l'endpoint. Vérifiez l'adresse et qu'il est bien démarré.",
-        "Cannot reach the endpoint. Check the address and that it is running.",
+        "Impossible de joindre le serveur du modèle. Vérifiez l'adresse et qu'il est bien démarré.",
+        "Cannot reach the model server. Check the address and that it is running.",
     ),
-    "timeout": ("L'endpoint n'a pas répondu à temps.", "The endpoint did not answer in time."),
-    "blocked": ("Cette adresse n'est pas autorisée pour un endpoint.", "This address is not allowed for an endpoint."),
+    "timeout": ("Le serveur du modèle n'a pas répondu à temps.", "The model server did not answer in time."),
+    "blocked": ("Cette adresse n'est pas autorisée pour un serveur de modèle.", "This address is not allowed for a model server."),
     "https_only": ("L'adresse doit commencer par https://.", "The address must start with https://."),
-    "invalid_url": ("L'adresse de l'endpoint n'est pas valide.", "The endpoint address is not valid."),
+    "invalid_url": ("L'adresse du serveur du modèle n'est pas valide.", "The model server address is not valid."),
     "port": ("Seul le port https par défaut est accepté.", "Only the default https port is accepted."),
     "host_not_allowed": (
         "Cet hôte n'est pas dans la liste autorisée (par défaut : *.endpoints.huggingface.cloud).",

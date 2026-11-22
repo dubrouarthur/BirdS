@@ -41,8 +41,19 @@ export const store = {
 
 const DEFAULT_PREFS = { lang: "fr", theme: "system", thinking: false, mode: "", endpoint: "", token: "", model: "", access: "", welcomed: false };
 
+/** First visit (nothing stored): French when any of the browser's languages is French, English otherwise. */
+function detectLang() {
+  try {
+    const list = navigator.languages?.length ? navigator.languages : [navigator.language || ""];
+    return list.some((l) => /^fr/i.test(l || "")) ? "fr" : "en";
+  } catch {
+    return "fr";
+  }
+}
+const storedPrefs = store.json("bird.prefs", null);
+
 export const state = {
-  prefs: { ...DEFAULT_PREFS, ...store.json("bird.prefs", {}) },
+  prefs: { ...DEFAULT_PREFS, ...(storedPrefs?.lang ? {} : { lang: detectLang() }), ...(storedPrefs || {}) },
   health: null,
   convs: [], // index: [{id, title, created, updated, n}]
   conv: null, // the open conversation {id, title, created, updated, turns, attachments}
@@ -135,6 +146,7 @@ const ICONS = {
   menu: '<path d="M3.500 6h13M3.500 10h13M3.500 14h13"/>',
   back: '<path d="M11.500 5l-5 5 5 5M7 10h9"/>',
   send: '<path d="M10 16V4.500M5 9.200l5-5 5 5"/>',
+  pause: '<path d="M7.500 5v10M12.500 5v10"/>',
   stop: '<rect class="fill" x="5.500" y="5.500" width="9" height="9" rx="1.500"/>',
   eye: '<path d="M2.500 10S5.300 5 10 5s7.500 5 7.500 5-2.800 5-7.500 5-7.500-5-7.500-5z"/><circle cx="10" cy="10" r="2.200"/>',
   spark: '<path d="M10 3l1.600 4.400L16 9l-4.400 1.600L10 15l-1.600-4.400L4 9l4.400-1.600z"/>',
@@ -199,15 +211,36 @@ export function announce(text) {
   window.setTimeout(() => (live.textContent = text), 30);
 }
 
-export function toast(text, kind = "info") {
+/** A short message. `action` ({label, run}) adds one button (e.g. "Annuler"); `ms` overrides how long it stays. */
+export function toast(text, kind = "info", { action, ms } = {}) {
   const host = $("toasts");
-  const el = h("div", { class: `toast toast-${kind}`, role: kind === "error" ? "alert" : "status" }, icon(kind === "error" ? "alert" : kind === "ok" ? "check" : "info"), h("span", { text }));
-  host.append(el);
-  while (host.children.length > 3) host.firstChild.remove();
-  window.setTimeout(() => {
+  for (const old of [...host.children]) if (old.dataset.text === text && !old.classList.contains("toast-out")) old.remove(); // the same message once
+  const el = h(
+    "div",
+    { class: `toast toast-${kind}${action ? " has-action" : ""}`, role: kind === "error" ? "alert" : "status", "data-text": text },
+    icon(kind === "error" ? "alert" : kind === "ok" ? "check" : "info"),
+    h("span", { text }),
+  );
+  const close = () => {
     el.classList.add("toast-out");
     window.setTimeout(() => el.remove(), 250);
-  }, kind === "error" ? 6000 : 2600);
+  };
+  if (action)
+    el.append(
+      h("button", {
+        class: "toast-action",
+        type: "button",
+        text: action.label,
+        onclick: () => {
+          close();
+          action.run();
+        },
+      }),
+    );
+  host.append(el);
+  while (host.children.length > 3) host.firstChild.remove();
+  window.setTimeout(close, ms || (kind === "error" ? 6000 : 2600));
+  return el;
 }
 
 export async function copyText(text, message) {

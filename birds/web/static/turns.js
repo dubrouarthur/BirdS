@@ -67,22 +67,36 @@ function liveLine(turn) {
   let text;
   let sub = "";
   let calm = false;
+  let retry = null;
   if (turn.live?.state === "waking") {
     text = t("live.waking");
     sub = t("live.waking.sub", { n: turn.live.attempt || 1 });
     calm = true;
+    const wait = Number(turn.live.retry_in);
+    if (wait >= 0) {
+      const at = String((turn.live.at || Date.now()) + wait * 1000);
+      retry = h("span", { class: "num", "data-retry-at": at, text: retryText(Number(at)) });
+    }
   } else if (running) {
     const key = `live.${running.tool}`;
     const label = t(key) === key ? t("live.tool") : t(key);
     const what = target(running.tool, running.arguments);
     text = what ? `${label} : ${what}…` : `${label}…`;
   } else if (turn.text) text = t("live.writing");
+  else if (turn.steps.some((s) => s.status === "done")) text = t("live.reading"); // a tool finished: Bird reads it, then writes
   else text = t(turn.thinking ? "live.thinking" : "live.starting");
-  if (!sub && !turn.text && !running && !calm) sub = t("live.first");
   if (running?.tool === "web_search" && state.health?.tools_info?.search?.label)
     sub = t("live.search.via", { label: state.health.tools_info.search.label });
   if (running?.tool === "read_image") sub = t("live.read_image.sub");
   const since = turn.live?.since || turn.started || Date.now();
+  // no fixed promise: the "first word in 2 s" line only in the first 3 s of a plain request, then honest updates
+  let auto = null;
+  if (!sub && !calm && !turn.text) {
+    const first = !turn.steps.length && !turn.thinking ? "1" : "";
+    const started = String(turn.started || Date.now());
+    const line = autoSub(Number(started), first);
+    auto = h("p", { class: "live-sub", "data-auto-sub": first, "data-started": started, hidden: !line, text: line });
+  }
   return h(
     "div",
     { class: `live${calm ? " live-calm" : ""}` },
@@ -96,9 +110,21 @@ function liveLine(turn) {
         h("span", { text }),
         h("span", { class: "live-time num", "data-since": String(since), "aria-hidden": "true", text: elapsed(since) }),
       ),
-      sub && h("p", { class: "live-sub", text: sub }),
+      sub ? h("p", { class: "live-sub" }, retry && [retry, " · "], sub) : auto,
     ),
   );
+}
+
+function retryText(at) {
+  const left = Math.max(0, Math.ceil((at - Date.now()) / 1000));
+  return left > 0 ? t("live.retry.in", { n: left }) : t("live.retry.now");
+}
+
+function autoSub(started, first) {
+  const s = (Date.now() - started) / 1000;
+  if (s < 3) return first ? t("live.first") : "";
+  if (s < 8) return "";
+  return t(s < 20 ? "live.slow" : "live.slower");
 }
 
 const elapsed = (since) => {
@@ -108,6 +134,12 @@ const elapsed = (since) => {
 /** Called every second while a request runs: only the small timers change, nothing else is redrawn. */
 export function tick() {
   for (const el of document.querySelectorAll("[data-since]")) el.textContent = elapsed(el.dataset.since);
+  for (const el of document.querySelectorAll("[data-retry-at]")) el.textContent = retryText(Number(el.dataset.retryAt));
+  for (const el of document.querySelectorAll("[data-auto-sub]")) {
+    const line = autoSub(Number(el.dataset.started), el.dataset.autoSub);
+    if (el.textContent !== line) el.textContent = line;
+    el.hidden = !line;
+  }
 }
 
 // ------------------------------------------------------------------ steps
@@ -169,9 +201,12 @@ function renderSteps(turn) {
   const total = turn.steps.reduce((sum, s) => sum + (s.seconds || 0), 0);
   const n = turn.steps.length;
   turn.ui.stepOpen = turn.ui.stepOpen || {};
-  const items = turn.steps.map((step) => {
+  const asking = turn.status === "confirm";
+  const items = turn.steps.map((raw) => {
+    // a step paused on the approval sheet is waiting for you, not running
+    const step = asking && raw.status === "running" ? { ...raw, status: "awaiting" } : raw;
     const injection = (step.flags || []).includes("possible_injection");
-    const statusIcon = { done: "check", error: "cross", denied: "ban" }[
+    const statusIcon = { done: "check", error: "cross", denied: "ban", awaiting: "shield", stopped: "pause" }[
       step.status
     ];
     const what = target(step.tool, step.arguments);
@@ -211,7 +246,9 @@ function renderSteps(turn) {
             step.status === "running"
               ? h("span", { class: "spinner", "aria-hidden": "true" })
               : icon(statusIcon || "check", `status-${step.status}`),
-            h("span", { class: "sr-only", text: t(`status.${step.status}`) }),
+            step.status === "awaiting"
+              ? h("span", { class: "step-await-text", text: t("status.awaiting") })
+              : h("span", { class: "sr-only", text: t(`status.${step.status}`) }),
             step.status !== "running" &&
               step.seconds > 0 &&
               h("span", { class: "num", text: fmtSeconds(step.seconds) }),
@@ -228,6 +265,7 @@ function renderSteps(turn) {
               icon("shield"),
               h("span", { text: t("steps.injection") }),
             ),
+          injection && step.flagged_excerpt && ignoredQuote(step),
           h("p", { class: "eyebrow", text: t("steps.args") }),
           h("dl", { class: "kv" }, argRows(step.arguments)),
           (step.preview || step.summary) &&
@@ -275,11 +313,24 @@ function renderSteps(turn) {
           icon("alert"),
           t("steps.flagged"),
         ),
+      asking && h("span", { class: "badge badge-await" }, icon("shield"), t("steps.awaiting")),
       turn.status !== "running" &&
+        !asking &&
         total > 0 &&
         h("span", { class: "num steps-time", text: fmtSeconds(total) }),
     ],
     h("ol", { class: "timeline", "aria-label": t("steps.title") }, items),
+  );
+}
+
+/** The sentence Bird ignored, quoted as plain text (never Markdown, never a link), with where it came from. */
+function ignoredQuote(step) {
+  const host = hostOf(String(step.arguments?.url || ""));
+  return h(
+    "figure",
+    { class: "ignored" },
+    h("figcaption", { class: "eyebrow", text: host ? t("steps.ignored.from", { host }) : t("steps.ignored") }),
+    h("blockquote", { class: "ignored-text", text: String(step.flagged_excerpt) }),
   );
 }
 
@@ -326,6 +377,17 @@ function renderConfirm(turn) {
         null,
         h("p", { class: "eyebrow", text: t("confirm.why") }),
         h("p", { class: "sheet-why", text: String(c.reason || "") }),
+        ...turn.steps
+          .filter((s) => s.flagged_excerpt && (s.flags || []).includes("possible_injection"))
+          .slice(-1)
+          .map((s) =>
+            h(
+              "details",
+              { class: "sheet-ignored", open: !window.matchMedia("(max-width: 640px)").matches },
+              h("summary", null, icon("chevron", "chev"), t("steps.ignored")),
+              ignoredQuote(s),
+            ),
+          ),
         h("p", { class: "eyebrow", text: t("confirm.then") }),
         h(
           "ul",
@@ -344,6 +406,13 @@ function renderConfirm(turn) {
         t("confirm.deny"),
         () => handlers.onConfirm(turn, false),
         { "data-confirm-deny": "1" },
+      ),
+      button(
+        "btn-quiet",
+        null,
+        t("confirm.refine"),
+        () => handlers.onConfirm(turn, false, { refine: true }),
+        { "data-confirm-refine": "1", title: t("confirm.refine.hint") },
       ),
       button(
         "btn-primary",
@@ -759,14 +828,42 @@ export function meterTable(usage) {
   );
 }
 
-function renderReceipt(turn) {
+/** The latest answer shows its full receipt; earlier ones fold it into a one-line chip that expands in place. */
+function renderReceipt(turn, isLast = true) {
   const u = turn.usage;
   if (!u) return null;
+  if (isLast) return fullReceipt(turn);
+  const open = !!turn.ui.receipt;
+  const energy = hasEnergy(u) ? fmtEnergy(u.energy_wh, u.energy_kind) : `${t("meter.energy")} ${t("meter.energy.none")}`;
+  const id = `rc-${turn.id}`;
+  const chip = h(
+    "button",
+    {
+      class: "receipt-chip",
+      type: "button",
+      "aria-expanded": String(open),
+      "aria-controls": id,
+      onclick: () => {
+        turn.ui.receipt = !turn.ui.receipt;
+        updateTurn(turn);
+        document.querySelector(`[data-turn="${turn.id}"] .receipt-chip`)?.focus();
+      },
+    },
+    icon("leaf"),
+    h("span", { class: "receipt-chip-text num" }, `${u.tokens_kind === "estimated" ? "≈ " : ""}${fmtInt(u.prompt_tokens + u.completion_tokens)} ${t("meter.tokens")} · ${fmtSeconds(u.seconds)} · ${energy}`),
+    u.tokens_kind === "scripted" && h("span", { class: "tag tag-scripted", text: t("kind.scripted") }),
+    icon("chevron", "chev"),
+  );
+  return h("div", { class: `receipt-fold${open ? " is-open" : ""}` }, chip, open && h("div", { id }, fullReceipt(turn)));
+}
+
+function fullReceipt(turn) {
+  const u = turn.usage;
   const energy = hasEnergy(u);
-  const figure = (value, label, sub, cls = "") => {
+  const figure = (value, label, sub, cls = "", tag = null) => {
     const v = h("span", { class: "fig-value num", text: value });
     const l = h("span", { class: "fig-label", text: cls.includes("fig-none") ? `${label} :` : label });
-    return h("div", { class: `fig ${cls}` }, cls.includes("fig-none") ? [l, v] : [v, l], sub && h("span", { class: "fig-sub", text: sub }));
+    return h("div", { class: `fig ${cls}` }, cls.includes("fig-none") ? [l, v] : [v, l], tag, sub && h("span", { class: "fig-sub", text: sub }));
   };
   const chips = [
     u.tool_calls === 0
@@ -789,14 +886,16 @@ function renderReceipt(turn) {
         "div",
         { class: "figs" },
         figure(
-          fmtInt(u.prompt_tokens + u.completion_tokens),
+          `${u.tokens_kind === "estimated" ? "≈ " : ""}${fmtInt(u.prompt_tokens + u.completion_tokens)}`,
           t("meter.tokens"),
           t("meter.tokens.split", {
             in: fmtInt(u.prompt_tokens),
             out: fmtInt(u.completion_tokens),
           }),
+          "",
+          u.tokens_kind === "scripted" && h("span", { class: "tag tag-scripted", text: t("kind.scripted") }),
         ),
-        figure(fmtSeconds(u.seconds), t("meter.time")),
+        figure(fmtSeconds(u.seconds), t("meter.time"), turn.wake_s > 0 ? t("meter.wake", { s: fmtSeconds(turn.wake_s) }) : null),
         energy
           ? figure(
               fmtEnergy(u.energy_wh, u.energy_kind),
@@ -846,6 +945,8 @@ function paintMarkdown(turn, entry) {
     cites,
     anchor: `src-${turn.id}`,
     citeLabel: `${t("sources.title")} {n}`,
+    copyCode: t("code.copy.label"),
+    copyText: t("code.copy"),
   });
   const md = entry.md;
   let first = 0;
@@ -864,7 +965,12 @@ function paintMarkdown(turn, entry) {
 
 export function plainText(turn) {
   const md = cache.get(turn.id)?.md;
-  return md ? md.innerText.trim() : String(turn.answer?.content || "");
+  if (!md) return String(turn.answer?.content || "");
+  const heads = [...md.querySelectorAll(".code-head")]; // the language label and "Copy" are not part of the answer
+  for (const el of heads) el.hidden = true;
+  const text = md.innerText.trim();
+  for (const el of heads) el.hidden = false;
+  return text;
 }
 
 function renderActions(turn, isLast) {
@@ -885,20 +991,6 @@ function renderActions(turn, isLast) {
       () => copyText(plainText(turn)),
       { "data-act": "copy" },
     ),
-    button(
-      "btn-quiet btn-icon btn-small",
-      "markdown",
-      t("act.copy.md"),
-      () => copyText(turn.answer.content, t("toast.copied.md")),
-      { "data-act": "copy-md" },
-    ),
-    button("btn-quiet btn-small btn-export", "word", t("act.export.docx"), () => handlers.onExport(turn, "docx"), {
-      "data-act": "export-docx",
-      title: t("act.export.docx.hint"),
-    }),
-    button("btn-quiet btn-icon btn-small", "download", t("act.export.md"), () => handlers.onExport(turn, "md"), {
-      "data-act": "export-md",
-    }),
     isLast &&
       !state.busy &&
       button(
@@ -931,13 +1023,103 @@ function renderActions(turn, isLast) {
         title: `${t("act.down")} — ${t("act.feedback.note")}`,
       },
     ),
+    moreMenu([
+      ["markdown", t("act.copy.md"), "copy-md", () => copyText(turn.answer.content, t("toast.copied.md"))],
+      ["word", t("act.export.docx.item"), "export-docx", () => handlers.onExport(turn, "docx")],
+      ["download", t("act.export.md.item"), "export-md", () => handlers.onExport(turn, "md")],
+    ]),
   );
 }
+
+/** "Plus": a menu button (arrow keys, Home/End, Escape back to the button, closes on outside click). */
+function moreMenu(items) {
+  let menu = null;
+  const trigger = button("btn-quiet btn-icon btn-small", "more", t("act.more"), () => (menu.hidden ? openMenu(0) : closeMenu(false)), {
+    "aria-haspopup": "menu",
+    "aria-expanded": "false",
+    "data-act": "more",
+  });
+  const entries = items.map(([ico, label, act, run]) =>
+    h(
+      "button",
+      { class: "menu-item", type: "button", role: "menuitem", tabindex: "-1", "data-act": act, onclick: () => (closeMenu(true), run()) },
+      icon(ico),
+      h("span", { text: label }),
+    ),
+  );
+  const onOutside = (e) => !wrap.contains(e.target) && closeMenu(false);
+  function openMenu(index) {
+    menu.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    // opens upward when the conversation area has no room below the button (the composer sits there)
+    const area = $("scroll").getBoundingClientRect();
+    const below = area.bottom - trigger.getBoundingClientRect().bottom;
+    menu.classList.toggle("menu-up", below < menu.offsetHeight + 8);
+    entries.at(index)?.focus();
+    document.addEventListener("pointerdown", onOutside, true);
+  }
+  function closeMenu(refocus) {
+    if (menu.hidden) return;
+    menu.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+    document.removeEventListener("pointerdown", onOutside, true);
+    if (refocus) trigger.focus();
+  }
+  menu = h(
+    "div",
+    {
+      class: "menu",
+      role: "menu",
+      hidden: true,
+      "aria-label": t("act.more"),
+      onkeydown: (e) => {
+        const i = entries.indexOf(document.activeElement);
+        const go = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: entries.length - 1 }[e.key];
+        if (go !== undefined) {
+          e.preventDefault();
+          entries[(go + entries.length) % entries.length].focus();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          closeMenu(true);
+        } else if (e.key === "Tab") closeMenu(false);
+      },
+    },
+    entries,
+  );
+  trigger.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      openMenu(e.key === "ArrowDown" ? 0 : -1);
+    }
+  });
+  const wrap = h("span", { class: "menu-wrap" }, trigger, menu);
+  return wrap;
+}
+
+// codes whose message is already a sentence written for people (by this page, the server or the endpoint check);
+// anything else ("internal", or a code this page does not know) is shown as a plain sentence, the raw text folded away
+const FRIENDLY_ERRORS = new Set(
+  (
+    "waking network offline dropped stopped access_code rate_limited confirm_invalid unauthorized wrong_route " +
+    "unknown_model blocked disabled not_configured host_not_allowed https_only invalid_url address bad_request " +
+    "demo invalid_model invalid_token port server timeout unreachable attachment_invalid attachment_too_long " +
+    "attachment_type cross_origin image_invalid image_too_large image_too_small image_type invalid_mode " +
+    "invalid_request message_too_long request_too_large too_large too_many_attachments too_many_messages"
+  ).split(" "),
+);
 
 function renderError(turn, isLast) {
   if (!turn.error) return null;
   const code = turn.error.code;
   const calm = code === "waking";
+  const friendly = FRIENDLY_ERRORS.has(code) || /^http_\d+$/.test(code);
+  const raw = friendly ? "" : turn.error.detail || turn.error.message;
+  const done = turn.steps.filter((s) => s.status === "done").length;
+  const before =
+    !calm && done
+      ? h("p", { class: "notice-steps", text: t(done === 1 ? "error.steps.one" : "error.steps.many", { n: done }) })
+      : null;
   const needsSettings = [
     "access_code",
     "unauthorized",
@@ -961,7 +1143,15 @@ function renderError(turn, isLast) {
       "div",
       { class: "notice-text" },
       h("strong", { text: calm ? t("error.waking.title") : t("turn.error") }),
-      h("p", { text: calm ? t("error.waking") : turn.error.message }),
+      h("p", { text: calm ? t("error.waking") : friendly ? turn.error.message : t("error.internal") }),
+      before,
+      raw &&
+        h(
+          "details",
+          { class: "notice-details" },
+          h("summary", { text: t("error.details") }),
+          h("pre", { text: raw.slice(0, 400) }),
+        ),
     ),
     h(
       "div",
@@ -1061,9 +1251,17 @@ function fillAssistant(el, turn, isLast) {
     renderEmail(turn),
     renderError(turn, isLast),
     turn.status === "stopped" &&
-      h("p", { class: "stopped", text: t("turn.stopped") }),
+      h(
+        "div",
+        { class: "stopped" },
+        icon("pause"),
+        h("span", { text: turn.stoppedAt ? t("turn.stopped.at", { step: toolLabel(turn.stoppedAt) }) : t("turn.stopped") }),
+        isLast &&
+          !state.busy &&
+          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(), { "data-act": "restart" }),
+      ),
     renderActions(turn, isLast),
-    renderReceipt(turn),
+    renderReceipt(turn, isLast),
   ];
   el.replaceChildren(...children.filter(Boolean));
   el.setAttribute("aria-busy", String(turn.status === "running"));

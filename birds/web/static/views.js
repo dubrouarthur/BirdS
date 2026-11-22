@@ -85,95 +85,111 @@ function topRounded(x, y, w, hgt, r) {
 function chart(all) {
   const usages = all.slice(-40);
   const offset = all.length - usages.length;
-  const barW = 14;
-  const gap = 8;
-  const height = 120;
-  const plot = height - 10;
+  const height = 132;
+  const top = 16; // room for the scale label
+  const plot = height - top - 2;
   const max = Math.max(
     1,
     ...usages.map((u) => u.prompt_tokens + u.completion_tokens),
   );
-  const width = Math.max(usages.length * (barW + gap) + gap, 160);
   const readout = h("p", {
     class: "chart-readout num",
+    "aria-live": "polite",
     text: t("fp.chart.hint"),
   });
-  const el = svg("svg", {
-    class: "chart",
-    viewBox: `0 0 ${width} ${height}`,
-    width,
-    height,
-    role: "group",
-    "aria-label": t("fp.chart"),
-  });
-  el.append(
-    svg("line", {
-      class: "chart-axis",
-      x1: 0,
-      x2: width,
-      y1: height - 0.5,
-      y2: height - 0.5,
-    }),
-  );
-  usages.forEach((u, i) => {
-    const x = gap + i * (barW + gap);
-    const hIn = Math.max(
-      u.prompt_tokens > 0 ? 2 : 0,
-      (u.prompt_tokens / max) * (plot - 2),
-    );
-    const hOut = Math.max(
-      u.completion_tokens > 0 ? 2 : 0,
-      (u.completion_tokens / max) * (plot - 2),
-    );
-    const extra =
-      (u.thinking ? t("fp.bar.thinking") : "") +
-      (u.tool_calls ? t("fp.bar.tools", { n: u.tool_calls }) : "");
-    const label = t("fp.bar", {
+  const scroller = h("div", { class: "chart-scroll" });
+  let current = usages.length - 1; // roving tabindex: one tab stop, the arrows move between answers
+  const labelOf = (u, i) =>
+    t("fp.bar", {
       i: offset + i + 1,
       in: fmtInt(u.prompt_tokens),
       out: fmtInt(u.completion_tokens),
-      extra,
+      extra:
+        (u.thinking ? t("fp.bar.thinking") : "") +
+        (u.tool_calls ? t("fp.bar.tools", { n: u.tool_calls }) : ""),
     });
-    const group = svg("g", {
-      class: "chart-bar",
-      tabindex: "0",
-      role: "img",
-      "aria-label": label,
+  function draw() {
+    const W = Math.max(160, Math.floor(scroller.clientWidth || 640) - 4);
+    const n = Math.max(1, usages.length);
+    const gap = Math.min(8, Math.max(2, Math.round(W / n / 4)));
+    const barW = Math.min(24, Math.max(3, Math.floor((W - gap) / n - gap)));
+    const width = Math.min(W, Math.max(n * (barW + gap) + gap, 160));
+    const hadFocus = scroller.contains(document.activeElement);
+    const el = svg("svg", {
+      class: "chart",
+      viewBox: `0 0 ${width} ${height}`,
+      width,
+      height,
+      role: "group",
+      "aria-label": t("fp.chart"),
     });
-    group.append(
-      svg("rect", {
-        class: "chart-hit",
-        x: x - gap / 2,
-        y: 0,
-        width: barW + gap,
-        height,
-      }),
-      svg("rect", {
-        class: "series-in",
-        x,
-        y: height - 1 - hIn,
-        width: barW,
-        height: hIn,
-      }),
-      svg("path", {
-        class: "series-out",
-        d: topRounded(x, height - 1 - hIn - 2 - hOut, barW, hOut, 4),
-      }),
+    el.append(
+      svg("line", { class: "chart-grid", x1: 0, x2: width, y1: top + 0.5, y2: top + 0.5 }),
+      svg("text", { class: "chart-scale", x: 0, y: top - 5 }, document.createTextNode(`${fmtInt(max)} tokens`)),
+      svg("line", { class: "chart-axis", x1: 0, x2: width, y1: height - 0.5, y2: height - 0.5 }),
     );
-    if (u.thinking)
+    const bars = usages.map((u, i) => {
+      const x = gap + i * (barW + gap); // left-aligned
+      const hIn = Math.max(u.prompt_tokens > 0 ? 2 : 0, (u.prompt_tokens / max) * (plot - 2));
+      const hOut = Math.max(u.completion_tokens > 0 ? 2 : 0, (u.completion_tokens / max) * (plot - 2));
+      const label = labelOf(u, i);
+      const group = svg("g", {
+        class: "chart-bar",
+        tabindex: i === current ? "0" : "-1",
+        role: "img",
+        "aria-label": label,
+        "data-i": String(i),
+      });
       group.append(
-        svg("circle", {
-          class: "chart-dot",
-          cx: x + barW / 2,
-          cy: Math.max(4, height - 1 - hIn - 2 - hOut - 6),
-          r: 2.2,
-        }),
+        svg("rect", { class: "chart-hit", x: x - gap / 2, y: 0, width: barW + gap, height }),
+        svg("rect", { class: "series-in", x, y: height - 1 - hIn, width: barW, height: hIn }),
+        svg("path", { class: "series-out", d: topRounded(x, height - 1 - hIn - 2 - hOut, barW, hOut, Math.min(4, barW / 2)) }),
       );
-    const show = () => (readout.textContent = label);
-    group.addEventListener("mouseenter", show);
-    group.addEventListener("focus", show);
-    el.append(group);
-  });
+      if (u.thinking)
+        group.append(
+          svg("circle", {
+            class: "chart-dot",
+            cx: x + barW / 2,
+            cy: Math.max(top + 4, height - 1 - hIn - 2 - hOut - 6),
+            r: Math.min(2.2, barW / 2),
+          }),
+        );
+      const show = () => {
+        current = i;
+        readout.textContent = label;
+      };
+      group.addEventListener("mouseenter", show);
+      group.addEventListener("focus", show);
+      group.addEventListener("pointerdown", show); // touch: a tap shows the details
+      el.append(group);
+      return group;
+    });
+    el.addEventListener("keydown", (e) => {
+      const go = { ArrowRight: current + 1, ArrowLeft: current - 1, Home: 0, End: bars.length - 1 }[e.key];
+      if (go === undefined) return;
+      e.preventDefault();
+      const next = Math.max(0, Math.min(bars.length - 1, go));
+      bars[current]?.setAttribute("tabindex", "-1");
+      bars[next].setAttribute("tabindex", "0");
+      current = next;
+      bars[next].focus();
+    });
+    scroller.replaceChildren(el);
+    if (hadFocus) bars[current]?.focus();
+  }
+  draw();
+  let lastW = 0;
+  let timer = 0;
+  if (typeof ResizeObserver === "function")
+    new ResizeObserver(() => {
+      const w = scroller.clientWidth;
+      if (!w || w === lastW) return;
+      const first = !lastW;
+      lastW = w;
+      window.clearTimeout(timer);
+      if (first) draw(); // now in the page: its real width
+      else timer = window.setTimeout(draw, 80); // debounced: a window drag redraws once
+    }).observe(scroller);
   return h(
     "figure",
     { class: "panel chart-figure" },
@@ -210,7 +226,7 @@ function chart(all) {
         ),
       ),
     ),
-    h("div", { class: "chart-scroll" }, el),
+    scroller,
     readout,
     h(
       "details",
@@ -254,13 +270,32 @@ function chart(all) {
   );
 }
 
-function splitRow(label, usages, max) {
+const totalTokens = (u) => u.prompt_tokens + u.completion_tokens;
+const writtenTokens = (u) => u.completion_tokens;
+const avgBy = (list, f) => (list.length ? list.reduce((s, u) => s + f(u), 0) / list.length : 0);
+
+/**
+ * The one thinking comparison of the page (the panel and the lever line both use it): tokens the model WROTE,
+ * on answers without tools only (a tool turn re-reads pages and would swamp the effect), and at least two
+ * answers on each side, else no figure at all.
+ */
+function thinkingCompare(usages) {
+  const plain = usages.filter((u) => !(u.tool_calls > 0));
+  const on = plain.filter((u) => u.thinking);
+  const off = plain.filter((u) => !u.thinking);
+  return {
+    asked: usages.some((u) => u.thinking),
+    enough: on.length >= 2 && off.length >= 2,
+    on: on.length,
+    off: off.length,
+    avgOn: avgBy(on, writtenTokens),
+    avgOff: avgBy(off, writtenTokens),
+  };
+}
+
+function splitRow(label, usages, max, f, unitKey) {
   const n = usages.length;
-  const tokens = usages.reduce(
-    (sum, u) => sum + u.prompt_tokens + u.completion_tokens,
-    0,
-  );
-  const avg = n ? Math.round(tokens / n) : 0;
+  const avg = Math.round(avgBy(usages, f));
   const bar = h(
     "span",
     { class: "split-bar" },
@@ -274,57 +309,55 @@ function splitRow(label, usages, max) {
     bar,
     h("span", {
       class: "split-value num",
-      text: n ? t("fp.split.avg", { n: fmtInt(n), avg: fmtInt(avg) }) : "—",
+      text: n ? t(unitKey, { n: fmtInt(n), avg: fmtInt(avg) }) : "—",
     }),
   );
 }
 
 function splits(usages) {
-  const avgOf = (list) =>
-    list.length
-      ? list.reduce((s, u) => s + u.prompt_tokens + u.completion_tokens, 0) /
-        list.length
-      : 0;
+  // thinking rows: tokens written; tool rows: all tokens (a tool turn's cost is mostly what it reads)
   const on = usages.filter((u) => u.thinking);
   const off = usages.filter((u) => !u.thinking);
   const withTools = usages.filter((u) => u.tool_calls > 0);
   const without = usages.filter((u) => !u.tool_calls);
-  const max = Math.max(
-    avgOf(on),
-    avgOf(off),
-    avgOf(withTools),
-    avgOf(without),
-    1,
-  );
+  const maxThink = Math.max(avgBy(on, writtenTokens), avgBy(off, writtenTokens), 1);
+  const maxTools = Math.max(avgBy(withTools, totalTokens), avgBy(without, totalTokens), 1);
   return h(
     "section",
     { class: "panel" },
     h("h3", { class: "eyebrow", text: t("fp.split") }),
     h("p", { class: "split-title", text: t("fp.split.thinking") }),
-    splitRow(t("fp.split.off"), off, max),
-    splitRow(t("fp.split.on"), on, max),
+    splitRow(t("fp.split.off"), off, maxThink, writtenTokens, "fp.split.avg.out"),
+    splitRow(t("fp.split.on"), on, maxThink, writtenTokens, "fp.split.avg.out"),
     h("p", { class: "split-title", text: t("fp.split.tools") }),
-    splitRow(t("fp.split.without"), without, max),
-    splitRow(t("fp.split.with"), withTools, max),
+    splitRow(t("fp.split.without"), without, maxTools, totalTokens, "fp.split.avg"),
+    splitRow(t("fp.split.with"), withTools, maxTools, totalTokens, "fp.split.avg"),
   );
 }
 
-function comparison(usages) {
-  const avg = (list) =>
-    list.reduce((s, u) => s + u.prompt_tokens + u.completion_tokens, 0) /
-    list.length;
-  const on = usages.filter((u) => u.thinking);
-  const off = usages.filter((u) => !u.thinking);
-  if (!on.length || !off.length) return null;
-  const a = avg(on);
-  const b = avg(off);
+/** "1,9 fois plus": the ratio as the page words it, shared by the panel and the lever line. */
+function thinkRatio(c) {
+  const a = c.avgOn;
+  const b = c.avgOff;
   const x = a >= b ? a / Math.max(b, 1) : b / Math.max(a, 1);
-  const ratio =
-    x < 1.15
-      ? t("fp.compare.same")
-      : t(a >= b ? "fp.compare.more" : "fp.compare.less", {
-          x: fmtSig(Math.round(x * 10) / 10),
-        });
+  return x < 1.15
+    ? t("fp.compare.same")
+    : t(a >= b ? "fp.compare.more" : "fp.compare.less", { x: fmtSig(Math.round(x * 10) / 10) });
+}
+
+function comparison(usages) {
+  const c = thinkingCompare(usages);
+  if (!c.asked) return null;
+  if (!c.enough)
+    return h(
+      "section",
+      { class: "panel panel-accent", "data-compare": "1" },
+      h("h3", { class: "eyebrow", text: t("fp.compare.title") }),
+      h("p", { text: t("fp.compare.few", { a: c.on, b: c.off }) }),
+    );
+  const a = c.avgOn;
+  const b = c.avgOff;
+  const ratio = thinkRatio(c);
   return h(
     "section",
     { class: "panel panel-accent", "data-compare": "1" },
@@ -338,7 +371,7 @@ function comparison(usages) {
     }),
     h("p", {
       class: "hint",
-      text: t("fp.compare.note", { a: on.length, b: off.length }),
+      text: t("fp.compare.note", { a: c.on, b: c.off }),
     }),
   );
 }
@@ -358,7 +391,7 @@ function bar(label, value, max, text, cls = "") {
   );
 }
 
-function savings(usages, s) {
+function savings(usages, s, scripted = false) {
   const cmp = state.health?.compare;
   if (!cmp) return null;
   const lang = state.prefs.lang === "en" ? "en" : "fr";
@@ -383,6 +416,7 @@ function savings(usages, s) {
       ),
     ),
     tokens > 0 &&
+      !scripted && // no FLOP figure computed from scripted token counts
       h("p", {
         class: "save-line",
         text: t("save.compute.here", {
@@ -396,6 +430,18 @@ function savings(usages, s) {
   const ref = cmp.reference;
   const withE = usages.filter(hasEnergy);
   const avg = withE.length ? withE.reduce((a, u) => a + u.energy_wh, 0) / withE.length : null;
+  // the label says what the entries are: all measured, all an upper bound (power x time), else an estimate
+  const allPower = withE.length > 0 && withE.every((u) => u.energy_method === "power_time");
+  const energyKind = withE.length && withE.every((u) => u.energy_kind === "measured")
+    ? "measured"
+    : allPower
+      ? "upper"
+      : "estimated";
+  const birdLabel = t("save.energy.bird", {
+    kind: t(`save.energy.kind.${energyKind}`),
+    k: fmtInt(withE.length),
+    n: fmtInt(usages.length),
+  });
   const energy =
     ref && ref.wh > 0 && ref.source
       ? h(
@@ -405,7 +451,7 @@ function savings(usages, s) {
           avg === null
             ? h("p", { class: "hint", text: t("save.energy.none") })
             : [
-                bar(t("save.energy.bird"), avg, Math.max(avg, ref.wh), `≈ ${fmtSig(avg)} Wh`, "sbar-bird"),
+                bar(birdLabel, avg, Math.max(avg, ref.wh), `${energyKind === "measured" ? "" : "≈ "}${fmtSig(avg)} Wh`, "sbar-bird"),
                 bar(ref[`label_${lang}`] || ref.label_fr || "", ref.wh, Math.max(avg, ref.wh), `${fmtSig(ref.wh)} Wh`),
                 h("p", {
                   class: "save-line",
@@ -418,15 +464,14 @@ function savings(usages, s) {
           h(
             "p",
             { class: "hint" },
-            t("save.energy.scope"),
+            t(allPower ? "save.energy.scope.max" : "save.energy.scope"),
             " ",
             h("a", { href: ref.source, target: "_blank", rel: "noopener noreferrer", text: t("save.source") }),
           ),
         )
       : h("p", { class: "hint", text: t("save.energy.unset") });
-  const on = usages.filter((u) => u.thinking);
   const off = usages.filter((u) => !u.thinking);
-  const avgTok = (l) => (l.length ? l.reduce((a, u) => a + u.completion_tokens, 0) / l.length : 0);
+  const think = thinkingCompare(usages);
   const levers = h(
     "ul",
     { class: "levers" },
@@ -437,16 +482,22 @@ function savings(usages, s) {
       null,
       h("strong", { text: t("save.lever.short") }),
       " ",
-      off.length ? t("save.lever.short.p", { n: fmtInt(Math.round(avgTok(off))) }) : t("save.lever.short.none"),
+      off.length ? t("save.lever.short.p", { n: fmtInt(Math.round(avgBy(off, writtenTokens))) }) : t("save.lever.short.none"),
     ),
     h(
       "li",
       null,
       h("strong", { text: t("save.lever.think") }),
       " ",
-      on.length && off.length
-        ? t("save.lever.think.p", { on: fmtInt(Math.round(avgTok(on))), off: fmtInt(Math.round(avgTok(off))) })
-        : t("save.lever.think.none"),
+      think.enough
+        ? t("save.lever.think.p", {
+            on: fmtInt(Math.round(think.avgOn)),
+            off: fmtInt(Math.round(think.avgOff)),
+            ratio: thinkRatio(think),
+          })
+        : think.asked
+          ? t("fp.compare.few", { a: think.on, b: think.off })
+          : t("save.lever.think.none"),
     ),
   );
   return h(
@@ -465,8 +516,15 @@ let scope = "conv";
 export function renderFootprint() {
   const body = $("view-footprint-body");
   const usages = scope === "all" ? ledgerAll() : convUsages(state.conv);
-  const s = totals(usages);
-  const demo = activeMode() === "demo";
+  // scripted (demo) answers never count in the totals when real ones exist; if all are scripted, they are shown
+  // but tagged as such
+  const real = usages.filter((u) => u.tokens_kind !== "scripted");
+  const demoN = usages.length - real.length;
+  const allScripted = usages.length > 0 && !real.length;
+  const counted = allScripted ? usages : real;
+  const s = totals(counted);
+  const demo = activeMode() === "demo" || allScripted;
+  const scriptedTag = allScripted ? h("span", { class: "tag tag-scripted", text: t("kind.scripted") }) : null;
   const gi = state.health?.grid_intensity_g_per_kwh;
   const eq = state.health?.equivalent;
   const partial = (k) => (k < s.n ? t("fp.partial", { k, n: s.n }) : "");
@@ -479,6 +537,7 @@ export function renderFootprint() {
         "dd",
         null,
         h("span", { class: "stat-value num", text: value }),
+        cls.includes("stat-scripted") && scriptedTag?.cloneNode(true),
         sub && h("span", { class: "stat-sub", text: sub }),
       ),
     );
@@ -539,7 +598,7 @@ export function renderFootprint() {
     : stat(
         t("fp.energy"),
         t("meter.energy.none.long"),
-        t(demo && scope === "conv" ? "why.energy.demo" : "why.energy.none"),
+        t(usages.some((u) => u.tokens_kind === "scripted") && !real.some(hasEnergy) ? "why.energy.demo" : "why.energy.none"),
         "stat-wide stat-none",
       );
   const co2Stat = s.co2N
@@ -578,6 +637,7 @@ export function renderFootprint() {
       : null;
   put(body, 
     head,
+    allScripted && h("p", { class: "demo-note", text: t("demo.note") }),
     h(
       "dl",
       { class: "stats" },
@@ -588,22 +648,23 @@ export function renderFootprint() {
           in: fmtInt(s.prompt),
           out: fmtInt(s.completion),
         }),
-        "stat-hero",
+        `stat-hero${allScripted ? " stat-scripted" : ""}`,
       ),
       stat(t("fp.answers"), fmtInt(s.n)),
-      stat(t("fp.time"), fmtSeconds(s.seconds)),
+      stat(t("fp.time"), fmtSeconds(s.seconds), null, allScripted ? "stat-scripted" : ""),
       stat(t("fp.tools"), fmtInt(s.tools)),
       stat(t("fp.fetched"), fmtBytes(s.bytes)),
       energyStat,
       co2Stat,
     ),
     equivalent,
+    demoN > 0 && !allScripted && h("p", { class: "hint fp-demo-excluded", text: t(demoN === 1 ? "fp.demo.excluded.one" : "fp.demo.excluded", { n: demoN }) }),
     chart(usages),
-    savings(usages, s),
-    scope === "conv" ? comparison(usages) : null,
-    splits(usages),
+    savings(counted, s, allScripted),
+    scope === "conv" ? comparison(counted) : null,
+    splits(counted),
     how,
-    demo && h("p", { class: "demo-note", text: t("demo.note") }),
+    demo && !allScripted && h("p", { class: "demo-note", text: t("demo.note") }),
     h("p", { class: "hint", text: t("fp.note") }),
     scope === "all" &&
       button("btn-outline btn-small", "trash", t("fp.reset"), () => {
@@ -635,10 +696,14 @@ export function toolsPanel() {
   const demo = activeMode() === "demo";
   const label = { on: t("tools.on"), off: t("tools.off"), attach: t("tools.attach") };
   return h(
-    "section",
-    { class: "panel tools-panel", id: "settings-tools", "aria-labelledby": "set-tools-title" },
-    h("h3", { id: "set-tools-title", text: t("tools.title") }),
-    h("p", { class: "hint", text: demo ? t("tools.demo") : t("tools.lead") }),
+    "details",
+    { class: "panel tools-panel", id: "settings-tools" },
+    h(
+      "summary",
+      null,
+      icon("chevron", "chev"),
+      h("span", { class: "tools-sum" }, h("span", { id: "set-tools-title", class: "tools-sum-title", text: t("tools.title") }), h("span", { class: "hint", text: demo ? t("tools.demo") : t("tools.lead") })),
+    ),
     h(
       "ul",
       { class: "tools-list" },
@@ -694,7 +759,7 @@ export function renderSettings() {
       h(
         "span",
         { class: "mode-text" },
-        h("span", { class: "mode-title", text: title }),
+        h("span", { class: "mode-title" }, title, !enabled && h("span", { class: "tag tag-unavailable", text: t("kind.unavailable") })),
         h("span", { class: "mode-hint", text: hint }),
       ),
     );
@@ -798,78 +863,6 @@ export function renderSettings() {
     ", ",
   );
   put(body, 
-    toolsPanel(),
-    h(
-      "section",
-      {
-        class: "panel",
-        id: "settings-model",
-        "aria-labelledby": "set-model-title",
-      },
-      h("h3", { id: "set-model-title", text: t("set.model") }),
-      h("p", { class: "hint", text: t("set.model.lead") }),
-      h(
-        "div",
-        {
-          class: "modes",
-          role: "radiogroup",
-          "aria-labelledby": "set-model-title",
-        },
-        modeCard("demo", t("set.mode.demo"), t("set.mode.demo.hint"), true),
-        modeCard(
-          "server",
-          t("set.mode.server"),
-          modes.server
-            ? t("set.mode.server.hint", { model: hl.model || "bird" })
-            : t("set.mode.server.off"),
-          !!modes.server,
-        ),
-        modeCard(
-          "user",
-          t("set.mode.user"),
-          modes.user ? t("set.mode.user.hint") : t("set.mode.user.off"),
-          !!modes.user,
-        ),
-      ),
-      modes.user &&
-        h(
-          "fieldset",
-          { class: "endpoint", disabled: mode !== "user" },
-          h("legend", { class: "sr-only", text: t("set.mode.user") }),
-          field(
-            "set-endpoint",
-            t("set.endpoint.url"),
-            t("set.endpoint.url.hint", { hosts }),
-            urlInput,
-          ),
-          field(
-            "set-token",
-            t("set.endpoint.token"),
-            t("set.endpoint.token.hint"),
-            h("div", { class: "input-row" }, tokenInput, reveal),
-          ),
-          field(
-            "set-model",
-            t("set.endpoint.model"),
-            t("set.endpoint.model.hint"),
-            modelInput,
-          ),
-          h(
-            "p",
-            { class: "tradeoff" },
-            icon("info"),
-            h("span", { text: t("set.endpoint.tradeoff") }),
-          ),
-        ),
-      (hl.access_required || p.access) &&
-        field(
-          "set-access",
-          t("set.access"),
-          t(hl.access_required ? "set.access.needed" : "set.access.hint"),
-          accessInput,
-        ),
-      mode !== "demo" && h("div", { class: "test-row" }, testBtn, result),
-    ),
     h(
       "section",
       { class: "panel", "aria-labelledby": "set-general-title" },
@@ -922,6 +915,84 @@ export function renderSettings() {
     ),
     h(
       "section",
+      {
+        class: "panel",
+        id: "settings-model",
+        "aria-labelledby": "set-model-title",
+      },
+      h("h3", { id: "set-model-title", text: t("set.model") }),
+      h("p", { class: "hint", text: t("set.model.lead") }),
+      h(
+        "div",
+        {
+          class: "modes",
+          role: "radiogroup",
+          "aria-labelledby": "set-model-title",
+        },
+        modeCard("demo", t("set.mode.demo"), t("set.mode.demo.hint"), true),
+        modeCard(
+          "server",
+          t("set.mode.server"),
+          modes.server
+            ? t("set.mode.server.hint", { model: hl.model || "bird" })
+            : t("set.mode.server.off"),
+          !!modes.server,
+        ),
+        modeCard(
+          "user",
+          t("set.mode.user"),
+          modes.user ? t("set.mode.user.hint") : t("set.mode.user.off"),
+          !!modes.user,
+        ),
+      ),
+      modes.user &&
+        mode !== "user" &&
+        h("p", { class: "hint endpoint-off", text: t("set.endpoint.choose") }),
+      modes.user &&
+        mode === "user" &&
+        h(
+          "fieldset",
+          { class: "endpoint" },
+          h("legend", { class: "sr-only", text: t("set.mode.user") }),
+          field(
+            "set-endpoint",
+            t("set.endpoint.url"),
+            t("set.endpoint.url.hint", { hosts }),
+            urlInput,
+          ),
+          field(
+            "set-token",
+            t("set.endpoint.token"),
+            t("set.endpoint.token.hint"),
+            h("div", { class: "input-row" }, tokenInput, reveal),
+          ),
+          field(
+            "set-model",
+            t("set.endpoint.model"),
+            t("set.endpoint.model.hint"),
+            modelInput,
+          ),
+        ),
+      modes.user &&
+        mode === "user" &&
+        h(
+          "p",
+          { class: "tradeoff" },
+          icon("info"),
+          h("span", { text: t("set.endpoint.tradeoff") }),
+        ),
+      (hl.access_required || p.access) &&
+        field(
+          "set-access",
+          t("set.access"),
+          t(hl.access_required ? "set.access.needed" : "set.access.hint"),
+          accessInput,
+        ),
+      mode !== "demo" && h("div", { class: "test-row" }, testBtn, result),
+    ),
+    toolsPanel(),
+    h(
+      "section",
       { class: "panel", "aria-labelledby": "set-data-title" },
       h("h3", { id: "set-data-title", text: t("set.data") }),
       h("p", { class: "hint", text: t("set.data.lead") }),
@@ -949,6 +1020,11 @@ export function renderAbout() {
       h("img", { class: "lockup only-light", src: "/static/brand/logo-stacked.svg", alt: "Bird S 4B", width: "87", height: "112" }),
       h("img", { class: "lockup only-dark", src: "/static/brand/logo-stacked-dark.svg", alt: "Bird S 4B", width: "87", height: "112" }),
       h("p", { class: "page-lead", text: t("about.tagline") }),
+    ),
+    h(
+      "p",
+      { class: "about-intro" },
+      h("button", { id: "about-intro", class: "btn", type: "button", onclick: () => openWelcome() }, icon("info"), h("span", { class: "btn-label", text: t("about.intro") })),
     ),
     block(t("about.what"), h("p", { text: t("about.what.p") })),
     block(t("about.deal"), h("p", { text: t("about.deal.p") })),
@@ -979,6 +1055,17 @@ export function renderAbout() {
       ),
     ),
     block(t("about.meter"), h("p", { text: t("about.meter.p") })),
+    block(
+      t("ex.guard.title"),
+      h("p", { text: t("ex.guard.p") }),
+      h("button", {
+        class: "btn",
+        type: "button",
+        "data-example": "guard",
+        text: t("ex.guard.title"),
+        onclick: () => hooks.onGuardDemo?.(t("ex.guard.prompt")),
+      }),
+    ),
     h("p", {
       class: "hint",
       text: t("about.current", {
@@ -997,7 +1084,16 @@ const svgFrom = (markup) => {
   return wrap.firstChild;
 };
 
-export function openWelcome() {
+function setWelcomeLang(lang) {
+  if (state.prefs.lang !== lang) {
+    state.prefs.lang = lang;
+    savePrefs();
+    hooks.onPrefs?.(); // applyStrings() and a redraw of the app behind the dialog
+  }
+  openWelcome({ focusLang: lang });
+}
+
+export function openWelcome({ focusLang } = {}) {
   const dialog = $("welcome");
   const start = h("button", { id: "welcome-start", class: "btn btn-primary btn-cta", type: "button", text: t("welcome.start"), onclick: () => dialog.close() });
   const pillar = (ico, title, text) =>
@@ -1020,6 +1116,31 @@ export function openWelcome() {
         { class: "w-head" },
         h("span", { class: "w-brand" }, svgFrom(MARK), h("b", { text: "Bird" }), h("span", { text: "S 4B" })),
         h("span", { class: "w-tag" }, h("span", { class: "tri", "aria-hidden": "true" }, h("i"), h("i"), h("i")), t("welcome.france")),
+        h(
+          "span",
+          { class: "w-tools" },
+          h(
+            "span",
+            { class: "w-lang", role: "group", "aria-label": t("welcome.lang") },
+            ["fr", "en"].map((lang) =>
+              h("button", {
+                class: "w-lang-opt",
+                type: "button",
+                lang,
+                "data-lang": lang,
+                "aria-pressed": String(state.prefs.lang === lang),
+                "aria-label": lang === "fr" ? "Français" : "English",
+                text: lang.toUpperCase(),
+                onclick: () => setWelcomeLang(lang),
+              }),
+            ),
+          ),
+          h(
+            "button",
+            { id: "welcome-close", class: "btn btn-quiet btn-icon w-close", type: "button", "aria-label": t("close"), title: t("close"), onclick: () => dialog.close() },
+            icon("cross"),
+          ),
+        ),
       ),
       h("h2", { id: "welcome-title", class: "w-title", text: t("welcome.title") }),
       h("p", { id: "welcome-lead", class: "w-lead", text: t("welcome.mission") }),
@@ -1036,9 +1157,13 @@ export function openWelcome() {
       h("div", { class: "w-actions" }, h("p", { class: "w-privacy" }, icon("check"), h("span", { text: t("welcome.local") })), start),
     ),
   );
-  if (!dialog.open) dialog.showModal();
-  dialog.scrollTop = 0;
-  start.focus({ preventScroll: true });
+  if (!dialog.open) {
+    dialog.returnTo = document.activeElement;
+    dialog.showModal();
+    dialog.scrollTop = 0;
+  }
+  const lang = focusLang && dialog.querySelector(`[data-lang="${focusLang}"]`);
+  (lang || start).focus({ preventScroll: true });
 }
 
 export function openShortcuts() {

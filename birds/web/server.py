@@ -43,6 +43,7 @@ SECURITY_HEADERS = {
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
 }
 MODES = ("demo", "server", "user")
+INTERNAL_ERROR = {"fr": "Une erreur interne est survenue.", "en": "Something went wrong on our side."}
 
 
 class Message(BaseModel):
@@ -213,6 +214,8 @@ def fetch_client(s: Settings):
 
 TOOL_TEXT = {  # why a tool is on or off on this deployment, for the "available tools" panel
     "web_search": ("Recherche : {label}", "Search: {label}"),
+    # no search backend label (the demo, or a backend that does not name itself): a whole sentence, never "Recherche :"
+    "web_search_plain": ("Cherche sur le web et cite ses sources", "Searches the web and cites its sources"),
     "web_search_off": (
         "Désactivée par l'exploitant (BIRD_SEARCH_DEFAULT=none)",
         "Switched off (BIRD_SEARCH_DEFAULT=none)",
@@ -250,8 +253,10 @@ def tools_info(s: Settings, backend) -> dict:
             key = "read_file_ws"
         elif name == "web_search" and state == "off":
             key = "web_search_off"
-        fr, en = TOOL_TEXT.get(key, ("", ""))
         label = search.get("label") or ""
+        if key == "web_search" and not label.strip():
+            key = "web_search_plain"
+        fr, en = TOOL_TEXT.get(key, ("", ""))
         out.append({"name": name, "state": state, "fr": fr.format(label=label), "en": en.format(label=label)})
     return {"tools": out, "search": search}
 
@@ -591,11 +596,13 @@ def create_app(
             except EndpointError as exc:  # the model endpoint, not the user: say it calmly, with a stable code
                 emit({"type": "error", "code": exc.kind, "message": ep.explain(exc.kind, body.lang)})
             except Exception as exc:  # noqa: BLE001 - reported to the user as an error event
+                # a plain sentence for the user; the redacted exception text only as a technical detail
                 emit(
                     {
                         "type": "error",
                         "code": "internal",
-                        "message": guard.redact(str(exc))[:400] or exc.__class__.__name__,
+                        "message": INTERNAL_ERROR["en" if body.lang == "en" else "fr"],
+                        "detail": guard.redact(str(exc))[:400] or exc.__class__.__name__,
                     }
                 )
             finally:

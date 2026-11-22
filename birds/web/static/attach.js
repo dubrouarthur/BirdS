@@ -192,6 +192,7 @@ export async function addImage(file, onChange) {
   } catch {
     item.status = "error";
     item.error = /\.(heic|heif)$/i.test(file.name) || /hei[cf]/i.test(file.type) ? "att.img.heic" : "att.img.unreadable";
+    announce(`${item.name}${state.prefs.lang === "en" ? ": " : " : "}${t(item.error)}`);
     onChange();
     return;
   }
@@ -201,6 +202,7 @@ export async function addImage(file, onChange) {
   const h0 = item.h0 || bh;
   if (w0 * h0 < minPixels || Math.min(w0, h0) < minSide) {
     Object.assign(item, { status: "error", error: "att.img.small", w: w0, h: h0 });
+    announce(`${item.name}${state.prefs.lang === "en" ? ": " : " : "}${t("att.img.small")}`);
     item.thumb = await blobUrl(canvasOf(bitmap, ...fit(bw, bh, 144)), 0.7);
     bitmap.close?.();
     onChange();
@@ -393,7 +395,7 @@ export function imageCard(img, { onRemove, onOpen, compact } = {}) {
   if (!onRemove) return el;
   return h(
     "div",
-    { class: "att-wrap" },
+    { class: "att-wrap", "data-att": img.id },
     el,
     h(
       "button",

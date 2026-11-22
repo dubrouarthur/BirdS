@@ -2,7 +2,7 @@
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f6f5f0" />
     <meta name="description" content="Bird, un petit assistant de travail frugal qui montre ce que coûte chaque réponse." />
@@ -78,9 +78,10 @@
             <div class="column">
               <section id="empty" class="empty" aria-labelledby="empty-title">
                 <img class="lockup only-light" src="/static/brand/logo-stacked.svg" alt="Bird S 4B" width="102" height="132" />
-        <img class="lockup only-dark" src="/static/brand/logo-stacked-dark.svg" alt="Bird S 4B" width="102" height="132" />
+                <img class="lockup only-dark" src="/static/brand/logo-stacked-dark.svg" alt="Bird S 4B" width="102" height="132" />
+                <svg class="mark empty-mark" viewBox="0 0 64 56" role="img" aria-label="Bird S 4B" focusable="false"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z" /><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z" /><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z" /></svg>
                 <h2 id="empty-title" class="empty-title" data-i18n="empty.title">Petit, et fait pour ça.</h2>
-                <p class="empty-lead" data-i18n="empty.p1">Je suis Bird, un petit modèle de langage : je consomme bien moins de ressources que les modèles géants.</p>
+                <p class="empty-lead empty-p1" data-i18n="empty.p1">Je suis Bird, un petit modèle de langage : je consomme bien moins de ressources que les modèles géants.</p>
                 <p class="empty-lead empty-candid" data-i18n="empty.p2">En échange, je fais plus d'erreurs qu'eux. Relisez ce qui compte.</p>
                 <p id="demo-note" class="demo-note" hidden data-i18n="demo.note">Mode démo : réponses écrites à l'avance, aucun modèle ne tourne.</p>
                 <h3 id="examples-title" class="eyebrow">Pour commencer</h3>
@@ -136,6 +137,7 @@
                 <button id="btn-photo" class="btn btn-quiet btn-icon btn-photo" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="photo-menu" data-i18n-aria="att.photo">
                   <svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 7.2c0-.9.7-1.6 1.6-1.6h2l1.2-1.800h4.400l1.200 1.800h2c.900 0 1.600.700 1.600 1.600v7.200c0 .900-.700 1.600-1.600 1.600H4.600c-.900 0-1.600-.700-1.600-1.600z" /><circle cx="10" cy="10.600" r="3" /></svg>
                 </button>
+                <div id="photo-scrim" class="photo-scrim" hidden></div>
                 <div id="photo-menu" class="photo-menu" role="menu" hidden>
                   <button id="photo-take" class="photo-opt" type="button" role="menuitem"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 7.2c0-.9.7-1.6 1.6-1.6h2l1.2-1.800h4.400l1.200 1.800h2c.900 0 1.600.700 1.600 1.600v7.200c0 .900-.700 1.600-1.600 1.600H4.600c-.900 0-1.600-.700-1.600-1.600z" /><circle cx="10" cy="10.600" r="3" /></svg><span data-i18n="att.photo.take">Prendre une photo</span></button>
                   <button id="photo-pick" class="photo-opt" type="button" role="menuitem"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="3" y="4" width="14" height="12" rx="1.600" /><circle cx="7.500" cy="8.300" r="1.400" /><path d="M3.500 14.500l4-4 3 3 2.500-2.500 3.500 3.500" /></svg><span data-i18n="att.photo.pick">Choisir une image</span></button>
@@ -149,7 +151,6 @@
                 </button>
                 <span id="thinking-hint" class="hint thinking-hint" data-i18n="composer.thinking.hint">Raisonne avant de répondre : plus lent, plus d'énergie.</span>
                 <span id="composer-count" class="composer-count num" hidden></span>
-                <span id="send-why" class="sr-only"></span>
                 <button id="btn-stop" class="btn btn-stop" type="button" hidden>
                   <svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect class="fill" x="5.5" y="5.5" width="9" height="9" rx="1.5" /></svg>
                   <span data-i18n="composer.stop">Arrêter</span>
@@ -158,8 +159,9 @@
                   <svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 16V4.5M5 9.2l5-5 5 5" /></svg>
                 </button>
               </div>
+              <p id="send-why" class="sr-only"></p>
             </form>
-            <p class="dock-note"><span data-i18n="composer.caution">Bird est un petit modèle : il peut se tromper.</span><span class="keys"> · <span data-i18n="composer.keys">/ pour les actions rapides · Entrée pour envoyer</span></span></p>
+            <p class="dock-note"><span data-i18n="composer.caution">Bird est un petit modèle : il peut se tromper.</span><span class="dock-keys"><span data-i18n="composer.keys">/ pour les actions rapides · Entrée pour envoyer</span></span></p>
           </div>
           </div>
         </footer>
