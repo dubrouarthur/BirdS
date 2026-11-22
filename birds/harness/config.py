@@ -6,13 +6,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from birds.tools import BIRD_TOOL_NAMES
+from birds.tools import PRODUCT_TOOL_NAMES
 
 
 @dataclass
 class Config:
     workspace: Path
-    allowed_tools: tuple[str, ...] = tuple(BIRD_TOOL_NAMES)  # per-deployment allowlist
+    allowed_tools: tuple[str, ...] = tuple(PRODUCT_TOOL_NAMES)  # per-deployment allowlist
     allow_python: bool = False  # run_python is NOT a sandbox: enable only inside a disposable container
     cache_salt: str | None = None  # vLLM prefix-cache isolation, one value per conversation (backends.cache_salt)
     route_tools: bool = True  # hide web tools for a plain "make me a file" request (agent.route)
@@ -70,6 +70,10 @@ class Context:
     step_info: dict | None = None  # set by a tool for the UI (e.g. which search backend answered); moved to the step
     lang: str = "fr"  # language of the conversation (search backends that care, e.g. Wikipedia)
     request: str = ""  # the user's own words for this run (make_slides checks that their figures made it in)
+    message: str = ""  # the whole user message (own words + attachment notes + image transcriptions)
+    used: list[str] = field(default_factory=list)  # tools that succeeded in this run, in order (make_chart's source)
+    charts: list[dict] = field(default_factory=list)  # chart specs shown in the chat (make_chart)
+    images: list[dict] = field(default_factory=list)  # web image candidates {src, page, title, alt, origin}
 
     @property
     def workspace(self) -> Path:

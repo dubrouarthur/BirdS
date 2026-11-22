@@ -17,10 +17,10 @@ from pathlib import Path
 import httpx
 from jsonschema import Draft202012Validator
 
-from birds.harness.coerce import coerce_args
-from birds.tools import BIRD_TOOLS
+from birds.harness.coerce import ArgError, coerce_args
+from birds.tools import PRODUCT_TOOLS
 
-SCHEMAS = {t["function"]["name"]: copy.deepcopy(t["function"]["parameters"]) for t in BIRD_TOOLS}
+SCHEMAS = {t["function"]["name"]: copy.deepcopy(t["function"]["parameters"]) for t in PRODUCT_TOOLS}
 # Harness-side optional fields, accepted when given but NOT advertised to the model (the prompt keeps the trained
 # schemas of birds/tools.py byte for byte).
 SCHEMAS["make_slides"]["properties"]["slides"]["items"]["properties"]["notes"] = {"type": "string"}
@@ -36,6 +36,8 @@ EXAMPLES = {
     "make_document": '{"title": "Titre", "sections": [{"heading": "Contexte", "content": "Texte..."}]}',
     "make_sheet": '{"title": "Titre", "columns": ["Poste", "Montant"], "rows": [["Loyer", 1200], ["Total", "=SUM(B2:B2)"]]}',
     "run_python": '{"code": "print(1 + 1)"}',
+    "make_chart": '{"title": "CA par trimestre", "type": "bar", "columns": ["Trimestre", "CA (k€)"], '
+    '"rows": [["T1", 120], ["T2", 135]]}',
 }
 SIDE_EFFECT_TOOLS = {"draft_email", "make_slides", "make_document", "make_sheet", "run_python"}
 EXTERNAL_TOOLS = {"web_search", "read_page", "read_file", "run_python"}  # results carry content we did not write
@@ -194,7 +196,9 @@ def injection_excerpt(text: str, size: int = 240) -> str:
     room = max(0, size - (m.end() - m.start()))
     start = max(0, m.start() - room // 3)
     # begin at a sentence start when one is close, so the quote reads naturally
-    cut = max(clean.rfind(". ", start, m.start()), clean.rfind("« ", start, m.start()), clean.rfind('"', start, m.start()))
+    cut = max(
+        clean.rfind(". ", start, m.start()), clean.rfind("« ", start, m.start()), clean.rfind('"', start, m.start())
+    )
     if cut >= 0 and m.start() - cut < room:
         start = cut + (1 if clean[cut] != "." else 2)
     end = min(len(clean), max(m.end() + 40, start + size))
@@ -264,7 +268,13 @@ def validate_args(tool: str, args, allowed, notes: list | None = None) -> tuple[
     if not isinstance(args, dict):
         return {}, f"arguments must be an object, for example {EXAMPLES.get(tool, '{}')}"
     schema = SCHEMAS[tool]
-    args, fixed = coerce_args(tool, dict(args), schema)
+    try:
+        args, fixed = coerce_args(tool, dict(args), schema)
+    except ArgError as e:  # a repair found a mistake it must not guess around (labels and values of unequal length)
+        return dict(args), (
+            f"invalid arguments for {tool} ({e.path}): {e}. Call {tool} again with corrected arguments, "
+            f"for example {EXAMPLES.get(tool, '{}')}"
+        )
     if notes is not None:
         notes.extend(fixed)
     for key, spec in schema["properties"].items():  # the XML parser JSON-decodes values: "42" arrives as 42

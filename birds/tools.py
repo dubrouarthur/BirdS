@@ -127,3 +127,37 @@ BIRD_TOOLS: list[dict] = [
 ]
 
 BIRD_TOOL_NAMES = [t["function"]["name"] for t in BIRD_TOOLS]
+
+# Product tools the model was NOT trained on. Kept out of BIRD_TOOLS, which stays byte for byte the trained set
+# (training data, benchmark, prompt-cache tests). Offered only when a request needs them (agent.route), and always
+# after the trained tools in the prompt.
+EXTRA_TOOLS: list[dict] = [
+    _fn(
+        "make_chart",
+        "Show a chart in the chat. Use it when the user asks for a chart, graph or plot of figures. "
+        "Give column names and rows like a spreadsheet: the first column holds the labels, each other column "
+        "holds the numbers of one series.",
+        {
+            "title": {"type": "string", "description": "Title of the chart."},
+            "type": {
+                "type": "string",
+                "enum": ["bar", "line", "pie"],
+                "description": "bar (compare), line (change over time) or pie (share of a whole).",
+            },
+            "columns": {
+                "type": "array",
+                "items": _STR,
+                "description": "Column names: label column first, then one per series.",
+            },
+            "rows": {
+                "type": "array",
+                "description": "Rows; each row is a label then its numbers, in column order.",
+                "items": {"type": "array", "items": {"type": ["string", "number", "null"]}},
+            },
+            "unit": {"type": "string", "description": "Unit of the numbers, e.g. €, %, k€, h (optional)."},
+        },
+        ["title", "columns", "rows"],
+    ),
+]
+PRODUCT_TOOLS = BIRD_TOOLS + EXTRA_TOOLS
+PRODUCT_TOOL_NAMES = [t["function"]["name"] for t in PRODUCT_TOOLS]
