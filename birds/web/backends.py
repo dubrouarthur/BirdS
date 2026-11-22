@@ -905,9 +905,11 @@ def prepare_turn(
     for name, text in image_texts:
         t = guard.truncate(text or "", IMAGE_TEXT_CHARS)
         user += f"\n\n[{_IMAGE_NOTE[rl]} : {name}]\n{guard.UNTRUSTED_NOTE[rl]}\n{t or '(illisible)'}"
-    if attachment_names:
-        note = _ATTACH_NOTE[rl]
-        user += "\n\n" + "\n".join(f"[{note} : {n}]" for n in attachment_names)
+    # a regenerated turn comes back as the exact text sent before: its notes are already there, never twice
+    lines = [f"[{_ATTACH_NOTE[rl]} : {n}]" for n in attachment_names]
+    lines = [ln for ln in lines if ln not in user]
+    if lines:
+        user += "\n\n" + "\n".join(lines)
     user_sent = guard.defang(user)
     kept, summary, stats = window(history, history_tokens, lang=conv, msg_cap_tokens=msg_cap_tokens)
     kept = [{**m, "content": guard.defang(m["content"])} for m in kept]

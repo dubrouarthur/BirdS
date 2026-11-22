@@ -66,12 +66,73 @@ function safeName(name, fallback) {
   return s || fallback;
 }
 
-async function decode(file) {
-  // EXIF orientation: createImageBitmap honours it with imageOrientation "from-image" (the default in current
-  // browsers); an <img> fallback covers browsers whose createImageBitmap cannot decode the type (e.g. HEIC in Safari).
+/** Width, height and EXIF orientation from the first bytes of a JPEG, PNG or WebP, without decoding the pixels. */
+export async function imageSize(file) {
+  const buf = new DataView(await file.slice(0, 256 * 1024).arrayBuffer());
+  const u8 = (i) => buf.getUint8(i);
+  const n = buf.byteLength;
+  if (n > 24 && buf.getUint32(0) === 0x89504e47) return { w: buf.getUint32(16), h: buf.getUint32(20), o: 1 };
+  if (n > 30 && buf.getUint32(0) === 0x52494646 && buf.getUint32(8) === 0x57454250) {
+    const kind = buf.getUint32(12);
+    if (kind === 0x56503820) return { w: buf.getUint16(26, true) & 0x3fff, h: buf.getUint16(28, true) & 0x3fff, o: 1 }; // VP8
+    if (kind === 0x5650384c) {
+      const b = buf.getUint32(21, true); // VP8L
+      return { w: (b & 0x3fff) + 1, h: ((b >> 14) & 0x3fff) + 1, o: 1 };
+    }
+    if (kind === 0x56503858)
+      return { w: 1 + (u8(24) | (u8(25) << 8) | (u8(26) << 16)), h: 1 + (u8(27) | (u8(28) << 8) | (u8(29) << 16)), o: 1 };
+  }
+  if (n > 4 && buf.getUint16(0) === 0xffd8) {
+    let i = 2;
+    let o = 1;
+    while (i + 9 < n) {
+      if (u8(i) !== 0xff) {
+        i += 1;
+        continue;
+      }
+      const marker = u8(i + 1);
+      const len = buf.getUint16(i + 2);
+      if (marker === 0xe1 && buf.getUint32(i + 4) === 0x45786966) {
+        // EXIF: find the Orientation tag (0x0112) in IFD0
+        const t = i + 10;
+        const le = buf.getUint16(t) === 0x4949;
+        const ifd = t + buf.getUint32(t + 4, le);
+        const count = ifd + 2 <= n ? buf.getUint16(ifd, le) : 0;
+        for (let k = 0; k < count && ifd + 2 + k * 12 + 10 <= n; k++) {
+          const e = ifd + 2 + k * 12;
+          if (buf.getUint16(e, le) === 0x0112) o = buf.getUint16(e + 8, le);
+        }
+      }
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker))
+        return { h: buf.getUint16(i + 5), w: buf.getUint16(i + 7), o };
+      i += 2 + len;
+    }
+  }
+  return null; // unknown container (HEIC, GIF...): decode to learn the size
+}
+
+/** Decode the image already downscaled (the browser never holds a 48-megapixel bitmap) and upright (EXIF). */
+async function decode(file, size) {
+  if (size && typeof createImageBitmap === "function") {
+    const rotated = size.o >= 5 && size.o <= 8; // EXIF 5-8: width and height are swapped once upright
+    const w = rotated ? size.h : size.w;
+    const hh = rotated ? size.w : size.h;
+    const scale = Math.min(1, MAX_SIDE / Math.max(w, hh));
+    try {
+      return await createImageBitmap(file, {
+        imageOrientation: "from-image",
+        resizeWidth: Math.max(1, Math.round(w * scale)),
+        resizeHeight: Math.max(1, Math.round(hh * scale)),
+        resizeQuality: "high",
+      });
+    } catch {
+      /* fall through */
+    }
+  }
   try {
     return await createImageBitmap(file, { imageOrientation: "from-image" });
   } catch {
+    // e.g. HEIC in Safari: the <img> decoder knows it; it also applies EXIF orientation (CSS image-orientation)
     const url = URL.createObjectURL(file);
     try {
       const img = new Image();
@@ -80,7 +141,7 @@ async function decode(file) {
       await img.decode();
       return img;
     } finally {
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      URL.revokeObjectURL(url);
     }
   }
 }
@@ -90,46 +151,29 @@ function canvasOf(source, w, h) {
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#fff";
+  ctx.fillStyle = "#fff"; // transparent PNGs become white, not black, once in JPEG
   ctx.fillRect(0, 0, w, h);
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(source, 0, 0, w, h);
   return canvas;
 }
 
-/** A blob: URL for display (the CSP allows blob: images, never data:). */
-function blobUrl(source, w, h) {
-  return new Promise((resolve) =>
-    canvasOf(source, w, h).toBlob((blob) => resolve(blob ? URL.createObjectURL(blob) : ""), "image/jpeg", 0.82),
+/** A blob: URL for display: the CSP allows blob: images (made by this page), never data: ones. */
+const blobUrl = (canvas, quality = 0.82) =>
+  new Promise((resolve) =>
+    canvas.toBlob((blob) => resolve(blob ? URL.createObjectURL(blob) : ""), "image/jpeg", quality),
   );
-}
 
-function encode(source, w, h, type, quality) {
-  const canvas = document.createElement("canvas");
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#fff"; // transparent PNGs become white, not black, once in JPEG
-  ctx.fillRect(0, 0, w, h);
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(source, 0, 0, w, h);
-  return canvas.toDataURL(type, quality);
-}
+const fit = (w, h, side) => {
+  const k = Math.min(1, side / Math.max(w, h));
+  return [Math.max(1, Math.round(w * k)), Math.max(1, Math.round(h * k))];
+};
 
 export async function addImage(file, onChange) {
   const lim = state.health?.image_limits || {};
   const minPixels = lim.min_pixels || 200_000;
   const minSide = lim.min_side || 300;
-  const item = {
-    id: uid("i"),
-    name: safeName(file.name, "photo.jpg"),
-    size: file.size,
-    status: "reading",
-    w: 0,
-    h: 0,
-    url: "",
-    thumb: "",
-  };
+  const item = { id: uid("i"), name: safeName(file.name, "photo.jpg"), size: file.size, status: "reading", w: 0, h: 0 };
   if (pending.images.length >= (lim.max || MAX_IMAGES)) {
     toast(t("att.img.toomany", { max: lim.max || MAX_IMAGES }), "error");
     return;
@@ -138,56 +182,39 @@ export async function addImage(file, onChange) {
   onChange();
   let bitmap;
   try {
-    bitmap = await decode(file);
+    const size = await imageSize(file).catch(() => null);
+    if (size) {
+      const rotated = size.o >= 5 && size.o <= 8;
+      item.w0 = rotated ? size.h : size.w;
+      item.h0 = rotated ? size.w : size.h;
+    }
+    bitmap = await decode(file, size);
   } catch {
     item.status = "error";
-    item.error =
-      /\.(heic|heif)$/i.test(file.name) || /hei[cf]/i.test(file.type)
-        ? "att.img.heic"
-        : "att.img.unreadable";
+    item.error = /\.(heic|heif)$/i.test(file.name) || /hei[cf]/i.test(file.type) ? "att.img.heic" : "att.img.unreadable";
     onChange();
     return;
   }
-  const w0 = bitmap.width || bitmap.naturalWidth;
-  const h0 = bitmap.height || bitmap.naturalHeight;
+  const bw = bitmap.width || bitmap.naturalWidth;
+  const bh = bitmap.height || bitmap.naturalHeight;
+  const w0 = item.w0 || bw;
+  const h0 = item.h0 || bh;
   if (w0 * h0 < minPixels || Math.min(w0, h0) < minSide) {
-    item.status = "error";
-    item.error = "att.img.small";
-    item.w = w0;
-    item.h = h0;
-    item.thumb = encode(
-      bitmap,
-      Math.max(1, Math.round((w0 * 72) / Math.max(w0, h0))),
-      Math.max(1, Math.round((h0 * 72) / Math.max(w0, h0))),
-      "image/jpeg",
-      0.7,
-    );
+    Object.assign(item, { status: "error", error: "att.img.small", w: w0, h: h0 });
+    item.thumb = await blobUrl(canvasOf(bitmap, ...fit(bw, bh, 144)), 0.7);
+    bitmap.close?.();
     onChange();
     return;
   }
-  const scale = Math.min(1, MAX_SIDE / Math.max(w0, h0));
-  const w = Math.round(w0 * scale);
-  const hgt = Math.round(h0 * scale);
-  let url = encode(bitmap, w, hgt, "image/jpeg", 0.88);
-  if (url.length > 1_300_000) url = encode(bitmap, w, hgt, "image/jpeg", 0.72);
-  const ts = 240 / Math.max(w, hgt);
-  item.thumb = encode(
-    bitmap,
-    Math.max(1, Math.round(w * ts)),
-    Math.max(1, Math.round(hgt * ts)),
-    "image/jpeg",
-    0.8,
-  );
+  const [w, hgt] = fit(bw, bh, MAX_SIDE);
+  const full = canvasOf(bitmap, w, hgt);
+  let url = full.toDataURL("image/jpeg", 0.88); // what is sent (a string in the JSON body), never an <img> src
+  if (url.length > 1_300_000) url = full.toDataURL("image/jpeg", 0.72);
+  item.view = await blobUrl(full, 0.85); // lightbox
+  item.thumb = await blobUrl(canvasOf(bitmap, ...fit(bw, bh, 240)));
   bitmap.close?.();
-  if (!/\.jpe?g$/i.test(item.name))
-    item.name = item.name.replace(/\.[^.]+$/, "") + ".jpg";
-  Object.assign(item, {
-    url,
-    w,
-    h: hgt,
-    status: "ready",
-    sent: Math.round((url.length * 3) / 4),
-  });
+  if (!/\.jpe?g$/i.test(item.name)) item.name = `${item.name.replace(/\.[^.]+$/, "")}.jpg`;
+  Object.assign(item, { url, w, h: hgt, status: "ready", sent: Math.round((url.length * 3) / 4) });
   announce(t("att.added", { name: item.name }));
   onChange();
 }
@@ -195,8 +222,9 @@ export async function addImage(file, onChange) {
 export function removeImage(id, onChange) {
   const i = pending.images.findIndex((x) => x.id === id);
   if (i >= 0) {
-    announce(t("att.removed", { name: pending.images[i].name }));
-    pending.images.splice(i, 1);
+    const [gone] = pending.images.splice(i, 1);
+    for (const u of [gone.thumb, gone.view]) if (u?.startsWith("blob:")) URL.revokeObjectURL(u);
+    announce(t("att.removed", { name: gone.name }));
   }
   onChange();
 }
@@ -311,7 +339,7 @@ export function docCard(doc, { onRemove, status, compact, excerpt } = {}) {
 export function imageCard(img, { onRemove, onOpen, compact } = {}) {
   const status =
     img.status === "reading"
-      ? { kind: "busy", text: t("att.reading") }
+      ? { kind: "busy", text: t("att.img.preparing") }
       : img.status === "error"
         ? { kind: "err", text: t(img.error || "att.img.unreadable") }
         : null;

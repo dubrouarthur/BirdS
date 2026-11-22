@@ -59,8 +59,15 @@ const KEEP_FILE_B64 = 400_000; // larger generated files are not kept in localSt
 
 // ------------------------------------------------------------------ conversations (localStorage)
 
+const randomId = () =>
+  globalThis.crypto?.randomUUID
+    ? crypto.randomUUID()
+    : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+        (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16),
+      );
 const newConv = () => ({
   id: uid("c"),
+  cid: randomId(), // 122 random bits: prefix-cache salt and log id on the server, never shown
   title: "",
   created: Date.now(),
   updated: Date.now(),
@@ -802,12 +809,19 @@ function newAssistantTurn() {
   };
 }
 
-function apiMessages() {
+function apiMessages(resend = false) {
   const messages = [];
   const turns = state.conv.turns;
   const lastUser = turns.map((x) => x.role).lastIndexOf("user");
   turns.forEach((turn, i) => {
     if (turn.role === "user") {
+      const answered = turns[i + 1]?.role === "assistant" && turns[i + 1].answer?.content;
+      if (i !== lastUser && !answered) return; // a request that never got an answer is not history
+      // the exact text the model received for that turn (image transcriptions and notes included)
+      if (turn.sent && (i !== lastUser || resend)) {
+        messages.push({ role: "user", content: turn.sent });
+        return;
+      }
       // past images are never sent again: only a mention (what Bird read in them is in its memo)
       const notes =
         i === lastUser
@@ -817,6 +831,7 @@ function apiMessages() {
     } else if (turn.answer?.content) {
       const m = { role: "assistant", content: turn.answer.content };
       if (turn.answer.memo) m.memo = turn.answer.memo;
+      if (["stopped", "length"].includes(turn.answer.stop_reason)) m.interrupted = true;
       messages.push(m);
     }
   });
@@ -889,6 +904,13 @@ function handleEvent(turn, event) {
       turn.text += String(event.content ?? "");
       turn.live = null;
       return paintSoon(turn);
+    case "user": {
+      // the exact user text the model got: stored on the user turn and sent back as history from now on
+      const turns = state.conv.turns;
+      const userTurn = turns[turns.indexOf(turn) - 1];
+      if (userTurn?.role === "user") userTurn.sent = String(event.content ?? "");
+      return;
+    }
     case "delta_reset":
       turn.text = "";
       break;
@@ -965,8 +987,14 @@ async function runTurn(turn, extra = {}) {
   turn.started = Date.now();
   const ticker = window.setInterval(tick, 1000);
   try {
+    const { resend, ...rest } = extra;
+    extra = rest;
+    if (!state.conv.cid) state.conv.cid = randomId();
+    if (!state.conv.lang) state.conv.lang = state.prefs.lang === "en" ? "en" : "fr"; // pinned for the conversation
     const body = {
-      messages: apiMessages(),
+      messages: apiMessages(!!resend),
+      conv_lang: state.conv.lang,
+      conversation_id: state.conv.cid,
       thinking: !!turn.thinking,
       lang: state.prefs.lang,
       attachments: state.conv.attachments
@@ -1127,7 +1155,11 @@ function regenerate() {
   renderChat();
   scrollToEnd(true);
   const user = turns[turns.length - 2];
-  const again = (user?.images || []).length && lastImages.length ? { images: lastImages } : {};
+  let again = {};
+  if ((user?.images || []).length && lastImages.length) {
+    user.sent = undefined; // the images are still here: read them again
+    again = { images: lastImages };
+  } else if (user?.sent) again = { resend: true }; // reuse the exact text, transcriptions included
   runTurn(turn, again);
 }
 
@@ -1356,7 +1388,7 @@ function bind() {
     },
     { passive: true },
   );
-  for (const id of ["welcome", "shortcuts"]) {
+  for (const id of ["shortcuts"]) {
     $(id).addEventListener(
       "click",
       (e) => e.target === e.currentTarget && e.currentTarget.close(),
@@ -1368,11 +1400,7 @@ function bind() {
     savePrefs();
     el.focus();
   });
-  $("welcome-start").addEventListener("click", () => $("welcome").close());
-  $("welcome-about").addEventListener("click", () => {
-    $("welcome").close();
-    showView("about");
-  });
+
   // Citation links move focus to the source entry.
   $("conversation").addEventListener("click", (e) => {
     const link = e.target.closest?.(".cite a");
@@ -1488,6 +1516,7 @@ async function init() {
       refreshAll();
     },
     onSaved: updateTop,
+    onExample: (text) => send(text),
     testEndpoint,
   });
   state.convs = store.json("bird.convs", []).filter((c) => c && c.id);
