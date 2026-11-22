@@ -508,7 +508,7 @@ function filePreview(preview, onDownload) {
       const deck = deckPreview(preview, { onDownload });
       return deck && h("div", null, deck, preview.notes > 0 && h("p", { class: "hint", text: t("files.notes", { n: preview.notes }) }));
     }
-    if (preview.kind === "document") return docPreview(preview);
+    if (preview.kind === "document") return docPreview(preview, { onDownload });
     if (preview.kind === "sheet") return sheetPreview(preview);
   }
   if (preview.kind === "slides") {
@@ -605,7 +605,12 @@ function renderFiles(turn) {
                 n: p.v === 2 ? (p.blocks || []).filter((b) => b && b.k === "h" && b.l === 1).length : (p.sections || []).length,
               })
             : p.kind === "sheet"
-              ? t("files.rows", { n: p.total_rows || 0 })
+              ? [
+                  t("files.rows", { n: p.total_rows || 0 }),
+                  (p.columns || []).length > 1 && t("files.cols", { n: p.columns.length }),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
               : "";
       const kind =
         {
@@ -632,7 +637,7 @@ function renderFiles(turn) {
           h(
             "div",
             { class: "card-title" },
-            h("p", { class: "card-name", text: p.title || name }),
+            h("p", { class: "card-name", text: p.title || name, title: p.title || name }),
             h("p", {
               class: "card-meta",
               text: [ext, meta, file.size ? fmtBytes(file.size) : ""]
@@ -640,7 +645,11 @@ function renderFiles(turn) {
                 .join(" · "),
             }),
           ),
-          save ? button("btn-primary btn-small", "download", t("files.download"), save) : null,
+          save
+            ? button("btn-primary btn-small card-dl", "download", t("files.download"), save, {
+                "aria-label": t("files.download"), // the label is hidden on a phone, the name stays
+              })
+            : null,
         ),
         !file.data &&
           h(

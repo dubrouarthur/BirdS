@@ -24,7 +24,7 @@ from birds.web.settings import Settings
 
 SECRET = b"img-test-secret"
 CSP_TODAY = (
-    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; "
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; connect-src 'self'; "
     "manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 )
 

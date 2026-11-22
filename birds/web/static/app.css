@@ -1654,6 +1654,35 @@ details[open] > summary > .chev {
   font-size: 0.8rem;
   color: var(--muted);
 }
+/* a file card leads with the file, not its name: two lines of title at most (the whole title on hover), one
+   line of meta; on a phone the download button is an icon (the deck bar has its own) */
+.file-card .card-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: break-word;
+}
+.file-card .card-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+@media (max-width: 640px) {
+  .file-card .card-head {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+  .file-card .card-dl {
+    flex: none;
+    inline-size: 40px;
+    padding: 0;
+  }
+  .file-card .card-dl .btn-label {
+    display: none;
+  }
+}
 .card-preview {
   border-block-start: 1px solid var(--line);
 }
@@ -4213,6 +4242,22 @@ button.att-card {
 .md-small table {
   font-size: 0.78rem;
 }
+/* Carlito (SIL OFL, fonts/OFL.txt): Calibri's metric twin, served from this site so a slide, a page or a sheet
+   breaks its lines where the file does on every device, with or without Office installed */
+@font-face {
+  font-family: Carlito;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local("Carlito"), local("Carlito-Regular"), url("fonts/carlito-regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: Carlito;
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local("Carlito Bold"), local("Carlito-Bold"), url("fonts/carlito-bold.woff2") format("woff2");
+}
 /* Previews drawn from the written file. The slide, the page and the sheet keep the file's own colours (white,
    navy, blue) in both themes: they are the document; only the frame around them follows the theme. */
 .file-card.file-slides .card-preview > :not(summary),
@@ -4220,14 +4265,29 @@ button.att-card {
   margin: 0 10px 12px;
 }
 /* a deck gets the room of a real slide: up to 860 px, wider than the text column when the window allows */
+/* ...and no taller than the window: header, stage, controls and filmstrip fit between the top bar and the
+   composer (about 270 px of chrome around the stage, plus the bars of the page) */
+.file-card.file-slides {
+  --deck-w: min(860px, max(20rem, (100dvh - 470px) * 16 / 9));
+}
+/* a phone in portrait keeps the full column width: the slide is small enough there */
+@media (max-width: 640px) and (orientation: portrait) {
+  .file-card.file-slides {
+    --deck-w: 100%;
+  }
+}
 @media (min-width: 1180px) {
   .file-card.file-slides {
-    margin-inline: min(0px, calc((100% - 860px) / 2));
+    margin-inline: min(0px, calc((100% - var(--deck-w) - 20px) / 2));
   }
 }
 .deck {
   display: grid;
   gap: 8px;
+}
+.file-card .deck {
+  inline-size: min(100%, var(--deck-w));
+  margin-inline: auto;
 }
 .deck-stage {
   border-radius: 6px;
@@ -4235,7 +4295,6 @@ button.att-card {
     0 0 0 1px var(--line),
     var(--shadow);
   overflow: hidden;
-  touch-action: pan-y;
 }
 .deck-stage:focus-visible {
   outline: 2px solid var(--accent);
@@ -4258,9 +4317,6 @@ button.att-card {
   color: #121a2e;
   text-align: start;
   user-select: text;
-}
-.slide-canvas.no-calibri {
-  --pt: calc(var(--px) * 1.3333 * 0.91);
 }
 .sh {
   position: absolute;
@@ -4317,7 +4373,7 @@ button.att-card {
 .deck-thumb {
   position: relative;
   display: block;
-  inline-size: 7.5rem;
+  inline-size: 6rem;
   padding: 0;
   border: 0;
   border-radius: 4px;
@@ -4346,6 +4402,47 @@ button.att-card {
   font-size: 0.62rem;
   line-height: 1.4;
 }
+/* past the preview cap: an end card and a last filmstrip tile say how many slides the file still holds */
+.deck-end {
+  display: grid;
+  place-items: center;
+  background: #0b1b3f;
+  color: #fff;
+  text-align: center;
+}
+.deck-end-in {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 16px;
+}
+.deck-end .btn-primary {
+  background: #fff;
+  color: #0b1b3f;
+}
+.deck-end-n {
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+.deck-thumb-more .slide-frame {
+  display: grid;
+  place-items: center;
+  background: #0b1b3f;
+}
+.deck-more-n {
+  padding: 4px;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.a4-cut {
+  margin-block-start: 1.5em;
+  padding-block-start: 0.8em;
+  border-block-start: 1px dashed #b8c0d0;
+  color: #586078;
+  font-style: italic;
+}
 .deck-dialog {
   inline-size: min(100vw - 32px, (100dvh - 190px) * 16 / 9, 1600px);
   max-inline-size: none;
@@ -4365,6 +4462,95 @@ button.att-card {
   position: absolute;
   inset-block-start: 6px;
   inset-inline-end: 8px;
+}
+.deck-stage {
+  touch-action: pan-y pinch-zoom; /* swipe to change slide, pinch to read closer */
+}
+.deck-rotate {
+  display: none;
+}
+/* phone or short window: the full-screen view takes the whole screen, edge to edge, on black; the slide is as
+   wide as the screen allows (never smaller than in the chat) */
+@media (max-width: 700px), (max-height: 500px) {
+  .deck-dialog {
+    position: fixed;
+    inset: 0;
+    inline-size: 100dvw;
+    block-size: 100dvh;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+    background: #000;
+    color: #fff;
+    box-shadow: none;
+    overflow: hidden;
+  }
+  .deck-dialog::backdrop {
+    background: #000;
+  }
+  .deck-dialog .btn {
+    color: #fff;
+  }
+  .deck-dialog .btn:disabled {
+    opacity: 0.35;
+  }
+  .deck-dialog .deck-count {
+    color: rgb(255 255 255 / 0.8);
+  }
+  .deck-dialog .deck-full {
+    block-size: 100%;
+    align-content: center;
+    gap: 4px;
+  }
+  .deck-dialog .deck-stage {
+    justify-self: center;
+    inline-size: min(100dvw, (100dvh - 132px) * 16 / 9);
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .deck-dialog .deck-bar {
+    padding-inline: 8px;
+  }
+  .deck-dialog .deck-film {
+    display: none;
+  }
+  .deck-dialog .deck-close {
+    z-index: 1;
+    inset-block-start: max(6px, env(safe-area-inset-top));
+  }
+}
+@media (max-width: 700px) and (orientation: portrait) {
+  .deck-dialog .deck-rotate {
+    display: block;
+    position: absolute;
+    inset: auto 16px max(20px, env(safe-area-inset-bottom));
+    text-align: center;
+    font-size: 0.85rem;
+    color: rgb(255 255 255 / 0.7);
+  }
+}
+/* landscape phone: the slide takes the full height, the controls stand in a column beside it */
+@media (max-height: 500px) and (orientation: landscape) {
+  .deck-dialog .deck-full {
+    grid-template-columns: 1fr 56px;
+    align-items: center;
+    gap: 0;
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  }
+  .deck-dialog .deck-stage {
+    inline-size: min(100dvw - 56px - env(safe-area-inset-left) - env(safe-area-inset-right), 100dvh * 16 / 9);
+  }
+  .deck-dialog .deck-bar {
+    flex-direction: column;
+    padding: 56px 0 8px;
+  }
+  .deck-dialog .deck-count {
+    min-inline-size: 0;
+    font-size: 0.75rem;
+  }
+  .deck-dialog .deck-prev .icon {
+    transform: scaleX(-1);
+  }
 }
 @media (max-width: 640px) {
   .file-card.file-slides .card-preview > :not(summary) {
@@ -4415,8 +4601,42 @@ button.att-card {
   background: var(--surface);
   box-shadow: var(--shadow);
 }
-.a4-wrap:not(.is-clipped) .a4-more {
+.a4-wrap:not(.is-clipped) .a4-more,
+.a4-wrap.is-clipped .a4-bar {
   display: none;
+}
+.file-card {
+  overflow: clip; /* clips like hidden, but leaves the page as the scroller of the sticky bar below */
+  min-inline-size: 0; /* not a scroll container any more: a wide sheet must not widen the card */
+}
+.a4-bar {
+  position: sticky;
+  z-index: 1;
+  inset-block-end: 10px;
+  display: flex;
+  justify-content: flex-end; /* clear of the centred 'Go to the end' pill */
+  gap: 8px;
+  padding: 0 12px 10px;
+  pointer-events: none;
+}
+.a4-bar > .btn {
+  pointer-events: auto;
+  box-shadow: var(--shadow);
+}
+.a4-bar > .btn-ghost {
+  background: var(--surface);
+}
+.a4-less .icon {
+  transform: rotate(180deg);
+}
+@media (max-width: 640px) {
+  .a4-less {
+    inline-size: 34px;
+    padding: 0;
+  }
+  .a4-less .btn-label {
+    display: none;
+  }
 }
 .a4 {
   --cm: calc(min(100cqw, 794px) / 21);
@@ -4625,6 +4845,21 @@ ol.a4-list > li::before {
   color: #fff;
   font-weight: 700;
   border: 0;
+}
+/* the first column (usually the identifier) stays in view when a wide sheet scrolls sideways */
+.xl-table :is(th, td):first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+}
+.xl-table th:first-child {
+  z-index: 2;
+}
+.xl-table td:first-child {
+  background: #fff;
+}
+.xl-scroll.is-x :is(th, td):first-child {
+  box-shadow: 6px 0 6px -4px rgb(11 27 63 / 0.28);
 }
 .xl-table .num {
   text-align: end;

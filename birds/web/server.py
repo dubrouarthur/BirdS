@@ -31,7 +31,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 SITE_DIR = Path(__file__).resolve().parents[2] / "site"  # corporate site, served under /a-propos/
 
 CSP = (
-    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; "
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; connect-src 'self'; "
     "manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 )
 SECURITY_HEADERS = {

@@ -9,26 +9,6 @@ const color = (v, d) => (HEX.test(String(v || "")) ? `#${v}` : d);
 const px = (el, prop, v) =>
   el.style.setProperty(prop, `calc(var(--px) * ${num(v)})`);
 
-// Calibri, or its metric twin Carlito, sets the line breaks of the real file; without either the fallback face is
-// wider, so the text is drawn a little smaller to keep the same breaks (checked once per page).
-let narrow = null;
-function hasCalibri() {
-  if (narrow !== null) return narrow;
-  try {
-    const c = document.createElement("canvas").getContext("2d");
-    const w = (f) => (
-      (c.font = `40px ${f}`),
-      c.measureText("Mesurez l'espace des lettres 0123").width
-    );
-    narrow = ["Carlito", "Calibri"].some(
-      (f) => w(`${f}, monospace`) !== w("monospace"),
-    );
-  } catch {
-    narrow = true;
-  }
-  return narrow;
-}
-
 function para(p, heading) {
   const runs = Array.isArray(p.r) ? p.r : [];
   const el = h(heading ? "h4" : "p", { class: "sh-p" });
@@ -76,9 +56,7 @@ function para(p, heading) {
 
 /** One slide, drawn from its shapes. `live`: the big stage (real headings); thumbnails are decorative. */
 export function slideCanvas(slide, live) {
-  const canvas = h("div", {
-    class: `slide-canvas${hasCalibri() ? "" : " no-calibri"}`,
-  });
+  const canvas = h("div", { class: "slide-canvas" });
   for (const sh of Array.isArray(slide.shapes) ? slide.shapes : []) {
     const el = h("div", {
       class: `sh sh-${sh.g === "o" ? "o" : sh.g === "rr" ? "rr" : "r"}`,
@@ -104,11 +82,15 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
     (s) => s && Array.isArray(s.shapes),
   );
   if (!slides.length) return null;
-  const total = num(p.total) || slides.length;
+  const total = Math.max(num(p.total), slides.length);
+  // past the preview cap, the deck ends on a card that says how many slides the file still holds
+  const more = total - slides.length;
+  const last = slides.length - (more > 0 ? 0 : 1);
   let at = 0;
   const stage = h("div", {
     class: "deck-stage",
     tabindex: "0",
+    role: "group",
     "aria-roledescription": t("files.deck.slide"),
   });
   const counter = h("p", {
@@ -138,6 +120,7 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
       {
         type: "button",
         class: "deck-thumb",
+        tabindex: "-1",
         "aria-label": t("files.deck.goto", {
           n: s.n || i + 1,
           title: s.title || "",
@@ -158,23 +141,55 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
     film.append(h("li", null, b));
     return b;
   });
+  const moreText = () => t("files.deck.more", { n: more });
+  if (more > 0) {
+    const b = h(
+      "button",
+      { type: "button", class: "deck-thumb deck-thumb-more", tabindex: "-1", onclick: () => go(slides.length) },
+      h("span", { class: "slide-frame" }, h("span", { class: "deck-more-n", text: moreText() })),
+    );
+    film.append(h("li", null, b));
+    thumbs.push(b);
+  }
+  function endCard() {
+    return h(
+      "div",
+      { class: "slide-frame deck-end" },
+      h(
+        "div",
+        { class: "deck-end-in" },
+        h("p", { class: "deck-end-n", text: moreText() }),
+        h("p", { text: t("files.deck.more.hint") }),
+        onDownload && button("btn-primary btn-small", "download", t("files.download"), onDownload),
+      ),
+    );
+  }
   function go(i) {
-    at = Math.max(0, Math.min(slides.length - 1, i));
-    const s = slides[at];
-    const frame = h("div", { class: "slide-frame" }, slideCanvas(s, true));
-    stage.replaceChildren(frame);
+    at = Math.max(0, Math.min(last, i));
+    const s = slides[at] || { n: `${slides.length + 1}–${total}`, title: moreText() };
+    stage.replaceChildren(
+      slides[at] ? h("div", { class: "slide-frame" }, slideCanvas(s, true)) : endCard(),
+    );
     stage.setAttribute(
       "aria-label",
       t("files.deck.goto", { n: s.n || at + 1, title: s.title || "" }),
     );
-    counter.textContent = `${s.n || at + 1} / ${total}`;
-    prev.disabled = at === 0;
-    next.disabled = at === slides.length - 1;
-    thumbs.forEach((b, j) =>
-      j === at
-        ? b.setAttribute("aria-current", "true")
-        : b.removeAttribute("aria-current"),
+    // seen: "2 / 31"; heard: "Slide 2 of 31: Part 1"
+    counter.replaceChildren(
+      h("span", { "aria-hidden": "true", text: `${s.n || at + 1} / ${total}` }),
+      h("span", {
+        class: "sr-only",
+        text: t("files.deck.status", { n: s.n || at + 1, total, title: s.title || "" }),
+      }),
     );
+    prev.disabled = at === 0;
+    next.disabled = at === last;
+    // one tab stop for the whole filmstrip (the current slide); arrows move within it
+    thumbs.forEach((b, j) => {
+      b.tabIndex = j === at ? 0 : -1;
+      if (j === at) b.setAttribute("aria-current", "true");
+      else b.removeAttribute("aria-current");
+    });
     const th = thumbs[at];
     if (th && film.scrollWidth > film.clientWidth) {
       film.scrollTo({
@@ -187,19 +202,25 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
     if (e.key === "ArrowRight" || e.key === "PageDown") go(at + 1);
     else if (e.key === "ArrowLeft" || e.key === "PageUp") go(at - 1);
     else if (e.key === "Home") go(0);
-    else if (e.key === "End") go(slides.length - 1);
+    else if (e.key === "End") go(last);
     else return;
     e.preventDefault();
+    if (e.target.classList?.contains("deck-thumb")) thumbs[at]?.focus();
   };
+  // swipe with one finger; two fingers are a pinch zoom, never a slide change
   let x0 = null;
-  stage.addEventListener(
-    "pointerdown",
-    (e) => (x0 = e.pointerType === "mouse" ? null : e.clientX),
-  );
+  let fingers = 0;
+  stage.addEventListener("pointerdown", (e) => {
+    fingers += e.pointerType === "touch" ? 1 : 0;
+    x0 = e.pointerType === "mouse" || fingers > 1 ? null : e.clientX;
+  });
+  const lift = (e) => (fingers = Math.max(0, fingers - (e.pointerType === "touch" ? 1 : 0)));
+  stage.addEventListener("pointercancel", (e) => ((x0 = null), lift(e)));
   stage.addEventListener("pointerup", (e) => {
-    if (x0 !== null && Math.abs(e.clientX - x0) > 40)
+    if (x0 !== null && fingers === 1 && Math.abs(e.clientX - x0) > 40)
       go(at + (e.clientX < x0 ? 1 : -1));
     x0 = null;
+    lift(e);
   });
   const root = h(
     "section",
@@ -236,6 +257,10 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
   return root;
 }
 
+// a phone or a short window: the full-screen view is the whole screen (edge to edge, real full screen and
+// landscape where the browser allows it), so it is never smaller than the slide in the chat
+const SMALL = "(max-width: 700px), (max-height: 500px)";
+
 function openFull(p, at, onDownload) {
   const deck = deckPreview(p, { onDownload, full: true });
   const close = button(
@@ -252,13 +277,38 @@ function openFull(p, at, onDownload) {
     },
     close,
     deck,
+    h("p", { class: "deck-rotate", text: t("files.deck.rotate") }),
   );
-  dlg.addEventListener("close", () => dlg.remove());
+  let fs = false;
+  dlg.addEventListener("close", () => {
+    if (fs && document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    try {
+      screen.orientation?.unlock?.();
+    } catch {
+      /* not supported */
+    }
+    dlg.remove();
+  });
   dlg.addEventListener("click", (e) => e.target === dlg && dlg.close());
+  // leaving the browser's full screen (Esc, back gesture) leaves the view too
+  document.addEventListener("fullscreenchange", function off() {
+    if (document.fullscreenElement) return;
+    document.removeEventListener("fullscreenchange", off);
+    if (fs && dlg.open) dlg.close();
+  });
   document.body.append(dlg);
   dlg.showModal();
   deck.go(at);
   deck.querySelector(".deck-stage").focus();
+  if (window.matchMedia?.(SMALL).matches && document.documentElement.requestFullscreen) {
+    document.documentElement
+      .requestFullscreen({ navigationUI: "hide" })
+      .then(() => {
+        fs = true;
+        return screen.orientation?.lock?.("landscape");
+      })
+      .catch(() => {});
+  }
 }
 
 // ------------------------------------------------------------------ document: an A4 page
@@ -273,7 +323,7 @@ const runsOf = (el, runs) => {
   return el;
 };
 
-export function docPreview(p) {
+export function docPreview(p, { onDownload } = {}) {
   const page = h("div", { class: "a4" });
   let list = null;
   for (const b of Array.isArray(p.blocks) ? p.blocks : []) {
@@ -322,6 +372,8 @@ export function docPreview(p) {
     else if (b.k === "table") page.append(docTable(b));
     else if (b.k === "p") page.append(runsOf(h("p", { class: "a4-p" }), b.r));
   }
+  if (num(p.more) > 0)
+    page.append(h("p", { class: "a4-cut", text: t("files.doc.more", { n: num(p.more) }) }));
   const wrap = h(
     "div",
     { class: "a4-wrap is-clipped" },
@@ -337,10 +389,25 @@ export function docPreview(p) {
     t("files.doc.all"),
     () => {
       wrap.classList.remove("is-clipped");
-      more.remove();
+      less.focus();
     },
   );
-  wrap.append(more);
+  // once open, the page can be long: "Show less" and the download stay at hand at the bottom of the window
+  const less = button("btn-ghost btn-small a4-less", "down", t("files.doc.less"), () => {
+    wrap.classList.add("is-clipped");
+    wrap.querySelector(".a4-scroll").scrollTop = 0;
+    wrap.scrollIntoView({ block: "nearest" });
+    more.focus();
+  }, { "aria-label": t("files.doc.less") }); // its label hides on a phone
+  wrap.append(
+    more,
+    h(
+      "div",
+      { class: "a4-bar" },
+      less,
+      onDownload && button("btn-primary btn-small btn-icon", "download", t("files.download"), onDownload),
+    ),
+  );
   return wrap;
 }
 
@@ -435,30 +502,37 @@ export function sheetPreview(p) {
     body.append(tr);
   }
   const more = num(p.total_rows) - (p.rows || []).length;
+  const scroller = h(
+    "div",
+    {
+      class: "xl-scroll",
+      tabindex: "0",
+      "aria-label": t("files.preview"),
+      // a shadow on the frozen first column while the sheet is scrolled sideways
+      onscroll: (e) => e.currentTarget.classList.toggle("is-x", Math.abs(e.currentTarget.scrollLeft) > 0),
+    },
+    h(
+      "table",
+      { class: "xl-table" },
+      colgroup,
+      h(
+        "thead",
+        null,
+        h(
+          "tr",
+          null,
+          (p.columns || []).map((c, j) =>
+            h("th", { scope: "col", class: cls(j), text: String(c) }),
+          ),
+        ),
+      ),
+      body,
+    ),
+  );
   return h(
     "div",
     { class: "xl" },
-    h(
-      "div",
-      { class: "xl-scroll", tabindex: "0", "aria-label": t("files.preview") },
-      h(
-        "table",
-        { class: "xl-table" },
-        colgroup,
-        h(
-          "thead",
-          null,
-          h(
-            "tr",
-            null,
-            (p.columns || []).map((c, j) =>
-              h("th", { scope: "col", class: cls(j), text: String(c) }),
-            ),
-          ),
-        ),
-        body,
-      ),
-    ),
+    scroller,
     more > 0 &&
       h("p", { class: "hint", text: t("files.more.rows", { n: more }) }),
   );
