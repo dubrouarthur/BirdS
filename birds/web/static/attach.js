@@ -393,7 +393,7 @@ export function imageCard(img, { onRemove, onOpen, compact } = {}) {
   if (!onRemove) return el;
   return h(
     "div",
-    { class: "att-wrap" },
+    { class: "att-wrap", "data-att": img.id },
     el,
     h(
       "button",

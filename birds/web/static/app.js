@@ -709,10 +709,26 @@ function updateComposer() {
 
 const shownAttachments = new Set(); // the entrance animation plays once per attachment, not at every redraw
 const isNew = (key) => !shownAttachments.has(key) && shownAttachments.add(key);
+/** Where focus goes after the tray is redrawn: the same card, else the one now at that place, else the input. */
+function keepTrayFocus(box, draw) {
+  const removes = () => [...box.querySelectorAll(".att-x")];
+  const was = document.activeElement;
+  const index = removes().indexOf(was);
+  const key = index >= 0 ? was.closest("[data-att]")?.dataset.att : null;
+  draw();
+  if (index < 0 || box.contains(document.activeElement)) return;
+  const now = removes();
+  const same = key && now.find((b) => b.closest("[data-att]")?.dataset.att === key);
+  (same || now[index] || now[index - 1] || input()).focus();
+}
+
 function renderAttachments() {
+  const box = $("attachments");
+  keepTrayFocus(box, () => drawAttachments(box));
+}
+function drawAttachments(box) {
   const docs = state.conv?.attachments || [];
   const imgs = pending.images;
-  const box = $("attachments");
   box.hidden = !docs.length && !imgs.length;
   if (box.hidden) return box.replaceChildren();
   const rerender = () => (renderAttachments(), updateComposer());
