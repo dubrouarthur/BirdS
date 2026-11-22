@@ -99,6 +99,24 @@ def test_answer_event_carries_the_chart_spec():
     assert "graphique affiché" in ans["memo"]
 
 
+def test_a_quoted_chart_tool_result_is_not_shown():
+    # live model: « Voici le graphique : [Chart shown to the user in the chat: bar chart « … », …] Paris domine… »
+    rows = [["Paris", 2161000], ["Lyon", 522000]]
+    echo = (
+        "Voici le graphique : [Chart displayed to the user (do not quote this note): bar chart « Population », "
+        "2 labels, 1 series (Habitants), values from 522000 to 2161000.] Paris domine largement."
+    )
+    llm = FakeClient([call("make_chart", title="Population", columns=["Ville", "Habitants"], rows=rows), echo])
+    app = create_app(Settings(rate_limit=0), server_backend=HarnessBackend(llm, Tok()))
+    with TestClient(app) as c:
+        body = {"messages": [{"role": "user", "content": "Fais un graphique : Paris 2161000, Lyon 522000"}]}
+        ans = answer_of(sse(c.post("/api/chat", json=body)))
+    assert ans["content"] == "Voici le graphique : Paris domine largement." and ans["charts"]
+    from birds.web.backends import strip_tool_echo
+
+    assert strip_tool_echo("Chart shown to the user in the chat: bar chart.\nAdjusted: x\nBien.") == "Bien."
+
+
 # --------------------------------------------------------------------------- 15 image choice
 
 

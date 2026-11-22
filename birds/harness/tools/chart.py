@@ -335,7 +335,7 @@ def make_chart(args: dict, ctx) -> str:
     ctx.step_info = {"chart": spec["id"], "values": len(spec["rows"]), "series": len(series), "type": spec["type"]}
     kind = {"bar": "bar chart", "line": "line chart", "pie": "pie chart"}[spec["type"]]
     out = (
-        f"Chart shown to the user in the chat: {kind} « {spec['title']} », {len(spec['rows'])} labels, "
+        f"Chart displayed to the user (do not quote this note): {kind} « {spec['title']} », {len(spec['rows'])} labels, "
         f"{len(series)} series ({', '.join(series)}), values from {_fmt(min(values))} to {_fmt(max(values))}{unit}. "
         "Do not draw it again or list its figures, in text or as a table: comment on it in 1 to 3 sentences."
     )

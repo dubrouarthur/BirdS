@@ -1262,6 +1262,24 @@ _OCR_HEAD = {
 _MEMO_ECHO = re.compile(r"\s*\[(?:Mémo de ce tour|Memo of this turn) —[^\]]*\]?\s*$")
 
 
+# make_chart's tool result, copied into the answer by the live model (« Voici le graphique : [Chart shown to the user
+# in the chat: bar chart « … », 5 labels, …] Paris domine… »): internal English, never shown.
+_CHART_ECHO = re.compile(
+    r"[ \t]*\[(?:Chart shown to the user in the chat|Chart displayed to the user)\b[^\]]*\][ \t]*"
+    r"|^[ \t]*(?:Chart shown to the user in the chat|Chart displayed to the user|Adjusted: |"
+    r"These figures are not from the user)[^\n]*\n?",
+    re.M,
+)
+
+
+def strip_tool_echo(text: str) -> str:
+    """Remove a make_chart tool result the model quoted in its answer."""
+    if "Chart " not in text and "Adjusted: " not in text and "These figures" not in text:
+        return text
+    out = _CHART_ECHO.sub(lambda m: " " if m.group(0).startswith((" ", "\t")) else "", text)
+    return re.sub(r"[ \t]{2,}", " ", out).strip()
+
+
 def strip_memo(text: str) -> str:
     """The model sees memos at the end of past answers and sometimes imitates one: never show or keep that echo."""
     return _MEMO_ECHO.sub("", text).rstrip() if "[" in text else text
@@ -1754,7 +1772,7 @@ class HarnessBackend:
                 [r for s in run.steps for r in (getattr(s, "info", {}) or {}).get("results", [])],
                 list(getattr(run, "charts", []) or []),
             )
-            answer_text = hide_out_paths(strip_memo(str(run.answer)))
+            answer_text = hide_out_paths(strip_tool_echo(strip_memo(str(run.answer))))
             request_words = (
                 str((request.resume or {}).get("state", {}).get("request", ""))
                 if request.resume is not None
