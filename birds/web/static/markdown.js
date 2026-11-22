@@ -102,6 +102,28 @@ const RE_FILE_NAME =
 const RE_EXCEL = /^=\s*[A-Za-z$('"]/;
 const RE_FORMULA = /^[^=`]{1,48}=[^=].*[-+*/×÷]/;
 
+/**
+ * A display formula only breaks after a top-level operator ("BFR =" / "(stocks + clients) -" / "(…)"): the pieces
+ * are kept whole and joined by the original spaces, so the copied text is the formula as written.
+ */
+function formulaSegments(code) {
+  const out = [];
+  let depth = 0;
+  let from = 0;
+  for (let k = 0; k < code.length; k++) {
+    const c = code[k];
+    if ("([{".includes(c)) depth++;
+    else if (")]}".includes(c)) depth = Math.max(0, depth - 1);
+    else if (!depth && "=+-*/×÷".includes(c) && code[k - 1] === " " && code[k + 1] === " ") {
+      out.push(code.slice(from, k + 1));
+      from = k + 2;
+      k++;
+    }
+  }
+  out.push(code.slice(from));
+  return out.filter(Boolean);
+}
+
 function codeSpan(code, ctx, mode) {
   if (ctx.rich && RE_EXCEL.test(code) && code.length <= 200) {
     const label = escapeHtml(ctx.labels.copyFormula);
@@ -111,7 +133,7 @@ function codeSpan(code, ctx, mode) {
     );
   }
   if (ctx.rich && mode.formula && RE_FORMULA.test(code))
-    return `<span class="md-formula"><code>${escapeHtml(code)}</code></span>`;
+    return `<span class="md-formula"><code>${formulaSegments(code).map((g) => `<span class="md-fseg">${escapeHtml(g)}</span>`).join(" ")}</code></span>`;
   if (ctx.rich && RE_FILE_NAME.test(code))
     return `<code class="md-file">${escapeHtml(code)}</code>`;
   return `<code${code.length > 60 ? ' class="md-long"' : ""}>${escapeHtml(code)}</code>`;
