@@ -681,6 +681,8 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
 # ------------------------------------------------------------------ Markdown renderer (run with Node when available)
 
 MD_CASES = {
+    "md_fence": "Voici la recette.\n```markdown\n# Tarte\n## Ingrédients\n- 1 pâte\n- 250 g de fruits\n```\nBon appétit.",
+    "py_fence": "```python\nprint('# not a heading')\n```",
     "img": "<img src=x onerror=alert(1)>",
     "script": "<script>alert(1)</script>",
     "js_link": "[x](javascript:alert(1))",
@@ -757,6 +759,13 @@ def test_markdown_renderer_is_safe(rendered):
     assert "<h3>" in out["heading"] and "<ul><li>one</li><li>two</li></ul>" in out["heading"]
     assert "<ol><li>x</li><li>y</li></ol>" in out["heading"]
     assert "<code>&lt;b&gt;x&lt;/b&gt;</code>" in out["code"]
+
+
+def test_a_markdown_fence_is_rendered_as_markdown(rendered):
+    """A small model wraps a whole answer in ```markdown: it is formatted text, shown formatted, not as code."""
+    out = rendered["out"]
+    assert "code-block" not in out["md_fence"] and "<ul><li>1 pâte</li>" in out["md_fence"] and "<h" in out["md_fence"]
+    assert "code-block" in out["py_fence"] and "# not a heading" in out["py_fence"]
 
 
 def test_markdown_table_cells_keep_escaped_and_code_pipes(rendered):

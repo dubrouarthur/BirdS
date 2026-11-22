@@ -196,6 +196,12 @@ function blockList(lines, ctx, depth) {
       )
         body.push(lines[i++]);
       i += 1;
+      // A small model sometimes wraps its whole answer in a ```markdown fence: that is formatted text, not code
+      // to copy, so it is rendered as Markdown (once: a fence inside it stays a code block).
+      if (depth === 0 && /^(markdown|md)$/i.test(fence[2] || "")) {
+        out.push(...blockList(body, ctx, depth + 1));
+        continue;
+      }
       const name = escapeHtml(fence[2] || "");
       const lang = name ? ` data-lang="${name}"` : "";
       const label = escapeHtml(ctx.copyCode.replace("{lang}", fence[2] || "").replace(/\s+/g, " ").trim());
