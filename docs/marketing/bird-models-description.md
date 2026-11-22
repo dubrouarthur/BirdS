@@ -1,6 +1,6 @@
 # Bird Models — description de l'entreprise
 
-Textes prêts à coller. Tous les chiffres sont vérifiables (voir le site, page Sobriété) ; les objectifs sont présentés comme des objectifs.
+Textes prêts à coller.
 
 ## Accroche (LinkedIn, 120 caractères max.)
 
@@ -72,9 +72,3 @@ The AI of tomorrow will be small. Join the movement.
 | Siège       | France _(ville à compléter)_                                                                                      |
 | Taille      | _(à compléter)_                                                                                                   |
 | Site web    | _(URL à compléter)_                                                                                               |
-
-## Notes de rédaction
-
-- Les comparaisons d'énergie et d'eau portent sur une **requête courte** de Bird face à une **requête moyenne** de ChatGPT (0,34 Wh et 0,32 mL, chiffres publiés par OpenAI en juin 2025). Pour une publicité comparative, garder la source accessible (page Sobriété du site).
-- Ne pas écrire « hébergé en France », « 100 % renouvelable » au présent, ni le nombre de GPU.
-- Les objectifs 2030 restent des objectifs.
