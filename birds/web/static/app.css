@@ -4509,19 +4509,23 @@ button.att-card {
   inset: 0;
   pointer-events: none;
 }
+/* the pin is a rounded label with a centred tail below it: the tail's tip is the coordinate (--x, --y) */
 .map-pin {
+  --pin-bg: #0b1b3f;
+  --tail: 7px;
   position: absolute;
   inset-inline-start: var(--x, 50%);
   inset-block-start: var(--y, 50%);
-  transform: translate(-50%, -100%);
+  transform: translate(-50%, calc(-100% - var(--tail)));
+  transform-origin: 50% calc(100% + var(--tail));
   display: grid;
   place-items: center;
   min-inline-size: 26px;
   block-size: 26px;
   padding: 0 5px;
   border: 2px solid #fff;
-  border-radius: 13px 13px 13px 2px;
-  background: #0b1b3f;
+  border-radius: 13px;
+  background: var(--pin-bg);
   color: #fff;
   font: 700 0.75rem/1 var(--sans);
   box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
@@ -4531,16 +4535,26 @@ button.att-card {
     transform 0.15s ease,
     background 0.15s ease;
 }
+.map-pin::after {
+  content: "";
+  position: absolute;
+  inset-block-start: calc(100% + 2px);
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  border-inline: 5px solid transparent;
+  border-block-start: var(--tail) solid var(--pin-bg);
+  pointer-events: none;
+}
 .map-pin[hidden] {
   display: none;
 }
 .map-pin-center {
-  background: #c2410c;
+  --pin-bg: #c2410c;
 }
 .map-pin.is-active,
 .map-pin:hover {
-  background: #1e5bd8;
-  transform: translate(-50%, -100%) scale(1.18);
+  --pin-bg: #1e5bd8;
+  transform: translate(-50%, calc(-100% - var(--tail))) scale(1.18);
   z-index: 2;
 }
 .map-attr {

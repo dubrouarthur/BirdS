@@ -604,3 +604,16 @@ def test_static_map_frame_has_no_stray_text_node():
         w=w,
     )
     assert got["kinds"] and set(got["kinds"]) == {1} and not got["text"] and not got["zoom"]
+
+
+def test_pin_tip_is_on_the_coordinate():
+    """The pin's tail is centred under it and the translate puts the tail's tip on (--x, --y) (checked in Chromium
+    by the browser recipe: tip within 1.5 px of the coordinate)."""
+    import re
+
+    css = (STATIC / "app.css").read_text(encoding="utf-8")
+    pin = re.search(r"\n\.map-pin \{(.*?)\n\}", css, re.S).group(1)
+    tail = re.search(r"\n\.map-pin::after \{(.*?)\n\}", css, re.S).group(1)
+    assert "transform: translate(-50%, calc(-100% - var(--tail)))" in pin and "border-radius: 13px;" in pin
+    assert "inset-inline-start: 50%" in tail and "translate: -50% 0" in tail
+    assert "border-block-start: var(--tail) solid" in tail
