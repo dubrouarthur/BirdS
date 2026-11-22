@@ -1861,17 +1861,18 @@ details[open] > summary > .chev {
 .receipt-chip {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  min-block-size: 36px;
+  gap: 6px;
+  min-block-size: 28px;
   min-inline-size: 0;
   max-inline-size: 100%;
-  padding: 0 12px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--surface);
+  margin-inline-start: -6px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   color: var(--muted);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   cursor: pointer;
 }
 .receipt-chip > .icon,
@@ -1893,8 +1894,12 @@ details[open] > summary > .chev {
   transform: rotate(90deg);
 }
 .receipt-chip:hover {
-  border-color: var(--line-strong);
+  background: var(--surface);
   color: var(--ink-2);
+}
+.receipt-chip .icon {
+  inline-size: 14px;
+  block-size: 14px;
 }
 .receipt-chip:focus-visible {
   outline: 2px solid var(--accent);

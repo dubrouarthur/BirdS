@@ -851,9 +851,9 @@ export function meterTable(usage) {
 function renderReceipt(turn, isLast = true) {
   const u = turn.usage;
   if (!u) return null;
-  if (isLast) return fullReceipt(turn);
+  // every answer, the latest included: one discreet line; the full receipt opens on demand
   const open = !!turn.ui.receipt;
-  const energy = hasEnergy(u) ? fmtEnergy(u.energy_wh, u.energy_kind) : `${t("meter.energy")} ${t("meter.energy.none")}`;
+  const energy = hasEnergy(u) ? `${fmtEnergy(u.energy_wh, u.energy_kind)} · ` : "";
   const id = `rc-${turn.id}`;
   const chip = h(
     "button",
@@ -869,7 +869,7 @@ function renderReceipt(turn, isLast = true) {
       },
     },
     icon("leaf"),
-    h("span", { class: "receipt-chip-text num" }, `${u.tokens_kind === "estimated" ? "≈ " : ""}${fmtInt(u.prompt_tokens + u.completion_tokens)} ${t("meter.tokens")} · ${fmtSeconds(u.seconds)} · ${energy}`),
+    h("span", { class: "receipt-chip-text num" }, `${energy}${u.tokens_kind === "estimated" ? "≈ " : ""}${fmtInt(u.prompt_tokens + u.completion_tokens)} ${t("meter.tokens")} · ${fmtSeconds(u.seconds)}`),
     u.tokens_kind === "scripted" && h("span", { class: "tag tag-scripted", text: t("kind.scripted") }),
     icon("chevron", "chev"),
   );
