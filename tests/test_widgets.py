@@ -417,7 +417,15 @@ def test_api_map_partial_and_geo_off(app_client, monkeypatch):
     calls["fail"].add("/15/16598/")
     t = mapimg.map_token(s.signing_secret, (48.8447, 2.3740), 15)
     r = client.get(f"/api/map?t={t}")
-    assert r.status_code == 200 and r.headers.get("x-bird-partial") == "1"
+    assert r.status_code == 200 and r.headers.get("x-bird-partial") == "1" and r.headers["cache-control"] == "no-store"
+    before = calls["tiles"]
+    calls["fail"].clear()  # the upstream recovers: the next request retries only the missing tiles
+    r = client.get(f"/api/map?t={t}")
+    assert r.status_code == 200 and "x-bird-partial" not in r.headers and "max-age" in r.headers["cache-control"]
+    assert 1 <= calls["tiles"] - before < 4
+    again = calls["tiles"]
+    client.get(f"/api/map?t={t}")
+    assert calls["tiles"] == again  # the complete image is final
     off = TestClient(create_app(Settings(demo_delay=0, signing_secret=b"s" * 32, geo=False)))
     assert off.get(f"/api/map?t={t}").json()["detail"]["code"] == "geo_disabled"
 

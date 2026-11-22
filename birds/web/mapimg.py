@@ -261,7 +261,7 @@ def make_router(settings, harness_cfg) -> APIRouter:
         key = (lat, lon, z, layer)
         hit = finals.get(key)
         if hit:
-            return image(hit[0], "image/webp", {"X-Bird-Partial": "1"} if hit[1] else None)
+            return image(hit, "image/webp")
         template = IGN_TILES if layer == "ign" else (getattr(settings, "tile_url", None) or OSM_TILES)
         t0 = time.monotonic()
         try:
@@ -270,10 +270,14 @@ def make_router(settings, harness_cfg) -> APIRouter:
             raise err(403, "blocked", "the tile server is not allowed by the egress policy") from None
         except guard.ToolError:
             raise err(502, "upstream", "the map tiles could not be loaded") from None
-        finals.put(key, (body, partial))
-        print(json.dumps({"event": "map", "tiles": n, "cached": cached, "ms": int((time.monotonic() - t0) * 1000)}),
-              file=sys.stderr)  # fmt: skip
-        return image(body, "image/webp", {"X-Bird-Partial": "1"} if partial else None)
+        print(json.dumps({"event": "map", "tiles": n, "cached": cached, "partial": partial,
+                          "ms": int((time.monotonic() - t0) * 1000)}), file=sys.stderr)  # fmt: skip
+        if partial:
+            # a tile failed (503, timeout): never kept as final, nor by the browser; the tiles that did load are in
+            # the tile cache, so the next request only asks upstream for the missing ones
+            return Response(body, media_type="image/webp", headers={"Cache-Control": "no-store", "X-Bird-Partial": "1"})
+        finals.put(key, body)
+        return image(body, "image/webp")
 
     @router.get("/api/icon", include_in_schema=False)
     def get_icon(request: Request, d: str = "", s: str = ""):
