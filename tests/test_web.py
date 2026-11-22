@@ -145,7 +145,7 @@ def test_plain_answer_streams_then_gives_the_full_answer(client, lang):
     events = chat(client, "Bonjour" if lang == "fr" else "Hello", lang=lang)
     assert types(events) == ["answer", "usage", "done"]
     answer, usage = one(events, "answer"), one(events, "usage")
-    assert set(answer) == {"type", "content", "sources", "files", "draft_email", "stop_reason"}
+    assert set(answer) == {"type", "content", "sources", "files", "draft_email", "stop_reason", "code_checks"}
     assert "Bird" in answer["content"] and ("démo" in answer["content"] or "demo" in answer["content"])
     assert len([e for e in events if e["type"] == "delta"]) > 5
     assert streamed(events) == answer["content"]  # what was streamed is exactly the final answer

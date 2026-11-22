@@ -24,6 +24,7 @@ from urllib.parse import urlsplit
 
 from birds.harness import guard
 from birds.harness.llm import Cancelled, accepts  # Cancelled: the client went away or pressed stop
+from birds.web.tidy import code_checks, tidy
 
 Event = dict[str, Any]
 
@@ -419,6 +420,7 @@ class _DemoRun:
                 "files": files or [],
                 "draft_email": draft_email,
                 "stop_reason": "answer",
+                "code_checks": code_checks(content),
             }
         )
         prompt = 60 + sum(len(m["content"]) for m in self.req.messages) // 4 + self.extra_prompt
@@ -1572,10 +1574,12 @@ class HarnessBackend:
                 draft,
                 [r for s in run.steps for r in (getattr(s, "info", {}) or {}).get("results", [])],
             )
+            tidied = tidy(str(run.answer), run.stop_reason)
+            content = hide_out_paths(strip_memo(tidied.text))
             ctx.emit(
                 {
                     "type": "answer",
-                    "content": hide_out_paths(strip_memo(str(run.answer))),
+                    "content": content,
                     "sources": sources,
                     "files": files,
                     "draft_email": None
@@ -1588,8 +1592,10 @@ class HarnessBackend:
                         "body": str(draft.get("body") or ""),
                         **({"to_hint": str(draft["to_hint"])} if draft.get("to_hint") else {}),
                     },
-                    "stop_reason": run.stop_reason,
+                    "stop_reason": tidied.stop_reason,
                     "memo": turn_memo,
+                    "code_checks": code_checks(content),
+                    "tidy": tidied.repairs,
                     "images": [{"name": n, "text": t[:4000]} for n, t in image_texts],
                 }
             )
