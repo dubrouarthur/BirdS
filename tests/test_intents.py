@@ -90,6 +90,33 @@ def test_vague_targets_are_only_offered(text):
     assert got is not None and got.args is None
 
 
+# ordinary office phrasing: no extra tool offered at all (the trained tool block stays byte for byte)
+NO_TOOL = [
+    "Fais-moi un plan pour la présentation du budget 2027",
+    "Fais-moi un plan de la note : introduction, constat, propositions",
+    "Rédige une réponse polie à un fournisseur qui augmente ses prix de 8 %",
+    "Le restaurant d'entreprise ferme à 14h, préviens l'équipe",
+    "Qui est le fournisseur d'électricité le moins cher ?",
+    "Notre entreprise recrute : rédige l'annonce",
+]
+
+
+@pytest.mark.parametrize("text", NO_TOOL)
+def test_common_office_words_offer_no_tool(text):
+    assert intents.detect(text) == []
+
+
+def test_built_in_example_prompts_offer_no_extra_tool():
+    import re
+    from pathlib import Path
+
+    js = (Path(__file__).resolve().parents[1] / "birds" / "web" / "static" / "i18n.js").read_text(encoding="utf-8")
+    prompts = re.findall(r'"ex\.[\w.]+\.prompt":\s*"((?:[^"\\]|\\.)*)"', js)
+    assert len(prompts) >= 8
+    for p in prompts:
+        assert intents.detect(p) == [], p
+
+
 @pytest.mark.parametrize("text,args,mode", PLACES)
 def test_place_asks_are_prefilled(text, args, mode):
     got = intents.places(text)

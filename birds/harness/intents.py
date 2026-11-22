@@ -134,8 +134,9 @@ _PLACE_WORD = re.compile(
     r"where|directions?)\b",
     re.I,
 )
-_HINT = re.compile(
-    r"\b(?:carte|plan|map|itin[ée]raire|adresse|lieux?|o[uù] (?:se trouve|est)|près d|à côté d|near|nearby|where)\b",
+_HINT = re.compile(  # never the bare word "plan": "fais-moi un plan pour la présentation" is an outline
+    r"\b(?:carte|plan d'accès|plan de situation|map|itin[ée]raire|adresse|lieux?|o[uù] (?:se trouve|est)|près d|"
+    r"à côté d|near|nearby|where)\b",
     re.I,
 )
 _NEVER = re.compile(
@@ -361,8 +362,11 @@ _COMPANY_ASK = re.compile(
     r"the company|our client|our supplier|the supplier|the client)\s+"
     r"(?P<name>[A-Z0-9À-Ý][\w&'.\- ]{1,60})"
 )
-_COMPANY_HINT = re.compile(
-    r"\b(?:soci[ée]t[ée]|entreprise|siren|siret|kbis|raison sociale|fournisseur|company register)\b", re.I
+_COMPANY_HINT = re.compile(  # register cues only: "un fournisseur", "le restaurant d'entreprise" are ordinary words
+    r"\b(?:siren|siret|kbis|raison sociale|company register|registre du commerce|rcs|n° tva|num[ée]ro de tva|"
+    r"fiche (?:de la |d'une )?(?:soci[ée]t[ée]|entreprise)|infos? sur (?:la soci[ée]t[ée]|l'entreprise)|"
+    r"(?:dirigeants?|chiffre d'affaires|effectifs?) de (?:la soci[ée]t[ée]|l'entreprise))\b",
+    re.I,
 )
 
 
