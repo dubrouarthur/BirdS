@@ -4792,6 +4792,14 @@ button.att-card {
   font-size: 0.92em;
   white-space: pre-wrap;
 }
+.md .md-formula-p {
+  /* the sentence's "." after a formula: kept for copy and screen readers, not drawn alone under the box */
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 .md figure.md-quote {
   position: relative;
   margin-inline: 0;

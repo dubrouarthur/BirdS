@@ -129,7 +129,7 @@ function inline(raw, ctx, mode = {}) {
   text = text.replace(/\u0000(\d+)\u0000([.,;])(?=\s|$)/g, (whole, k, p) => {
     const html = stash[Number(k)];
     if (!html.startsWith('<span class="md-formula">')) return whole;
-    stash[Number(k)] = html.replace(/<\/span>$/, `${p}</span>`);
+    stash[Number(k)] = html.replace(/<\/span>$/, `<span class="md-formula-p">${p}</span></span>`);
     return `\u0000${k}\u0000`;
   });
 

@@ -158,7 +158,7 @@ const at = (re, s, i) => {
 };
 const RX = {
   ws: /[ \t]+|\n/y,
-  word: /[A-Za-z_][\w]*/y,
+  word: /[\p{L}_][\p{L}\p{N}_]*/uy, // Python 3 identifiers may be accented (regrouper_dépenses)
   num: /(?:0[xXoObB][\da-fA-F_]+|\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?|\.\d+)[jJnL]?/y,
   op: /[-+*/%=<>!&|^~?:]+/y,
   dq: /"(?:\\.|[^"\\\n])*"?/y,

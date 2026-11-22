@@ -127,7 +127,7 @@ test("hard line breaks inside a list item, formula chips, file names, formula li
   assert.match(out, /fin de mois\u00a0:<br><span class="md-chip"><code class="md-chip-code"><span class="tk-op">=<\/span><span class="tk-fn">EOMONTH<\/span>/);
   assert.match(out, /data-copy-inline/);
   assert.match(md("Ouvrez `rapport.xlsx`."), /<code class="md-file">rapport\.xlsx<\/code>/);
-  assert.match(md(answer("definition")), /<span class="md-formula"><code>BFR = \(stocks \+ clients\) - \(fournisseurs \+ charges sociales\)<\/code>\.<\/span> C’est/);
+  assert.match(md(answer("definition")), /<span class="md-formula"><code>BFR = \(stocks \+ clients\) - \(fournisseurs \+ charges sociales\)<\/code><span class="md-formula-p">\.<\/span><\/span> C’est/);
   assert.doesNotMatch(md("`a = b` et `c = d + e`"), /md-formula/); // two codes: not a definition
 });
 
