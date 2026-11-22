@@ -56,6 +56,7 @@ USAGE_KEYS = {
 }
 STEP_KEYS = {
     "type",
+    "flagged_excerpt",
     "index",
     "tool",
     "arguments",

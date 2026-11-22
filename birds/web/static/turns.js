@@ -253,6 +253,7 @@ function renderSteps(turn) {
               icon("shield"),
               h("span", { text: t("steps.injection") }),
             ),
+          injection && step.flagged_excerpt && ignoredQuote(step),
           h("p", { class: "eyebrow", text: t("steps.args") }),
           h("dl", { class: "kv" }, argRows(step.arguments)),
           (step.preview || step.summary) &&
@@ -310,6 +311,17 @@ function renderSteps(turn) {
   );
 }
 
+/** The sentence Bird ignored, quoted as plain text (never Markdown, never a link), with where it came from. */
+function ignoredQuote(step) {
+  const host = hostOf(String(step.arguments?.url || ""));
+  return h(
+    "figure",
+    { class: "ignored" },
+    h("figcaption", { class: "eyebrow", text: host ? t("steps.ignored.from", { host }) : t("steps.ignored") }),
+    h("blockquote", { class: "ignored-text", text: String(step.flagged_excerpt) }),
+  );
+}
+
 // ------------------------------------------------------------------ confirmation sheet
 
 function renderConfirm(turn) {
@@ -353,6 +365,17 @@ function renderConfirm(turn) {
         null,
         h("p", { class: "eyebrow", text: t("confirm.why") }),
         h("p", { class: "sheet-why", text: String(c.reason || "") }),
+        ...turn.steps
+          .filter((s) => s.flagged_excerpt && (s.flags || []).includes("possible_injection"))
+          .slice(-1)
+          .map((s) =>
+            h(
+              "details",
+              { class: "sheet-ignored", open: !window.matchMedia("(max-width: 640px)").matches },
+              h("summary", null, icon("chevron", "chev"), t("steps.ignored")),
+              ignoredQuote(s),
+            ),
+          ),
         h("p", { class: "eyebrow", text: t("confirm.then") }),
         h(
           "ul",
