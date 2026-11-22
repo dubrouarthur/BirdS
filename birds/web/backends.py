@@ -229,6 +229,7 @@ def pick_scenario(text: str, has_attachment: bool = False) -> str:
         ("attachment", ()),
         ("sheet", ("tableur", "spreadsheet", "xlsx", "budget")),
         ("slides", ("diapo", "slide", "présentation", "presentation", "pptx")),
+        ("reply", ("réponds à", "reponds a", "reply to")),  # a self-contained reply: no page, no approval
         ("email", ("mail", "courriel")),
         ("search", ("cherche", "search", "web", "source", "compare", "trouve", "find")),
         ("minutes", ("compte rendu", "compte-rendu", "minutes", "réunion", "reunion", "meeting")),
@@ -578,6 +579,27 @@ class _DemoRun:
                 "could you confirm the delivery time and the payment terms?\n\nKind regards,",
             ),
         }
+
+    def scenario_reply(self) -> None:
+        """The first example: a reply written from what the user said, nothing read from outside, no approval."""
+        self.think(
+            "Tout est dans la demande : l'offre convient, il manque le délai et les conditions de paiement.",
+            "Everything is in the request: the offer works, the delivery time and payment terms are missing.",
+        )
+        arguments = self._email_arguments()
+        self.step("draft_email", arguments, self.t("Brouillon prêt", "Draft ready"), 0.6)
+        self.extra_completion += len(arguments["body"]) // 4
+        self.finish(
+            self.t(
+                "Voici un brouillon de réponse à Camille. Il confirme que l'offre convient et demande le "
+                "**délai de livraison** et les **conditions de paiement**.\n\n"
+                "Relisez-le, puis envoyez-le vous-même : Bird n'envoie rien.",
+                "Here is a draft reply to Camille. It confirms the offer works and asks for the "
+                "**delivery time** and the **payment terms**.\n\n"
+                "Read it, then send it yourself: Bird sends nothing.",
+            ),
+            draft_email={"to": ", ".join(arguments["to"]), "subject": arguments["subject"], "body": arguments["body"]},
+        )
 
     def scenario_email(self) -> None:
         self.think(

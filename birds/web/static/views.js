@@ -979,6 +979,17 @@ export function renderAbout() {
       ),
     ),
     block(t("about.meter"), h("p", { text: t("about.meter.p") })),
+    block(
+      t("ex.guard.title"),
+      h("p", { text: t("ex.guard.p") }),
+      h("button", {
+        class: "btn",
+        type: "button",
+        "data-example": "guard",
+        text: t("ex.guard.title"),
+        onclick: () => hooks.onGuardDemo?.(t("ex.guard.prompt")),
+      }),
+    ),
     h("p", {
       class: "hint",
       text: t("about.current", {

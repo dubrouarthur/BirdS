@@ -1667,6 +1667,10 @@ async function init() {
     },
     onSaved: updateTop,
     onExample: (text) => send(text),
+    onGuardDemo: (text) => {
+      openConv(null); // the protection demo runs in a fresh conversation, never appended to the one being read
+      send(text);
+    },
     testEndpoint,
   });
   state.convs = store.json("bird.convs", []).filter((c) => c && c.id);

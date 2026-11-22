@@ -43,6 +43,11 @@ export const STRINGS = {
     "empty.examples.doc": "Avec votre document",
     "ex.email.title": "Mail",
     "ex.email.prompt":
+      "Réponds à Camille : son offre nous convient, demande le délai de livraison et les conditions de paiement.",
+    "ex.guard.title": "Voir comment Bird se protège",
+    "ex.guard.p":
+      "Une démonstration : Bird lit une page qui contient une instruction cachée, l'ignore et vous demande de valider avant d'agir.",
+    "ex.guard.prompt":
       "Prépare un mail de réponse à Camille à partir de la page https://example.org/demo/offre-fournisseur.",
     "ex.minutes.title": "Compte rendu",
     "ex.minutes.prompt":
@@ -596,6 +601,11 @@ export const STRINGS = {
     "empty.examples.doc": "With your document",
     "ex.email.title": "Email",
     "ex.email.prompt":
+      "Reply to Camille: her offer works for us, ask for the delivery time and the payment terms.",
+    "ex.guard.title": "See how Bird protects itself",
+    "ex.guard.p":
+      "A demonstration: Bird reads a page that hides an instruction, ignores it and asks you to approve before acting.",
+    "ex.guard.prompt":
       "Draft a reply email to Camille from the page https://example.org/demo/offre-fournisseur.",
     "ex.minutes.title": "Meeting minutes",
     "ex.minutes.prompt":

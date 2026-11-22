@@ -237,11 +237,29 @@ def test_hostile_markdown_is_passed_as_text_not_altered(client):
 def test_scenario_routing():
     assert pick_scenario("Bonjour") == "plain"
     assert pick_scenario("Draft a reply email") == "email"
+    assert pick_scenario("Réponds à Camille : son offre nous convient") == "reply"
+    assert pick_scenario("Reply to Camille: her offer works for us") == "reply"
     assert pick_scenario("Prepare a 5-slide deck") == "slides"
     assert pick_scenario("Search why small models use less energy") == "search"
     assert pick_scenario("Write the minutes of our project meeting") == "minutes"
     assert pick_scenario("simulate an error") == "error"
     assert pick_scenario("Résume", has_attachment=True) == "attachment"
+
+
+def test_first_example_is_a_safe_reply_without_approval(client):
+    """The first example must show a finished draft, never the prompt-injection approval scenario."""
+    for lang, prompt in [
+        (
+            "fr",
+            "Réponds à Camille : son offre nous convient, demande le délai de livraison et les conditions de paiement.",
+        ),
+        ("en", "Reply to Camille: her offer works for us, ask for the delivery time and the payment terms."),
+    ]:
+        events = post_chat(client, {"messages": [{"role": "user", "content": prompt}], "lang": lang})
+        assert "confirm" not in types(events) and types(events)[-1] == "done"
+        assert not any(e.get("flags") for e in events if e["type"] == "step")
+        answer = one(events, "answer")
+        assert answer["draft_email"] and answer["draft_email"]["to"] == "camille@example.org"
 
 
 def test_heartbeat_comments_keep_the_stream_open():
