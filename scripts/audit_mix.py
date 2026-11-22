@@ -54,7 +54,7 @@ SKILL = {
     "structured_extraction": "structured",
     "slides_officesmith": "slides",
     "bird_identity": "identity",
-    "bird_guardrails": "guardrails",
+    "bird_guardrails": "guardrails", "bird_persona": "persona", "xlam_fc": "tools",
 }
 BIRD_MEDIUM_TASK = {
     "emails": "emails",

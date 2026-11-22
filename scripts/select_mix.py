@@ -68,11 +68,25 @@ CAPS_BUDGET = {
     "hermes_json_agentic": 600,
     "hermes_json_single": 600,
 }
+# v1: repairs v0's over-cautious tool use (direct calls from xlam_fc, far fewer "ask first" examples) and
+# favours reasoning-bearing sources; scaled down evenly to the token budget
+CAPS_V1 = {
+    "xlam_fc": 4000, "bird_medium": 4500, "emails_fr_en": 1200, "slides_officesmith": 850, "toolcall_fr": 449,
+    "hermes_fc": 924, "hermes_fc_glaive": 1500, "hermes_json_agentic": 400, "hermes_json_single": 400,
+    "toucan_oss": 1600, "toucan_kimi": 400, "toucan_qwen3": 400, "nemotron_agentic": 4200,
+    "nemotron_agentic_knowledge": 600, "when2call": 400, "xlam_irrelevance": 150,
+    "hermes_agent_traces_kimi": 350, "hermes_agent_traces_glm": 150, "s1_deepresearch": 400,
+    "frenchqa": 900, "smoltalk2_fr": 1000, "nemotron_fr": 2300, "synth_fr": 1900, "aya_fr": 600,
+    "smol_rewrite": 1000, "smol_summarize": 1000, "coedit": 500, "smol_smoltalk": 600,
+    "rag_glaive": 900, "grounded_qa": 1000, "glaive_reasoning": 1700, "openthoughts": 300,
+    "multilingual_thinking": 375, "table_gpt": 800, "text_to_sql": 500, "structured_extraction": 700,
+}
+PROTECTED_V1 = {"xlam_fc", "bird_medium", "slides_officesmith", "toolcall_fr", "hermes_fc", "when2call", "xlam_irrelevance"}
 PROTECTED = {"bird_medium", "slides_officesmith", "emails_fr_en", "toolcall_fr", "aya_fr"}  # never scaled down
 BYTES_PER_TOKEN = 3.29  # measured on mix v0 (687 MB of JSON lines for 209 M training tokens)
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--profile", choices=["v0", "budget"], default="v0")
+ap.add_argument("--profile", choices=["v0", "budget", "v1"], default="v0")
 ap.add_argument("--token-budget", type=float, default=0, help="millions of training tokens to fit (budget profile)")
 ap.add_argument("--pool", required=True)
 ap.add_argument("--identity", required=True, nargs="+", help="ready-made record files (identity, guardrails)")
@@ -90,7 +104,9 @@ with open(Path(a.pool) / "train.jsonl", encoding="utf-8") as f:
         head = line[:400]
         src = head.split('"source": "', 1)[1].split('"', 1)[0]
         by_source[src].append(line)
-caps = dict(CAPS_V0 if a.profile == "v0" else CAPS_BUDGET)
+caps = dict({"v0": CAPS_V0, "budget": CAPS_BUDGET, "v1": CAPS_V1}[a.profile])
+if a.profile == "v1":
+    PROTECTED = PROTECTED_V1
 ident = [line for path in a.identity for line in open(path, encoding="utf-8") if line.strip()]
 
 
@@ -117,6 +133,13 @@ if a.token_budget:
     while tokens(train) + fixed > a.token_budget and scale > 0.05:
         scale *= 0.95
         train, stats = pick(scale)
+_seen, _uniq = set(), []
+for _line in train:  # the same request must not appear twice with different expected behaviours
+    _key = " ".join(m["content"] for m in json.loads(_line)["messages"] if m["role"] == "user").lower()
+    if _key not in _seen:
+        _seen.add(_key)
+        _uniq.append(_line)
+train = _uniq
 print(f"scale {scale:.2f}  estimated training tokens {tokens(train) + tokens(ident):.1f} M")
 rng.shuffle(ident)
 n_id_eval = 60
