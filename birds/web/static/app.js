@@ -79,6 +79,14 @@ const newConv = () => ({
   attachments: [],
 });
 
+function browserTz() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
 function slim(conv) {
   return {
     ...conv,
@@ -1206,6 +1214,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         stop_reason: event.stop_reason || "answer",
         memo: String(event.memo || ""),
         images: event.images || [],
+        widgets: Array.isArray(event.widgets) ? event.widgets : [],
       };
       turn.files.push(...(event.files || []));
       turn.text = "";
@@ -1254,6 +1263,7 @@ async function runTurn(turn, extra = {}) {
       messages: apiMessages(!!resend),
       conv_lang: conv.lang,
       conversation_id: conv.cid,
+      tz: browserTz(),
       thinking: !!turn.thinking,
       lang: state.prefs.lang,
       attachments: docs.map(({ name, content, encoding, ocr }) => ({

@@ -620,7 +620,7 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
     assert not re.search(r"https?://|//[a-z]", html), "external origin in index.html"
     css = (STATIC_DIR / "app.css").read_text()
     assert "url(" not in css and "@import" not in css and "@font-face" not in css
-    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js"]
+    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "widgets.js", "ics.js"]
     brand = [
         "mark.svg",
         "mark-dark.svg",
@@ -640,12 +640,16 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
 
 
 def test_static_payload_budget():
-    files = [p for p in STATIC_DIR.rglob("*") if p.is_file()]
+    # the pre-rendered maps of the scripted demo (static/demo/) are only loaded by demo answers: not app payload
+    files = [p for p in STATIC_DIR.rglob("*") if p.is_file() and "demo" not in p.relative_to(STATIC_DIR).parts]
     total = sum(p.stat().st_size for p in files)
     # raised from 250 kB when images, attachments, previews and the savings report were added; what travels is
     # gzip-compressed (about 80 kB for all the text files); raised to 400 kB for the P1 UX backlog (welcome toggle,
-    # code-block headers, action menu, chart keyboard support, approval and stop states)
-    assert total < 400_000, f"static payload is {total} bytes"
+    # code-block headers, action menu, chart keyboard support, approval and stop states); raised to 460 kB for the
+    # result widgets (maps, company, currency and event cards, .ics, source previews)
+    assert total < 460_000, f"static payload is {total} bytes"
+    demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
+    assert demo < 400_000, f"demo maps weigh {demo} bytes"
 
 
 def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
@@ -655,7 +659,7 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     fr, en = set(key.findall(fr_block.split("fr: {", 1)[1])), set(key.findall(en_block.split("\n};", 1)[0]))
     assert fr and fr == en, fr ^ en
     used = set()
-    for name in ["app.js", "turns.js", "views.js", "core.js"]:
+    for name in ["app.js", "turns.js", "views.js", "core.js", "widgets.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))
     used |= set(re.findall(r'data-i18n(?:-aria|-placeholder)?="([\w.]+)"', (STATIC_DIR / "index.html").read_text()))
     assert not used - fr, sorted(used - fr)

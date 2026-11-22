@@ -113,7 +113,9 @@ _RX_WHERE = re.compile(
     r"^(?:o[uù]\s+(?:se\s+trouve(?:nt)?|se\s+situe(?:nt)?|est|sont)|c'est\s+o[uù]|"
     r"(?:quelle\s+est\s+)?l?'?adresse\s+(?:de\s+|du\s+|des\s+|d')|localise(?:-moi)?|situe(?:-moi)?|"
     r"(?:une\s+)?carte\s+(?:de\s+|du\s+|des\s+|d')|(?:un\s+)?plan\s+(?:d'accès\s+)?(?:de\s+|du\s+|d'|des\s+)|"
-    r"where(?:\s+is|'s|\s+are)|(?:the\s+)?address\s+of|(?:a\s+)?map\s+of|locate)\s+" + _ART + _NAME.format("q"),
+    r"where(?:\s+is|'s|\s+are)|(?:the\s+)?address\s+of|(?:a\s+)?map\s+of|locate)(?:\s+|(?<=[\s']))"
+    + _ART
+    + _NAME.format("q"),
     re.I,
 )
 _LIST_NOUNS = (
@@ -214,17 +216,17 @@ def places(text: str, lang: str = "fr") -> Intent | None:
         b = _clean_name(m.group("b"))
         if _ok(b):
             return Intent("find_places", {"query": b}, keep_web=False, mode="route")
+    from birds.harness.geo import find_address
+
+    addr = find_address(raw)  # a typed postal address wins over "où est ..." (BAN geocodes it exactly)
+    if addr and _PLACE_WORD.search(raw):
+        addr = re.sub(r"\s+(?:à|a|in)\s+(?=[A-ZÀ-Ý])", " ", addr)
+        return Intent("find_places", {"query": addr}, keep_web=False, mode="address")
     m = _RX_WHERE.search(t)
     if m:
         q = _clean_name(m.group("q"))
         if _ok(q) and not re.fullmatch(r"(?:il|elle|ça|ca|it|they|là|la)", q, re.I):
             return Intent("find_places", {"query": q}, keep_web=False, mode="where")
-    from birds.harness.geo import find_address
-
-    addr = find_address(raw)
-    if addr and _PLACE_WORD.search(raw):
-        addr = re.sub(r"\s+(?:à|a|in)\s+(?=[A-ZÀ-Ý])", " ", addr)
-        return Intent("find_places", {"query": addr}, keep_web=False, mode="address")
     if _HINT.search(raw):
         return Intent("find_places", None, keep_web=True)
     return None
@@ -257,7 +259,7 @@ _SIRET = re.compile(r"(?<!\d)(\d{3}[  ]?\d{3}[  ]?\d{3}[  ]?\d{5})(?!\d)")
 _SIREN = re.compile(r"(?<!\d)(\d{3}[  ]?\d{3}[  ]?\d{3})(?![\d])")
 _SIREN_WORD = re.compile(r"\b(?:siren|siret|n° d'entreprise|num[ée]ro d'entreprise|registre|rcs)\b", re.I)
 _COMPANY_ASK = re.compile(
-    r"(?:fiche|infos?|informations|renseignements|siren|siret|kbis|coordonn[ée]es|adresse|si[èe]ge|qui est|"
+    r"(?i:fiche|infos?|informations|renseignements|siren|siret|kbis|coordonn[ée]es|adresse|si[èe]ge|qui est|"
     r"c'est quoi|what is|about|tout sur|details? (?:on|of))\s+(?:de\s+|sur\s+|du\s+|de la\s+|de l'|of\s+|on\s+)?"
     r"(?:la soci[ée]t[ée]|l'entreprise|la bo[iî]te|notre client|notre fournisseur|le client|le fournisseur|"
     r"the company|our client|our supplier|the supplier|the client)\s+"

@@ -361,6 +361,9 @@ class DemoBackend:
             "make_slides",
             "make_document",
             "make_sheet",
+            "find_places",
+            "find_company",
+            "convert_currency",
         ]
     )
 

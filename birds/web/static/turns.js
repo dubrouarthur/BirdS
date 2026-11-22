@@ -23,6 +23,7 @@ import {
 } from "./core.js";
 import { renderBlocks, renderMarkdown, safeUrl, stabilize } from "./markdown.js";
 import { docCard, imageCard, kindOf, middle } from "./attach.js";
+import { renderWidgets, widgetsText } from "./widgets.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -233,6 +234,8 @@ function renderSteps(turn) {
                 : t("steps.via", { label: step.info.label }),
               text: step.info.label,
             }),
+          step.info?.auto &&
+            h("span", { class: "badge badge-auto", title: t("step.auto.title"), text: t("step.auto") }),
           injection &&
             h(
               "span",
@@ -427,6 +430,13 @@ function renderConfirm(turn) {
 
 // ------------------------------------------------------------------ result cards
 
+const ICON_SRC = /^\/api\/icon\?d=[a-z0-9.-]+&s=[0-9a-f]{24}$/;
+function monoHue(domain) {
+  let x = 0;
+  for (const ch of String(domain)) x = (x * 31 + ch.charCodeAt(0)) >>> 0;
+  return x % 8;
+}
+
 function renderSources(turn) {
   const sources = turn.answer?.sources || [];
   if (!sources.length) return null;
@@ -441,9 +451,23 @@ function renderSources(turn) {
         const url = safeUrl(source.url);
         const title = String(source.title || source.url || "");
         const n = Number(source.n) || 0;
+        const domain = String(source.domain || (url ? hostOf(url) : ""));
+        const mono = h("span", { class: `source-mono mono-${monoHue(domain)}`, "aria-hidden": "true", text: (domain[0] || "?").toUpperCase() });
+        const iconUrl = ICON_SRC.test(String(source.icon || "")) ? source.icon : null;
+        const fav =
+          iconUrl &&
+          h("img", { class: "source-icon", src: iconUrl, width: "16", height: "16", alt: "", loading: "lazy", referrerpolicy: "no-referrer" });
+        if (fav) {
+          mono.hidden = true;
+          fav.addEventListener("error", () => {
+            fav.remove();
+            mono.hidden = false;
+          });
+        }
+        const meta = [domain, source.date && String(source.date)].filter(Boolean).join(" · ");
         return h(
           "li",
-          { id: `src-${turn.id}-${n}`, tabindex: "-1" },
+          { id: `src-${turn.id}-${n}`, tabindex: "-1", class: `source-card source-${source.kind || "web"}` },
           h("span", { class: "source-n num", text: String(n || "") }),
           h(
             "span",
@@ -453,10 +477,20 @@ function renderSources(turn) {
                   href: url,
                   target: "_blank",
                   rel: "noopener noreferrer",
+                  referrerpolicy: "no-referrer",
                   text: title,
                 })
               : h("span", { text: title }),
-            url && h("span", { class: "source-host", text: hostOf(url) }),
+            url &&
+              h(
+                "span",
+                { class: "source-host" },
+                fav,
+                mono,
+                h("span", { text: meta }),
+                source.kind === "gov" && h("span", { class: "badge badge-gov", text: t("src.public") }),
+              ),
+            source.snippet && h("span", { class: "source-snippet", text: String(source.snippet) }),
           ),
         );
       }),
@@ -989,7 +1023,8 @@ export function plainText(turn) {
   for (const el of heads) el.hidden = true;
   const text = md.innerText.trim();
   for (const el of heads) el.hidden = false;
-  return text;
+  const extra = widgetsText(turn);
+  return extra ? `${text}\n\n${extra}` : text;
 }
 
 function renderActions(turn, isLast) {
@@ -1235,6 +1270,15 @@ function basedOn(turn) {
   );
 }
 
+function widgetsFor(turn, entry) {
+  if (!turn.answer?.widgets?.length) return null;
+  if (entry.widgetsOf !== turn.answer) {
+    entry.widgetsOf = turn.answer;
+    entry.widgets = renderWidgets(turn);
+  }
+  return entry.widgets;
+}
+
 function fillAssistant(el, turn, isLast) {
   let entry = cache.get(turn.id);
   if (!entry) {
@@ -1266,6 +1310,7 @@ function fillAssistant(el, turn, isLast) {
         h("div", { class: "reasoning-body", text: turn.reasoning }),
       ),
     hasText && entry.md,
+    widgetsFor(turn, entry),
     basedOn(turn),
     liveLine(turn),
     renderConfirm(turn),
@@ -1412,6 +1457,8 @@ export function exportMarkdown(conv) {
       );
     if ((turn.steps || []).length) lines.push("");
     if (turn.answer) lines.push(turn.answer.content, "");
+    const extra = turn.answer ? widgetsText(turn, true) : "";
+    if (extra) lines.push(extra, "");
     const draft = turn.answer?.draft_email;
     if (draft)
       lines.push(
