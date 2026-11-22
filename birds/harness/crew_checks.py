@@ -336,7 +336,13 @@ def check_facts(facts, window: str) -> tuple[list[dict], int]:
 
 # ------------------------------------------------------------------ meeting notes
 
-_ROSTER = re.compile(r"^\s*[-*•]?\s*(pr[ée]sents?|participants?|excus[ée]e?s?|absents?)\s*:\s*(.+)$", re.I | re.M)
+# « Présents : », « Participants : », « Excusé : », and per side: « Côté client (Maison Vernet) : », « Pour le client : »
+_ROSTER = re.compile(
+    r"^\s*[-*•]?\s*(pr[ée]sents?|participants?|excus[ée]e?s?|absents?|c[ôo]t[ée]\s+[^:\n]{2,50}?|"
+    r"pour\s+(?:le|la|l['’])\s*(?:client|agence|prestataire|fournisseur|soci[ée]t[ée]|cabinet|mairie|direction)[^:\n]{0,40}?)"
+    r"\s*:\s*(.+)$",
+    re.I | re.M,
+)
 _ACTION_MARK = re.compile(
     r"->|→|\bpour le\b|\bavant le\b|\bla semaine du\b|\bs'en occupe\b|\brelance\b|\borganise\b|\bfournit\b|"
     r"\btransmet\b|\bfait le\b|\bpr[ée]sentera\b|\b[a-zé]{3,}(?:era|ira|ra)\b|\bà réserver\b|\bà rédiger\b",
@@ -430,24 +436,55 @@ def actions_table(actions: list[dict], lang: str = "fr") -> str:
 
 # ------------------------------------------------------------------ offers and costs
 
+# « 1) Konica Minolta », « 2. Nexa IT », « Devis 1 – Sauvegardia (Nantes) », « Offre B : Orka », « Fournisseur n° 2 - X »
 _OFFER_HEAD = re.compile(
-    r"^\s*(?:\d{1,2}\s*[.)]\s+|(?:offre|fournisseur|option|devis|proposition)\s*(?:n[°o]\s*)?[A-Z\d]{0,2}\s*[:–—-]\s*)"
+    r"^\s*(?:\d{1,2}\s*[.)]\s+|(?i:offre|fournisseur|option|devis|proposition|prestataire|candidat)\s*"
+    r"(?:(?i:n)[°o]\s*)?[A-Z\d]{0,2}\s*[:–—-]\s*)"
     r"([A-ZÀ-Ý][\w&' .-]{1,60})",
     re.M,
 )
+_BLOCK_END = re.compile(
+    r"^\s*(?:remarques?|notes?|contraintes?|besoins?|commentaires?|conclusion|synth[èe]se|pi[èe]ces? jointes?)\b",
+    re.I,
+)
+_PRICE = re.compile(r"\d\s*(?:k\s*)?(?:€|eur\b|euros?\b)|€\s*\d", re.I)
 _NOT_OFFER = re.compile(
     r"^(?:planning|budget|formation|divers|reprise|contexte|objet|besoin|point|d[ée]cision|remarques?|synth)",
     re.I,
 )
 
 
-def offer_names(text: str) -> list[str]:
-    names = []
-    for m in _OFFER_HEAD.finditer(text or ""):
+def offer_blocks(text: str) -> list[tuple[str, str]]:
+    """(name, block text) of each offer of a pasted comparison: from its heading to the next heading, the last one
+    ending at a « Remarques / Contrainte / Besoin » paragraph. A block counts only if it carries a price (€): a
+    numbered agenda (« 1. Approbation du PV », « 3. Santé ») is not a list of offers."""
+    text = text or ""
+    heads = []
+    for m in _OFFER_HEAD.finditer(text):
         name = re.split(r"\s+[–—(-]\s*|\s*\(|\s*:", m.group(1).strip())[0].strip(" .")
         if name and not _NOT_OFFER.match(name):
-            names.append(name)
-    return list(dict.fromkeys(names))
+            heads.append((m.start(), name))
+    out = []
+    for i, (start, name) in enumerate(heads):
+        end = heads[i + 1][0] if i + 1 < len(heads) else len(text)
+        lines, body = text[start:end].split("\n"), []
+        for k, ln in enumerate(lines):
+            if k and _BLOCK_END.match(ln):
+                break
+            body.append(ln)
+        block = "\n".join(body).strip()
+        if _PRICE.search(block):
+            out.append((name, block))
+    seen, uniq = set(), []
+    for name, block in out:
+        if name not in seen:
+            seen.add(name)
+            uniq.append((name, block))
+    return uniq
+
+
+def offer_names(text: str) -> list[str]:
+    return [name for name, _ in offer_blocks(text)]
 
 
 def constraints(text: str) -> dict:

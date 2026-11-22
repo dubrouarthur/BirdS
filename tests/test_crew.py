@@ -57,6 +57,63 @@ Excusé : Marc Girard (directeur commercial)
 
 Prochaine réunion le 4 novembre, 10 h, salle Rhône"""
 ASK_NOTES = "Fais le compte rendu de ces notes de réunion avec un tableau des actions.\n\n" + NOTES
+
+# Three realistic inputs that decide() once misrouted (live evaluation, November 2026)
+BACKUP = """Objet : sauvegarde externalisée des serveurs – deux devis reçus
+
+Besoin interne : 1,8 To de données à sauvegarder (serveur de fichiers + ERP). Contraintes : données hébergées en France obligatoirement (exigence contractuelle d'un client public), rétention d'au moins 60 jours, budget maximal de 3 000 € HT pour la première année.
+
+Devis 1 – Sauvegardia (Nantes)
+- Forfait « Pro 2 To » : 195 € HT par mois, 2 To inclus.
+- Frais de mise en service : 450 € HT, une seule fois.
+- Rétention : 90 jours.
+- Hébergement : deux centres de données en France (Roubaix et Strasbourg), double copie.
+- Délai de restauration garanti (RTO) : 24 h.
+- Engagement : 12 mois.
+
+Devis 2 – NuageSûr
+- Forfait « Essentiel 1,5 To » : 150 € HT par mois, 1,5 To inclus ; 18 € HT par mois par tranche de 100 Go supplémentaire.
+- Mise en service offerte.
+- Rétention : 30 jours ; 60 jours en option pour 30 € HT par mois.
+- Hébergement : centre de données à Dublin (Irlande).
+- Délai de restauration garanti (RTO) : 4 h.
+- Engagement : 36 mois."""
+KICKOFF = """Réunion de lancement – projet site e-commerce Maison Vernet – lundi 16 novembre 2026, 14 h – 15 h, visio
+Côté client (Maison Vernet) : Anne Vernet (gérante), Bruno Caron (responsable logistique).
+Côté agence (Studio Pixel) : Léa Morel (cheffe de projet), Hugo Lambert (développeur), Inès Nguyen (designer).
+
+- Objectif : mise en ligne de la boutique (environ 250 produits) avant les soldes, le 7 janvier 2027 au plus tard.
+- Anne envoie les photos produits et les fiches descriptives cette semaine.
+- Bruno fournit les grilles de frais de port (Colissimo et transporteur palettes) d'ici le 23 novembre.
+- Inès présente deux maquettes de page d'accueil le 25 novembre.
+- Hugo installe l'environnement de recette et envoie les accès à Anne et Bruno pour le 30 novembre.
+- Léa envoie le planning détaillé et le devis signé à Anne demain.
+- Paiement en ligne : Anne doit ouvrir le compte Stripe, pas de date fixée.
+- Hugo vérifie la compatibilité du logiciel de stock de Bruno (export CSV) avant le 27 novembre.
+- Point d'étape chaque lundi à 9 h en visio."""
+CSE = """Réunion ordinaire du CSE – mardi 17 novembre 2026, 9 h 30 – 11 h, salle du conseil
+Présents : Hélène Garnier (directrice des ressources humaines, présidente), Mathieu Roy (secrétaire du CSE), Samia Haddad (trésorière), Lucas Fontaine (élu, atelier), Camille Bernard (élue, bureaux), Pierre Vidal (référent harcèlement).
+Excusée : Nora Lefèvre (élue).
+
+1. Approbation du PV du 20 octobre : approuvé à l'unanimité.
+
+2. Activités sociales et culturelles
+- Samia : budget ASC 2026 consommé à 82 % (41 000 € sur 50 000 €). Reste 9 000 €.
+- Arbre de Noël le samedi 12 décembre : Samia commande les cadeaux enfants avant le 27/11 (68 enfants inscrits).
+- Proposition de Lucas de passer les chèques-cadeaux de fin d'année de 120 € à 150 € par salarié : discussion, pas de vote faute de chiffrage. Samia chiffre l'impact pour la prochaine réunion.
+
+3. Santé, sécurité, conditions de travail
+- 2 accidents du travail sans arrêt à l'atelier en octobre (manutention).
+- Lucas organise une visite de l'atelier avec le responsable sécurité avant le 4 décembre.
+- Hélène transmet au CSE le bilan des formations gestes et postures pour le 1er décembre.
+
+4. Télétravail
+- Camille relaie la demande des bureaux d'un 3e jour de télétravail. Hélène : la direction n'y est pas opposée sur le principe mais attend l'avis du comité de direction de janvier ; aucune décision aujourd'hui.
+
+5. Divers
+- Mathieu envoie l'ordre du jour de la prochaine réunion aux élus au plus tard le 8 décembre.
+- Pierre met à jour l'affichage obligatoire (coordonnées du référent harcèlement) d'ici fin novembre.
+- Prochaine réunion : mardi 15 décembre 2026, 9 h 30."""
 ASK_DECK = (
     "Fais une présentation de 6 diapos sur l'évolution du télétravail en France depuis 2019 avec des chiffres sourcés"
 )
@@ -266,6 +323,28 @@ def test_activated_and_disabled_modes():
 def test_recipes_with_auto_off_run_only_when_activated():
     doc = "Rédige un rapport sur l'évolution du chômage en France depuis 2015 avec des chiffres sourcés"
     assert decide(doc).recipe is None and decide(doc, mode="on").recipe == "doc_research"
+
+
+def test_offer_headings_need_a_price_and_accept_devis_and_offre_forms():
+    assert cc.offer_names(BACKUP) == ["Sauvegardia", "NuageSûr"]
+    assert cc.offer_names("Offre 1 : Alpha Conseil\nPrix : 300 € par mois.\n\nOffre 2 : Beta SA\nPrix : 280 € par mois.") == [
+        "Alpha Conseil", "Beta SA"]  # fmt: skip
+    assert len(cc.offer_names(CSE)) < 2  # numbered agenda items are not offers
+    ask = "Compare ces deux devis de sauvegarde cloud et rédige un document de synthèse avec une recommandation.\n\n"
+    assert decide(ask + BACKUP).recipe == "compare_write" and decide(ask + BACKUP, mode="on").recipe == "compare_write"
+
+
+def test_rosters_written_per_side_are_read():
+    assert cc.roster(KICKOFF) == ["Anne Vernet", "Bruno Caron", "Léa Morel", "Hugo Lambert", "Inès Nguyen"]
+    assert cc.roster("Pour le client : Paul Henry (DG)\nParticipants : Lina Roche") == ["Paul Henry", "Lina Roche"]
+    ask = "Fais un compte rendu de cette réunion de lancement client avec le tableau des actions.\n\n"
+    assert decide(ask + KICKOFF).recipe == "minutes_actions" and decide(ask + KICKOFF, mode="on").recipe == "minutes_actions"
+
+
+def test_cse_minutes_are_minutes_not_offers():
+    ask = "Rédige le compte rendu de cette réunion du CSE avec un tableau des actions (qui, quoi, échéance).\n\n"
+    d = decide(ask + CSE)
+    assert d.recipe == "minutes_actions" and len(d.signals["offers"]) < 2
 
 
 def test_deliverable_is_chosen_in_code_in_a_fixed_order():
