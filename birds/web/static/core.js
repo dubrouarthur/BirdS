@@ -212,6 +212,7 @@ export function announce(text) {
 
 export function toast(text, kind = "info") {
   const host = $("toasts");
+  for (const old of host.children) if (old.textContent === text && !old.classList.contains("toast-out")) old.remove(); // the same message once
   const el = h("div", { class: `toast toast-${kind}`, role: kind === "error" ? "alert" : "status" }, icon(kind === "error" ? "alert" : kind === "ok" ? "check" : "info"), h("span", { text }));
   host.append(el);
   while (host.children.length > 3) host.firstChild.remove();

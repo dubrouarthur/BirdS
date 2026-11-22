@@ -853,12 +853,20 @@ function imagesAvailable() {
 
 async function onFiles(files) {
   const imageMode = imagesAvailable();
+  const maxImages = state.health?.image_limits?.max || 3;
+  let room = Math.max(0, maxImages - pending.images.length); // computed once: one message for the whole drop
+  let skipped = 0;
   for (const file of files) {
     if (isImageFile(file)) {
       if (!imageMode) {
         toast(t("att.img.unsupported"), "error");
         continue;
       }
+      if (room <= 0) {
+        skipped++;
+        continue;
+      }
+      room--;
       addImage(file, () => (renderAttachments(), updateComposer()));
       continue;
     }
@@ -880,6 +888,7 @@ async function onFiles(files) {
     }
     addAttachment(doc.name, doc.content, doc.encoding, doc.size);
   }
+  if (skipped) toast(t(skipped > 1 ? "att.img.skipped" : "att.img.skipped1", { n: skipped, max: maxImages }), "error");
   input().focus();
 }
 

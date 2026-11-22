@@ -2936,6 +2936,43 @@ button.att-card {
   color: var(--danger-ink);
   white-space: normal;
 }
+/* phones: the tray wraps instead of scrolling sideways, and errors come first, in full */
+@media (max-width: 640px) {
+  .att-tray {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+  .att-in {
+    flex: 0 1 auto;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+  .att-in:has(.is-error) {
+    order: -1;
+    flex-basis: 100%;
+  }
+  .att-in .att-wrap {
+    max-inline-size: 100%;
+  }
+  .att-card.is-error {
+    max-inline-size: 100%;
+  }
+  .att-card.is-error .att-meta {
+    flex: 1;
+  }
+  .att-card.is-error .att-sub {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .att-card.is-error .st-err {
+    flex-basis: 100%;
+    margin-inline-start: 0;
+    padding-inline: 0;
+  }
+  .att-card.is-error .st-err::before {
+    content: none;
+  }
+}
 .att-thumb {
   flex: none;
   inline-size: 64px;
