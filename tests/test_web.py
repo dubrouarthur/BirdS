@@ -620,7 +620,7 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
     assert not re.search(r"https?://|//[a-z]", html), "external origin in index.html"
     css = (STATIC_DIR / "app.css").read_text()
     assert "url(" not in css and "@import" not in css and "@font-face" not in css
-    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js"]
+    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "previews.js"]
     brand = [
         "mark.svg",
         "mark-dark.svg",
@@ -644,8 +644,9 @@ def test_static_payload_budget():
     total = sum(p.stat().st_size for p in files)
     # raised from 250 kB when images, attachments, previews and the savings report were added; what travels is
     # gzip-compressed (about 80 kB for all the text files); raised to 400 kB for the P1 UX backlog (welcome toggle,
-    # code-block headers, action menu, chart keyboard support, approval and stop states)
-    assert total < 400_000, f"static payload is {total} bytes"
+    # code-block headers, action menu, chart keyboard support, approval and stop states); to 425 kB for the file
+    # previews drawn from the written file (slide stage, filmstrip and full screen, A4 page, styled sheet)
+    assert total < 425_000, f"static payload is {total} bytes"
 
 
 def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
@@ -655,7 +656,7 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     fr, en = set(key.findall(fr_block.split("fr: {", 1)[1])), set(key.findall(en_block.split("\n};", 1)[0]))
     assert fr and fr == en, fr ^ en
     used = set()
-    for name in ["app.js", "turns.js", "views.js", "core.js"]:
+    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))
     used |= set(re.findall(r'data-i18n(?:-aria|-placeholder)?="([\w.]+)"', (STATIC_DIR / "index.html").read_text()))
     assert not used - fr, sorted(used - fr)
@@ -866,12 +867,11 @@ def test_harness_steps_files_and_draft_from_a_temporary_workspace(tmp_path, monk
     assert answer["draft_email"] == {"to": "camille@example.org", "subject": "Plan", "body": "Bonjour,\nvoici le plan."}
     (file,) = answer["files"]
     assert file["name"].endswith(".pptx") and base64.b64decode(file["data"])[:2] == b"PK"
-    assert file["preview"] == {
-        "kind": "slides",
-        "title": "Plan",
-        "slides": [{**slides[0], "notes": ""}],
-        "subtitle": "",
-    }
+    preview = file["preview"]  # the deck as written, not the model's arguments
+    assert (preview["kind"], preview["v"], preview["title"], preview["total"]) == ("slides", 2, "Plan", 2)
+    assert [(s["n"], s["kind"], s["title"]) for s in preview["slides"]] == [(1, "title", "Plan"), (2, "cards", "Contexte")]
+    assert [i["text"] for i in preview["slides"][1]["items"]] == ["Un", "Deux"]
+    assert "preview" not in [s for s in events if s["type"] == "step"][1]["info"]  # sent once, with the file
     assert answer["memo"].startswith("[Mémo de ce tour — outils : make_slides « Plan » ; draft_email « Plan »")
     assert not list(tmp_path.glob("bird-run-*")), "the per-request workspace must be deleted"
     lines = [json.loads(ln) for ln in capsys.readouterr().out.splitlines() if ln.startswith("{")]

@@ -23,6 +23,7 @@ import {
 } from "./core.js";
 import { renderBlocks, renderMarkdown, safeUrl, stabilize } from "./markdown.js";
 import { docCard, imageCard, kindOf, middle } from "./attach.js";
+import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -498,8 +499,17 @@ function slideStrip(preview) {
   );
 }
 
-function filePreview(preview) {
+function filePreview(preview, onDownload) {
   if (!preview || typeof preview !== "object") return null;
+  if (preview.v === 2) {
+    // what the file really holds (read back by the server), drawn in the file's own design
+    if (preview.kind === "slides") {
+      const deck = deckPreview(preview, { onDownload });
+      return deck && h("div", null, deck, preview.notes > 0 && h("p", { class: "hint", text: t("files.notes", { n: preview.notes }) }));
+    }
+    if (preview.kind === "document") return docPreview(preview);
+    if (preview.kind === "sheet") return sheetPreview(preview);
+  }
   if (preview.kind === "slides") {
     const notes = (preview.slides || []).filter((s) => s.notes);
     return h(
@@ -588,9 +598,11 @@ function renderFiles(turn) {
       const p = file.preview || {};
       const meta =
         p.kind === "slides"
-          ? t("files.slides", { n: (p.slides || []).length })
+          ? t("files.slides", { n: p.v === 2 ? p.total || 0 : (p.slides || []).length })
           : p.kind === "document"
-            ? t("files.sections", { n: (p.sections || []).length })
+            ? t("files.sections", {
+                n: p.v === 2 ? (p.blocks || []).filter((b) => b && b.k === "h" && b.l === 1).length : (p.sections || []).length,
+              })
             : p.kind === "sheet"
               ? t("files.rows", { n: p.total_rows || 0 })
               : "";
@@ -600,10 +612,18 @@ function renderFiles(turn) {
           document: "make_document",
           sheet: "make_sheet",
         }[p.kind] || "file";
-      const preview = filePreview(p);
+      const save = file.data
+        ? () =>
+            download(
+              name,
+              file.mime || "application/octet-stream",
+              new Blob([b64ToBytes(file.data)], { type: file.mime || "application/octet-stream" }),
+            )
+        : null;
+      const preview = filePreview(p, save);
       return h(
         "section",
-        { class: "card file-card", "data-file": name },
+        { class: `card file-card${p.v === 2 ? ` file-${p.kind}` : ""}`, "data-file": name },
         h(
           "header",
           { class: "card-head" },
@@ -619,21 +639,7 @@ function renderFiles(turn) {
                 .join(" · "),
             }),
           ),
-          file.data
-            ? button(
-                "btn-primary btn-small",
-                "download",
-                t("files.download"),
-                () =>
-                  download(
-                    name,
-                    file.mime || "application/octet-stream",
-                    new Blob([b64ToBytes(file.data)], {
-                      type: file.mime || "application/octet-stream",
-                    }),
-                  ),
-              )
-            : null,
+          save ? button("btn-primary btn-small", "download", t("files.download"), save) : null,
         ),
         !file.data &&
           h(

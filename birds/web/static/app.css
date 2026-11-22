@@ -3824,6 +3824,447 @@ button.att-card {
 .md-small table {
   font-size: 0.78rem;
 }
+/* Previews drawn from the written file. The slide, the page and the sheet keep the file's own colours (white,
+   navy, blue) in both themes: they are the document; only the frame around them follows the theme. */
+.file-card.file-slides .card-preview > :not(summary),
+.file-card.file-document .card-preview > :not(summary) {
+  margin: 0 10px 12px;
+}
+/* a deck gets the room of a real slide: up to 860 px, wider than the text column when the window allows */
+@media (min-width: 1180px) {
+  .file-card.file-slides {
+    margin-inline: min(0px, calc((100% - 860px) / 2));
+  }
+}
+.deck {
+  display: grid;
+  gap: 8px;
+}
+.deck-stage {
+  border-radius: 6px;
+  box-shadow:
+    0 0 0 1px var(--line),
+    var(--shadow);
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.deck-stage:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.slide-frame {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 9;
+  container-type: inline-size;
+  background: #fff;
+  overflow: hidden;
+}
+.slide-canvas {
+  --px: calc(100cqw / 1280);
+  --pt: calc(var(--px) * 1.3333);
+  position: absolute;
+  inset: 0;
+  font-family: Carlito, Calibri, var(--sans);
+  color: #121a2e;
+  text-align: start;
+  user-select: text;
+}
+.slide-canvas.no-calibri {
+  --pt: calc(var(--px) * 1.3333 * 0.91);
+}
+.sh {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+}
+.sh-o {
+  border-radius: 50%;
+}
+.sh-am {
+  justify-content: center;
+}
+.sh-ab {
+  justify-content: flex-end;
+}
+.sh-p {
+  margin: 0;
+  font: inherit;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+.sh-bu {
+  display: inline-block;
+  text-indent: 0;
+  font-family: Arial, sans-serif;
+}
+.deck-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.deck-prev .icon {
+  transform: scaleX(-1);
+}
+.deck-count {
+  min-inline-size: 4.5em;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+.deck-gap {
+  flex: 1;
+}
+.deck-film {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 3px 3px 6px;
+  scrollbar-width: thin;
+}
+.deck-film > li {
+  flex: none;
+}
+.deck-thumb {
+  position: relative;
+  display: block;
+  inline-size: 7.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  box-shadow: 0 0 0 1px var(--line);
+  overflow: hidden;
+  cursor: pointer;
+}
+.deck-thumb:hover {
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.deck-thumb[aria-current="true"] {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.deck-thumb .slide-canvas {
+  pointer-events: none;
+}
+.deck-thumb-n {
+  position: absolute;
+  inset-block-end: 2px;
+  inset-inline-start: 3px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgb(11 27 63 / 0.7);
+  color: #fff;
+  font-size: 0.62rem;
+  line-height: 1.4;
+}
+.deck-dialog {
+  inline-size: min(100vw - 32px, (100dvh - 190px) * 16 / 9, 1600px);
+  max-inline-size: none;
+  max-block-size: none;
+  margin: auto;
+  padding: 44px 16px 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-lg);
+}
+.deck-dialog::backdrop {
+  background: rgb(5 10 25 / 0.78);
+}
+.deck-close {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-end: 8px;
+}
+@media (max-width: 640px) {
+  .file-card.file-slides .card-preview > :not(summary) {
+    margin-inline: 0;
+  }
+  .file-card.file-slides .deck-stage {
+    border-radius: 0;
+  }
+  .file-card.file-slides .deck-bar,
+  .file-card.file-slides .deck-film {
+    padding-inline: 8px;
+  }
+  .deck-thumb {
+    inline-size: 5.5rem;
+  }
+}
+
+/* document: an A4 page (21 cm wide; 2.4 cm margins), sizes in points of that page */
+.a4-wrap {
+  position: relative;
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+.a4-scroll {
+  max-block-size: 34rem;
+  overflow: auto;
+  padding: 14px;
+  container-type: inline-size;
+}
+.a4-wrap:not(.is-clipped) .a4-scroll {
+  max-block-size: none;
+}
+.a4-wrap.is-clipped::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  block-size: 6rem;
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(transparent, var(--surface-2) 85%);
+  pointer-events: none;
+}
+.a4-more {
+  position: absolute;
+  z-index: 1;
+  inset-block-end: 10px;
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.a4-wrap:not(.is-clipped) .a4-more {
+  display: none;
+}
+.a4 {
+  --cm: calc(min(100cqw, 794px) / 21);
+  --pt: calc(var(--cm) * 2.54 / 72);
+  max-inline-size: 794px;
+  min-block-size: calc(var(--cm) * 18);
+  margin-inline: auto;
+  padding: max(18px, calc(var(--cm) * 2.6)) max(16px, calc(var(--cm) * 2.4))
+    max(18px, calc(var(--cm) * 2.4));
+  background: #fff;
+  color: #121a2e;
+  box-shadow:
+    0 1px 3px rgb(11 27 63 / 0.12),
+    0 10px 30px -12px rgb(11 27 63 / 0.3);
+  font-family: Carlito, Calibri, var(--sans);
+  font-size: max(12px, calc(var(--pt) * 10.5));
+  line-height: 1.38;
+  overflow-wrap: break-word;
+}
+.a4 > * {
+  margin: 0 0 0.57em;
+}
+.a4 strong {
+  font-weight: 700;
+}
+.a4 code {
+  font: 0.9em var(--mono);
+  background: #f4f6fb;
+}
+/* the 4.5 pt blue bar in the margin runs down the title and the subtitle, as one bar (lengths in body em) */
+.a4-title {
+  margin: 0 0 0 -0.556em;
+  padding-inline-start: 0.383em;
+  border-inline-start: 0.173em solid #1e5bd8;
+  font-size: 2.48em;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #0b1b3f;
+}
+.a4-sub {
+  margin: 0 0 2.6em -1.314em;
+  padding: 0.35em 0 0 0.905em;
+  border-inline-start: 0.41em solid #1e5bd8;
+  color: #586078;
+  font-size: 1.05em;
+}
+.a4-h1,
+.a4-h2,
+.a4-h3 {
+  font-weight: 700;
+  line-height: 1.15;
+}
+.a4-h1 {
+  margin: 1.7em 0 0.55em;
+  font-size: 1.43em;
+  color: #0b1b3f;
+}
+.a4-h2 {
+  margin: 1.3em 0 0.33em;
+  font-size: 1.14em;
+  color: #1e5bd8;
+}
+.a4-h3 {
+  margin: 1.1em 0 0.2em;
+  font-size: 1em;
+}
+.a4-list {
+  padding: 0;
+  list-style: none;
+}
+.a4-list > li {
+  position: relative;
+  margin-block-end: 0.27em;
+  padding-inline-start: 1.71em;
+}
+.a4-list > li::before {
+  content: "•";
+  position: absolute;
+  inset-inline-start: 0.85em;
+  font-family: Arial, sans-serif;
+  color: #1e5bd8;
+}
+.a4-list > li.a4-l1 {
+  margin-inline-start: 1.71em;
+}
+.a4-list > li.a4-l2 {
+  margin-inline-start: 3.42em;
+}
+.a4-list > li.a4-l1::before,
+.a4-list > li.a4-l2::before {
+  content: "–";
+  color: #586078;
+}
+ol.a4-list > li::before {
+  content: attr(data-n);
+  inset-inline-start: 0.5em;
+  font-family: inherit;
+  font-weight: 700;
+  color: #0b1b3f;
+}
+.a4-callout + .a4-callout {
+  margin-block-start: -0.57em; /* consecutive decisions form one tinted block, as in Word */
+}
+.a4-callout,
+.a4-quote {
+  margin: 0 0 0.57em;
+  margin-inline-start: 1.35em;
+  padding: 0.38em 0.76em;
+  border-inline-start: 0.29em solid #1e5bd8;
+  background: #f4f6fb;
+}
+.a4-decision {
+  border-color: #5bd69b;
+  background: #eefaf3;
+}
+.a4-quote {
+  margin-block: 0.57em 0.95em;
+}
+.a4-code {
+  margin-inline-start: 1.35em;
+  padding: 0.5em 0.76em;
+  border-inline-start: 0.29em solid #f3f4f6;
+  background: #f3f4f6;
+  font: 0.86em/1.3 var(--mono);
+  white-space: pre-wrap;
+}
+.a4-rule {
+  border: 0;
+  border-block-end: 1px solid #d9dee8;
+}
+.a4-table-wrap {
+  overflow-x: auto;
+  margin-block-end: 0.76em;
+}
+.a4-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  border-block-end: 1px solid #0b1b3f;
+  font-size: 0.905em;
+  line-height: 1.2;
+}
+.a4-table th,
+.a4-table td {
+  padding: 0.38em 0.6em;
+  text-align: start;
+  vertical-align: middle;
+}
+.a4-table th {
+  background: #0b1b3f;
+  color: #fff;
+  font-weight: 700;
+}
+.a4-table td {
+  border-block-start: 0.5px solid #d9dee8;
+}
+.a4-table .num {
+  text-align: end;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.a4-table .is-zebra td {
+  background: #f4f6fb;
+}
+.a4-table .is-total td {
+  background: #e2e9f8;
+  font-weight: 700;
+}
+.a4-hint {
+  color: #586078;
+  font-size: 0.86em;
+}
+
+/* sheet: the styled table of the .xlsx (navy header, zebra, figures right, totals) */
+.xl-scroll {
+  max-block-size: 26rem;
+  overflow: auto;
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px var(--line);
+  background: #fff;
+}
+.xl-table {
+  min-inline-size: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  color: #121a2e;
+  font-family: Carlito, Calibri, var(--sans);
+  font-size: 0.84rem;
+}
+.xl-table th,
+.xl-table td {
+  padding: 0 0.7em;
+  block-size: 1.85rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: start;
+  border-block-end: 1px solid #d9dee8;
+}
+.xl-table th {
+  position: sticky;
+  z-index: 1;
+  inset-block-start: 0;
+  block-size: 2.4rem;
+  background: #0b1b3f;
+  color: #fff;
+  font-weight: 700;
+  border: 0;
+}
+.xl-table .num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+.xl-table .date {
+  text-align: center;
+}
+.xl-table .is-zebra td {
+  background: #f4f6fb;
+}
+.xl-table .is-total td {
+  font-weight: 700;
+}
+.xl-table .is-total:not(.is-total + .is-total) td {
+  border-block-start: 1px solid #0b1b3f;
+}
+.xl-table .is-grand td {
+  background: #e2e9f8;
+  color: #0b1b3f;
+  font-weight: 700;
+  border-block-start: 2px solid #0b1b3f;
+  border-block-end-color: #0b1b3f;
+}
+.xl-table .is-gap td {
+  text-align: center;
+  color: #586078;
+  background: #fff;
+}
 
 /* tools panel */
 .tools-list {
@@ -4421,5 +4862,16 @@ button.att-card {
   .side-search input,
   .rename {
     font-size: max(16px, 1rem);
+  }
+}
+@container (max-width: 520px) {
+  .a4-title {
+    margin-inline-start: -0.746em;
+    padding-inline-start: 0.514em;
+    border-inline-start-width: 0.232em;
+    font-size: 1.85em;
+  }
+  .a4-sub {
+    margin-block-end: 1.6em;
   }
 }
