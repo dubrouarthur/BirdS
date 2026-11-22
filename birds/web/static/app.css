@@ -3278,6 +3278,17 @@ button.att-card {
     content: none;
   }
 }
+/* keyboard open (little height left): one scrolling row again, so the conversation keeps its room */
+@media (max-width: 640px) and (max-height: 520px) {
+  .att-tray {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+  .att-in,
+  .att-in:has(.is-error) {
+    flex: none;
+  }
+}
 .att-thumb {
   flex: none;
   inline-size: 64px;
