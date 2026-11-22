@@ -4985,11 +4985,18 @@ button.att-card {
   background: var(--best-bg);
   font-weight: 600;
 }
+/* a wide table that scrolls: its right edge fades while columns hide beyond it (the first column stays put) */
+.md .table-wrap.md-ovf-r {
+  mask-image: linear-gradient(to right, #000 calc(100% - 44px), rgb(0 0 0 / 0.15));
+}
 @media (max-width: 560px) {
   .md .md-table--wide th,
   .md .md-table--wide td {
-    min-inline-size: 13ch;
+    min-inline-size: 9rem; /* fewer, longer lines per cell: the table scrolls instead of stacking words */
     padding: 8px 10px;
+  }
+  .md .md-table--wide :is(th, td):first-child {
+    min-inline-size: 7.5rem;
   }
   .md table.md-table--wide {
     font-size: 0.88rem;
