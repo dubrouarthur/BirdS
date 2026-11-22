@@ -286,14 +286,59 @@ def test_route_chart_ask_and_the_web():
 @pytest.mark.parametrize(
     "text",
     [
-        "Refais la charte graphique",
-        "Un camembert normand",
-        "Des barres de céréales",
-        "Explique ce qu'est un histogramme",
+        "Fais un graphique de la population des 5 plus grandes villes de France",
+        "Trace la courbe de croissance des ventes de Tesla",
+        "Quels sont les secteurs qui recrutent le plus ?",
+        "Fais un graphique de la part des demandes",
     ],
 )
+def test_route_chart_without_figures_keeps_the_web(text):
+    # a chart of public facts is researched first; only figures in the message itself withhold the web tools
+    assert not {"web_search", "read_page"} & route(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Refais la charte graphique",
+        "Rédige une charte graphique pour notre PME",
+        "Des barres de céréales",
+        "Quels sont les secteurs qui recrutent le plus ?",
+        "Peux-tu m'expliquer la courbe en J du private equity ?",
+    ],
+)
+def test_route_not_chart_words(text):
+    assert "make_chart" in route(text)
+
+
+@pytest.mark.parametrize("text", ["Un camembert normand", "Explique ce qu'est un histogramme"])
 def test_route_known_false_positives_are_accepted(text):
     assert "make_chart" not in route(text)  # only an extra tool is offered
+
+
+@pytest.mark.parametrize(
+    "text,answer",
+    [
+        (
+            "Rédige une charte graphique pour notre PME",
+            "Voici une proposition de charte graphique pour votre PME : bleu.",
+        ),
+        ("Quels sont les secteurs qui recrutent le plus ?", "Voici les secteurs qui recrutent : santé, BTP."),
+        ("Peux-tu m'expliquer la courbe en J du private equity ?", "Voici l'idée de la courbe en J : d'abord négatif."),
+        ("Explique ce qu'est un histogramme", "Voici : un histogramme montre une distribution."),
+    ],
+)
+def test_ordinary_questions_with_chart_words_are_answered_once(tmp_path, text, answer):
+    agent, llm = make(tmp_path, [answer, "SECOND"])
+    run = agent.run(text)
+    assert run.answer == answer and len(llm.prompts) == 1
+
+
+def test_no_chart_reminder_after_a_file(tmp_path):
+    doc = call("make_document", title="Ventes", sections=[{"heading": "Ventes", "content": "T1 120, T2 135"}])
+    agent, llm = make(tmp_path, [doc, "Voici le document avec la courbe des ventes.", "SECOND"])
+    run = agent.run("Fais un document avec un graphique des ventes : T1 120, T2 135")
+    assert run.files and len(llm.prompts) == 2 and "courbe" in run.answer
 
 
 # --------------------------------------------------------------------------- 11 the trained tools stay byte for byte
