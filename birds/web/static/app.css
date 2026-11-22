@@ -4588,6 +4588,10 @@ button.att-card {
   border: 1px solid #bcbab0;
 }
 
+.place-more.is-open .icon {
+  rotate: 180deg;
+}
+
 /* place cards */
 .place-list {
   display: grid;

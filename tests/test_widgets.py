@@ -650,3 +650,18 @@ def test_widget_buttons_have_distinct_names():
         for key in ("event.copy", "company.copySiren"):
             v = re.search(rf'"{re.escape(key)}":\s*"([^"]+)"', lang_block).group(1)
             assert v != plain and len(v) > len(plain)
+
+
+@needs_node
+def test_more_places_is_a_toggle_that_keeps_focus():
+    w = demo_widget("find_places", {"query": "restaurant", "near": "gare de Lyon"})
+    got = run_js(
+        "const el = render(data.w); const b = el.querySelector('.place-more');"
+        "const vis = () => el.querySelectorAll('.place-card').filter((c) => !c.hidden).length;"
+        "const v0 = vis(); b.click(); const a = [D.activeElement.dataset.n, b.getAttribute('aria-expanded'), vis()];"
+        "b.focus(); b.click(); out({ v0, a, b: [D.activeElement === b, b.getAttribute('aria-expanded'), vis(),"
+        " b.textContent], inDoc: D.contains(b) });",
+        w=w,
+    )
+    assert got["v0"] == 3 and got["a"] == ["4", "true", 8]
+    assert got["b"][:3] == [True, "false", 3] and "Voir les 5 autres" in got["b"][3] and got["inDoc"]

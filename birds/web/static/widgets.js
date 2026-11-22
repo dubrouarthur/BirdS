@@ -302,17 +302,28 @@ function renderPlaces(w, turn) {
     cards,
   );
   const hiddenN = cards.filter((c) => c.hidden).length;
-  const more =
-    hiddenN > 0 &&
-    button(
+  // a toggle, not a self-removing button: keyboard focus never drops to <body>
+  let more = null;
+  if (hiddenN > 0) {
+    list.id = `${prefix}-list`;
+    let open = false;
+    const label = () =>
+      open ? t("places.less") : t("places.more", { n: hiddenN });
+    more = button(
       "btn-outline btn-small place-more",
       "down",
-      t("places.more", { n: hiddenN }),
-      (e) => {
-        cards.forEach((c) => (c.hidden = false));
-        e.currentTarget.remove();
+      label(),
+      () => {
+        open = !open;
+        cards.forEach((c, i) => (c.hidden = !open && i >= shown));
+        more.setAttribute("aria-expanded", String(open));
+        more.querySelector(".btn-label").textContent = label();
+        more.classList.toggle("is-open", open);
+        if (open) cards[shown].focus();
       },
+      { "aria-expanded": "false", "aria-controls": `${prefix}-list` },
     );
+  }
   linkPins(frame, list);
   const first = places[0];
   const osmAll = safeUrl(
