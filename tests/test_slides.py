@@ -54,3 +54,17 @@ def test_make_slides_leaves_a_complete_deck_alone(tmp_path):
     assert "key figures" not in out
     texts = _texts(tmp_path / ctx.files[0])
     assert len(texts) == 2 and "Audit" in texts[1] and "Phase" not in texts[1].replace("Plan", "")
+
+
+def test_kpi_figure_keeps_whole_numbers_and_skips_years():
+    assert kpi_parts("CA 2026 : 3,4 M€")[0] == "3,4 M€"
+    assert kpi_parts("1500 clients actifs")[0].startswith("1500")
+    assert kpi_parts("1 250 clients")[0] == "1 250"
+    assert kpi_parts("Délai : 6 hours")[0] == "6 hours"
+    assert kpi_parts("Année 2026")[0] == "2026"  # only a year: it is the figure
+
+
+def test_range_bullet_is_not_a_kpi():
+    assert layout_of(["Effectif : 21 à 26 personnes", "CA : 3 M€"]) == "bullets"
+    assert layout_of(["Durée : de 3 à 5 jours"]) == "bullets"
+    assert layout_of(["Budget : from 2 to 4 M€"]) == "bullets"

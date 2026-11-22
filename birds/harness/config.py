@@ -63,6 +63,7 @@ class Context:
     http: Any  # httpx.Client
     search: Any = None  # search backend with .search(query, n) -> [{"title", "url", "snippet"}]
     sources: list[str] = field(default_factory=list)  # URLs actually read
+    found: list[str] = field(default_factory=list)  # URLs the search backend returned (trusted for read_page)
     drafts: list[dict] = field(default_factory=list)  # email drafts for the UI (never sent)
     files: list[str] = field(default_factory=list)  # generated files
     bytes_fetched: int = 0

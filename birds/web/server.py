@@ -62,6 +62,9 @@ class Attachment(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     content: str
     encoding: Literal["text", "base64"] = "text"  # base64: an office file or PDF, read by read_file on the server
+    # what an earlier turn of this conversation read on the scanned pages of this PDF ({"2": "text"}): sent back by
+    # the browser so the pages are not read again. Untrusted like the file itself: capped and defanged on use.
+    ocr: dict[str, str] | None = Field(default=None, max_length=50)
 
 
 BINARY_ATTACHMENTS = (".pdf", ".docx", ".xlsx", ".pptx")
@@ -532,6 +535,7 @@ def create_app(
         if sum(len(a.content) for a in binaries) + sum(len(i.url) for i in body.images) > s.max_binary_chars:
             raise ApiError(413, "attachment_too_long", "the attached files and images are too large together")
         total = sum(len(m.content) for m in body.messages) + sum(len(a.content) for a in texts)
+        total += sum(len(k) + len(v) for a in body.attachments for k, v in (a.ocr or {}).items())
         if total > s.max_request_chars:
             raise ApiError(413, "request_too_large", "the conversation is too long: start a new one")
         if body.approved and body.denied:
@@ -540,7 +544,13 @@ def create_app(
         images = [{"name": sanitize_filename(i.name), "url": check_image(i.url)} for i in body.images]
         messages = [m.model_dump(exclude_none=True) for m in body.messages]
         attachments = [
-            {"name": sanitize_filename(a.name), "content": a.content, "encoding": a.encoding} for a in body.attachments
+            {
+                "name": sanitize_filename(a.name),
+                "content": a.content,
+                "encoding": a.encoding,
+                **({"ocr": a.ocr} if a.ocr and a.encoding == "base64" else {}),
+            }
+            for a in body.attachments
         ]
         backend, binding = backend_for(mode, request)
         conv = tokens.digest(
@@ -666,6 +676,8 @@ def create_app(
         # the site is written for its own domain (links like "/demarche", "/assets/site.css"): under /a-propos/
         # those root-relative links are rewritten on the fly, and clean URLs map to their .html file
         root_link = _re.compile(r'((?:href|src|action|content)=")/(?!/)')
+        # only what a page needs: README.md, COPY.md, vercel.json and other internal files stay private
+        site_types = {".html", ".css", ".js", ".webp", ".png", ".svg", ".ico", ".woff2"}
 
         def site_file(path: str) -> Path | None:
             target = (site_root / path).resolve()
@@ -673,7 +685,7 @@ def create_app(
                 return None
             for cand in (target, target.with_suffix(".html") if not target.suffix else None, target / "index.html"):
                 if cand is not None and cand.is_file():
-                    return cand
+                    return cand if cand.suffix.lower() in site_types else None
             return None
 
         @app.get("/a-propos", include_in_schema=False)

@@ -3,7 +3,7 @@
   "functions": {
     "app.py": {
       "maxDuration": 300,
-      "excludeFiles": "{tests/**,docs/**,scripts/**,jobs/**,out/**,bench/**,dist/**,birds/synth/**,site/screenshots/**,site/COPY.md,**/__pycache__/**,**/*.png}"
+      "excludeFiles": "{tests/**,docs/**,scripts/**,jobs/**,out/**,bench/**,dist/**,birds/synth/**,site/screenshots/**,site/COPY.md,**/__pycache__/**}"
     }
   }
 }

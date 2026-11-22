@@ -9,12 +9,14 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
+from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 
 from birds.harness import guard, meter
 from birds.harness.config import Config, Context
-from birds.harness.llm import STOP, EndpointError
+from birds.harness.llm import STOP, EndpointError, accepts
 from birds.harness.tools import TOOLS, make_search
 from birds.parse import parse_output
 from birds.render import prompt as render_prompt
@@ -30,6 +32,32 @@ OUT_OF_TIME = {
     "en étapes plus courtes.",
     "en": "I ran out of the time allowed for one request. Try again, or split the request into shorter steps.",
 }
+NO_FILE = {
+    "fr": "Je n'ai pas produit de fichier cette fois. Redemandez-le en reprenant le contenu.",
+    "en": "I did not produce a file this time. Ask for it again, with the content.",
+}
+# The answer says a file exists ("diapositive 6, intégrée à votre présentation") while no make_* tool ran.
+_EDIT_ASK = re.compile(
+    r"\b(?:ajoute[rz]?|modifie[rz]?|met[sz]? à jour|mettre à jour|add (?:a|an|one) (?:slide|section|sheet)|update)\b",
+    re.I,
+)
+# Only a claim that something was done to a file counts: "prête", "disponible" or "ready" also describe an inline
+# answer ("pour que votre présentation soit prête"), so they are not claims.
+_FILE_CLAIM = re.compile(
+    r"\b(?:fichier|pr[ée]sentation|diapositive|diapo|document|tableur|file|deck|presentation|slide|spreadsheet)\b"
+    r".{0,40}\b(?:int[ée]gr[ée]e?s?|mise? à jour|ajout[ée]e?s?|enregistr[ée]e?s?|integrated|updated|saved|added)\b",
+    re.I | re.S,
+)
+# A how-to question ("Comment ajouter une diapo dans PowerPoint ?") asks for steps, not for a file.
+_HOWTO = re.compile(
+    r"^\s*(?:comment|how|pourquoi|why|o[uù]|where|quand|when|est-ce qu)\b|\b(?:how (?:do|can|to|should)|"
+    r"comment (?:faire|on|je|puis|peut))\b",
+    re.I,
+)
+NO_FILE_NUDGE = (
+    "No file exists: nothing was created or updated, because no make_* tool ran. Call the make_* tool now with the "
+    "full content, or tell the user plainly that no file was produced."
+)
 LOOPED = {
     "fr": "Je me suis mis à tourner en boucle, alors je me suis arrêté pour ne pas gaspiller de calcul. Relancez, ou "
     "reformulez la demande plus précisément.",
@@ -87,6 +115,33 @@ def route(user: str, attached: bool = False) -> set[str]:
     return set()
 
 
+def _file_edit_ask(text: str, attached: bool = False) -> bool:
+    """A request to change a file: an edit verb that names a format or comes with a document, and not a how-to
+    question. "Mets à jour mon planning : réunion lundi 14h." or "Comment ajouter une diapo ?" are not."""
+    text = text or ""
+    return bool(_EDIT_ASK.search(text) and (attached or _FILE_ASK.search(text)) and not _HOWTO.search(text))
+
+
+def _made_file(run, ctx: Context) -> bool:
+    """A make_* tool succeeded in this run, or a draft exists (a mail ask is answered by a draft, not a file)."""
+    return bool(ctx.drafts) or any(s.tool.startswith("make_") and not s.error for s in run.steps)
+
+
+_URL_IN_TEXT = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
+
+
+def _check_untrusted_url(url: object, ctx: Context) -> None:
+    """After a page or a file held an injection, read_page may only open a URL the user gave, a search result or a
+    page already read: a GET to an address the untrusted text chose is how data would leave (``?d=<secret>``)."""
+    url = str(url or "").strip()
+    if len(urlsplit(url).query) > 64:
+        raise guard.Blocked("page suggested by untrusted content (long query string)")
+    own = {u.rstrip(".,;:") for u in _URL_IN_TEXT.findall(ctx.request or "")}
+    known = set(ctx.sources) | set(ctx.found) | own
+    if url not in known and url.rstrip("/") not in {k.rstrip("/") for k in known}:
+        raise guard.Blocked("page suggested by untrusted content")
+
+
 PAUSE = guard.PAUSE  # a confirm callback returns this to end the run with a pending action (see Agent.run)
 _TOOL_OPEN = "<tool_call>"
 
@@ -116,6 +171,7 @@ class Hooks:
     on_step_start: Callable[[int, str, dict], None] | None = None  # (index, tool, arguments)
     on_step_end: Callable[[int, Step], None] | None = None
     on_status: Callable[[str, dict], None] | None = None  # e.g. ("waking", {"attempt": 2, "retry_in": 5.0})
+    cancel: Any = None  # a threading.Event the front end sets on stop: the model call ends at once
 
 
 @dataclass
@@ -237,6 +293,7 @@ class Agent:
             on_status=hooks.on_status,
             deadline=deadline,
             **({"extra": {"cache_salt": self.cfg.cache_salt}} if self.cfg.cache_salt else {}),
+            **({"cancel": hooks.cancel} if hooks.cancel is not None and accepts(self.llm.generate, "cancel") else {}),
         )
         return out, stream
 
@@ -280,11 +337,14 @@ class Agent:
                 bytes_fetched=int(st["bytes_fetched"]),
                 lang=st["lang"],
                 request=str(st.get("request", "")),
+                found=[str(u) for u in st.get("found", [])],
             )
             messages, seen, queue = st["messages"], set(st["seen"]), list(st["queue"])
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
             nudged = bool(st.get("nudged", False))
+            file_nudged = bool(st.get("file_nudged", False))
             withdrawn = set(st.get("withdrawn", []))
+            routed = set(st.get("routed", []))
             gen, ok, content = st["gen"], st["ok"], st.get("content", "")
             forced = "confirmed" if decision is True else "denied_unconfirmed"
         else:
@@ -299,7 +359,8 @@ class Agent:
             messages.append({"role": "user", "content": guard.defang(user)})
             seen, queue = set(), []
             budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
-            nudged, withdrawn = False, (route(user if request_text is None else request_text, attached) if cfg.route_tools else set())
+            routed = route(user if request_text is None else request_text, attached) if cfg.route_tools else set()
+            nudged, withdrawn, file_nudged = False, set(routed), False
             gen, ok, forced = 0, 0, None
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
 
@@ -366,6 +427,28 @@ class Agent:
                             run.stop_reason = "length"  # cut by max_tokens: kept, but marked as interrupted
                     if out.get("finish_reason") == "repetition":
                         run.stop_reason = "repetition"  # the model looped: stopped early, one copy kept
+                    if run.stop_reason == "answer" and not _made_file(run, ctx):
+                        claims = bool(_FILE_CLAIM.search(content))
+                        if not file_nudged and claims and _file_edit_ask(ctx.request, attached):
+                            if gen < cfg.max_steps - 1 and time.monotonic() < deadline:
+                                # it claims a file that does not exist: tell it once, and let it make the file
+                                file_nudged = True
+                                if stream is not None and stream.streamed and hooks.on_reset:
+                                    hooks.on_reset()
+                                messages.append(
+                                    {
+                                        "role": "assistant",
+                                        "content": parsed["content"],
+                                        "reasoning_content": parsed["reasoning"],
+                                    }
+                                )
+                                messages.append({"role": "tool", "content": NO_FILE_NUDGE})
+                                gen += 1
+                                continue
+                            content = NO_FILE[run.lang]
+                        elif file_nudged and claims:
+                            content = NO_FILE[run.lang]  # reminded once, and still claims a file: say so, plainly
+                        # reminded once and now answering inline without a claim: that answer is kept
                     break
                 if gen == cfg.max_steps - 1:
                     run.stop_reason = "max_steps"  # the last allowed generation still asks for tools: they are not run
@@ -416,7 +499,9 @@ class Agent:
             paused = False
             while queue:
                 c = queue[0]
-                step, result = self._call(c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced)
+                step, result = self._call(
+                    c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced, routed
+                )
                 forced = None
                 if step.decision == "pause":
                     paused = True
@@ -445,7 +530,10 @@ class Agent:
                     "side_effects": side_effects,
                     "bad_streak": bad_streak,
                     "nudged": nudged,
+                    "file_nudged": file_nudged,
                     "withdrawn": sorted(withdrawn),
+                    "routed": sorted(routed),
+                    "found": ctx.found,
                     "request": ctx.request,
                     "gen": gen,
                     "ok": ok,
@@ -502,7 +590,15 @@ class Agent:
         return run
 
     def _call(
-        self, name: str, raw_args, gen: int, run: Run, ctx: Context, side_effects: int, forced: str | None = None
+        self,
+        name: str,
+        raw_args,
+        gen: int,
+        run: Run,
+        ctx: Context,
+        side_effects: int,
+        forced: str | None = None,
+        routed: set[str] | frozenset[str] = frozenset(),
     ) -> tuple[Step, str]:
         """Validate, gate and execute one tool call. Returns the step record and the text given back to the model.
 
@@ -511,6 +607,8 @@ class Agent:
         t0 = time.monotonic()
         step = Step(generation=gen, tool=name, arguments=raw_args if isinstance(raw_args, dict) else {})
         args, err = guard.validate_args(name, raw_args, self.cfg.allowed_tools, step.repairs)
+        if not err and name in routed:  # not offered for this request (route): calling it anyway is not allowed
+            err = f"unknown tool '{name}': it is not available for this request"
         if self.hooks.on_step_start and forced is None:
             self.hooks.on_step_start(len(run.steps), str(name), step.arguments if err else args)
         if err:
@@ -534,6 +632,8 @@ class Agent:
             else:
                 ctx.step_info = None
                 try:
+                    if name == "read_page" and run.flagged:
+                        _check_untrusted_url(args.get("url"), ctx)
                     result = guard.defang(guard.redact(str(TOOLS[name](args, ctx))))
                     if guard.scan_injection(result):
                         step.flags.append("possible_injection")

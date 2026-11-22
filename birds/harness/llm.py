@@ -22,6 +22,21 @@ def _cut(text: str, stop: list[str]) -> str:
     return text
 
 
+class Cancelled(Exception):
+    """The user pressed stop or went away (``cancel`` was set): the stream is closed and no retry is made."""
+
+
+def accepts(fn, name: str) -> bool:
+    """``fn`` takes the keyword ``name`` (or **kwargs): test doubles and older clients may not."""
+    import inspect
+
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
+    return name in params or any(p.kind is p.VAR_KEYWORD for p in params.values())
+
+
 class EndpointError(Exception):
     """The model endpoint could not serve the request. ``kind`` is stable; the message never contains credentials.
 
@@ -282,6 +297,7 @@ class CompletionsClient:
         deadline=None,
         thinking=False,
         extra=None,
+        cancel=None,
     ) -> dict:
         """``/v1/chat/completions`` with the server's chat template: the only route that carries images (OpenAI
         content lists with ``image_url`` data URLs). No tools are sent: vLLM refuses them without a tool parser."""
@@ -304,6 +320,7 @@ class CompletionsClient:
             _url=self.url[: -len("/completions")] + "/chat/completions",
             _chars=sum(len(json.dumps(m.get("content"), ensure_ascii=False)) for m in messages),
             extra=extra,
+            cancel=cancel,
         )
 
     def generate(
@@ -319,9 +336,12 @@ class CompletionsClient:
         _url=None,
         _chars=None,
         extra=None,
+        cancel=None,
         **_,
     ) -> dict:
-        """``deadline`` is a ``time.monotonic()`` value: waiting for a waking endpoint and reading stop before it."""
+        """``deadline`` is a ``time.monotonic()`` value: waiting for a waking endpoint and reading stop before it.
+        ``cancel`` (a ``threading.Event``) set by the caller closes the stream at the next piece (the server then
+        aborts the request: the GPU stops) and ends any wait for a waking endpoint: ``Cancelled`` is raised."""
         t0 = time.monotonic()
         body = _body or {
             "model": self.model,
@@ -344,6 +364,8 @@ class CompletionsClient:
             loop = _LoopGuard()
 
             def on_piece(piece, cutter=cutter, mark=mark, loop=loop):
+                if cancel is not None and cancel.is_set():
+                    return True  # nobody is reading any more: close the stream now
                 if piece and mark["first"] is None:
                     mark["first"] = time.monotonic()
                 cutter.feed(piece)
@@ -351,11 +373,15 @@ class CompletionsClient:
                     cutter.done = True  # closing the stream makes the server abort the request: the GPU stops
                 return cutter.done
 
+            if cancel is not None and cancel.is_set():
+                raise Cancelled
             left = self.timeout if deadline is None else deadline - time.monotonic()
             if left <= 1:
                 raise EndpointError("timeout", "no time left to call the model endpoint")
             try:
                 tin, tout = self._post(body, min(self.timeout, left), on_piece, _url, meta)
+                if cancel is not None and cancel.is_set():
+                    raise Cancelled
                 break
             except EndpointError as e:
                 if e.kind == "bad_request" and not conservative and not cutter.sent:
@@ -374,7 +400,10 @@ class CompletionsClient:
                     raise
                 if on_status:
                     on_status("waking", {"attempt": attempt, "retry_in": wait})
-                self.sleep(wait)
+                if cancel is None:
+                    self.sleep(wait)
+                elif cancel.wait(wait):
+                    raise Cancelled from None  # stopped while waiting for the endpoint to wake up: no more attempts
         text = cutter.finish()
         if loop.cut is not None:
             text, meta["finish_reason"] = text[: loop.cut].rstrip(), "repetition"

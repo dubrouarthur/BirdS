@@ -17,11 +17,13 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
 from birds.harness import guard
+from birds.harness.llm import Cancelled, accepts  # Cancelled: the client went away or pressed stop
 
 Event = dict[str, Any]
 
@@ -42,10 +44,6 @@ def sanitize_filename(name: str) -> str:
     base = re.sub(r"[^A-Za-z0-9._-]+", "-", base).strip("-.")
     base = re.sub(r"\.{2,}", ".", base)[:120]
     return base if base and SAFE_NAME.match(base) else "fichier"
-
-
-class Cancelled(Exception):
-    """Raised inside a backend when the client went away or pressed stop."""
 
 
 @dataclass
@@ -164,6 +162,46 @@ def usage_event(
     }
 
 
+# Only the folder prefix and the name are touched: the backticks, bold markers, quotes and punctuation around
+# the path stay as written ("`bird_out/x.docx`." -> "`x.docx`.", "**bird_out/x.docx**" -> "**x.docx**").
+_OUT_PATH = re.compile(
+    r"(?<![\w/.-])(?:\./)?bird_out/(?:[^\s`*\"'/()\[\]<>]+/)*([^\s`*\"'/()\[\]<>]+?)"
+    r"(?=[.,;:!?]*(?:[\s`*\"')\]<>]|$))"
+)
+
+
+def hide_out_paths(text: str) -> str:
+    """'bird_out/x-2026.docx' -> 'x-2026.docx': that server folder is gone after the request; the file is the
+    download card under the answer."""
+    return _OUT_PATH.sub(lambda m: sanitize_filename(m.group(1)), text)
+
+
+def output_file(workspace: Path, rel: object) -> Path | None:
+    """``rel`` resolved inside ``<workspace>/bird_out``, or None: only files Bird made there are ever sent back.
+    A resumed run's state comes from a token; even a validly signed one must not name /proc or ../ paths."""
+    from birds.harness.tools.files import OUT_DIR, safe_path
+
+    if not isinstance(rel, str) or not rel or "\x00" in rel:
+        return None
+    try:
+        path = safe_path(workspace, rel)
+    except guard.Blocked:
+        return None
+    return path if (workspace / OUT_DIR).resolve() in path.parents else None
+
+
+def _resume_state(state: object, workspace: Path) -> dict:
+    """The agent state carried by a confirm token, with its types checked and its files kept to bird_out."""
+    if not isinstance(state, dict) or not isinstance(state.get("messages"), list):
+        raise ValueError("this confirmation carries an invalid state")
+    if not all(isinstance(m, dict) and isinstance(m.get("content", ""), str) for m in state["messages"]):
+        raise ValueError("this confirmation carries an invalid state")
+    files = state.get("files", [])
+    if not isinstance(files, list) or not all(isinstance(f, str) for f in files):
+        raise ValueError("this confirmation carries an invalid state")
+    return {**state, "files": [f for f in files if output_file(workspace, f) is not None]}
+
+
 def inline_file(path: Path, preview: dict | None, limit: int) -> dict:
     """A generated file as a JSON-safe entry: the browser turns ``data`` (base64) into a Blob download."""
     name = sanitize_filename(path.name)
@@ -180,7 +218,11 @@ def inline_file(path: Path, preview: dict | None, limit: int) -> dict:
 def file_preview(tool: str, args: dict) -> dict | None:
     """What a make_* call asked for, trimmed, so the UI can show the outline before the download."""
     a = args if isinstance(args, dict) else {}
-    cut = lambda v, n: str(v if v is not None else "")[:n]  # noqa: E731
+    def cut(v, n: int) -> str:
+        """At most n characters; a cut text ends with '…', so a sliced cell never looks like a broken file."""
+        s = str(v if v is not None else "")
+        return s if len(s) <= n else s[: n - 1].rstrip() + "…"
+
     if tool == "make_slides":
         slides = [
             {
@@ -210,7 +252,7 @@ def file_preview(tool: str, args: dict) -> dict | None:
             "kind": "sheet",
             "title": cut(a.get("title"), 160),
             "columns": [cut(c, 60) for c in (a.get("columns") or [])[:12]],
-            "rows": [[cut(c, 60) for c in r[:12]] for r in rows[:8]],
+            "rows": [[cut(c, 160) for c in r[:12]] for r in rows[:8]],
             "total_rows": len(rows),
         }
     return None
@@ -236,27 +278,40 @@ _DEMO_OFFER_EN = (
 )
 
 
+_DEMO_MARKERS = {
+    # test scenarios answer only to an explicit phrase: "Corrige les erreurs de ce texte" is a real request
+    "xss": ("test xss", "/demo xss", "injection html", "html injection"),
+    "error": (
+        "simule une erreur", "simule une panne", "simuler une erreur", "simulate an error", "simulate a failure",
+        "simulate an outage", "test erreur", "test error", "/demo erreur", "/demo error",
+    ),
+    "wake": (
+        "simule un réveil", "simule un reveil", "test réveil", "test reveil", "simulate a wake", "test wake",
+        "/demo réveil", "/demo reveil", "/demo wake",
+    ),
+}  # fmt: skip
+
+
 def pick_scenario(text: str, has_attachment: bool = False) -> str:
-    """Map the last user message to a scripted scenario (deterministic keyword match)."""
-    low = text.lower()
+    """Map the last user message to a scripted scenario (deterministic keyword match). Test scenarios need an
+    explicit phrase; then a named file format wins over the topic ("présentation pptx sur notre budget": slides)."""
+    low = " ".join(text.lower().split())
+    for name, keys in _DEMO_MARKERS.items():
+        if any(k in low for k in keys):
+            return name
+    if has_attachment:
+        return "attachment"
     rules = [
-        ("xss", ("xss", "injection html", "html injection")),
-        ("error", ("erreur", "error", "panne")),
-        ("wake", ("réveil", "reveil", "wake")),
-        ("attachment", ()),
-        ("sheet", ("tableur", "spreadsheet", "xlsx", "budget")),
-        ("slides", ("diapo", "slide", "présentation", "presentation", "pptx")),
+        ("slides", ("pptx", "powerpoint", "diapo", "slide", "présentation", "presentation")),
+        ("sheet", ("xlsx", "tableur", "excel", "spreadsheet", "feuille de calcul")),
+        ("document", ("docx",)),
         ("reply", ("réponds à", "reponds a", "reply to")),  # a self-contained reply: no page, no approval
         ("email", ("mail", "courriel")),
         ("search", ("cherche", "search", "web", "source", "compare", "trouve", "find")),
         ("minutes", ("compte rendu", "compte-rendu", "minutes", "réunion", "reunion", "meeting")),
-        ("document", ("document", "docx", "note de synthèse", "memo")),
+        ("document", ("document", "note de synthèse", "memo")),
     ]
     for name, keys in rules:
-        if name == "attachment":
-            if has_attachment:
-                return name
-            continue
         if any(k in low for k in keys):
             return name
     return "plain"
@@ -973,6 +1028,27 @@ def ocr_only(words: str) -> bool:
     return True
 
 
+def write_ocr_sidecar(pdf: Path, pages: object) -> bool:
+    """Write what an earlier turn read on a PDF's scanned pages (sent back by the browser) where read_file looks
+    for it. The browser is not trusted: page numbers must be numbers, each text is capped and defanged."""
+    import json
+
+    from birds.harness import guard
+    from birds.harness.tools.files import pdf_sidecar
+
+    if pdf.suffix.lower() != ".pdf" or not isinstance(pages, dict):
+        return False
+    clean = {
+        str(int(k)): guard.defang(guard_truncate(v))
+        for k, v in pages.items()
+        if isinstance(k, str) and k.isdigit() and 0 < int(k) <= 2000 and isinstance(v, str) and v.strip()
+    }
+    if not clean:
+        return False
+    pdf_sidecar(pdf).write_text(json.dumps(clean, ensure_ascii=False), encoding="utf-8")
+    return True
+
+
 def guard_truncate(text: str) -> str:
     from birds.harness import guard
 
@@ -1058,6 +1134,41 @@ def log_id(cid: str | None) -> str | None:
     return hashlib.sha256(b"bird-log-v1\0" + cid.encode("ascii")).hexdigest()[:16] if cid else None
 
 
+_WEEKDAYS = {
+    "fr": ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"),
+    "en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+}
+_MONTHS = {
+    "fr": (
+        "janvier", "février", "mars", "avril", "mai", "juin",
+        "juillet", "août", "septembre", "octobre", "novembre", "décembre",
+    ),
+    "en": (
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+    ),
+}  # fmt: skip
+
+
+def paris_now() -> datetime:
+    try:
+        from zoneinfo import ZoneInfo
+
+        return datetime.now(ZoneInfo("Europe/Paris"))
+    except Exception:  # no tz database on this machine: UTC is close enough for a date
+        return datetime.now(UTC)
+
+
+def date_line(lang: str, now: datetime) -> str:
+    """'Date du jour : dimanche 22 novembre 2026 (Europe/Paris).' A day, never a time: the prompt prefix the model
+    server caches changes at most once a day."""
+    lang = "en" if lang == "en" else "fr"
+    day, month = _WEEKDAYS[lang][now.weekday()], _MONTHS[lang][now.month - 1]
+    if lang == "en":
+        return f"Today: {day} {now.day} {month} {now.year} (Europe/Paris)."
+    return f"Date du jour : {day} {now.day} {month} {now.year} (Europe/Paris)."
+
+
 def prepare_turn(
     messages: list[dict],
     conv: str,
@@ -1066,6 +1177,7 @@ def prepare_turn(
     image_texts: list[tuple[str, str]],
     history_tokens: int,
     msg_cap_tokens: int,
+    clock: Callable[[], datetime] = paris_now,
 ):
     """Pure: (system, kept history, user_sent, stats) for one request. user_sent is EXACTLY the text the model gets
     as this turn's user message; the client stores it and sends it back as that turn's content afterwards."""
@@ -1087,6 +1199,7 @@ def prepare_turn(
     kept, summary, stats = window(history, history_tokens, lang=conv, msg_cap_tokens=msg_cap_tokens)
     kept = [{**m, "content": guard.defang(m["content"])} for m in kept]
     system = DEFAULT_SYSTEM[conv] + ("\n\n" + summary if summary else "")
+    system += "\n\n" + date_line(conv, clock())  # last: a small model otherwise guesses "today" with confidence
     return system, kept, user_sent, stats
 
 
@@ -1193,7 +1306,7 @@ class HarnessBackend:
         from birds.harness.tools.files import pdf_pages, pdf_scanned, pdf_sidecar, render_pdf_page
 
         usages, budget = [], MAX_SCAN_PAGES
-        for p in paths:
+        for index, p in paths:
             if p.suffix.lower() != ".pdf" or not self.images or budget <= 0:
                 continue
             try:
@@ -1218,6 +1331,8 @@ class HarnessBackend:
                     read[str(number)] = guard_truncate(texts[0][1])
             if read:
                 pdf_sidecar(p).write_text(json.dumps(read, ensure_ascii=False), encoding="utf-8")
+                # the browser keeps this with the attachment and sends it back: the next turns read no page again
+                ctx.emit({"type": "attachment_text", "index": index, "name": p.name, "pages": read})
         return usages
 
     def _read_images(
@@ -1261,6 +1376,7 @@ class HarnessBackend:
                 on_status=lambda state, info: ctx.emit({"type": "status", "state": state, **(info or {})}),
                 deadline=ctx.deadline - 20,
                 **({"extra": {"cache_salt": salt}} if salt else {}),
+                **({"cancel": ctx.cancel} if accepts(self.llm.chat, "cancel") else {}),
             )
             text = (out.get("text") or "").strip()
             usages.append(out)
@@ -1291,12 +1407,14 @@ class HarnessBackend:
         image_texts, image_usage, hist_stats = [], [], None
         try:
             attach_dir = workspace if ephemeral else workspace / ATTACH_DIR
-            names = []
+            names, already_read = [], set()
             for doc in request.attachments:
                 attach_dir.mkdir(parents=True, exist_ok=True)
                 name = sanitize_filename(doc["name"])
                 if doc.get("encoding") == "base64":
                     (attach_dir / name).write_bytes(base64.b64decode(doc["content"]))
+                    if write_ocr_sidecar(attach_dir / name, doc.get("ocr")):
+                        already_read.add(len(names))  # read in an earlier turn: its scanned pages are not read again
                 else:
                     (attach_dir / name).write_text(doc["content"], encoding="utf-8")
                 names.append(name if ephemeral else f"{ATTACH_DIR}/{name}")
@@ -1313,6 +1431,7 @@ class HarnessBackend:
                 on_step_start=on_step_start,
                 on_step_end=lambda index, step: ctx.emit(self._step_event(index + offset, step, lang)),
                 on_status=lambda state, info: ctx.emit({"type": "status", "state": state, **(info or {})}),
+                cancel=ctx.cancel,  # stop closes the endpoint stream and ends the wake-up retries
             )
             agent = Agent(
                 self.llm,
@@ -1328,7 +1447,7 @@ class HarnessBackend:
                 if request.resume.get("k") != "harness":
                     raise ValueError("this confirmation does not belong to this backend")
                 carry = request.resume.get("carry") or carry
-                state = request.resume["state"]
+                state = _resume_state(request.resume.get("state"), workspace)
                 ui = request.resume.get("state_ui")
                 if isinstance(ui, int) and 0 <= ui < len(state["messages"]):
                     ctx.emit({"type": "user", "content": state["messages"][ui]["content"]})
@@ -1353,7 +1472,12 @@ class HarnessBackend:
                             guard.truncate(text or "", IMAGE_TEXT_CHARS), encoding="utf-8"
                         )
                 scan_usage = self._read_scanned_pdfs(
-                    [workspace / n for n in names], ctx, rl, len(request.images), last["content"], cfg.cache_salt
+                    [(i, workspace / n) for i, n in enumerate(names) if i not in already_read],
+                    ctx,
+                    rl,
+                    len(request.images),
+                    last["content"],
+                    cfg.cache_salt,
                 )
                 image_usage += scan_usage
                 offset = len(request.images) + len(scan_usage)  # the agent's steps come after these
@@ -1384,8 +1508,8 @@ class HarnessBackend:
             files = []
             for rel in run.files:
                 preview = next(previews, None)
-                path = workspace / rel
-                if path.is_file():  # files made before a pause were already delivered with the confirm event
+                path = output_file(workspace, rel)
+                if path is not None and path.is_file():  # files made before a pause were already delivered with the confirm event
                     files.append(inline_file(path, preview, ctx.max_inline_file_bytes))
             seconds = float(carry.get("seconds") or 0.0) + (time.monotonic() - t0)
             energy, energy_kind = report.get("energy_wh"), report.get("energy_kind")
@@ -1451,7 +1575,7 @@ class HarnessBackend:
             ctx.emit(
                 {
                     "type": "answer",
-                    "content": strip_memo(str(run.answer)),
+                    "content": hide_out_paths(strip_memo(str(run.answer))),
                     "sources": sources,
                     "files": files,
                     "draft_email": None
@@ -1462,6 +1586,7 @@ class HarnessBackend:
                         else str(draft.get("to") or ""),
                         "subject": str(draft.get("subject") or ""),
                         "body": str(draft.get("body") or ""),
+                        **({"to_hint": str(draft["to_hint"])} if draft.get("to_hint") else {}),
                     },
                     "stop_reason": run.stop_reason,
                     "memo": turn_memo,

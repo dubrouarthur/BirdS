@@ -68,9 +68,47 @@ def render_pdf_page(p: Path, number: int, max_side: int = 1568) -> str:
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-def _pdf(p: Path) -> str:
+# Office files are zip archives: a few hundred KB can unpack to gigabytes (a "zip bomb" took 57 s and 674 MB of RAM
+# for a 735 KB xlsx). The archive is checked before any parser opens it, and the text stops at TEXT_CAP characters.
+ZIP_MAX_BYTES = 50_000_000
+ZIP_MAX_RATIO = 100
+TEXT_CAP = 200_000
+TOO_BIG = "fichier trop volumineux une fois décompressé (file too large once decompressed)"
+
+
+def _check_zip(p: Path) -> None:
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(p) as zf:
+            infos = zf.infolist()
+    except (zipfile.BadZipFile, OSError):
+        raise ToolError(f"this {p.suffix} file is damaged or is not a real Office file") from None
+    total = sum(i.file_size for i in infos)
+    packed = max(1, sum(i.compress_size for i in infos))
+    if total > ZIP_MAX_BYTES or (total > 2_000_000 and total / packed > ZIP_MAX_RATIO):
+        raise ToolError(TOO_BIG)
+
+
+def _truncated(parts: list[str], lines: int) -> str:
+    return "\n".join(parts) + f"\n… (tronqué après {lines} lignes / truncated after {lines} lines)"
+
+
+def _capped(parts, cap: int) -> str:
+    """Join text lines, stopping once ``cap`` characters are reached (with a note saying where it stopped)."""
+    out, size = [], 0
+    for line in parts:
+        if size + len(line) > cap:
+            return _truncated(out, len(out))
+        out.append(line)
+        size += len(line) + 1
+    return "\n".join(out)
+
+
+def _pdf(p: Path, cap: int | None = None) -> str:
     import json
 
+    cap = cap or TEXT_CAP
     pages = pdf_pages(p)
     side = pdf_sidecar(p)
     read = json.loads(side.read_text(encoding="utf-8")) if side.is_file() else {}
@@ -83,6 +121,9 @@ def _pdf(p: Path) -> str:
         else:
             unknown.append(i)
             parts.append(f"[page {i}: scanned image, its text could not be read]")
+        if sum(len(x) for x in parts) > cap:
+            parts.append(f"… (tronqué après {i} pages / truncated after {i} pages)")
+            break
     if unknown:
         parts.insert(
             0,
@@ -92,36 +133,51 @@ def _pdf(p: Path) -> str:
     return "\n\n".join(parts)
 
 
-def _docx(p: Path) -> str:
+def _docx(p: Path, cap: int | None = None) -> str:
+    _check_zip(p)
     doc = _need("docx", "python-docx").Document(str(p))
-    parts = [
-        ("#" * int(par.style.name[-1]) + " " if re.fullmatch(r"Heading \d", par.style.name or "") else "") + par.text
-        for par in doc.paragraphs
-        if par.text.strip()
-    ]
-    for table in doc.tables:
-        parts += [" | ".join(c.text.strip() for c in row.cells) for row in table.rows]
-    return "\n".join(parts)
+
+    def lines():
+        for par in doc.paragraphs:
+            if par.text.strip():
+                style = par.style.name or ""
+                yield ("#" * int(style[-1]) + " " if re.fullmatch(r"Heading \d", style) else "") + par.text
+        for table in doc.tables:
+            for row in table.rows:
+                yield " | ".join(c.text.strip() for c in row.cells)
+
+    return _capped(lines(), cap or TEXT_CAP)
 
 
-def _xlsx(p: Path) -> str:
+def _xlsx(p: Path, cap: int | None = None) -> str:
+    _check_zip(p)
     wb = _need("openpyxl", "openpyxl").load_workbook(str(p), read_only=True, data_only=True)
-    parts = []
-    for ws in wb.worksheets:
-        parts.append(f"[sheet {ws.title}]")
-        for row in ws.iter_rows(values_only=True):
-            if any(c is not None for c in row):
-                parts.append(" | ".join("" if c is None else str(c) for c in row))
-    return "\n".join(parts)
+
+    def lines():
+        for ws in wb.worksheets:
+            yield f"[sheet {ws.title}]"
+            for row in ws.iter_rows(values_only=True):  # read lazily: stops reading the file once capped
+                if any(c is not None for c in row):
+                    yield " | ".join("" if c is None else str(c) for c in row)
+
+    try:
+        return _capped(lines(), cap or TEXT_CAP)
+    finally:
+        wb.close()
 
 
-def _pptx(p: Path) -> str:
+def _pptx(p: Path, cap: int | None = None) -> str:
+    _check_zip(p)
     prs = _need("pptx", "python-pptx").Presentation(str(p))
-    parts = []
-    for i, slide in enumerate(prs.slides, 1):
-        parts.append(f"[slide {i}]")
-        parts += [sh.text_frame.text.strip() for sh in slide.shapes if sh.has_text_frame and sh.text_frame.text.strip()]
-    return "\n".join(parts)
+
+    def lines():
+        for i, slide in enumerate(prs.slides, 1):
+            yield f"[slide {i}]"
+            for sh in slide.shapes:
+                if sh.has_text_frame and sh.text_frame.text.strip():
+                    yield sh.text_frame.text.strip()
+
+    return _capped(lines(), cap or TEXT_CAP)
 
 
 READERS = {".pdf": _pdf, ".docx": _docx, ".xlsx": _xlsx, ".pptx": _pptx}
@@ -167,7 +223,7 @@ def _new_path(ctx, title: str, suffix: str) -> Path:
 def _done(ctx, p: Path, summary: str) -> str:
     rel = str(p.relative_to(ctx.workspace.resolve()))
     ctx.files.append(rel)
-    return f"File created: {rel} ({summary})"
+    return f"File created and shown to the user as a download card: {p.name} ({summary}). Do not write its path."
 
 
 def make_slides(args: dict, ctx) -> str:

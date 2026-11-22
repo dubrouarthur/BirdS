@@ -112,8 +112,7 @@ function slim(conv) {
   };
 }
 
-function saveConv() {
-  const conv = state.conv;
+function saveConv(conv = state.conv) {
   if (!conv) return;
   if (!conv.turns.length) {
     store.set(`bird.conv.${conv.id}`, null);
@@ -142,7 +141,9 @@ function saveConv() {
     }
   }
   store.set("bird.convs", JSON.stringify(state.convs));
-  store.set("bird.current", conv.turns.length ? conv.id : null);
+  // a conversation saved in the background (its answer ended after a switch) never takes the "current" slot
+  if (conv === state.conv)
+    store.set("bird.current", conv.turns.length ? conv.id : null);
   renderSidebar();
 }
 
@@ -157,6 +158,8 @@ function loadConv(id) {
         ? {
             role: "user",
             content: String(x.content ?? ""),
+            // the exact text the model got (image and scan transcriptions included): keep it for the history
+            sent: typeof x.sent === "string" ? x.sent : undefined,
             attachments: (x.attachments || []).map((a) =>
               typeof a === "string" ? { name: a } : a,
             ),
@@ -168,7 +171,13 @@ function loadConv(id) {
 }
 
 function openConv(id) {
-  stop();
+  if (id && id === state.conv?.id) {
+    // the conversation already open (maybe still streaming): just come back to it
+    showView("chat");
+    closeDrawer();
+    return;
+  }
+  stop(); // the aborted answer is saved as "stopped" in its own conversation (runTurn keeps a reference to it)
   const conv = (id && loadConv(id)) || newConv();
   state.conv = conv;
   state.editing = false;
@@ -1091,7 +1100,11 @@ function httpMessage(status, detail) {
   if (code === "rate_limited") return t("error.rate");
   if (code === "confirm_invalid") return t("confirm.expired");
   if (status === 413) return t("error.toolong");
-  return detail?.message || `HTTP ${status}`;
+  if (detail?.message) return detail.message;
+  // a gateway or a cold start answers 502/503/504 with an HTML page: say it in words; the status goes in the details
+  if ([502, 503, 504].includes(status)) return t("error.unavailable");
+  if (status >= 500) return t("error.internal");
+  return `HTTP ${status}`;
 }
 
 let painting = false;
@@ -1115,7 +1128,7 @@ function endWake(turn) {
   }
 }
 
-function handleEvent(turn, event) {
+function handleEvent(turn, event, conv = state.conv, docs = []) {
   if (turn.wakeStart && event.type !== "status") endWake(turn);
   switch (event.type) {
     case "delta":
@@ -1125,7 +1138,7 @@ function handleEvent(turn, event) {
       return paintSoon(turn);
     case "user": {
       // the exact user text the model got: stored on the user turn and sent back as history from now on
-      const turns = state.conv.turns;
+      const turns = conv.turns;
       const userTurn = turns[turns.indexOf(turn) - 1];
       if (userTurn?.role === "user")
         userTurn.sent = String(event.content ?? "");
@@ -1134,6 +1147,13 @@ function handleEvent(turn, event) {
     case "delta_reset":
       turn.text = "";
       break;
+    case "attachment_text": {
+      // what the server read on the scanned pages of a PDF: kept with the attachment and sent back, so the
+      // next turns do not read (and pay for) the same pages again
+      const doc = docs[event.index];
+      if (doc && event.pages && typeof event.pages === "object") doc.ocr = event.pages;
+      return;
+    }
     case "status":
       if (event.state === "waking") {
         turn.wakeStart = turn.wakeStart || Date.now();
@@ -1199,11 +1219,13 @@ function handleEvent(turn, event) {
     default:
       break;
   }
+  if (state.conv !== conv) return; // the user switched conversation: nothing on screen to update
   updateTurn(turn);
   scrollToEnd(false);
 }
 
 async function runTurn(turn, extra = {}) {
+  const conv = state.conv; // the conversation this answer belongs to, even if the user opens another one
   const controller = new AbortController();
   state.abort = controller;
   state.busy = true;
@@ -1218,22 +1240,22 @@ async function runTurn(turn, extra = {}) {
   try {
     const { resend, ...rest } = extra;
     extra = rest;
-    if (!state.conv.cid) state.conv.cid = randomId();
-    if (!state.conv.lang)
-      state.conv.lang = state.prefs.lang === "en" ? "en" : "fr"; // pinned for the conversation
+    if (!conv.cid) conv.cid = randomId();
+    if (!conv.lang)
+      conv.lang = state.prefs.lang === "en" ? "en" : "fr"; // pinned for the conversation
+    const docs = conv.attachments.filter((a) => a.content && !a.lost);
     const body = {
       messages: apiMessages(!!resend),
-      conv_lang: state.conv.lang,
-      conversation_id: state.conv.cid,
+      conv_lang: conv.lang,
+      conversation_id: conv.cid,
       thinking: !!turn.thinking,
       lang: state.prefs.lang,
-      attachments: state.conv.attachments
-        .filter((a) => a.content && !a.lost)
-        .map(({ name, content, encoding }) => ({
-          name,
-          content,
-          encoding: encoding || "text",
-        })),
+      attachments: docs.map(({ name, content, encoding, ocr }) => ({
+        name,
+        content,
+        encoding: encoding || "text",
+        ...(ocr && encoding === "base64" ? { ocr } : {}),
+      })),
       ...extra,
     };
     const response = await fetch("/api/chat", {
@@ -1252,6 +1274,7 @@ async function runTurn(turn, extra = {}) {
       turn.error = {
         code: detail?.code || `http_${response.status}`,
         message: httpMessage(response.status, detail),
+        detail: `HTTP ${response.status}`, // the raw status, folded under "Détails techniques"
       };
       turn.status = "error";
       return;
@@ -1280,7 +1303,7 @@ async function runTurn(turn, extra = {}) {
           continue;
         }
         if (event.type === "done") finished = true;
-        else handleEvent(turn, event);
+        else handleEvent(turn, event, conv, docs);
       }
     }
     if (!finished && turn.status === "running") {
@@ -1327,13 +1350,20 @@ async function runTurn(turn, extra = {}) {
       };
     if (turn.usage && turn.status === "done" && !turn.counted) {
       turn.counted = true;
-      ledgerAdd(turn.usage, state.conv.id);
+      ledgerAdd(turn.usage, conv.id);
     }
-    renderConversation(); // the last-turn actions (regenerate, edit) depend on the busy state
+    const shown = state.conv === conv;
+    if (shown) renderConversation(); // the last-turn actions (regenerate, edit) depend on the busy state
+    if (shown && turn.status === "stopped") announce(t("turn.stopped"));
+    else if (shown && turn.status === "error" && turn.error) {
+      // the sentence the error notice shows (a raw internal message is never read out)
+      const shownText = document.querySelector(`[data-turn="${turn.id}"] .notice-text p`)?.textContent;
+      announce(shownText || turn.error.message);
+    }
     updateComposer();
     updateTop();
-    saveConv();
-    scrollToEnd(false);
+    saveConv(conv);
+    if (shown) scrollToEnd(false);
     const sheet = document.querySelector("[data-confirm-deny]");
     if (turn.status === "confirm" && sheet) sheet.focus();
   }
@@ -1385,6 +1415,7 @@ function send(text) {
     turn,
   );
   for (const a of newDocs) a.sent = true;
+  saveConv(conv); // the question is stored before the answer starts: a reload or a switch never loses it
   const payload = images.map(({ name, url }) => ({ name, url }));
   lastImages = payload; // kept in memory only, so "regenerate" can send them again
   pending.images = [];
@@ -1406,6 +1437,7 @@ function regenerate() {
   const previous = turns[turns.length - 1];
   const turn = newAssistantTurn();
   turns[turns.length - 1] = turn;
+  if ($("scroll").contains(document.activeElement)) keepFocus(); // the Regenerate button is about to be redrawn
   renderChat();
   scrollToEnd(true);
   const user = turns[turns.length - 2];
@@ -1495,7 +1527,15 @@ async function exportAnswer(turn, format) {
       headers: requestHeaders(),
       body: JSON.stringify({ format: "docx", title, content }),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      let detail = null;
+      try {
+        detail = (await response.json()).detail;
+      } catch {
+        /* not JSON */
+      }
+      throw new Error(httpMessage(response.status, detail));
+    }
     const mime =
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     download(
@@ -1539,8 +1579,16 @@ function answerConfirm(turn, allow, { refine = false } = {}) {
   runTurn(turn, allow ? { approved: [token] } : { denied: [token] });
 }
 
+/** Keep the keyboard user's place when the button they pressed disappears (Stop, Regenerate). On a touch
+ * screen the focus is left alone: moving it would pop the keyboard up. */
+function keepFocus() {
+  if (window.matchMedia?.("(pointer: fine)").matches) input().focus({ preventScroll: true });
+}
+
 function stop() {
-  state.abort?.abort();
+  if (!state.abort) return;
+  if (document.activeElement?.id === "btn-stop") keepFocus();
+  state.abort.abort();
 }
 
 // ------------------------------------------------------------------ wiring
@@ -1770,11 +1818,17 @@ function bind() {
       e.preventDefault();
       setSidebar(!document.body.classList.contains("side-open"));
     } else if (e.key === "Escape") {
-      if (document.querySelector("dialog[open]")) return;
+      if (e.defaultPrevented || document.querySelector("dialog[open]")) return;
+      const target = e.target;
+      // Escape in another field (the conversation search, a rename box) never stops the answer that is being
+      // written; it still closes the drawer or leaves a page view (the stop() branch below checks the target)
       if (isNarrow() && document.body.classList.contains("side-open"))
         setSidebar(false); // the open drawer is on top: Escape closes it first, an answer keeps streaming
-      else if (state.busy) stop();
-      else if (state.view !== "chat") showView("chat");
+      else if (state.busy) {
+        const where = target?.id || (target === document.body ? "body" : "");
+        if (!target || ["composer-input", "body", "scroll", "btn-stop"].includes(where))
+          stop();
+      } else if (state.view !== "chat") showView("chat");
     } else if (!typing && !mod && !e.altKey && e.key === "/") {
       e.preventDefault();
       if (state.view !== "chat") showView("chat");

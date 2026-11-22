@@ -25,6 +25,7 @@ from birds.web.backends import (
     HarnessBackend,
     RunContext,
     file_preview,
+    hide_out_paths,
     pick_scenario,
     sanitize_filename,
     step_event,
@@ -200,6 +201,7 @@ def test_search_scenario_steps_sources_citations(client):
 def test_generated_files_are_inline_with_a_preview(client, prompt, tool, suffix, kind):
     events = chat(client, prompt)
     assert [s["tool"] for s in events if s["type"] == "step"] == [tool, tool]
+    print([(e["type"], e.get("tool"), e.get("status")) for e in events])
     (file,) = one(events, "answer")["files"]
     assert set(file) == {"name", "mime", "size", "data", "preview"}
     assert file["name"].endswith(suffix) and "officedocument" in file["mime"]
@@ -584,7 +586,7 @@ def test_sanitize_filename():
 def test_file_preview_is_trimmed():
     rows = [[i, "x" * 200] for i in range(50)]
     sheet = file_preview("make_sheet", {"title": "T", "columns": ["a", "b"], "rows": rows})
-    assert sheet["total_rows"] == 50 and len(sheet["rows"]) == 8 and len(sheet["rows"][0][1]) == 60
+    assert sheet["total_rows"] == 50 and len(sheet["rows"]) == 8 and len(sheet["rows"][0][1]) == 160 and sheet["rows"][0][1].endswith("…")
     slides = file_preview("make_slides", {"title": "T", "slides": [{"title": "S", "bullets": ["b"] * 20}]})
     assert slides["kind"] == "slides" and len(slides["slides"][0]["bullets"]) == 14
     assert file_preview("draft_email", {}) is None and file_preview("make_slides", "not a dict")["slides"] == []
@@ -1042,3 +1044,139 @@ def test_about_site_route(tmp_path, monkeypatch):
     assert r.status_code == 200 and "Bird" in r.text
     assert c.get("/api/health").json().get("site_url") == "/a-propos/"
 
+
+def _forged_resume(tmp_path, monkeypatch, files, second_outputs):
+    """A real harness confirm token, re-signed with the test secret after its state.files was changed."""
+    monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
+    body = {
+        "messages": [{"role": "user", "content": "Read notes.txt and reply"}],
+        "lang": "en",
+        "attachments": [{"name": "notes.txt", "content": INJECTION}],
+    }
+    app, _ = harness_app(
+        [_tool_call("read_file", path="notes.txt"), _tool_call("draft_email", to=["x@e.test"], subject="s", body="b")]
+    )
+    with TestClient(app) as client:
+        token = one(post_chat(client, body), "confirm")["token"]
+    payload = tokens.verify(token, SECRET)
+    payload.pop("exp")
+    payload["state"]["files"] = files
+    forged = tokens.sign(payload, SECRET, ttl=60)
+    app2, _ = harness_app(second_outputs)
+    with TestClient(app2) as client:
+        return post_chat(client, {**body, "approved": [forged]})
+
+
+def test_resume_files_stay_in_workspace(tmp_path, monkeypatch):
+    outside = ["/etc/hostname", "../../etc/passwd", "/proc/self/environ"]
+    events = _forged_resume(tmp_path, monkeypatch, outside, ["Ok."])
+    assert one(events, "answer")["files"] == []
+    assert "root:" not in json.dumps(events)
+
+
+def test_resume_still_delivers_a_file_made_after_approval(tmp_path, monkeypatch):
+    make = _tool_call("make_document", title="Note", sections=[{"heading": "A", "content": "Texte."}])
+    events = _forged_resume(tmp_path, monkeypatch, ["/etc/hostname"], [make])
+    confirm = one(events, "confirm")  # a flagged run asks before making the file too
+    assert confirm["tool"] == "make_document" and confirm["files"] == []
+    body = {
+        "messages": [{"role": "user", "content": "Read notes.txt and reply"}],
+        "lang": "en",
+        "attachments": [{"name": "notes.txt", "content": INJECTION}],
+    }
+    app, _ = harness_app(["Done."])
+    with TestClient(app) as client:
+        events = post_chat(client, {**body, "approved": [confirm["token"]]})
+    (file,) = one(events, "answer")["files"]
+    assert file["name"].endswith(".docx") and file["data"]
+
+
+def test_signing_key_is_not_derived_from_the_public_vercel_url():
+    assert Settings.from_env({"VERCEL_URL": "bird.vercel.app"}).signing == "ephemeral"
+def test_draft_email_result_says_bird_cannot_send_and_keeps_names_apart():
+    from birds.harness.config import Context
+    from birds.harness.tools.actions import draft_email
+
+    c = Context(config=Config(workspace=Path(".")), http=None)
+    r = draft_email({"to": ["Marc Petit"], "subject": "Point", "body": "Bonjour Marc"}, c)
+    assert "cannot send" in r and "Draft saved" in r and "Marc Petit" in r
+    assert c.drafts[0]["to"] == [] and c.drafts[0]["to_hint"] == "Marc Petit"
+    draft_email({"to": ["Marc <marc@example.org>", "a@example.org"], "subject": "s", "body": "b"}, c)
+    assert c.drafts[1]["to"] == ["marc@example.org", "a@example.org"] and "to_hint" not in c.drafts[1]
+
+
+def test_answer_event_never_shows_the_server_output_path():
+    make = _tool_call("make_document", title="Note", sections=[{"heading": "A", "content": "Texte."}])
+    app, _ = harness_app([make, "Le fichier `bird_out/x-2026.docx` est prêt."])
+    with TestClient(app) as client:
+        events = chat(client, "Rédige une note")
+    answer = one(events, "answer")
+    assert "bird_out/" not in answer["content"] and "x-2026.docx" in answer["content"]
+    assert answer["files"] and answer["files"][0]["name"].endswith(".docx")
+
+
+def test_answer_event_carries_the_recipient_to_complete():
+    call = _tool_call("draft_email", to=["Marc Petit"], subject="Point", body="Bonjour Marc")
+    app, _ = harness_app([call, "Le brouillon est prêt à relire."])
+    with TestClient(app) as client:
+        draft = one(chat(client, "Écris un mail à Marc Petit pour fixer un point"), "answer")["draft_email"]
+    assert draft["to"] == "" and draft["to_hint"] == "Marc Petit"
+@pytest.mark.parametrize(
+    ("text", "expected", "never"),
+    [
+        ("Corrige les erreurs de ce texte", None, "error"),
+        ("What is an error budget?", None, "error"),
+        ("Le réveil du serveur est lent, pourquoi ?", None, "wake"),
+        ("Qu'est-ce qu'une faille XSS ?", None, "xss"),
+        ("Fais une présentation pptx de 5 diapos sur notre budget", "slides", None),
+        ("Rédige le compte rendu de la réunion budget", "minutes", "sheet"),
+        ("Rédige une note docx sur le budget", "document", None),
+        ("Fais un tableur excel des dépenses", "sheet", None),
+        ("simule une erreur", "error", None),
+        ("Simule une panne", "error", None),
+        ("test réveil du modèle", "wake", None),
+        ("/demo wake", "wake", None),
+        ("test xss", "xss", None),
+    ],
+)
+def test_demo_routing_needs_explicit_markers_and_formats_win(text, expected, never):
+    got = pick_scenario(text)
+    if expected:
+        assert got == expected
+    if never:
+        assert got != never
+def test_sheet_preview_cells_end_with_an_ellipsis_when_cut():
+    from birds.web.backends import file_preview
+
+    long = "mot " * 50  # 200 characters
+    p = file_preview("make_sheet", {"title": "T", "columns": ["A", "B"], "rows": [[long, "court"]]})
+    cell, short = p["rows"][0]
+    assert cell.endswith("…") and len(cell) <= 160 and cell.startswith("mot mot")
+    assert short == "court"
+    slides = file_preview("make_slides", {"title": "x" * 300, "slides": []})
+    assert slides["title"].endswith("…") and len(slides["title"]) == 160
+def test_energy_wording_states_its_scope():
+    """The estimate covers the GPU while it generates, nothing else: no claim that idle or wake-up cost nothing."""
+    text = (STATIC_DIR / "i18n.js").read_text(encoding="utf-8")
+    assert "pas de GPU allumé pour rien" not in text and "no GPU running for nothing" not in text
+    less = re.findall(r'"save\.energy\.less":\s*"([^"]+)"', text)
+    assert len(less) == 2 and all(re.search(r"génération|generation", s) for s in less)
+    upper = re.findall(r'"meter\.energy\.upper":\s*"([^"]+)"', text)
+    assert len(upper) == 2 and all(re.search(r"génération|generating", s) for s in upper)
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Voici `bird_out/x-2026.docx`.", "Voici `x-2026.docx`."),
+        ("`bird_out/x.docx`, prêt", "`x.docx`, prêt"),
+        ("**bird_out/x-2026.docx**", "**x-2026.docx**"),
+        ('"bird_out/x.docx"', '"x.docx"'),
+        ("'bird_out/x.docx'", "'x.docx'"),
+        ("Fichier : bird_out/x.docx.", "Fichier : x.docx."),
+        ("(bird_out/sub/x.xlsx)", "(x.xlsx)"),
+        ("see foo/bird_out/x.docx", "see foo/bird_out/x.docx"),
+    ],
+)
+def test_hide_out_paths_keeps_markdown_and_quotes(text, expected):
+    assert hide_out_paths(text) == expected

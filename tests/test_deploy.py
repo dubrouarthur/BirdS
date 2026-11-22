@@ -122,3 +122,41 @@ def test_entrypoint_in_a_fresh_venv_with_only_requirements_txt(tmp_path):
     installed = {p.name.split("-")[0].lower().replace("_", "-") for p in site.glob("*.dist-info")}
     print(json.dumps({"site_packages_mb": round(size / 1e6, 1), "packages": len(installed), **report}))
     assert report["ok"] and not installed & HEAVY and size < 250_000_000  # Vercel's Python limit is 500 MB
+def _excluded(pattern: str):
+    """The paths of the repository matched by a Vercel excludeFiles glob ('{a/**,b/**,**/*.png}')."""
+    body = pattern.strip()
+    globs = body[1:-1].split(",") if body.startswith("{") else [body]
+    out = set()
+    for g in globs:
+        out |= {p.relative_to(ROOT).as_posix() for p in ROOT.glob(g) if p.is_file()}
+    return out
+
+
+def test_vercel_bundle_keeps_referenced_assets():
+    fn = json.loads((ROOT / "vercel.json").read_text())["functions"]["app.py"]
+    excluded = _excluded(fn["excludeFiles"])
+    static = ROOT / "birds" / "web" / "static"
+    refs = set()
+    for page in [static / "index.html", static / "manifest.webmanifest"]:
+        for path in re.findall(r'["(](/static/[^"\')?#]+)', page.read_text(encoding="utf-8")):
+            refs.add("birds/web" + path)
+    for page in (ROOT / "site").rglob("*.html"):
+        for path in re.findall(r'(?:href|src)="(/assets/[^"?#]+)"', page.read_text(encoding="utf-8")):
+            refs.add("site" + path)
+    assert refs and any(r.endswith(".png") for r in refs)
+    missing = sorted(r for r in refs if not (ROOT / r).is_file())
+    assert not missing, missing
+    assert not refs & excluded, sorted(refs & excluded)
+
+
+def test_internal_site_files_are_not_served():
+    from fastapi.testclient import TestClient
+
+    from birds.web.server import create_app
+
+    c = TestClient(create_app())
+    for path in ("README.md", "COPY.md", "vercel.json", ".vercelignore"):
+        assert c.get(f"/a-propos/{path}").status_code == 404, path
+    assert c.get("/a-propos/assets/apple-touch-icon.png").status_code == 200
+    assert c.get("/a-propos/assets/site.css").status_code == 200
+    assert c.get("/a-propos/demarche").status_code == 200

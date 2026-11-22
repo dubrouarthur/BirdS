@@ -2,22 +2,42 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 import tempfile
 
 from birds.harness.guard import ToolError
 
+_ADDRESS = re.compile(r"[^@\s<>,;\"']+@[^@\s<>,;\"']+\.[^@\s<>,;\"'.]+")
+
+
+def recipients(to: list) -> tuple[list[str], str]:
+    """(email addresses, the rest): 'Marc Petit' is not an address, so it is shown as a name to complete instead
+    of ending up in the mailto: link. 'Marc <marc@x.fr>' keeps its address."""
+    addresses, names = [], []
+    for item in to or []:
+        text = " ".join(str(item).split())
+        m = _ADDRESS.search(text)
+        if m and m.group(0) not in addresses:
+            addresses.append(m.group(0))
+        elif text and not m:
+            names.append(text)
+    return addresses, ", ".join(names)
+
 
 def draft_email(args: dict, ctx) -> str:
-    draft = {
-        "to": list(args["to"]),
-        "subject": args["subject"],
-        "body": args["body"],
-        "tone": args.get("tone") or "neutral",
-    }
+    to, hint = recipients(list(args["to"]))
+    draft = {"to": to, "subject": args["subject"], "body": args["body"], "tone": args.get("tone") or "neutral"}
+    if hint:
+        draft["to_hint"] = hint  # shown on the card as a recipient to complete
     ctx.drafts.append(draft)  # shown by the UI; the harness has no way to send mail
-    return f"Draft saved for the user to review (not sent). To: {', '.join(draft['to'])}. Subject: {draft['subject']}"
+    missing = f" Recipient to be completed by the user: {hint}." if hint else ""
+    return (
+        "Draft saved and shown to the user as a card with copy buttons and an open-in-mail-app link (not sent). "
+        "You cannot send emails: never offer to send it. Do not repeat the body; say in one sentence that it is "
+        f"ready to review. To: {', '.join(to) or '(none)'}.{missing} Subject: {draft['subject']}"
+    )
 
 
 def _limits(cpu_s: int):

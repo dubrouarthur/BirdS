@@ -552,6 +552,7 @@ function filePreview(preview) {
                 h("td", {
                   class: /^-?[\d\s.,]+$/.test(String(c)) ? "num al-right" : "",
                   text: String(c),
+                  title: String(c), // the whole cell on hover: the preview shows one line of it
                 }),
               ),
             ),
@@ -662,11 +663,21 @@ function renderEmail(turn) {
     : String(draft.to ?? "");
   const subject = String(draft.subject ?? "");
   const body = String(draft.body ?? "");
-  // A mailto: link the user chooses to click. It only opens their own mail app with the draft: nothing is sent.
-  const mailto = `mailto:${to
+  // a bare name ("Marc Petit") is not an address: shown to complete, never put in the mailto: link
+  const isAddress = (s) => /^[^@\s<>,;]+@[^@\s<>,;]+\.[^@\s<>,;]+$/.test(s);
+  // "Marc <marc@example.fr>" keeps only the address in angle brackets
+  const parts = to
     .split(",")
-    .map((s) => encodeURIComponent(s.trim()))
+    .map((s) => s.trim())
+    .map((s) => (s.match(/<([^<>\s]+@[^<>\s]+)>$/) || [null, s])[1])
+    .filter(Boolean);
+  const hint = [String(draft.to_hint ?? "").trim(), ...parts.filter((s) => !isAddress(s))]
     .filter(Boolean)
+    .join(", ");
+  const addresses = parts.filter(isAddress);
+  // A mailto: link the user chooses to click. It only opens their own mail app with the draft: nothing is sent.
+  const mailto = `mailto:${addresses
+    .map((s) => encodeURIComponent(s))
     .join(
       ",",
     )}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
@@ -681,7 +692,15 @@ function renderEmail(turn) {
         "div",
         { class: "card-title" },
         h("p", { class: "card-name", text: subject || t("email.title") }),
-        h("p", { class: "card-meta", text: `${t("email.to")} ${to || "—"}` }),
+        h("p", {
+          class: "card-meta",
+          text: [
+            addresses.length || !hint ? `${t("email.to")} ${addresses.join(", ") || "—"}` : "",
+            hint ? `${t("email.tohint")} ${hint}` : "",
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        }),
       ),
     ),
     h("div", { class: "email-body", text: body }),
@@ -1114,7 +1133,12 @@ function renderError(turn, isLast) {
   const code = turn.error.code;
   const calm = code === "waking";
   const friendly = FRIENDLY_ERRORS.has(code) || /^http_\d+$/.test(code);
-  const raw = friendly ? "" : turn.error.detail || turn.error.message;
+  // an HTTP status without a sentence (a gateway page) gets a plain message; its number stays in the details
+  const raw = friendly
+    ? /^http_\d+$/.test(code)
+      ? turn.error.detail || ""
+      : ""
+    : turn.error.detail || turn.error.message;
   const done = turn.steps.filter((s) => s.status === "done").length;
   const before =
     !calm && done
