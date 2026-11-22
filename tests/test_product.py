@@ -422,13 +422,15 @@ def test_window_hysteresis_cut_and_summary():
     kept, note, stats = history.window(_conv(10), 1500)
     assert stats["dropped_turns"] > 0 and stats["history_tokens_est"] <= 1500
     assert kept[-1]["content"].startswith("r") and kept[0]["content"].startswith(f"Demande {stats['dropped_turns']}")
-    assert note.startswith("Plus tôt dans cette conversation (résumé") and "- Demande 0 → fichiers créés : f0.docx" in note
+    assert (
+        note.startswith("Plus tôt dans cette conversation (résumé") and "- Demande 0 → fichiers créés : f0.docx" in note
+    )
 
 
 def test_window_cut_moves_rarely():
     drops = [history.window(_conv(n), 2000)[2]["dropped_turns"] for n in range(1, 25)]
     assert drops == sorted(drops)  # monotone
-    moves = sum(1 for a, b in zip(drops, drops[1:]) if b != a)
+    moves = sum(1 for a, b in zip(drops, drops[1:], strict=False) if b != a)
     assert moves <= 6  # each move frees about half the budget, so it does not move at every turn
 
 
