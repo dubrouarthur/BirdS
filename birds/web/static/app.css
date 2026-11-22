@@ -5230,8 +5230,27 @@ button.att-card {
 }
 .code-block[data-collapsed] pre.code-pre {
   max-block-size: calc(18 * 1.6em + 12px);
-  overflow: hidden;
+  overflow-y: hidden;
   mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent);
+}
+/* lines that go on beyond the edge: that edge fades (marked by richcode.js), so a phone never shows a cut line */
+.code-pre {
+  --fade-l: #000;
+  --fade-r: #000;
+  --fade-x: linear-gradient(to right, var(--fade-l), #000 24px, #000 calc(100% - 40px), var(--fade-r));
+}
+.code-pre.md-ovf-l {
+  --fade-l: transparent;
+}
+.code-pre.md-ovf-r {
+  --fade-r: transparent;
+}
+.md .code-block pre.code-pre:is(.md-ovf-l, .md-ovf-r) {
+  mask-image: var(--fade-x);
+}
+.md .code-block[data-collapsed] pre.code-pre:is(.md-ovf-l, .md-ovf-r) {
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 56px), transparent), var(--fade-x);
+  mask-composite: intersect;
 }
 .code-more {
   display: flex;

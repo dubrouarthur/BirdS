@@ -499,6 +499,42 @@ function setWrap(root, on) {
     fig.classList.toggle("is-wrapped", on);
   for (const b of root.querySelectorAll("[data-code-wrap]"))
     b.setAttribute("aria-pressed", String(on));
+  for (const el of root.querySelectorAll(SCROLLERS)) overflowMark(el);
+}
+
+// ------------------------------------------------------------------ overflow hints (code lines, wide tables)
+
+const SCROLLERS = ".code-pre, .table-wrap";
+
+/** Mark a horizontal scroller whose content goes on beyond an edge, so CSS fades that edge (md-ovf-l / md-ovf-r). */
+function overflowMark(el) {
+  const extra = el.scrollWidth - el.clientWidth;
+  const left = Math.abs(el.scrollLeft);
+  el.classList.toggle("md-ovf-r", extra > 1 && left < extra - 1);
+  el.classList.toggle("md-ovf-l", extra > 1 && left > 1);
+}
+
+function watchOverflow(root) {
+  let queued = false;
+  const all = () => {
+    queued = false;
+    for (const el of root.querySelectorAll(SCROLLERS)) overflowMark(el);
+  };
+  const soon = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(all);
+  };
+  root.addEventListener(
+    "scroll",
+    (e) => e.target.matches?.(SCROLLERS) && overflowMark(e.target),
+    { capture: true, passive: true },
+  );
+  // new or streamed blocks, and every change of the width available to them
+  new MutationObserver(soon).observe(root, { childList: true, subtree: true });
+  globalThis.addEventListener?.("resize", soon, { passive: true });
+  if (globalThis.ResizeObserver) new ResizeObserver(soon).observe(root);
+  soon();
 }
 
 /**
@@ -506,6 +542,7 @@ function setWrap(root, on) {
  * come from the app, so the clipboard fallback and the Blob download stay in one place.
  */
 export function wire(root, io) {
+  if (globalThis.requestAnimationFrame && globalThis.MutationObserver) watchOverflow(root);
   root.addEventListener("click", (e) => {
     const el = e.target.closest?.(
       "[data-code-wrap],[data-code-download],[data-code-more],[data-copy-inline],[data-md-more]",
