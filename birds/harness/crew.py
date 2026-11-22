@@ -304,6 +304,7 @@ class Brief:
     points: list = field(default_factory=list)
     must: list = field(default_factory=list)
     constraints: dict = field(default_factory=dict)
+    blocks: dict = field(default_factory=dict)  # compare_write: offer name -> its pasted block
     allowed: set = field(default_factory=set)
     caveats: list = field(default_factory=list)
     dropped: int = 0
@@ -731,7 +732,17 @@ class Crew:
                        detail=f"{len(clean)} offre(s)" if self.lang == "fr" else f"{len(clean)} offer(s)")  # fmt: skip
             return {"columns": [str(c) for c in cols], "rows": clean, "bad": bad}
 
+        parsed = cc.parse_offers(text)
+        by_code = len(parsed) >= 2 and all(o["complete"] for o in parsed)
+
         def analyst():
+            if by_code:  # every price, quantity and fee placed in code: no model call needed, nothing to misread
+                costs = cc.compute_offers(parsed, b.constraints)
+                v = costs["verdict"]
+                detail = (f"calcul fait par Bird · retenue : {v['offer']}" if self.lang == "fr"
+                          else f"computed by Bird · pick: {v['offer']}") if v else "—"  # fmt: skip
+                self._step("analyste", "done", "brief", detail=detail)
+                return costs, [], []
             g = self._gen("analyste", "brief", self._user(text, PROMPTS[self.lang]["analyst"]), [COST_MODEL], 900,
                           temperature=0.0, until=self.t0 + BRIEF_S)  # fmt: skip
             args = self._args(g, "cost_model") or {}
@@ -739,19 +750,22 @@ class Crew:
             if not isinstance(offers, list) or not offers:
                 if g:
                     self._step("analyste", "error", "brief", detail="cost_model")
-                return None, []
+                return None, [], []
+            offers, unchecked = self._reconcile([o for o in offers if isinstance(o, dict)], parsed)
             costs = cc.compute_offers(offers, b.constraints)
             missing = [ln for ln in cc.cost_coverage(offers, text) if not re.search(r"budget|contrainte", ln, re.I)]
             v = costs["verdict"]
             detail = (f"retenue : {v['offer']}" if self.lang == "fr" else f"pick: {v['offer']}") if v else "—"
             self._step("analyste", "done", "brief", tokens=g["tokens"], seconds=g["seconds"], detail=detail)
-            return costs, missing
+            return costs, missing, unchecked
 
         f_table, f_costs = self.pool.submit(reader), self.pool.submit(analyst)
         b.table = f_table.result()
-        b.costs, missing = f_costs.result()
+        b.costs, missing, unchecked = f_costs.result()
+        b.blocks = dict(cc.offer_blocks(text))
         if b.table is None and b.costs is None:
             raise _Fallback("no_brief")
+        fr = self.lang == "fr"
         if b.costs:
             for r in b.costs["rows"]:
                 b.allowed |= {round(r[k], 6) for k in ("monthly", "annual", "one_off", "year1", "term", "per_year")}
@@ -759,11 +773,19 @@ class Crew:
             if v:
                 b.must = [v["offer"]]
             for ln in missing[:3]:
-                b.caveats.append(("Poste non pris en compte dans le calcul : " if self.lang == "fr"
+                b.caveats.append(("Poste non pris en compte dans le calcul : " if fr
                                   else "Line not used in the computation: ") + ln)  # fmt: skip
+            for name in unchecked[:3]:
+                b.caveats.append(f"Coûts de {name} lus par le modèle, non recalculés : à vérifier" if fr
+                                 else f"Costs of {name} read by the model, not recomputed: to check")  # fmt: skip
+            for o in parsed:
+                for ln in o["variable"][:1]:
+                    b.caveats.append((f"{o['name']} : coût à l'usage non chiffré (aucun volume dans le texte) — "
+                                      if fr else f"{o['name']}: usage-based cost left out (no volume in the text) — ")
+                                     + ln[:120])  # fmt: skip
         else:
             b.caveats.append(
-                "Calculs indisponibles : coûts à vérifier" if self.lang == "fr" else "No computation: check costs"
+                "Calculs indisponibles : coûts à vérifier" if fr else "No computation: check costs"
             )
         if b.table and b.table["bad"]:
             b.caveats.append(
@@ -771,6 +793,23 @@ class Crew:
                 if self.lang == "fr" else f"{b.table['bad']} table value(s) not found in the text"
             )  # fmt: skip
         return b
+
+    @staticmethod
+    def _reconcile(offers: list[dict], parsed: list[dict]) -> tuple[list[dict], list[str]]:
+        """The analyst's offers with every offer the code could read itself replaced by the code's version (its
+        year-1 cost is then right even when the model multiplied a monthly total by the number of machines).
+        Returns (offers, names of offers only the model read)."""
+        out, unchecked, used = [], [], set()
+        for o in offers:
+            mine = next((p for p in parsed if p["complete"] and cc.same_offer(p["name"], str(o.get("name") or ""))), None)
+            if mine is not None:
+                used.add(mine["name"])
+                out.append(mine)
+            else:
+                out.append(o)
+                unchecked.append(str(o.get("name") or "?"))
+        out += [p for p in parsed if p["complete"] and p["name"] not in used]
+        return out, unchecked
 
     def _brief_minutes_actions(self) -> Brief:
         b = self._new_brief("make_document")
@@ -1005,11 +1044,20 @@ class Crew:
             checks.append(bool(args.get("rows")))
         return (sum(checks) / len(checks) if checks else 1.0), notes
 
+    @staticmethod
+    def _bad(b: Brief, text: str) -> list[str]:
+        """Figures to remove: not found in what was given or read, or a cost tied to an offer that is more than 5 %
+        off what the harness computed for it."""
+        uns = cc.unsupported(text, b.allowed)
+        if b.costs:
+            uns += [x for x in cc.cost_claims(text, b.costs, b.blocks) if x not in uns]
+        return uns
+
     def _score(self, b: Brief, d: Draft) -> dict:
         text = cc.flat_text(d.args)
         missing_p = [p for p in b.points if not cc.covered(p, text)]
         missing_m = [m for m in b.must if not cc.covered(m, text)]
-        uns = cc.unsupported(text, b.allowed)
+        uns = self._bad(b, text)
         structure, notes = self._structure(b, d.args, text)
         cov_p = 1 - len(missing_p) / len(b.points) if b.points else 1.0
         cov_m = 1 - len(missing_m) / len(b.must) if b.must else 1.0
@@ -1077,7 +1125,7 @@ class Crew:
                 if b.actions:
                     content = "\n".join(ln for ln in content.split("\n") if not ln.lstrip().startswith("|"))
                 parts = re.split(r"(?<=[.!?])\s+|\n", content)
-                keep = [p for p in parts if not cc.unsupported(p, b.allowed)]
+                keep = [p for p in parts if not self._bad(b, p)]
                 removed += sum(1 for p in parts if p.strip()) - sum(1 for p in keep if p.strip())
                 secs.append({**s, "content": "\n".join(p for p in keep if p.strip()) if removed else content})
             if b.actions:
@@ -1106,6 +1154,15 @@ class Crew:
         elif b.tool == "draft_email":
             if b.to and not any(b.to.lower() == str(t).lower() for t in args.get("to") or []):
                 args["to"] = [b.to]
+            if b.costs:  # a sentence with a wrong cost goes: a short true mail beats a long wrong one
+                lines = []
+                for ln in str(args.get("body") or "").split("\n"):
+                    parts = re.split(r"(?<=[.!?])\s+", ln)
+                    keep = [p for p in parts if not cc.cost_claims(p, b.costs, b.blocks)]
+                    removed += len(parts) - len(keep)
+                    if keep or not ln.strip():
+                        lines.append(" ".join(keep))
+                args["body"] = "\n".join(lines)
             if src:
                 args["body"] = str(args.get("body") or "").rstrip() + "\n\nSources :\n" + "\n".join(src)
         return args, removed
@@ -1126,7 +1183,7 @@ class Crew:
             v = b.costs["verdict"]
             ctx["verdict"] = None if not v else {"offer": v["offer"], "option": v["option"], "year1": v["year1"]}
             ctx["rows"] = [[r["offer"] + (f" + {r['option']}" if r["option"] else ""), r["annual"], r["year1"],
-                            r["sla_hours"], r["ok"]] for r in b.costs["rows"]][:8]  # fmt: skip
+                            r["sla_hours"], r["ok"], r.get("fails") or []] for r in b.costs["rows"]][:8]  # fmt: skip
         ctx["n_actions"] = len(b.actions)
         ctx["n_sources"] = len(b.sources)
         return ctx
@@ -1183,8 +1240,18 @@ class Crew:
                 if fr
                 else "| Offer | Annual | Year 1 | Response | Compliant |"
             )
-            rows = [f"| {o} | {cc.money(a, self.lang)} | {cc.money(y, self.lang)} | {f'{s:g} h' if s else '—'} | "
-                    f"{('oui' if fr else 'yes') if ok else ('non' if fr else 'no')} |" for o, a, y, s, ok in actx["rows"]]  # fmt: skip
+            fails_en = {"budget": "budget", "délai": "response time", "durée": "term", "rétention": "retention",
+                        "hébergement": "hosting"}  # fmt: skip
+
+            def verdict(ok, why):
+                if ok:
+                    return "oui" if fr else "yes"
+                why = [w if fr else fails_en.get(w, w) for w in why]
+                return ("non" if fr else "no") + (f" ({', '.join(why)})" if why else "")
+
+            rows = [f"| {r[0]} | {cc.money(r[1], self.lang)} | {cc.money(r[2], self.lang)} | "
+                    f"{f'{r[3]:g} h' if r[3] else '—'} | {verdict(r[4], r[5] if len(r) > 5 else [])} |"
+                    for r in actx["rows"]]  # fmt: skip
             lines.append("\n".join([head, "|---|---|---|---|---|", *rows]))
             lines.append(
                 "Calculs faits par Bird à partir des montants du texte."

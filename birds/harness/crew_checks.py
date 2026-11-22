@@ -488,12 +488,11 @@ def offer_names(text: str) -> list[str]:
 
 
 def constraints(text: str) -> dict:
-    """« budget annuel maximal de 20 000 € », « sous 4 heures », « contrat de 48 mois » from the user's text."""
+    """« budget annuel maximal de 20 000 € », « budget validé … de 7 000 € HT maximum », « sous 4 heures »,
+    « contrat de 48 mois », « rétention d'au moins 60 jours », « hébergées en France » from the user's text."""
     t = text or ""
     out: dict = {}
-    m = re.search(
-        r"budget\s+(?:annuel\s+)?(?:maxi(?:mal|mum)\s+)?(?:annuel\s+)?(?:de\s+|:\s*)?(\d[\d  .,]*)\s*(k)?\s*€", t, re.I
-    )
+    m = re.search(r"budget[^.\n€;]{0,60}?(\d{1,3}(?:[   ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)\s*(k)?\s*€", t, re.I)
     if m:
         v = to_float(m.group(1).strip(" .,"))
         out["budget_year"] = v * (1000 if m.group(2) else 1)
@@ -503,7 +502,169 @@ def constraints(text: str) -> dict:
     m = re.search(r"(?:dur[ée]e|contrat|engagement)\s+(?:de\s+|sur\s+)?(\d{2})\s*mois", t, re.I)
     if m:
         out["months"] = int(m.group(1))
+    m = re.search(r"r[ée]tention[^.\n;]{0,25}?(?:d.au moins|minimum|minimale? de|≥|>=)\s*(\d+)\s*jours", t, re.I)
+    if m:
+        out["retention_days"] = int(m.group(1))
+    m = re.search(r"h[ée]berg[ée]?\w*\s+(?:en|dans l[ae']\s*)\s*(France|Europe|Union europ[ée]enne|UE)\b", t, re.I)
+    if m:
+        out["country"] = m.group(1)
     return out
+
+
+# ------------------------------------------------------------------ costs read from the pasted offers, in code
+
+_AMOUNT = re.compile(r"(\d{1,3}(?:[   ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)\s*(k)?\s*(?:€|eur\b|euros?\b)", re.I)
+_UNITS = {
+    "utilisateur": "utilisateur", "user": "utilisateur", "salarie": "utilisateur", "collaborateur": "utilisateur",
+    "licence": "licence", "poste": "poste", "machine": "machine", "copieur": "machine", "multifonction": "machine",
+    "imprimante": "machine", "serveur": "serveur", "site": "site", "ligne": "ligne", "badge": "badge",
+}  # fmt: skip
+_PER_UNIT = re.compile(r"^\s*(?:HT\s*)?(?:/\s*|par\s+|chacun\w*\s+par\s+)(" + "|".join(_UNITS) + r")s?\b", re.I)
+_MONTHLY = re.compile(r"(?:/\s*|par\s+|\ble\s+)mois\b|mensuel", re.I)
+_ONE_OFF = re.compile(r"une (?:seule )?fois|unique|mise en (?:service|place)|install|frais d.acc[eè]s|setup|ponctuel", re.I)
+_VARIABLE = re.compile(r"^\s*(?:HT\s*)?(?:/|par|la|le|l')\s*(?:min\w*|appel|sms|go\b|to\b|km|heure)", re.I)
+_PAGE_KIND = re.compile(r"(n\s*&\s*b|noir(?: et blanc)?|mono\w*|couleurs?|colou?r)", re.I)
+
+
+def _kind_of_page(word: str) -> str:
+    return "couleur" if fold(word).startswith(("couleur", "color", "colour")) else "nb"
+
+
+def counts(text: str) -> dict:
+    """Quantities stated in the text: « 45 utilisateurs », « dont 20 ont besoin d'un poste », « 38 000 pages N&B »,
+    « 1,8 To de données ». The first statement of each wins."""
+    t = text or ""
+    out: dict = {}
+    for m in re.finditer(r"dont\s+(\d[\d  ]*)\s+(?:ont|a)\s+besoin\s+d.une?\s+([a-zà-ÿ]+)", t, re.I):
+        unit = _UNITS.get(fold(m.group(2)).rstrip("s"))
+        if unit:
+            out.setdefault(unit, to_float(m.group(1)))
+    for m in re.finditer(r"(\d{1,3}(?:[   ]\d{3})+|\d+)\s+([a-zà-ÿ]+)", t, re.I):
+        unit = _UNITS.get(fold(m.group(2)).rstrip("s"))
+        if unit:
+            out.setdefault(unit, to_float(m.group(1)))
+    for m in re.finditer(r"(\d{1,3}(?:[   ]\d{3})+|\d+)\s*(?:pages?|copies?|impressions?)\s+" + _PAGE_KIND.pattern, t, re.I):
+        out.setdefault("pages_" + _kind_of_page(m.group(2)), to_float(m.group(1)))
+    m = re.search(r"(\d+(?:[.,]\d+)?)\s*(To|Go|TB|GB)\s+de\s+donn[ée]es", t, re.I)
+    if m:
+        out["storage_go"] = to_float(m.group(1)) * (1000 if m.group(2).upper() in ("TO", "TB") else 1)
+    return out
+
+
+def _segments(block: str) -> list[str]:
+    return [s.strip() for s in re.split(r"(?<=[.;!?])\s+|\n|\s;\s", block) if s.strip()]
+
+
+def _label(left: str) -> str:
+    part = re.split(r",\s|[;(]|:\s", left)
+    for p in reversed(part):
+        p = re.sub(r"\s+(?:de|à|a|pour|:)$", "", p.strip(" -–:.")).strip()
+        if len(p) >= 3:
+            return p[:50]
+    return ""
+
+
+def parse_offer(name: str, block: str, qty: dict) -> dict:
+    """One offer in the cost_model shape, read in code from its block: monthly items (unit price x stated quantity,
+    per-page price x stated volume, per-tranche price x tranches needed), one-off fees, options, term, response time,
+    retention and hosting. ``unknown`` lists the € amounts it could not place: the offer is then not complete."""
+    o: dict = {"name": name, "monthly_items": [], "one_off": [], "options": [], "unknown": [], "variable": []}
+    m = re.search(r"(?:engagement|contrat|dur[ée]e)[^.\n;]{0,30}?(\d{1,3})\s*mois", block, re.I)
+    if m:
+        o["months"] = int(m.group(1))
+    m = re.search(r"(?:intervention|d[ée]lai d.intervention|r[ée]tablissement|RTO|restauration|d[ée]pannage)"
+                  r"[^.\n;(]{0,50}?(\d+)\s*(?:h\b|heures?)", block, re.I)  # fmt: skip
+    if m:
+        o["sla_hours"] = float(m.group(1))
+    m = re.search(r"r[ée]tention\s*:?\s*(\d+)\s*jours", block, re.I)
+    if m:
+        o["retention_days"] = int(m.group(1))
+    host = [ln for ln in block.split("\n") if re.search(r"h[ée]berg|centre de donn|datacenter|data center", ln, re.I)]
+    if host:
+        o["hosting"] = " ".join(host)
+    included = re.search(r"(\d+(?:[.,]\d+)?)\s*(To|Go)\s+inclus", block, re.I)
+    for seg in _segments(block):
+        amounts = list(_AMOUNT.finditer(seg))
+        for i, a in enumerate(amounts):
+            value = to_float(a.group(1)) * (1000 if a.group(2) else 1)
+            left = seg[amounts[i - 1].end() if i else 0 : a.start()]
+            right = seg[a.end() : amounts[i + 1].start() if i + 1 < len(amounts) else len(seg)][:80]
+            if value <= 0:
+                continue
+            if _VARIABLE.match(right) and not re.match(r"^\s*(?:HT\s*)?(?:/|par)\s*mois", right, re.I):
+                o["variable"].append(seg[:160])  # per minute, per Go...: no volume to multiply by, left out (said)
+                continue
+            page = _PAGE_KIND.search(right[:30]) or (
+                _PAGE_KIND.search(left) if re.search(r"cop|page|impression", seg, re.I) and value < 1 else None
+            )
+            if page and value < 5:
+                vol = qty.get("pages_" + _kind_of_page(page.group(1)))
+                if vol is None:
+                    o["unknown"].append(seg[:160])
+                    continue
+                o["monthly_items"].append({"label": f"pages {page.group(1)}", "amount": value, "qty": vol})
+                continue
+            tail = re.split(r"[.!?]\s", left)[-1][-60:]
+            option = re.search(r"\boption", tail + right[:20], re.I)
+            monthly = bool(_MONTHLY.search(right[:40]) or re.search(r"mensuel", _label(left), re.I))
+            if option:
+                label = _label(re.sub(r"\s*\b(?:en\s+)?option(?:nel\w*)?\b", " ", left, flags=re.I))
+                opt = {"label": label[:60] or "option"}
+                h = re.search(r"(\d+)\s*(?:h\b|heures?)", label)
+                if h:
+                    opt["sla_hours"] = float(h.group(1))
+                d = re.search(r"(\d+)\s*jours", label)
+                if d:
+                    opt["retention_days"] = int(d.group(1))
+                opt["monthly" if monthly else "one_off"] = value
+                o["options"].append(opt)
+                continue
+            if monthly:
+                q, unit = 1.0, None
+                per = _PER_UNIT.match(right)
+                each = re.search(r"\b(?:les\s+)?(\d+)\s+([a-zà-ÿ]+)\s+à\s*$", left, re.I)
+                tranche = re.search(r"par tranche de\s+(\d+)\s*(Go|To)", right, re.I)
+                if per:
+                    unit = _UNITS[fold(per.group(1)).rstrip("s")]
+                    q = qty.get(unit)
+                elif each and re.match(r"^\s*(?:HT\s*)?chacun", right, re.I):
+                    q = to_float(each.group(1))
+                elif tranche:
+                    need = qty.get("storage_go")
+                    if need is None or not included:
+                        q = None
+                    else:
+                        inc = to_float(included.group(1)) * (1000 if included.group(2).upper() == "TO" else 1)
+                        size = to_float(tranche.group(1)) * (1000 if tranche.group(2).upper() == "TO" else 1)
+                        q = max(0.0, float(-(-round((need - inc) / size, 6) // 1)))
+                if q is None:
+                    o["unknown"].append(seg[:160])
+                    continue
+                label = unit or ("tranche de " + " ".join(tranche.groups()) if tranche else "") or _label(left)
+                o["monthly_items"].append({"label": label or "mensuel", "amount": value, "qty": q})
+                continue
+            if _ONE_OFF.search(left + right[:30]):
+                o["one_off"].append({"label": _label(left) or "frais", "amount": value})
+                continue
+            o["unknown"].append(seg[:160])
+    o["complete"] = bool(o["monthly_items"]) and not o["unknown"]
+    return o
+
+
+def parse_offers(text: str) -> list[dict]:
+    """Every offer of a pasted comparison, read in code (see parse_offer). Quantities come from the text outside
+    the offers first (the buyer's need), then from each offer's own block."""
+    blocks = offer_blocks(text)
+    outside = text or ""
+    for _, b in blocks:
+        outside = outside.replace(b, "")
+    base = counts(outside)
+    return [parse_offer(name, block, {**counts(block), **base}) for name, block in blocks]
+
+
+def same_offer(a: str, b: str) -> bool:
+    fa, fb = fold(a), fold(b)
+    return bool(fa and fb) and (fa == fb or fa.startswith(fb) or fb.startswith(fa) or fa.split()[0] == fb.split()[0])
 
 
 def _num(v, default: float = 0.0) -> float:
@@ -513,6 +674,17 @@ def _num(v, default: float = 0.0) -> float:
         return float(v)
     vals = numbers(str(v or ""))
     return vals[0] if vals else default
+
+
+_EU = ("france", "allemagne", "irlande", "belgique", "pays-bas", "luxembourg", "espagne", "italie", "portugal",
+       "autriche", "suede", "finlande", "danemark", "pologne", "europe", "ue")  # fmt: skip
+
+
+def _hosted_in(country: str, hosting: str) -> bool:
+    c = fold(country)
+    if c in ("europe", "ue", "union europeenne"):
+        return any(re.search(rf"\b{re.escape(x)}\b", hosting) for x in _EU)
+    return c in hosting
 
 
 def compute_offers(offers, cons: dict) -> dict:
@@ -530,15 +702,18 @@ def compute_offers(offers, cons: dict) -> dict:
         one_off = sum(_num(i.get("amount")) for i in o.get("one_off") or [] if isinstance(i, dict))
         months = int(_num(o.get("months"), 12.0)) or 12
         sla = _num(o.get("sla_hours"), 0.0) or None
-        configs = [("", monthly, sla)]
+        retention = o.get("retention_days")
+        hosting = fold(o.get("hosting") or "")
+        configs = [("", monthly, one_off, sla, retention)]
         for opt in o.get("options") or []:
-            if isinstance(opt, dict) and _num(opt.get("monthly")):
+            if isinstance(opt, dict) and (_num(opt.get("monthly")) or _num(opt.get("one_off"))):
                 configs.append((str(opt.get("label") or "option"), monthly + _num(opt.get("monthly")),
-                                _num(opt.get("sla_hours"), 0.0) or sla))  # fmt: skip
-        for label, m, s in configs:
+                                one_off + _num(opt.get("one_off")), _num(opt.get("sla_hours"), 0.0) or sla,
+                                opt.get("retention_days") or retention))  # fmt: skip
+        for label, m, once, s, keep in configs:
             annual = m * 12
-            year1 = annual + one_off if months >= 12 else m * months + one_off
-            term = m * months + one_off
+            year1 = annual + once if months >= 12 else m * months + once
+            term = m * months + once
             why = []
             if "budget_year" in cons and year1 > cons["budget_year"] + 0.5:
                 why.append("budget")
@@ -546,13 +721,17 @@ def compute_offers(offers, cons: dict) -> dict:
                 why.append("délai")
             if "months" in cons and months > cons["months"]:
                 why.append("durée")
+            if "retention_days" in cons and keep is not None and keep < cons["retention_days"]:
+                why.append("rétention")
+            if "country" in cons and hosting and not _hosted_in(cons["country"], hosting):
+                why.append("hébergement")
             rows.append(
                 {
                     "offer": str(o["name"]).strip(),
                     "option": label,
                     "monthly": round(m, 2),
                     "annual": round(annual, 2),
-                    "one_off": round(one_off, 2),
+                    "one_off": round(once, 2),
                     "year1": round(year1, 2),
                     "term": round(term, 2),
                     "months": months,
@@ -565,6 +744,40 @@ def compute_offers(offers, cons: dict) -> dict:
     good = [r for r in rows if r["ok"]]
     best = min(good, key=lambda r: r["per_year"]) if good else None
     return {"rows": rows, "verdict": best, "constraints": cons}
+
+
+def sentences(text: str) -> list[str]:
+    """Sentences and lines of a text (« 1,5 » and « 0.0045 » are not cut)."""
+    return [p for p in re.split(r"(?<=[.!?;])\s+|\n", text or "") if p.strip()]
+
+
+def cost_claims(text: str, costs: dict | None, blocks: dict | None = None, tol: float = 0.05) -> list[str]:
+    """€ amounts a draft ties to ONE offer that match neither a cost the harness computed for it (within ``tol``)
+    nor an amount of that offer's own pasted block. « Konica : 170 424 € par an » when the code computed 19 944 € is
+    returned; a sentence naming no offer or several is left to the provenance check."""
+    rows = (costs or {}).get("rows") or []
+    if not rows:
+        return []
+    names = list(dict.fromkeys(r["offer"] for r in rows))
+    figs = {n: [r[k] for r in rows if r["offer"] == n for k in ("monthly", "annual", "one_off", "year1", "term",
+                                                                  "per_year")] for n in names}  # fmt: skip
+    own = {n: allowed_figures((blocks or {}).get(n, "")) for n in names}
+    budget = (costs.get("constraints") or {}).get("budget_year")
+    bad = []
+    for sent in sentences(text):
+        low = fold(sent)
+        named = [n for n in names if fold(n) in low or (len(fold(n).split()[0]) >= 4 and fold(n).split()[0] in low)]
+        if len(named) != 1:
+            continue
+        n = named[0]
+        for m in _AMOUNT.finditer(sent):
+            v = to_float(m.group(1)) * (1000 if m.group(2) else 1)
+            if v < 100 or (budget and abs(v - budget) < 0.5):
+                continue
+            if any(abs(v - f) <= tol * max(abs(f), 1) for f in figs[n] if f) or any(abs(v - a) < 0.006 for a in own[n]):
+                continue
+            bad.append(m.group(1))
+    return bad
 
 
 def money(v: float, lang: str = "fr") -> str:

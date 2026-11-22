@@ -91,6 +91,66 @@ Côté agence (Studio Pixel) : Léa Morel (cheffe de projet), Hugo Lambert (dév
 - Paiement en ligne : Anne doit ouvrir le compte Stripe, pas de date fixée.
 - Hugo vérifie la compatibilité du logiciel de stock de Bruno (export CSV) avant le 27 novembre.
 - Point d'étape chaque lundi à 9 h en visio."""
+COPIERS = """Objet : Renouvellement du parc d'impression – synthèse des 3 offres reçues (consultation du 2 septembre)
+
+Contexte : notre contrat actuel avec Ricoh expire le 31 décembre. Besoin : 12 multifonctions couleur A3/A4 pour 3 sites (Lyon siège : 7, Grenoble : 3, Valence : 2), volume estimé 38 000 pages N&B et 9 000 pages couleur par mois, contrat de 48 mois, maintenance sur site incluse.
+
+1) Konica Minolta (via Bureautique Rhône SAS) – contact : Julien Ferrand
+- Matériel : bizhub C301i (30 ppm) ; installation et formation incluses.
+- Loyer : 1 140 € HT / mois pour les 12 machines.
+- Coût copie : 0,0045 € HT la page N&B, 0,039 € HT la page couleur.
+- Maintenance : intervention sous 8 h ouvrées, machine de prêt au-delà de 48 h.
+- Logiciel de suivi : Dispatcher Paragon inclus (badges, impression sécurisée).
+- Engagement : 48 mois, résiliation anticipée : 6 mois de loyer.
+
+2) Canon (via Canon France Business Services) – contact : Sophie Marchal
+- Matériel : imageRUNNER ADVANCE DX C3926i (26 ppm).
+- Loyer : 980 € HT / mois.
+- Coût copie : 0,0050 € HT N&B, 0,045 € HT couleur.
+- Maintenance : intervention sous 4 h ouvrées sur Lyon, 8 h sur Grenoble et Valence.
+- Logiciel : uniFLOW Online Express inclus ; module de badges en option : 1 800 € HT une fois.
+- Engagement : 48 mois, résiliation anticipée : 25 % des loyers restants.
+- Remise de 5 % sur le loyer si signature avant le 15 novembre.
+
+3) Sharp (via Alpes Office Solutions) – contact : Karim Benali
+- Matériel : MX-3071 (30 ppm), reconditionné « grade A » pour 5 des 12 machines.
+- Loyer : 860 € HT / mois.
+- Coût copie : 0,0042 € HT N&B, 0,041 € HT couleur.
+- Maintenance : intervention sous 12 h ouvrées, pas de machine de prêt.
+- Logiciel : non inclus ; proposition PaperCut MF à 95 € HT / mois.
+- Engagement : 60 mois minimum (pas de 48 mois possible).
+- Frais d'installation : 1 200 € HT.
+
+Remarques internes : la DSI exige l'impression sécurisée par badge sur les 3 sites. Le site de Lyon a subi 9 pannes en 2024 avec l'ancien parc ; le délai d'intervention est jugé prioritaire par Nathalie Roux (directrice administrative et financière), destinataire de la recommandation (nathalie.roux@groupe-alvea.fr)."""
+VOIP_TEXT = """Objet : consultation téléphonie IP – synthèse des trois propositions reçues (dossier n° TEL-2026-04)
+
+Contexte : nous équipons 45 utilisateurs (siège de Lyon + agence de Grenoble), dont 20 ont besoin d'un poste téléphonique physique (accueil, standard, atelier). Le budget validé par la direction est de 7 000 € HT maximum pour la première année. Démarrage souhaité : 1er février 2027.
+
+1) TELVIA
+Abonnement « Telvia Pro » : 9,50 € HT par utilisateur et par mois, appels illimités France et mobiles.
+Frais de mise en service : 1 200 € HT (portabilité des numéros incluse).
+Postes physiques : location 4 € HT par poste et par mois.
+Engagement : 36 mois.
+Support : hotline du lundi au vendredi, 8 h – 18 h. Disponibilité garantie (SLA) : 99,9 %.
+Délai de déploiement annoncé : 3 semaines. Application mobile et softphone inclus. Pas d'intégration native avec notre CRM.
+
+2) ORKA COM
+Abonnement « Orka Business » : 12 € HT par utilisateur et par mois, appels illimités France, mobiles et 40 destinations internationales.
+Frais de mise en service : offerts.
+Postes physiques : inclus dans l'abonnement (modèle Yealink T54W).
+Engagement : 12 mois, renouvelable tacitement.
+Support : 24 h/24, 7 j/7, interlocuteur dédié. SLA : 99,95 %.
+Délai de déploiement : 2 semaines. Intégration CRM (HubSpot, Salesforce) incluse.
+
+3) NETIVOIX
+Abonnement « NetiVoix Essentiel » : 8 € HT par utilisateur et par mois, appels illimités France fixe uniquement (mobiles facturés 0,05 € HT/min).
+Frais de mise en service : 2 500 € HT.
+Postes physiques : location 6 € HT par poste et par mois.
+Engagement : 24 mois.
+Support : par e-mail uniquement, réponse sous 48 h ouvrées. SLA : 99,5 %.
+Délai de déploiement : 6 semaines. Intégration CRM en option (150 € HT/mois).
+
+Remarque du service achats : la portabilité des numéros est gratuite chez les trois fournisseurs. Le mail de recommandation est à adresser à Claire Fontaine, directrice administrative et financière (claire.fontaine@atelier-sorel.fr)."""
 CSE = """Réunion ordinaire du CSE – mardi 17 novembre 2026, 9 h 30 – 11 h, salle du conseil
 Présents : Hélène Garnier (directrice des ressources humaines, présidente), Mathieu Roy (secrétaire du CSE), Samia Haddad (trésorière), Lucas Fontaine (élu, atelier), Camille Bernard (élue, bureaux), Pierre Vidal (référent harcèlement).
 Excusée : Nora Lefèvre (élue).
@@ -494,6 +554,47 @@ def test_cost_coverage_flags_a_missing_euro_line():
     assert missing == ["Frais de mise en place : 2 000 € HT."]
 
 
+def test_costs_are_read_from_the_pasted_prices_in_code():
+    """Hand-computed truth of the live tasks: unit price x stated quantity x 12, volumes x page price, one-off fees."""
+    out = cc.compute_offers(cc.parse_offers(COPIERS), cc.constraints(cc.requirement_lines(COPIERS)))
+    year1 = {(r["offer"], r["option"]): r["year1"] for r in out["rows"]}
+    assert year1[("Konica Minolta", "")] == 19944.0  # 1 662 €/month: the loyer covers the 12 machines
+    assert year1[("Canon", "")] == 18900.0 and year1[("Canon", "module de badges")] == 20700.0
+    assert {r["offer"]: r["fails"] for r in out["rows"]}["Sharp"] == ["durée"]  # 60 months against 48
+    assert out["verdict"]["offer"] == "Canon"
+    voip = cc.compute_offers(cc.parse_offers(VOIP_TEXT), cc.constraints(cc.requirement_lines(VOIP_TEXT)))
+    assert {r["offer"]: (r["year1"], r["ok"]) for r in voip["rows"] if not r["option"]} == {
+        "TELVIA": (7290.0, False), "ORKA COM": (6480.0, True), "NETIVOIX": (8260.0, False)}  # fmt: skip
+    backup = cc.compute_offers(cc.parse_offers(BACKUP), cc.constraints(cc.requirement_lines(BACKUP)))
+    rows = {(r["offer"], r["option"]): r for r in backup["rows"]}
+    assert rows[("Sauvegardia", "")]["year1"] == 2790.0 and rows[("NuageSûr", "60 jours")]["year1"] == 2808.0
+    assert rows[("NuageSûr", "60 jours")]["fails"] == ["hébergement"] and backup["verdict"]["offer"] == "Sauvegardia"
+
+
+def test_compliance_comes_from_the_parsed_constraints():
+    assert cc.constraints("Le budget validé par la direction est de 7 000 € HT maximum pour la première année.") == {
+        "budget_year": 7000.0}  # fmt: skip
+    cons = cc.constraints(cc.requirement_lines(BACKUP))
+    assert cons == {"budget_year": 3000.0, "retention_days": 60, "country": "France"}
+
+
+def test_a_cost_far_from_the_computed_one_is_rejected():
+    costs = cc.compute_offers(cc.parse_offers(COPIERS), {"months": 48})
+    blocks = dict(cc.offer_blocks(COPIERS))
+    assert cc.cost_claims("Konica Minolta : coût total annuel de 170 424 €.", costs, blocks) == ["170 424"]
+    assert cc.cost_claims("Konica Minolta : environ 19 900 € par an, loyer 1 140 €.", costs, blocks) == []
+    assert cc.cost_claims("Canon coûte 18 900 € et Konica 170 424 €.", costs, blocks) == []  # two offers: not tied
+
+
+def test_the_analyst_is_replaced_where_the_code_reads_the_offer():
+    model = [{"name": "Konica Minolta", "monthly_items": [{"label": "loyer", "amount": 1140, "qty": 12}], "one_off": [],
+              "months": 48}, {"name": "Autre", "monthly_items": [{"label": "x", "amount": 10, "qty": 1}], "one_off": []}]  # fmt: skip
+    offers, unchecked = Crew._reconcile(model, cc.parse_offers(COPIERS))
+    konica = next(o for o in offers if o["name"] == "Konica Minolta")
+    assert konica["monthly_items"][0] == {"label": "Loyer", "amount": 1140.0, "qty": 1.0} and unchecked == ["Autre"]
+    assert {o["name"] for o in offers} >= {"Canon", "Sharp"}
+
+
 def test_compare_write_end_to_end(tmp_path):
     table = {
         "columns": ["Offre", "Prix"],
@@ -526,7 +627,7 @@ def test_compare_write_end_to_end(tmp_path):
     run = Crew(agent, decide(ASK_OFFERS)).run(ASK_OFFERS, ASK_OFFERS)
     assert run.drafts and run.drafts[0]["to"] == ["claire.martin@atelier-durand.fr"]
     assert "**InfoServ Rhône**" in run.answer and "19 400 €" in run.answer.replace(" ", " ")
-    assert len(llm.prompts) == 4 and llm.peak >= 2  # reader + analyst, then 2 drafts, side by side
+    assert len(llm.prompts) == 3 and llm.peak >= 2  # reader, then 2 drafts side by side; costs read in code
 
 
 # ------------------------------------------------------------------ 6. orchestration and limits
