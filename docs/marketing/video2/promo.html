@@ -8,7 +8,9 @@
   Deterministic composition: window.render(t) draws the frame at time t (seconds).
   No CSS animations, no timers. Product footage = real Playwright captures of the
   live Bird endpoint, shown unedited (only scaled / panned / sped up, with a visible
-  "Accéléré" chip while sped up). Assets are prepared by prep.py.
+  "Accéléré" chip while sped up). The app header bar is masked by a plain phone top
+  (the capture browser lacked the app's heading font). Assets are prepared by prep.py.
+  window.AUDIO lists the voice-over and sound-effect cues used by audio.py.
 -->
 <style>
   :root { --navy:#0B1B3F; --blue:#1E5BD8; --light:#8FB3FF; --paper:#F6F5F0; }
@@ -22,12 +24,15 @@
 
   /* hook */
   #hook { inset:0; }
-  #h1 { left:0; right:0; top:700px; text-align:center; font-size:156px; color:var(--light); line-height:1.02; white-space:nowrap; }
-  #h2 { left:0; right:0; top:690px; text-align:center; font-size:142px; line-height:1.02; }
+  #h1 { left:0; right:0; top:200px; text-align:center; line-height:1; }
+  #h1 .r1 { display:block; font-size:124px; color:#fff; white-space:nowrap; }
+  #h1 .r2 { display:block; font-size:300px; color:var(--light); white-space:nowrap; margin-top:-6px; letter-spacing:-0.04em; }
+  #h1 .r2 .w { transform-origin:50% 60%; }
+  #h2 { left:0; right:0; top:236px; text-align:center; font-size:140px; line-height:1.04; }
   #h2 .l { display:block; white-space:nowrap; }
   .w { display:inline-block; will-change:transform,opacity; }
-  #hmark { width:118px; height:103px; }
-  #hsub { left:0; right:0; top:1150px; text-align:center; font-size:40px; font-weight:500; color:var(--light); letter-spacing:0.005em; }
+  #hmark { width:112px; height:98px; }
+  #hsub { left:0; right:0; top:620px; text-align:center; font-size:42px; font-weight:500; color:var(--light); letter-spacing:0.005em; }
   #hsub b { color:#fff; font-weight:600; }
 
   /* device */
@@ -38,6 +43,13 @@
   .btn { position:absolute; width:5px; background:#1b2540; border-radius:3px; }
   #screen { position:absolute; left:14px; top:14px; width:580px; height:1255px; border-radius:62px; overflow:hidden; background:var(--paper); }
   #screen img { position:absolute; left:0; top:0; width:580px; height:1255px; }
+  /* plain phone top over the app header bar (56 css px = 83 screen px) */
+  #mask { position:absolute; left:0; top:0; width:580px; height:96px; background:var(--paper);
+          box-shadow:0 1px 0 rgba(11,27,63,.07); }
+  #island { position:absolute; left:226px; top:16px; width:128px; height:36px; border-radius:18px; background:#05080f; }
+  #spot { position:absolute; border:4px solid var(--light); border-radius:4px; background:rgba(143,179,255,.14);
+          display:none; }
+  .sd { position:absolute; background:rgba(11,27,63,.92); display:none; }
   #dim { position:absolute; inset:0; background:var(--navy); opacity:0; }
 
   /* caption */
@@ -52,53 +64,70 @@
           border:1.5px solid rgba(143,179,255,.45); display:flex; align-items:center; gap:8px; font-size:22px; font-weight:600; color:#dfe8ff; letter-spacing:.02em; }
 
   /* invoice card */
-  #inv { left:130px; top:548px; width:820px; transform-origin:50% 0; }
-  #invlab { position:absolute; z-index:2; left:22px; top:-20px; padding:8px 16px; border-radius:20px; background:var(--navy); border:1.5px solid rgba(143,179,255,.5); font-size:22px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--light); }
-  #invbox { position:relative; width:820px; height:512px; border-radius:22px; overflow:hidden; background:#fff;
-            box-shadow:0 40px 90px rgba(0,0,0,.5), 0 0 0 1px rgba(255,255,255,.2); }
-  #invbox img { width:820px; height:512px; display:block; }
+  #inv { left:90px; top:600px; width:900px; transform-origin:50% 50%; }
+  #invlab { position:absolute; z-index:2; left:0; top:-64px; padding:9px 20px; border-radius:24px; background:var(--navy); border:1.5px solid rgba(143,179,255,.55); font-size:26px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--light); white-space:nowrap; }
+  #invbox { position:relative; width:900px; height:562px; border-radius:24px; overflow:hidden; background:#fff;
+            box-shadow:0 40px 90px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.2); }
+  #invbox img { width:900px; height:562px; display:block; }
   #invhl { position:absolute; left:0; top:0; }
 
-  /* deck grid */
+  /* deck */
   #grid { left:0; top:0; width:1080px; height:1920px; }
-  .sl { position:absolute; width:466px; height:263px; border-radius:16px; overflow:hidden; box-shadow:0 28px 60px rgba(0,0,0,.45); background:#fff; }
-  .sl img { width:466px; height:263px; display:block; }
+  .big { position:absolute; left:0; top:0; width:940px; height:531px; border-radius:22px; overflow:hidden; background:#fff;
+         box-shadow:0 40px 90px rgba(0,0,0,.55), 0 0 0 1.5px rgba(143,179,255,.35); transform-origin:50% 50%; }
+  .big img { width:940px; height:531px; display:block; }
+  .sl { position:absolute; left:0; top:0; width:460px; height:260px; border-radius:16px; overflow:hidden; background:#fff;
+        box-shadow:0 24px 50px rgba(0,0,0,.5), 0 0 0 1.5px rgba(143,179,255,.35); transform-origin:50% 50%; }
+  .sl img { width:460px; height:260px; display:block; }
+  #gridlab { left:0; right:0; top:1540px; text-align:center; font-size:44px; font-weight:600; color:#fff; }
+  #gridlab span { color:var(--light); }
+  .dots { left:0; right:0; top:1330px; display:flex; justify-content:center; gap:16px; }
+  .dots i { width:14px; height:14px; border-radius:7px; background:rgba(143,179,255,.35); display:block; }
 
-  /* end card */
-  #end { inset:0; }
-  #emark { left:420px; top:470px; width:240px; height:210px; }
-  #credo { left:30px; right:30px; top:800px; text-align:center; font-size:50px; font-weight:500; line-height:1.3; color:#fff; }
-  #credo span { display:block; }
-  #ename { left:0; right:0; top:1150px; text-align:center; font-size:118px; }
-  #efr { left:0; right:0; top:1300px; text-align:center; font-size:38px; font-weight:500; color:var(--light); letter-spacing:.04em; }
-  #eline { left:490px; width:100px; top:1112px; height:6px; border-radius:3px; background:var(--blue); }
+  /* credo + tag */
+  #credo { left:40px; right:40px; top:600px; text-align:center; }
+  #ckick { font-size:32px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:var(--light); margin-bottom:34px; }
+  #credo .cl { display:block; font-family:'Inter Display','Inter',sans-serif; font-weight:700; font-size:100px; line-height:1.08; letter-spacing:-0.02em; white-space:nowrap; }
+  #credo .lb { color:var(--light); }
+  #credo .hl { position:relative; display:inline-block; padding:0 14px; }
+  #credo .hl i { position:absolute; left:0; top:8%; height:88%; width:100%; border-radius:14px; background:var(--blue); transform-origin:0 50%; z-index:-1; }
+  #credo .hlw { position:relative; z-index:0; display:inline-block; }
+  #cmark { left:476px; top:440px; width:128px; height:112px; }
+  #tag { inset:0; }
+  #emark { left:420px; top:560px; width:240px; height:210px; }
+  #ename { left:0; right:0; top:860px; text-align:center; font-size:132px; }
+  #eline { left:490px; width:100px; top:1040px; height:6px; border-radius:3px; background:var(--blue); }
+  #efr { left:0; right:0; top:1080px; text-align:center; font-size:44px; font-weight:500; color:var(--light); letter-spacing:.04em; }
 </style>
 </head>
 <body>
 <div id="stage">
   <canvas id="bg" class="abs" width="1080" height="1920"></canvas>
 
-  <div id="hook" class="abs">
-    <div id="h1" class="abs disp"><span class="w">Toujours</span><br><span class="w">plus</span> <span class="w">gros&nbsp;?</span></div>
-    <div id="h2" class="abs disp">
-      <span class="l"><span class="w">Nous,</span> <span class="w">on</span> <span class="w">fait</span></span>
-      <span class="l"><span class="w">tout</span> <span class="w" id="hpetit" style="color:var(--blue)">petit.</span><span class="w" id="hmarkw" style="margin-left:18px;vertical-align:0.38em"><svg id="hmark" viewBox="0 0 64 56"><g fill="#8FB3FF"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg></span></span>
-    </div>
-    <div id="hsub" class="abs">Performant. Sobre. <b>4&nbsp;milliards de paramètres.</b></div>
-  </div>
-
   <div id="device" class="abs">
     <div class="btn" style="left:-4px;top:250px;height:90px"></div>
     <div class="btn" style="left:-4px;top:370px;height:150px"></div>
     <div class="btn" style="right:-4px;top:320px;height:190px"></div>
-    <div id="screen"><img id="imA" alt=""><img id="imB" alt=""><div id="dim"></div></div>
+    <div id="screen"><img id="imA" alt=""><img id="imB" alt=""><div id="mask"><div id="island"></div></div><div class="sd"></div><div class="sd"></div><div class="sd"></div><div class="sd"></div><div id="spot"></div><div id="dim"></div></div>
   </div>
 
-  <div id="grid" class="abs"></div>
+  <div id="hook" class="abs">
+    <div id="h1" class="abs disp"><span class="r1"><span class="w">Toujours</span> <span class="w">plus</span></span><span class="r2"><span class="w">gros&nbsp;?</span></span></div>
+    <div id="h2" class="abs disp">
+      <span class="l"><span class="w">Nous,</span> <span class="w">on</span> <span class="w">fait</span></span>
+      <span class="l"><span class="w">tout</span> <span class="w" style="color:var(--light)">petit.</span><span class="w" id="hmarkw" style="margin-left:18px;vertical-align:0.38em"><svg id="hmark" viewBox="0 0 64 56"><g fill="#8FB3FF"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg></span></span>
+    </div>
+    <div id="hsub" class="abs">Performant. Sobre. <b>4&nbsp;milliards de paramètres.</b></div>
+  </div>
+
+  <div id="grid" class="abs">
+    <div class="dots abs"><i></i><i></i><i></i></div>
+    <div id="gridlab" class="abs">5 slides <span>+ couverture</span></div>
+  </div>
 
   <div id="inv" class="abs">
     <div id="invlab">Photo jointe · facture fictive</div>
-    <div id="invbox"><img id="invimg" alt=""><svg id="invhl" width="820" height="512"><rect id="invrect" x="383" y="383" width="410" height="60" rx="10" fill="rgba(143,179,255,.18)" stroke="#8FB3FF" stroke-width="7"/></svg></div>
+    <div id="invbox"><img id="invimg" alt=""><svg id="invhl" width="900" height="562" viewBox="0 0 820 512"><rect id="invrect" x="383" y="383" width="410" height="60" rx="10" fill="rgba(143,179,255,.18)" stroke="#8FB3FF" stroke-width="7"/></svg></div>
   </div>
 
   <div id="scrim" class="abs"></div>
@@ -109,12 +138,24 @@
   </div>
   <div id="chip" class="abs"><svg width="26" height="18" viewBox="0 0 26 18"><path d="M1 1l11 8-11 8zM13 1l11 8-11 8z" fill="#8FB3FF"/></svg><span id="chipt"></span></div>
 
-  <div id="end" class="abs">
-    <svg id="emark" class="abs" viewBox="0 0 64 56"><g fill="#fff"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z" fill="#8FB3FF"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>
-    <div id="credo" class="abs"><span>«&nbsp;Nous créons de tout petits modèles,</span><span>performants et sobres,</span><span>plutôt que toujours plus gros.&nbsp;»</span></div>
-    <div id="eline" class="abs"></div>
-    <div id="ename" class="abs disp">Bird S 4B</div>
-    <div id="efr" class="abs">Conçu en France</div>
+  <div id="end" class="abs" style="inset:0">
+    <svg id="cmark" class="abs" viewBox="0 0 64 56"><g fill="#8FB3FF"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>
+    <div id="credo" class="abs">
+      <div id="ckick">Notre credo</div>
+      <span class="cl">«&nbsp;Nous créons</span>
+      <span class="cl">de <span class="hl"><i></i><span class="hlw">tout petits</span></span></span>
+      <span class="cl">modèles,</span>
+      <span class="cl">performants</span>
+      <span class="cl">et sobres,</span>
+      <span class="cl lb">plutôt que toujours</span>
+      <span class="cl lb">plus gros.&nbsp;»</span>
+    </div>
+    <div id="tag" class="abs">
+      <svg id="emark" class="abs" viewBox="0 0 64 56"><g fill="#fff"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z" fill="#8FB3FF"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>
+      <div id="ename" class="abs disp">Bird S 4B</div>
+      <div id="eline" class="abs"></div>
+      <div id="efr" class="abs">Conçu en France</div>
+    </div>
   </div>
 </div>
 
@@ -131,33 +172,36 @@
   const S = {
     hook:    [0.0, 3.0],
     mail:    [3.0, 8.6],
-    deck:    [8.6, 14.6],
-    invoice: [14.6, 20.2],
-    receipt: [20.2, 25.6],
-    end:     [25.6, 29.4],
+    deck:    [8.6, 15.2],
+    invoice: [15.2, 20.6],
+    receipt: [20.6, 25.0],
+    credo:   [25.0, 31.1],
+    tag:     [31.1, 32.6],
   };
-  const DURATION = 29.4;
+  const DURATION = 32.6;
   const WHIP = 0.2;            // 6 frames at 30 fps
-  const CONV = ['mail', 'deck', 'invoice', 'receipt'];
+  const CONV = ['hook', 'mail', 'deck', 'invoice', 'receipt'];
+  const SRC = { hook: 'receipt', mail: 'mail', deck: 'deck', invoice: 'invoice', receipt: 'receipt' };
 
-  // Capture mapping: [u0, u1, c0, c1, chip]  (scene-local seconds -> capture seconds)
+  // Capture mapping: [u0, u1, c0, c1, chipFactor]  (scene-local s -> capture s; chip shown when factor > 0)
   const MAP = {
-    mail:    [[0, 0.65, 0.30, 4.00, 1], [0.65, 2.25, 4.00, 8.90, 1]],
-    deck:    [[0, 0.65, 0.30, 4.50, 1], [0.65, 2.45, 4.50, 15.95, 1]],
-    invoice: [[0, 0.35, 0.13, 1.30, 0], [0.35, 1.00, 1.30, 4.25, 1], [1.00, 2.90, 4.25, 13.95, 1]],
-    receipt: [[0, 0.50, 0.12, 2.50, 1], [0.50, 1.15, 2.50, 3.90, 1], [3.60, 6.00, 7.20, 7.20, 0]],
+    hook:    [[0, 1.0, 2.61, 2.61, 0], [1.0, 2.4, 2.61, 3.86, 0]],
+    mail:    [[0, 1.5, 0.30, 1.80, 0], [1.5, 2.1, 1.80, 4.10, 4], [2.1, 2.9, 4.10, 8.90, 6]],
+    deck:    [[0, 1.3, 4.87, 15.98, 9], [1.3, 2.4, 15.98, 17.20, 0]],
+    invoice: [[0, 0.5, 3.85, 4.30, 0], [0.5, 1.5, 4.30, 13.60, 9], [1.5, 5.4, 13.60, 15.10, 0]],
+    receipt: [[0, 1.6, 3.90, 5.60, 0], [1.6, 2.2, 5.60, 8.38, 5], [2.2, 4.4, 8.38, 8.38, 0]],
   };
-  // the factor shown on the chip = speed-up of the waiting/streaming segment
-  const CHIPX = { mail: 3, deck: 6, invoice: 5, receipt: 2 };
 
-  // Camera keyframes: [u, scale, focusY (capture px, 0..2532), canvasY]
-  const BASE = [1.115, 0, 522];
+  // Camera keyframes: [u, scale, focusX, focusY (capture px), canvasY]
+  const BASE = [1.115, 585, 0, 522];
   const CAM = {
-    mail:    [[0, ...BASE], [2.30, ...BASE], [3.20, 1.38, 600, 1000], [5.60, 1.45, 620, 1000]],
-    deck:    [[0, ...BASE], [2.45, ...BASE], [3.15, 1.42, 760, 1080], [3.60, 1.44, 760, 1080], [6.0, 1.30, 760, 1150]],
-    invoice: [[0, ...BASE], [2.90, ...BASE], [3.55, 1.40, 1070, 1250], [5.60, 1.45, 1070, 1250]],
-    receipt: [[0, ...BASE], [1.15, ...BASE], [1.90, 1.44, 1120, 1200], [3.60, 1.50, 1120, 1200],
-              [3.6001, 1.44, 900, 1210], [5.40, 1.52, 900, 1210]],
+    hook:    [[0, 1.0, 585, 0, 820], [2.25, 1.0, 585, 0, 820], [2.6, 0.93, 585, 0, 830], [3.0, 0.93, 585, 0, 830]],
+    mail:    [[0, 1.6, 585, 470, 1080], [1.35, 1.62, 585, 470, 1080], [1.85, ...BASE], [2.45, ...BASE],
+              [3.05, 1.5, 585, 610, 1020], [5.6, 1.55, 585, 620, 1020]],
+    deck:    [[0, ...BASE], [1.0, ...BASE], [1.55, 1.5, 585, 620, 1100], [2.4, 1.53, 585, 620, 1100], [6.6, 1.4, 585, 620, 1100]],
+    invoice: [[0, 1.35, 585, 1950, 1250], [0.55, 1.35, 585, 1950, 1250], [1.0, ...BASE], [1.45, ...BASE],
+              [2.0, 1.6, 585, 1066, 1440], [5.4, 1.66, 585, 1066, 1440]],
+    receipt: [[0, 1.58, 585, 1160, 1230], [1.6, 1.62, 585, 1160, 1230], [2.35, 2.3, 339, 735, 1150], [4.4, 2.38, 339, 735, 1150]],
   };
 
   const CAPS = {
@@ -165,6 +209,20 @@
     deck:    { n: '02', k: 'Présentation', t: 'Un deck PowerPoint,<br><em>prêt à télécharger.</em>', s: '' },
     invoice: { n: '03', k: 'Image', t: 'Une photo de facture,<br><em>et c’est lu.</em>', s: '' },
     receipt: { n: '04', k: 'Empreinte', t: 'Chaque réponse<br><em>affiche son coût.</em>', s: 'Énergie : estimation, borne haute.' },
+  };
+
+  // credo line reveal times (absolute s), synced to the voice-over word timings
+  const CREDO_VO = 25.1;
+  const CREDO_T = [0, 0.7, 1.25, 1.95, 2.65, 3.8, 4.55].map((x) => CREDO_VO + x);
+
+  // audio cues for audio.py: voice-over clips and sound effects
+  window.AUDIO = {
+    vo: [[0.1, 'hook1'], [1.3, 'hook2'], [3.45, 'mail'], [8.85, 'deck'], [15.5, 'invoice'], [20.8, 'receipt'], [CREDO_VO, 'credo']],
+    sfx: [[0.0, 'whoosh'], [0.75, 'boom'], [1.15, 'squeeze'], [2.42, 'pop'], [3.0, 'whip'],
+          [5.08, 'send'], [5.9, 'pop'], [8.6, 'whip'], [9.9, 'pop'], [10.9, 'swish'], [11.8, 'swish'], [12.7, 'swish'],
+          [13.6, 'pop'], [15.2, 'whip'], [15.59, 'send'], [16.7, 'pop'], [16.8, 'swish'], [17.3, 'tick'],
+          [20.6, 'whip'], [22.95, 'pop'], [25.0, 'whoosh'], [25.85, 'shimmer'], [31.1, 'sting']],
+    duration: DURATION,
   };
 
   // ---------- helpers ----------
@@ -185,14 +243,15 @@
     return c;
   }
   function chipOn(key, u) {
-    for (const s of MAP[key]) if (s[4] && u >= s[0] && u < s[1]) return true;
-    return false;
+    for (const s of MAP[key]) if (s[4] && u >= s[0] && u < s[1]) return s[4];
+    return 0;
   }
   function frameSrc(key, c) {
-    const fr = C[key].frames;
+    const src = SRC[key];
+    const fr = C[src].frames;
     let idx = fr[0][0];
     for (const [i, t] of fr) { if (t <= c + 1e-6) idx = i; else break; }
-    return `${ASSETS}/${key}/${String(idx).padStart(4, '0')}.jpg`;
+    return `${ASSETS}/${src}/${String(idx).padStart(4, '0')}.jpg`;
   }
   function cam(key, u) {
     const ks = CAM[key];
@@ -201,7 +260,7 @@
       const a = ks[i], b = ks[i + 1];
       if (u <= b[0]) {
         const p = eio((u - a[0]) / (b[0] - a[0]));
-        return [lerp(a[1], b[1], p), lerp(a[2], b[2], p), lerp(a[3], b[3], p)];
+        return a.slice(1).map((v, j) => lerp(v, b[j + 1], p));
       }
     }
     return ks[ks.length - 1].slice(1);
@@ -209,9 +268,9 @@
 
   const K = 580 / 1170;      // capture px -> canvas px at scale 1
   const B = 14;              // bezel
-  function placeDevice(s, fy, ty, dx = 0, dy = 0, extraScale = 1) {
+  function placeDevice(s, fx, fy, ty, dy = 0, extraScale = 1) {
     s *= extraScale;
-    const L = 540 - 290 * s + dx;
+    const L = 540 - fx * K * s;
     const T = ty - fy * K * s + dy;
     $('device').style.transform = `translate(${L - B * s}px, ${T - B * s}px) scale(${s})`;
   }
@@ -219,7 +278,7 @@
   // ---------- background ----------
   const bg = $('bg').getContext('2d');
   function drawBg(t) {
-    const tt = Math.min(t, 28.2); // frozen during the final hold
+    const tt = Math.min(t, 31.4);
     bg.fillStyle = '#0B1B3F'; bg.fillRect(0, 0, 1080, 1920);
     const glow = (x, y, r, a) => {
       const g = bg.createRadialGradient(x, y, 0, x, y, r);
@@ -233,24 +292,21 @@
     bg.fillStyle = v; bg.fillRect(0, 1500, 1080, 420);
   }
 
-  // ---------- deck grid ----------
+  // ---------- deck elements ----------
   const grid = $('grid');
-  const slides = [];
+  const bigs = [], smalls = [];
+  for (const n of [1, 2, 6]) {
+    const d = document.createElement('div'); d.className = 'big';
+    const im = document.createElement('img'); im.src = `${ASSETS}/slides/slide${n}.png`;
+    d.appendChild(im); grid.appendChild(d); bigs.push(d);
+  }
   for (let n = 1; n <= 6; n++) {
     const d = document.createElement('div'); d.className = 'sl';
     const im = document.createElement('img'); im.src = `${ASSETS}/slides/slide${n}.png`;
-    d.appendChild(im); grid.appendChild(d); slides.push(d);
+    d.appendChild(im); grid.appendChild(d); smalls.push(d);
   }
+  const dots = grid.querySelectorAll('.dots i');
   $('invimg').src = `${ASSETS}/invoice.png`;
-
-  function setWords(container, times, t, dur = 0.28, rise = 46) {
-    const ws = container.querySelectorAll('.w');
-    ws.forEach((w, i) => {
-      const p = eout(prog(t, times[i], times[i] + dur));
-      w.style.opacity = p;
-      w.style.transform = `translateY(${(1 - p) * rise}px) scale(${0.92 + 0.08 * p})`;
-    });
-  }
 
   let lastSrc = { A: '', B: '' };
   function setImg(which, src) {
@@ -263,145 +319,181 @@
   window.DURATION = DURATION;
   window.render = async function (t) {
     drawBg(t);
-    const hook = $('hook'), end = $('end'), dev = $('device');
+    const dev = $('device');
 
-    // ---- HOOK ----
-    if (t < S.hook[1] + 0.15) {
+    // ---- HOOK headline (always a line on screen from 0 to 3 s) ----
+    const hook = $('hook');
+    if (t < S.hook[1] + 0.12) {
       hook.style.display = 'block';
       const h1 = $('h1');
-      setWords(h1, [0.05, 0.22, 0.40], t, 0.26, 40);
-      const grow = 1 + 0.10 * eout(prog(t, 0.1, 0.78));
-      const sq = ein(prog(t, 0.78, 1.05));
-      h1.style.transform = `scale(${grow * (1 - 0.96 * sq)})`;
-      h1.style.opacity = 1 - prog(t, 0.98, 1.05);
-      h1.style.filter = `blur(${sq * 6}px)`;
+      const w1 = h1.querySelectorAll('.w');
+      [-0.1, -0.1].forEach((t0, i) => {
+        const p = eout(prog(t, t0, t0 + 0.3));
+        w1[i].style.opacity = p;
+        w1[i].style.transform = `translateY(${(1 - p) * 40}px)`;
+      });
+      // "gros ?" lands big, keeps growing, then gets squeezed
+      const g = w1[2];
+      const pg = prog(t, 0.72, 0.98);
+      const grow = lerp(0.5, 1, back(pg)) * (1 + 0.08 * eout(prog(t, 0.98, 1.06)));
+      const sq = ein(prog(t, 1.06, 1.3));
+      g.style.opacity = clamp(pg * 3) * (1 - prog(t, 1.24, 1.32));
+      g.style.transform = `scale(${grow * (1 - 0.93 * sq)}, ${grow * (1 - 0.6 * sq)})`;
+      const r1o = 1 - prog(t, 1.08, 1.24);
+      h1.querySelector('.r1').style.opacity = r1o;
+      h1.querySelector('.r1').style.transform = `translateY(${(1 - r1o) * -30}px)`;
       const h2 = $('h2');
       const ws = h2.querySelectorAll('.w');
-      const times = [1.10, 1.24, 1.38, 1.62, 1.78, 2.02];
+      const times = [1.28, 1.28, 1.28, 2.2, 2.2, 2.62];
       ws.forEach((w, i) => {
         if (w.id === 'hmarkw') {
           const p = prog(t, times[i], times[i] + 0.36);
           w.style.opacity = clamp(p * 4);
           w.style.transform = `translate(${(1 - eout(p)) * 120}px, ${(1 - back(p)) * -150}px) rotate(${(1 - eout(p)) * -24}deg)`;
         } else {
-          const p = eout(prog(t, times[i], times[i] + 0.26));
+          const p = eout(prog(t, times[i], times[i] + 0.24));
           w.style.opacity = p;
-          w.style.transform = `translateY(${(1 - p) * 50}px)`;
+          w.style.transform = `translateY(${(1 - p) * 50}px) scale(${lerp(1.25, 1, p)})`;
         }
       });
-      const hs = eout(prog(t, 2.2, 2.5));
-      $('hsub').style.opacity = hs;
+      const hs = eout(prog(t, 2.5, 2.75));
       $('hsub').style.transform = `translateY(${(1 - hs) * 20}px)`;
-      // exit
-      const ex = ein(prog(t, S.hook[1] - 0.12, S.hook[1] + 0.08));
-      h2.style.transform = `translateY(${-ex * 260}px)`;
+      const ex = ein(prog(t, S.hook[1] - 0.14, S.hook[1] + 0.1));
+      h2.style.transform = `translateY(${-ex * 220}px)`;
       h2.style.opacity = 1 - ex; $('hsub').style.opacity = hs * (1 - ex);
       h2.style.filter = `blur(${ex * 10}px)`;
     } else hook.style.display = 'none';
 
-    // ---- CONVERSATIONS ----
-    const convStart = S.mail[0] - WHIP / 2, convEnd = S.receipt[1] + WHIP / 2;
-    const showDev = t >= convStart && t < convEnd;
+    // ---- CONVERSATIONS (phone) ----
+    const convEnd = S.receipt[1] + WHIP / 2;
+    const showDev = t < convEnd;
     dev.style.display = showDev ? 'block' : 'none';
     const imA = $('imA'), imB = $('imB');
     let waitImgs = [];
-    let curKey = null;
     let gridOn = false, invOn = false;
+    let spotOn = false;
+    dev.style.opacity = 1; dev.style.filter = 'none';
     if (showDev) {
-      // which scene(s)
-      let key = CONV.find((k) => t >= S[k][0] && t < S[k][1]) || (t < S.mail[0] ? 'mail' : 'receipt');
-      curKey = key;
+      let key = CONV.find((k) => t >= S[k][0] && t < S[k][1]) || 'receipt';
       const u = t - S[key][0];
-      let [s, fy, ty] = cam(key, u);
-      // whip between conversation scenes
+      let [s, fx, fy, ty] = cam(key, u);
       let whip = null;
       for (let i = 0; i < CONV.length - 1; i++) {
         const Bt = S[CONV[i]][1];
         if (t >= Bt - WHIP / 2 && t < Bt + WHIP / 2) whip = { from: CONV[i], to: CONV[i + 1], p: (t - (Bt - WHIP / 2)) / WHIP };
       }
-      let dy = 0, extra = 1, rot = 0;
+      let dy = 0, extra = 1;
       if (whip) {
         const p = eio(whip.p);
         const ca = cam(whip.from, S[whip.from][1] - S[whip.from][0]);
         const cb = cam(whip.to, 0);
-        s = lerp(ca[0], cb[0], p); fy = lerp(ca[1], cb[1], p); ty = lerp(ca[2], cb[2], p);
-        const srcA = frameSrc(whip.from, capTime(whip.from, S[whip.from][1] - S[whip.from][0]));
-        const srcB = frameSrc(whip.to, capTime(whip.to, 0));
-        setImg('A', srcA); setImg('B', srcB);
+        [s, fx, fy, ty] = ca.map((v, j) => lerp(v, cb[j], p));
+        setImg('A', frameSrc(whip.from, capTime(whip.from, S[whip.from][1] - S[whip.from][0])));
+        setImg('B', frameSrc(whip.to, capTime(whip.to, 0)));
         const bl = Math.sin(Math.PI * whip.p) * 10;
         imA.style.transform = `translateX(${-p * 100}%)`; imA.style.filter = `blur(${bl}px)`;
         imB.style.transform = `translateX(${(1 - p) * 100}%)`; imB.style.filter = `blur(${bl}px)`;
         imB.style.display = 'block';
         waitImgs = [imA, imB];
       } else {
-        const src = frameSrc(key, capTime(key, u));
-        setImg('A', src);
+        setImg('A', frameSrc(key, capTime(key, u)));
         imA.style.transform = 'none'; imA.style.filter = 'none';
         imB.style.display = 'none';
         waitImgs = [imA];
       }
-      // entrance from the hook / exit to the end card
-      if (t < S.mail[0] + WHIP / 2) {
-        const p = eout(prog(t, convStart, S.mail[0] + WHIP / 2));
-        dy = (1 - p) * 1200;
-      }
+      if (t < 0.7) dy = (1 - eout(prog(t, 0, 0.7))) * 700;     // slides in under the headline
       if (t > S.receipt[1] - WHIP / 2) {
         const p = ein(prog(t, S.receipt[1] - WHIP / 2, convEnd));
         dy = p * 1300; extra = 1 - 0.15 * p;
       }
-      placeDevice(s, fy, ty, 0, dy, extra);
+      placeDevice(s, fx, fy, ty, dy, extra);
 
-      // deck: real slide previews fill the frame
+      // deck: phone fades back, 3 big slides then the full 6-slide set
       let dimv = 0;
       if (key === 'deck' && !whip) {
-        const g0 = 3.45;
-        const pin = prog(u, g0, g0 + 0.55);
-        const pout = prog(u, 5.75, 5.95);
-        dimv = 0.72 * eout(pin) * (1 - pout);
+        const g0 = 2.3;
         if (u >= g0) {
           gridOn = true;
-          const push = 1 + 0.045 * eio(prog(u, g0 + 0.4, 5.9));
-          slides.forEach((d, i) => {
+          const pin = eout(prog(u, g0, g0 + 0.35));
+          const pout = prog(u, 6.35, 6.6);
+          dev.style.opacity = lerp(1, 0.2, pin) + 0.8 * pout;
+          dev.style.filter = `blur(${8 * pin * (1 - pout)}px)`;
+          // carousel: focus index f moves 0 -> 1 -> 2
+          const f = eio(prog(u, 3.15, 3.45)) + eio(prog(u, 4.05, 4.35));
+          const cOut = prog(u, 4.9, 5.1);
+          bigs.forEach((d, i) => {
+            const rel = i - f;
+            const pi = back(prog(u, g0 + 0.05 + i * 0.06, g0 + 0.5 + i * 0.06));
+            const x = 70 + rel * 900 + (1 - pi) * 200;
+            const sc = (1 - 0.14 * Math.min(1, Math.abs(rel))) * lerp(0.6, 1, pi) * (1 - 0.3 * cOut);
+            const y = 690 + (1 - pi) * 300;
+            d.style.transform = `translate(${x}px, ${y}px) scale(${sc}) rotate(${rel * 3}deg)`;
+            d.style.opacity = clamp(pi * 3) * (1 - cOut) * (1 - 0.45 * Math.min(1, Math.abs(rel)));
+            d.style.zIndex = String(10 - Math.round(Math.abs(rel) * 3));
+          });
+          dots.forEach((dt, i) => { dt.style.background = Math.round(f) === i ? '#8FB3FF' : 'rgba(143,179,255,.35)'; });
+          grid.querySelector('.dots').style.opacity = eout(prog(u, g0 + 0.3, g0 + 0.5)) * (1 - cOut);
+          // full set
+          smalls.forEach((d, i) => {
             const col = i % 2, row = Math.floor(i / 2);
-            const tx = 54 + col * (466 + 40), tyy = 660 + row * (263 + 36);
-            const p = back(clamp((u - g0 - i * 0.09) / 0.5));
-            const pe = clamp((u - g0 - i * 0.09) / 0.5);
-            // start from the preview card position inside the phone
-            const sx = 300, sy = 1080;
-            const x = lerp(sx, tx, p), y = lerp(sy, tyy, p);
-            const sc = lerp(0.45, 1, eout(pe)) * push;
-            const cx = (x + 233 - 540) * push + 540 - 233, cy = (y + 131 - 1060) * push + 1060 - 131;
-            d.style.transform = `translate(${cx}px, ${cy}px) scale(${sc})`;
+            const tx = 60 + col * (460 + 40), tyy = 600 + row * (260 + 40);
+            const pe = prog(u, 5.0 + i * 0.07, 5.45 + i * 0.07);
+            const sc = lerp(0.6, 1, back(pe)) * (1 + 0.03 * prog(u, 5.5, 6.6));
+            d.style.transform = `translate(${tx}px, ${tyy + (1 - eout(pe)) * 80}px) scale(${sc})`;
             d.style.opacity = clamp(pe * 3) * (1 - pout);
           });
+          const pl = eout(prog(u, 5.4, 5.7));
+          $('gridlab').style.opacity = pl * (1 - pout);
+          $('gridlab').style.transform = `translateY(${(1 - pl) * 20}px)`;
         }
       }
       $('dim').style.opacity = dimv;
 
-      // invoice: the attached photo, with the total highlighted
+      // invoice: the attached photo above, Bird's one-line answer zoomed below
       if (key === 'invoice' && !whip) {
-        const i0 = 2.95;
+        const i0 = 1.55;
         if (u >= i0) {
           invOn = true;
-          const p = eout(prog(u, i0, i0 + 0.5));
-          const pout = prog(u, 5.35, 5.55);
+          const p = eout(prog(u, i0, i0 + 0.45));
+          const pout = prog(u, 5.15, 5.35);
           const inv = $('inv');
           inv.style.opacity = clamp(p * 1.5) * (1 - pout);
-          inv.style.transform = `translate(${(1 - p) * 120}px, ${(1 - p) * 90}px) scale(${lerp(0.55, 1, p) * (1 + 0.03 * prog(u, i0 + 0.5, 5.6))})`;
+          inv.style.transform = `translateY(${(1 - p) * 120}px) scale(${lerp(0.8, 1, p) * (1 + 0.025 * prog(u, i0 + 0.5, 5.4))})`;
           const r = $('invrect');
           const L = 2 * (410 + 60);
-          const pd = eio(prog(u, 3.55, 4.15));
+          const pd = eio(prog(u, 2.1, 2.6));
           r.setAttribute('stroke-dasharray', `${L * pd} ${L}`);
-          r.setAttribute('fill', `rgba(143,179,255,${0.22 * prog(u, 4.0, 4.3)})`);
+          r.setAttribute('fill', `rgba(143,179,255,${0.22 * prog(u, 2.5, 2.8)})`);
         }
       }
+
+      // footprint: spotlight on the energy row
+      if (key === 'receipt' && !whip && u >= 2.3) {
+        spotOn = true;
+        const p = eout(prog(u, 2.3, 2.6));
+        const sp = $('spot');
+        const k = 580 / 390;   // css px -> screen px
+        const x0 = 4 * k, y0 = 218 * k, w = 222 * k, h = 52 * k;
+        const grow = lerp(1.25, 1, p);
+        sp.style.left = (x0 - (grow - 1) * w / 2) + 'px'; sp.style.top = (y0 - (grow - 1) * h / 2) + 'px';
+        sp.style.width = w * grow + 'px'; sp.style.height = h * grow + 'px';
+        sp.style.opacity = p;
+        const L0 = x0 - (grow - 1) * w / 2, T0 = y0 - (grow - 1) * h / 2, W0 = w * grow, H0 = h * grow;
+        const sds = document.querySelectorAll('.sd');
+        const boxes = [[0, 0, 580, T0], [0, T0 + H0, 580, 1255 - T0 - H0], [0, T0, L0, H0], [L0 + W0, T0, 580 - L0 - W0, H0]];
+        sds.forEach((d, i) => { const b = boxes[i]; d.style.left = b[0] + 'px'; d.style.top = b[1] + 'px';
+          d.style.width = Math.max(0, b[2]) + 'px'; d.style.height = Math.max(0, b[3]) + 'px'; d.style.opacity = p; });
+        sp.style.borderWidth = (4 / s) * 1.6 + 'px';
+      }
     }
+    $('spot').style.display = spotOn ? 'block' : 'none';
+    document.querySelectorAll('.sd').forEach((d) => { d.style.display = spotOn ? 'block' : 'none'; });
     grid.style.display = gridOn ? 'block' : 'none';
     $('inv').style.display = invOn ? 'block' : 'none';
 
     // ---- CAPTION ----
     const capEl = $('cap'), chip = $('chip');
-    let capKey = CONV.find((k) => t >= S[k][0] && t < S[k][1]);
+    const capKey = ['mail', 'deck', 'invoice', 'receipt'].find((k) => t >= S[k][0] && t < S[k][1]);
     if (capKey) {
       const c = CAPS[capKey], u = t - S[capKey][0], len = S[capKey][1] - S[capKey][0];
       capEl.style.display = 'block'; $('scrim').style.display = 'block';
@@ -409,47 +501,59 @@
       capEl.querySelector('.n').textContent = c.n;
       capEl.querySelector('.k').textContent = c.k;
       $('ctext').innerHTML = c.t; $('csub').textContent = c.s;
-      const pin = eout(prog(u, 0.08, 0.42)), pout = ein(prog(u, len - 0.16, len));
+      const pin = eout(prog(u, 0.06, 0.38)), pout = ein(prog(u, len - 0.16, len));
       capEl.style.opacity = pin * (1 - pout);
       capEl.style.transform = `translateY(${(1 - pin) * -40 + pout * -24}px)`;
-      $('csub').style.opacity = eout(prog(u, 2.0, 2.4));
-      const on = chipOn(capKey, u) && u > 0.1;
-      chip.style.display = on ? 'flex' : 'none';
-      $('chipt').textContent = `Accéléré ×${CHIPX[capKey]}`;
+      $('csub').style.opacity = eout(prog(u, 1.8, 2.2));
+      const f = chipOn(capKey, u);
+      chip.style.display = f && u > 0.1 ? 'flex' : 'none';
+      $('chipt').textContent = `Accéléré ×${f}`;
     } else {
       capEl.style.display = 'none'; chip.style.display = 'none';
       $('scrim').style.display = (t > S.mail[0] - 0.1 && t < S.receipt[1] + 0.1) ? 'block' : 'none';
     }
 
-    // ---- END CARD ----
-    if (t >= S.end[0] - 0.05) {
+    // ---- CREDO, then TAG ----
+    const end = $('end');
+    if (t >= S.credo[0] - 0.05) {
       end.style.display = 'block';
-      const e = t - S.end[0];
-      const pm = prog(e, 0.12, 0.62);
-      $('emark').style.opacity = clamp(pm * 3);
-      $('emark').style.transform = `scale(${0.2 + 0.8 * back(pm)})`;
-      const lines = $('credo').querySelectorAll('span');
+      const e = t - S.credo[0];
+      const cOut = ein(prog(t, S.tag[0] - 0.2, S.tag[0] + 0.1));
+      const pm = prog(e, 0.0, 0.45);
+      $('cmark').style.opacity = clamp(pm * 3) * (1 - cOut);
+      $('cmark').style.transform = `scale(${0.3 + 0.7 * back(pm)})`;
+      const pk = eout(prog(e, 0.05, 0.4));
+      $('ckick').style.opacity = pk;
+      const lines = $('credo').querySelectorAll('.cl');
       lines.forEach((l, i) => {
-        const p = eout(prog(e, 0.55 + i * 0.22, 0.95 + i * 0.22));
-        l.style.opacity = p; l.style.transform = `translateY(${(1 - p) * 30}px)`;
+        const p = eout(prog(t, CREDO_T[i] - 0.05, CREDO_T[i] + 0.3));
+        l.style.opacity = p; l.style.transform = `translateY(${(1 - p) * 40}px)`;
+        l.style.filter = `blur(${(1 - p) * 6}px)`;
       });
-      const pl = eout(prog(e, 1.25, 1.6));
-      $('eline').style.transform = `scaleX(${pl})`; $('eline').style.opacity = pl;
-      const pn = eout(prog(e, 1.35, 1.75));
+      const hl = $('credo').querySelector('.hl i');
+      hl.style.transform = `scaleX(${eio(prog(t, CREDO_T[1] + 0.15, CREDO_T[1] + 0.55))})`;
+      $('credo').style.opacity = 1 - cOut;
+      $('credo').style.transform = `translateY(${-cOut * 80}px) scale(${1 + 0.015 * prog(t, CREDO_T[0], S.tag[0])})`;
+      // tag
+      const g = t - S.tag[0];
+      const pt = prog(g, 0.0, 0.4);
+      $('emark').style.opacity = clamp(pt * 3);
+      $('emark').style.transform = `scale(${0.2 + 0.8 * back(pt)})`;
+      const pn = eout(prog(g, 0.12, 0.45));
       $('ename').style.opacity = pn; $('ename').style.transform = `translateY(${(1 - pn) * 36}px)`;
-      const pf = eout(prog(e, 1.7, 2.1));
+      const pl = eout(prog(g, 0.3, 0.6));
+      $('eline').style.opacity = pl; $('eline').style.transform = `scaleX(${pl})`;
+      const pf = eout(prog(g, 0.4, 0.7));
       $('efr').style.opacity = pf; $('efr').style.transform = `translateY(${(1 - pf) * 20}px)`;
     } else end.style.display = 'none';
 
-    // wait for every image used in this frame
     const imgs = [...waitImgs];
-    if (gridOn) slides.forEach((d) => imgs.push(d.firstChild));
+    if (gridOn) [...bigs, ...smalls].forEach((d) => imgs.push(d.firstChild));
     if (invOn) imgs.push($('invimg'));
     await Promise.all(imgs.map((im) => im.decode().catch(() => {})));
     return true;
   };
 
-  // preview in a browser: ?t=12.3
   if (params.has('t')) document.fonts.ready.then(() => window.render(parseFloat(params.get('t'))));
 })();
 </script>

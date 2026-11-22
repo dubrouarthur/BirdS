@@ -1390,9 +1390,13 @@ function bind() {
   for (const [id, view] of [
     ["nav-footprint", "footprint"],
     ["nav-settings", "settings"],
-    ["nav-about", "about"],
   ])
     $(id).addEventListener("click", () => showView(view));
+  // "À propos" opens the corporate site (served under /a-propos/ by the same deployment)
+  $("nav-about").addEventListener("click", () => {
+    if (state.health?.site_url) window.location.href = state.health.site_url;
+    else showView("about");
+  });
   $("nav-shortcuts").addEventListener("click", openShortcuts);
   $("btn-jump").addEventListener("click", () => scrollToEnd(true));
   scroller().addEventListener(

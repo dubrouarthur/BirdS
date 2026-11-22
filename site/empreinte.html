@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Empreinte — Bird Models</title>
+<meta name="description" content="Méthode, mesures et comparaisons sourcées : ce que consomment l’entraînement et les réponses de Bird S 4B, et les limites de ces chiffres.">
+<meta name="theme-color" content="#F6F5F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#081230" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta property="og:title" content="Empreinte — Bird Models">
+<meta property="og:description" content="Méthode, mesures et comparaisons sourcées : ce que consomment l’entraînement et les réponses de Bird S 4B, et les limites de ces chiffres.">
+<meta property="og:type" content="website">
+<link rel="alternate" hreflang="fr" href="/empreinte">
+<link rel="alternate" hreflang="en" href="/en/footprint">
+<link rel="alternate" hreflang="x-default" href="/empreinte">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/config.js"></script>
+<script src="/assets/site.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Aller au contenu</a>
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="/" aria-label="Bird Models, accueil"><svg viewBox="0 0 64 56" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg><span class="brand-name">Bird Models</span></a>
+    <nav class="nav" id="nav" aria-label="Navigation principale">
+      <ul><li><a href="/">La philosophie</a></li><li><a href="/demarche">Notre démarche</a></li><li><a href="/empreinte" aria-current="page">Empreinte</a></li><li><a href="#contact">Contact</a></li></ul>
+    </nav>
+    <div class="tools">
+      <a class="lang" href="/en/footprint" hreflang="en" lang="en" aria-label="Read in English">EN</a>
+      <button class="icon-btn theme-btn" type="button" aria-pressed="false" aria-label="Thème sombre"><svg class="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></g></svg><svg class="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
+      <button class="icon-btn menu-btn" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 8h16M4 16h16"/></svg></button>
+      <a class="btn btn-sm header-cta" href="#essayer" data-try>Essayer Bird</a>
+    </div>
+  </div>
+</header>
+<main id="main">
+<section class="page-hero" aria-labelledby="page-h">
+  <div class="wrap">
+    <p class="eyebrow">Empreinte</p>
+    <h1 class="display" id="page-h">Empreinte.</h1>
+    <p class="lede">Nos chiffres, comment on les obtient, et ce qu’ils ne disent pas.</p>
+    <ul class="toc"><li><a href="#methode">Méthode</a></li><li><a href="#chiffres">Nos chiffres</a></li><li><a href="#token">Calcul par token</a></li><li><a href="#autres">Pour situer</a></li><li><a href="#precautions">Précautions</a></li></ul>
+  </div>
+</section>
+<section class="section" id="methode" aria-labelledby="methode-h">
+  <div class="wrap chapter">
+    <p class="chapter-k"><span aria-hidden="true">1</span>Notre méthode</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="methode-h">Comment on compte.</h2><p class="prose"><strong>Dans le produit.</strong> Chaque réponse affiche trois choses : les tokens lus et écrits, le temps de calcul, et une estimation d’énergie.</p><p class="prose">Cette estimation est une <strong>borne haute</strong>. On multiplie la puissance de la carte GPU par le temps où elle travaille, puis par un PUE de 1,15 pour tenir compte du centre de données. La carte consomme souvent moins que sa puissance nominale : le vrai chiffre est en dessous.</p><p class="prose"><strong>Ce qu’on ne compte pas.</strong> La fabrication du matériel, le réseau, votre appareil. Nous ne publions pas de chiffre d’eau. Nous ne convertissons pas en CO₂ quand l’intensité carbone du réseau n’est pas déclarée.</p><p class="prose"><strong>Où ça tourne.</strong> Le modèle est servi depuis AWS, région us-east-1. Conçu en France, oui ; hébergé en France, non. Vos conversations, elles, restent dans votre navigateur.</p><figure><div class="shot"><div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="/assets/img/report.webp" alt="Écran Empreinte de Bird : tokens, temps de calcul et énergie estimée d’une conversation." width="960" height="1260" loading="lazy" decoding="async"></div><figcaption>L’écran Empreinte dans le produit : « Émissions non calculées » quand l’intensité carbone n’est pas déclarée.</figcaption></figure></div>
+  </div>
+</section>
+<section class="section" id="chiffres" aria-labelledby="chiffres-h">
+  <div class="wrap chapter">
+    <p class="chapter-k"><span aria-hidden="true">2</span>Nos chiffres</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="chiffres-h">Ce que nous avons mesuré.</h2><div class="table-wrap"><table class="stack"><caption>Mesures de Bird Models</caption><thead><tr><th scope="col">Mesure</th><th scope="col">Valeur</th><th scope="col">Méthode</th></tr></thead><tbody><tr><th scope="row">Entraînement de la version actuelle</th><td data-label="Valeur"><strong class="tv">1,8 kWh</strong></td><td data-label="Méthode">Mesuré sur le GPU. 1 × NVIDIA L40S, 5 h 26.</td></tr><tr><th scope="row">Génération</th><td data-label="Valeur"><strong class="tv">0,36 Wh / 1 000 tokens</strong></td><td data-label="Méthode">Notre banc de mesure. GPU seul, NVIDIA A10G, requêtes groupées.</td></tr><tr><th scope="row">Une réponse courte</th><td data-label="Valeur"><strong class="tv">0,04 à 0,13 Wh</strong></td><td data-label="Méthode">Estimation haute : 72 W × 1,7 à 5,5 s × PUE 1,15.</td></tr></tbody></table></div></div>
+  </div>
+</section>
+<section class="section" id="token" aria-labelledby="token-h">
+  <div class="wrap chapter">
+    <p class="chapter-k"><span aria-hidden="true">3</span>Le calcul par token</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="token-h">Pourquoi la taille compte.</h2><p class="prose">Le calcul nécessaire pour générer un token croît avec le nombre de paramètres actifs. Bird en a 4 milliards. Un grand modèle dense peut en avoir autour de 400 milliards.</p><p class="prose">Soit environ <strong>100 fois moins de calcul par token, en théorie</strong>.</p><p class="prose">En pratique, l’énergie ne suit pas un pour un : le matériel, le taux d’occupation, la longueur des réponses et l’infrastructure changent tout. Ce ratio indique une direction, pas une économie garantie.</p></div>
+  </div>
+</section>
+<section class="section" id="autres" aria-labelledby="autres-h">
+  <div class="wrap chapter">
+    <p class="chapter-k"><span aria-hidden="true">4</span>Les chiffres publiés par d’autres</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="autres-h">Pour situer.</h2><div class="table-wrap"><table class="stack"><caption>Chiffres publiés, méthodes différentes</caption><thead><tr><th scope="col">Source</th><th scope="col">Énergie</th><th scope="col">Eau</th><th scope="col">Précisions</th></tr></thead><tbody><tr><th scope="row">OpenAI — requête ChatGPT moyenne</th><td data-label="Énergie"><strong class="tv">≈ 0,34 Wh</strong></td><td data-label="Eau">≈ 0,32 mL</td><td data-label="Précisions">Sam Altman, « The Gentle Singularity », juin 2025. Méthode non publiée.</td></tr><tr><th scope="row">Google — requête texte médiane de Gemini</th><td data-label="Énergie"><strong class="tv">0,24 Wh</strong></td><td data-label="Eau">0,26 mL</td><td data-label="Précisions">Août 2025. <a href="https://arxiv.org/abs/2508.15734" rel="noopener">arxiv.org/abs/2508.15734</a></td></tr><tr class="ours"><th scope="row">Bird S 4B — réponse courte</th><td data-label="Énergie"><strong class="tv">0,04 à 0,13 Wh</strong></td><td data-label="Eau">non publié</td><td data-label="Précisions">Notre borne haute. GPU uniquement, PUE 1,15.</td></tr></tbody></table></div></div>
+  </div>
+</section>
+<section class="section" id="precautions" aria-labelledby="precautions-h">
+  <div class="wrap chapter">
+    <p class="chapter-k"><span aria-hidden="true">5</span>Les précautions</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="precautions-h">Ce que ce tableau ne permet pas de dire.</h2><ul class="list"><li><strong>Les méthodes diffèrent.</strong> Moyenne d’un côté, médiane de l’autre, borne haute chez nous. Périmètres différents. Une méthode n’est même pas publiée.</li><li><strong>Les requêtes diffèrent.</strong> Une « requête » ne fait pas la même longueur partout.</li><li><strong>Ce n’est pas un classement.</strong> Nous publions nos chiffres à côté des leurs pour donner un ordre de grandeur, pas pour annoncer une victoire.</li></ul><p class="prose">Si vous avez une meilleure méthode, <a href="#contact">écrivez-nous</a>. Nous la préférerons à la nôtre.</p></div>
+  </div>
+</section>
+
+<section class="section band final" id="essayer" aria-labelledby="fc-h">
+  <div class="wrap">
+    <svg class="final-mark" viewBox="0 0 64 56" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>
+    <h2 class="display" id="fc-h">Essayez la bonne taille.</h2>
+    <p class="prose">Bird S 4B est prêt pour vos mails, vos fichiers et vos recherches. Vous verrez ce que chaque réponse coûte.</p>
+    <div class="cta-row"><a class="btn" href="#essayer" data-try>Essayer Bird</a></div>
+  </div>
+</section>
+<section class="section" id="contact" aria-labelledby="contact-h">
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow">Contact</p>
+      <h2 class="h2" id="contact-h">Parlons-en.</h2>
+    </div>
+    <div class="reveal">
+      <p class="prose">Une question, une idée, une méthode plus juste ? Écrivez-nous.</p>
+      <p><a class="contact-mail" href="mailto:contact@birdmodels.example">contact@birdmodels.example</a></p>
+      <p><span class="todo">[À REMPLACER : adresse de contact provisoire]</span></p>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <p class="footer-brand"><svg viewBox="0 0 64 56" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>Bird Models</p>
+        <p class="footer-sign">Petit par conviction.</p>
+        <p class="footer-meta">Bird Models · Équipe française · Bird S 4B conçu en France</p>
+      </div>
+      <nav class="footer-nav" aria-label="Le site">
+        <p class="footer-k">Le site</p>
+        <ul><li><a href="/">La philosophie</a></li><li><a href="/demarche">Notre démarche</a></li><li><a href="/empreinte">Empreinte</a></li><li><a href="#contact">Contact</a></li></ul>
+      </nav>
+      <div class="footer-nav">
+        <p class="footer-k">Bird</p>
+        <ul><li><a href="#essayer" data-try>Essayer Bird</a></li><li><a href="/empreinte">Nos chiffres</a></li><li><a href="/en/">English</a></li></ul>
+      </div>
+    </div>
+    <p class="weight"><span>Cette page d’accueil pèse <strong>[XXX] Ko</strong>, images comprises. Mesuré, pas estimé.</span><span>Aucun traceur, aucune police externe, aucun cookie.</span></p>
+  </div>
+</footer>
+</body>
+</html>

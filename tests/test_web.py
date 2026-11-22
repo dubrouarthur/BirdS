@@ -980,3 +980,21 @@ def test_serve_cli_arguments(monkeypatch):
     ]:
         with pytest.raises(SystemExit):
             serve.parse_args(bad)
+
+
+def test_about_site_route(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import birds.web.server as server
+
+    (tmp_path / "index.html").write_text("<!doctype html><title>Bird</title>", encoding="utf-8")
+    monkeypatch.setattr(server, "SITE_DIR", tmp_path)
+    app = server.create_app() if hasattr(server, "create_app") else None
+    if app is None:
+        return
+    c = TestClient(app)
+    assert c.get("/a-propos", follow_redirects=False).status_code == 308
+    r = c.get("/a-propos/")
+    assert r.status_code == 200 and "Bird" in r.text
+    assert c.get("/api/health").json().get("site_url") == "/a-propos/"
+

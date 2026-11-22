@@ -6,5 +6,8 @@
 !pyproject.toml
 !requirements.txt
 !vercel.json
+!site
+site/screenshots
+site/COPY.md
 birds/synth
 **/__pycache__

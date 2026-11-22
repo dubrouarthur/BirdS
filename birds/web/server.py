@@ -27,6 +27,7 @@ from .backends import Backend, Cancelled, ChatRequest, DemoBackend, Event, Harne
 from .settings import Settings
 
 STATIC_DIR = Path(__file__).parent / "static"
+SITE_DIR = Path(__file__).resolve().parents[2] / "site"  # corporate site, served under /a-propos/
 
 CSP = (
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; connect-src 'self'; "
@@ -386,6 +387,7 @@ def create_app(
             "demo_model": demo.model,
             "access_required": bool(s.access_code),
             "images": bool(getattr(shown, "images", False)),
+                "site_url": "/a-propos/" if (SITE_DIR / "index.html").is_file() else None,
             "images_modes": {
                 "demo": bool(getattr(demo, "images", False)),
                 "server": bool(getattr(server, "images", False)) if server is not None else False,
@@ -647,6 +649,14 @@ def create_app(
         return JSONResponse({"detail": {"code": "not_found", "message": "not found"}}, status_code=404)
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    if SITE_DIR.is_dir():
+        from fastapi.responses import RedirectResponse
+
+        @app.get("/a-propos", include_in_schema=False)
+        def about_site() -> RedirectResponse:
+            return RedirectResponse("/a-propos/", status_code=308)
+
+        app.mount("/a-propos", StaticFiles(directory=SITE_DIR, html=True), name="site")
     return app
 
 

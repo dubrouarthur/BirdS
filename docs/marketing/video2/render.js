@@ -1,6 +1,8 @@
 // Frame renderer for promo.html.
 //   node render.js                 -> all frames at 30 fps + MP4 + contact sheet
 //   node render.js stills 1.2,5,9  -> a few PNG stills (for checking)
+//   node render.js mux             -> rebuild the soundtrack (audio.py) and re-mux it onto the existing frames' video
+//   AUDIO_PY = python with numpy (default: repo .venv)
 const { chromium } = require("playwright");
 const path = require("path");
 const fs = require("fs");
@@ -13,6 +15,17 @@ const FRAMES = path.join(SCR, "frames");
 const FPS = 30;
 const OUT = path.join(HERE, "bird-promo-v2-9x16.mp4");
 const SHEET = path.join(HERE, "contact.png");
+const SILENT = path.join(SCR, "video_silent.mp4");
+const CUES = path.join(SCR, "audio_cues.json");
+const WAV = path.join(SCR, "soundtrack.wav");
+const PY = process.env.AUDIO_PY || path.join(HERE, "..", "..", "..", ".venv", "bin", "python");
+
+function soundtrackAndMux() {
+  execFileSync(PY, ["-I", path.join(HERE, "audio.py"), CUES, WAV], { stdio: "inherit" });
+  execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", SILENT, "-i", WAV,
+    "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+    "-shortest", "-movflags", "+faststart", OUT], { stdio: "inherit" });
+}
 
 (async () => {
   const mode = process.argv[2] || "all";
@@ -24,6 +37,13 @@ const SHEET = path.join(HERE, "contact.png");
   await page.goto("file://" + path.join(HERE, "promo.html"));
   await page.evaluate(() => document.fonts.ready);
   const duration = await page.evaluate(() => window.DURATION);
+  fs.writeFileSync(CUES, JSON.stringify(await page.evaluate(() => window.AUDIO)));
+  if (mode === "mux") {
+    await browser.close();
+    soundtrackAndMux();
+    console.log("muxed", OUT);
+    return;
+  }
 
   if (mode === "stills") {
     const dir = path.join(SCR, "stills");
@@ -72,10 +92,11 @@ const SHEET = path.join(HERE, "contact.png");
       "+faststart",
       "-r",
       String(FPS),
-      OUT,
+      SILENT,
     ],
     { stdio: "inherit" },
   );
+  soundtrackAndMux();
 
   // contact sheet: 8 evenly spaced frames, 4x2
   const picks = Array.from({ length: 8 }, (_, k) =>

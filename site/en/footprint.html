@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Footprint — Bird Models</title>
+<meta name="description" content="Method, measurements and sourced comparisons: what training and answers from Bird S 4B consume, and the limits of those numbers.">
+<meta name="theme-color" content="#F6F5F0" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#081230" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta property="og:title" content="Footprint — Bird Models">
+<meta property="og:description" content="Method, measurements and sourced comparisons: what training and answers from Bird S 4B consume, and the limits of those numbers.">
+<meta property="og:type" content="website">
+<link rel="alternate" hreflang="fr" href="/empreinte">
+<link rel="alternate" hreflang="en" href="/en/footprint">
+<link rel="alternate" hreflang="x-default" href="/empreinte">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+<link rel="stylesheet" href="/assets/site.css">
+<script src="/config.js"></script>
+<script src="/assets/site.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header">
+  <div class="wrap bar">
+    <a class="brand" href="/en/" aria-label="Bird Models, home"><svg viewBox="0 0 64 56" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg><span class="brand-name">Bird Models</span></a>
+    <nav class="nav" id="nav" aria-label="Main navigation">
+      <ul><li><a href="/en/">Philosophy</a></li><li><a href="/en/approach">Our approach</a></li><li><a href="/en/footprint" aria-current="page">Footprint</a></li><li><a href="#contact">Contact</a></li></ul>
+    </nav>
+    <div class="tools">
+      <a class="lang" href="/empreinte" hreflang="fr" lang="fr" aria-label="Lire en français">FR</a>
+      <button class="icon-btn theme-btn" type="button" aria-pressed="false" aria-label="Dark theme"><svg class="sun" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6"/></g></svg><svg class="moon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
+      <button class="icon-btn menu-btn" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 8h16M4 16h16"/></svg></button>
+      <a class="btn btn-sm header-cta" href="#essayer" data-try>Try Bird</a>
+    </div>
+  </div>
+</header>
+<main id="main">
+<section class="page-hero" aria-labelledby="page-h">
+  <div class="wrap">
+    <p class="eyebrow">Footprint</p>
+    <h1 class="display" id="page-h">Footprint.</h1>
+    <p class="lede">Our numbers, how we get them, and what they don’t say.</p>
+    <ul class="toc"><li><a href="#method">Method</a></li><li><a href="#numbers">Our numbers</a></li><li><a href="#token">Compute per token</a></li><li><a href="#others">For context</a></li><li><a href="#caveats">Caveats</a></li></ul>
+  </div>
+</section>
+<section class="section" id="method" aria-labelledby="method-h">
+  <div class="wrap chapter">
+    <p class="chapter-k"><span aria-hidden="true">1</span>Method</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="method-h">How we count.</h2><p class="prose"><strong>In the product.</strong> Every answer shows three things: tokens read and written, compute time, and an energy estimate.</p><p class="prose">That estimate is an <strong>upper bound</strong>. We multiply the GPU board power by the time it is busy, then by a PUE of 1.15 for the data centre. The board often draws less than its rated power: the real figure is lower.</p><p class="prose"><strong>What we don’t count.</strong> Hardware manufacturing, the network, your device. We don’t publish a water figure. We don’t convert to CO₂ when the grid’s carbon intensity isn’t declared.</p><p class="prose"><strong>Where it runs.</strong> The model is served from AWS, us-east-1 region. Designed in France, yes; hosted in France, no. Your conversations stay in your browser.</p><figure><div class="shot"><div class="shot-bar" aria-hidden="true"><i></i><i></i><i></i></div><img src="/assets/img/report.webp" alt="Bird’s Footprint screen: tokens, compute time and estimated energy for a conversation." width="960" height="1260" loading="lazy" decoding="async"></div><figcaption>The Footprint screen in the product (French interface): emissions are not calculated when carbon intensity isn’t declared.</figcaption></figure></div>
+  </div>
+</section>
+<section class="section" id="numbers" aria-labelledby="numbers-h">
+  <div class="wrap chapter">
+    <p class="chapter-k"><span aria-hidden="true">2</span>Our numbers</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="numbers-h">What we measured.</h2><div class="table-wrap"><table class="stack"><caption>Bird Models measurements</caption><thead><tr><th scope="col">Measure</th><th scope="col">Value</th><th scope="col">Method</th></tr></thead><tbody><tr><th scope="row">Training the current version</th><td data-label="Value"><strong class="tv">1.8 kWh</strong></td><td data-label="Method">Measured on the GPU. 1 × NVIDIA L40S, 5 h 26 min.</td></tr><tr><th scope="row">Generation</th><td data-label="Value"><strong class="tv">0.36 Wh / 1,000 tokens</strong></td><td data-label="Method">Our benchmark. GPU only, NVIDIA A10G, batched.</td></tr><tr><th scope="row">One short answer</th><td data-label="Value"><strong class="tv">0.04 to 0.13 Wh</strong></td><td data-label="Method">Upper bound: 72 W × 1.7–5.5 s × PUE 1.15.</td></tr></tbody></table></div></div>
+  </div>
+</section>
+<section class="section" id="token" aria-labelledby="token-h">
+  <div class="wrap chapter">
+    <p class="chapter-k"><span aria-hidden="true">3</span>Compute per token</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="token-h">Why size matters.</h2><p class="prose">The compute needed to generate a token grows with the number of active parameters. Bird has 4 billion. A large dense model can have around 400 billion.</p><p class="prose">That’s roughly <strong>100 times less compute per token, in theory</strong>.</p><p class="prose">In practice, energy doesn’t follow one-to-one: hardware, utilisation, answer length and infrastructure all change the result. The ratio shows a direction, not a guaranteed saving.</p></div>
+  </div>
+</section>
+<section class="section" id="others" aria-labelledby="others-h">
+  <div class="wrap chapter">
+    <p class="chapter-k"><span aria-hidden="true">4</span>Published figures</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="others-h">For context.</h2><div class="table-wrap"><table class="stack"><caption>Published figures, different methods</caption><thead><tr><th scope="col">Source</th><th scope="col">Energy</th><th scope="col">Water</th><th scope="col">Notes</th></tr></thead><tbody><tr><th scope="row">OpenAI — average ChatGPT query</th><td data-label="Energy"><strong class="tv">≈ 0.34 Wh</strong></td><td data-label="Water">≈ 0.32 mL</td><td data-label="Notes">Sam Altman, “The Gentle Singularity”, June 2025. Method not published.</td></tr><tr><th scope="row">Google — median Gemini text prompt</th><td data-label="Energy"><strong class="tv">0.24 Wh</strong></td><td data-label="Water">0.26 mL</td><td data-label="Notes">August 2025. <a href="https://arxiv.org/abs/2508.15734" rel="noopener">arxiv.org/abs/2508.15734</a></td></tr><tr class="ours"><th scope="row">Bird S 4B — short answer</th><td data-label="Energy"><strong class="tv">0.04 to 0.13 Wh</strong></td><td data-label="Water">not published</td><td data-label="Notes">Our upper bound. GPU only, PUE 1.15.</td></tr></tbody></table></div></div>
+  </div>
+</section>
+<section class="section" id="caveats" aria-labelledby="caveats-h">
+  <div class="wrap chapter">
+    <p class="chapter-k"><span aria-hidden="true">5</span>Caveats</p>
+    <div class="chapter-body reveal"><h2 class="h2" id="caveats-h">What this table doesn’t tell you.</h2><ul class="list"><li><strong>Methods differ.</strong> An average on one side, a median on the other, an upper bound for us. Different scopes. One method isn’t even published.</li><li><strong>Queries differ.</strong> A “query” isn’t the same length everywhere.</li><li><strong>It’s not a ranking.</strong> We put our numbers next to theirs to give an order of magnitude, not to claim a win.</li></ul><p class="prose">If you have a better method, <a href="#contact">write to us</a>. We’ll prefer it to ours.</p></div>
+  </div>
+</section>
+
+<section class="section band final" id="essayer" aria-labelledby="fc-h">
+  <div class="wrap">
+    <svg class="final-mark" viewBox="0 0 64 56" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>
+    <h2 class="display" id="fc-h">Try the right size.</h2>
+    <p class="prose">Bird S 4B is ready for your emails, files and research. You’ll see what every answer costs.</p>
+    <div class="cta-row"><a class="btn" href="#essayer" data-try>Try Bird</a></div>
+  </div>
+</section>
+<section class="section" id="contact" aria-labelledby="contact-h">
+  <div class="wrap split">
+    <div>
+      <p class="eyebrow">Contact</p>
+      <h2 class="h2" id="contact-h">Let’s talk.</h2>
+    </div>
+    <div class="reveal">
+      <p class="prose">A question, an idea, a better method? Write to us.</p>
+      <p><a class="contact-mail" href="mailto:contact@birdmodels.example">contact@birdmodels.example</a></p>
+      <p><span class="todo">[TO BE REPLACED: placeholder contact address]</span></p>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div>
+        <p class="footer-brand"><svg viewBox="0 0 64 56" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.100-3.400 5.7-6.900 7.400C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.900 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.900-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>Bird Models</p>
+        <p class="footer-sign">Small by conviction.</p>
+        <p class="footer-meta">Bird Models · French team · Bird S 4B designed in France</p>
+      </div>
+      <nav class="footer-nav" aria-label="Site">
+        <p class="footer-k">Site</p>
+        <ul><li><a href="/en/">Philosophy</a></li><li><a href="/en/approach">Our approach</a></li><li><a href="/en/footprint">Footprint</a></li><li><a href="#contact">Contact</a></li></ul>
+      </nav>
+      <div class="footer-nav">
+        <p class="footer-k">Bird</p>
+        <ul><li><a href="#essayer" data-try>Try Bird</a></li><li><a href="/en/footprint">Our numbers</a></li><li><a href="/">Français</a></li></ul>
+      </div>
+    </div>
+    <p class="weight"><span>This home page weighs <strong>[XXX] KB</strong>, images included. Measured, not estimated.</span><span>No trackers, no external fonts, no cookies.</span></p>
+  </div>
+</footer>
+</body>
+</html>
