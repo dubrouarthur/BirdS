@@ -4212,6 +4212,7 @@ button.att-card {
 }
 .file-card {
   overflow: clip; /* clips like hidden, but leaves the page as the scroller of the sticky bar below */
+  min-inline-size: 0; /* not a scroll container any more: a wide sheet must not widen the card */
 }
 .a4-bar {
   position: sticky;
