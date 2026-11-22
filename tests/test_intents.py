@@ -53,6 +53,43 @@ NOT_PLACES = [
 ]
 
 
+# office questions whose object is a document, a meeting or a person: no place intent at all (never geocoded)
+NO_PLACE_INTENT = [
+    "Où est le contrat de Paul Martin ?",
+    "Donne-moi l'adresse de Jean Dupont, mon collègue",
+    "Adresse de facturation du client Dupont ?",
+    "Where is the Q3 report?",
+    "c'est où la réunion de demain ?",
+    "where does John Smith live",
+    "Où habite Marie Durand ?",
+    "Où est Paul ?",
+    "Où sont les fichiers de la compta ?",
+    "Comment aller à l'essentiel dans une présentation ?",
+    "Situe le contexte de cette réunion",
+    "Où est la réunion de demain ?",
+    "Où sont les dossiers du client ?",
+    "Restaurants près de chez Paul",
+]
+
+
+@pytest.mark.parametrize("text", NO_PLACE_INTENT)
+def test_documents_meetings_and_people_are_not_places(text):
+    assert intents.places(text) is None
+    assert not [i for i in intents.detect(text) if i.tool == "find_places"]
+
+
+@pytest.mark.parametrize("text", ["Où se trouve Lyon ?", "Situe Brest sur une carte", "Where is New York?"])
+def test_proper_nouns_are_places(text):
+    got = intents.places(text)
+    assert got is not None and got.args and got.mode == "where"
+
+
+@pytest.mark.parametrize("text", ["Où est montmartre la nuit ?", "c'est où le meilleur coin pour un pique-nique"])
+def test_vague_targets_are_only_offered(text):
+    got = intents.places(text)
+    assert got is not None and got.args is None
+
+
 @pytest.mark.parametrize("text,args,mode", PLACES)
 def test_place_asks_are_prefilled(text, args, mode):
     got = intents.places(text)

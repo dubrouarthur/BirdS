@@ -111,13 +111,14 @@ _RX_ROUTE1 = re.compile(
 )
 _RX_WHERE = re.compile(
     r"^(?:o[uù]\s+(?:se\s+trouve(?:nt)?|se\s+situe(?:nt)?|est|sont)|c'est\s+o[uù]|"
-    r"(?:quelle\s+est\s+)?l?'?adresse\s+(?:de\s+|du\s+|des\s+|d')|localise(?:-moi)?|situe(?:-moi)?|"
-    r"(?:une\s+)?carte\s+(?:de\s+|du\s+|des\s+|d')|(?:un\s+)?plan\s+(?:d'accès\s+)?(?:de\s+|du\s+|d'|des\s+)|"
+    r"(?:quelle\s+est\s+)?l?'?adresse\s+(?:de\s+|du\s+|des\s+|d')|localise(?:-moi)?|"
+    r"(?:une\s+)?carte\s+(?:de\s+|du\s+|des\s+|d')|(?:un\s+)?plan\s+(?:d'accès|de\s+situation)\s+(?:de\s+|du\s+|d'|des\s+)?|"
     r"where(?:\s+is|'s|\s+are)|(?:the\s+)?address\s+of|(?:a\s+)?map\s+of|locate)(?:\s+|(?<=[\s']))"
     + _ART
     + _NAME.format("q"),
     re.I,
 )
+_RX_SITUE_MAP = re.compile(r"^situe(?:-moi)?\s+" + _ART + r"(?P<q>[^?!\n]{2,80}?)\s+sur\s+(?:une|la)\s+carte\b", re.I)
 _LIST_NOUNS = (
     r"(?:sites|adresses|lieux|agences|bureaux|magasins|boutiques|villes|implantations|entrepôts|entrepots|"
     r"locations|offices|stores|places|cities|sites)"
@@ -138,15 +139,85 @@ _HINT = re.compile(
     re.I,
 )
 _NEVER = re.compile(
-    r"\b(?:fichier|dossier|document|bouton|menu|onglet|r[ée]glages?|param[èe]tres?|options?|projets?|tickets?|bugs?|"
+    r"\b(?:fichiers?|dossiers?|documents?|boutons?|menus?|onglets?|r[ée]glages?|param[èe]tres?|options?|projets?|tickets?|bugs?|"
     r"erreurs?|code|fonction|variable|cellule|colonne|e-?mails?|mail|courriel|adresse (?:ip|mac|e-?mail|mail|url|web)|"
-    r"url|lien|site web|website|page|slides?|diapos?|en est|on en est|file|folder|button|setting|project|"
+    r"urls?|liens?|site web|website|pages?|slides?|diapos?|en est|on en est|files?|folders?|buttons?|settings?|projects?|"
     r"spreadsheet|ip address|email address|"
     r"carte (?:graphique|de visite|bancaire|bleue|cadeau|son|m[èe]re|sim|vitale|grise|de fidélité)|"
     r"plan (?:d'action|de formation|de charge|comptable|marketing|projet|de financement|social|de table|"
     r"de travail|de communication|de continuit[ée])|business plan|action plan|graphics card|credit card)\b",
     re.I,
 )
+# the OBJECT of "où est / adresse de / where is" is a document, a meeting or an office notion: never a place ask
+_DOC_TARGET = re.compile(
+    r"\b(?:contrats?|rapports?|reports?|dossiers?|fichiers?|files?|documents?|docs?|mails?|e-?mails?|courriels?|"
+    r"r[ée]unions?|meetings?|factur\w*|invoices?|billing|devis|notes?|comptes?[- ]rendus?|cr|compta\w*|"
+    r"pr[ée]sentations?|slides?|diapos?|tableurs?|budgets?|pi[èe]ces? jointes?|attachments?|pdf|contexte|essentiel|"
+    r"points?|ordres? du jour|agenda|planning|proc[ée]dures?|process|mentionn\w*|ce contrat|ce document|summary|"
+    r"synth[èe]se|minutes|deck|draft|brouillon|q[1-4])\b",
+    re.I,
+)
+# a person: civility, colleague, a home, or a common first name followed by a surname (never geocoded)
+_PERSON_WORDS = re.compile(
+    r"(?:\b(?:Mme|Mlle|Monsieur|Madame|Mademoiselle|Mrs|Ms|Mr|Dr)\b\.?|\bM\.\s|"
+    r"\b(?:mon|ma|mes|notre|nos|my|our)\s+(?:coll[èe]gues?|colleagues?|coworkers?|manager|cheff?e?|boss|"
+    r"stagiaires?|employ[ée]e?s?|salari[ée]e?s?|assistante?)\b|\b(?:habite\w*|domicile|vit|vivent|lives?|living|"
+    r"home address|adresse (?:perso\w*|priv[ée]e|du domicile))\b)",
+    re.I,
+)
+FIRST_NAMES = frozenset(
+    """jean pierre paul jacques michel philippe alain nicolas thomas julien antoine louis lucas hugo léo leo arthur
+    gabriel raphaël raphael jules adam nathan théo theo maxime alexandre olivier christophe laurent stéphane stephane
+    sébastien sebastien vincent françois francois patrick david eric éric frédéric frederic marc bruno didier
+    guillaume romain mathieu matthieu benoît benoit damien pascal thierry yves henri marie anne sophie julie camille
+    claire isabelle nathalie sandrine céline celine catherine christine sylvie valérie valerie laura léa lea emma
+    chloé chloe manon sarah inès ines alice louise jade lina zoé zoe juliette pauline caroline aurélie aurelie émilie
+    emilie hélène helene charlotte mathilde lucie agnès agnes martine françoise francoise monique nicole brigitte
+    john james robert michael william richard joseph charles mary patricia jennifer linda elizabeth susan jessica
+    karen emily anna peter mark steven kevin brian george edward daniel matthew andrew joshua chris tom tim mike
+    """.split()
+)
+_LANDMARK = re.compile(
+    r"\b(?:tour|gare|mairie|h[ôo]tel de ville|pr[ée]fecture|place|rue|avenue|av|boulevard|bd|quai|pont|parc|jardin|"
+    r"square|mus[ée]e|ch[âa]teau|cath[ée]drale|basilique|[ée]glise|abbaye|palais|op[ée]ra|th[ée][âa]tre|stade|"
+    r"a[ée]roport|port|plage|lac|mont|col|for[êe]t|universit[ée]|campus|lyc[ée]e|coll[èe]ge|h[ôo]pital|clinique|"
+    r"si[èe]ge|zone|quartier|centre|ville|village|r[ée]gion|d[ée]partement|arc|cit[ée]|march[ée]|halles?|"
+    r"tower|station|airport|museum|park|bridge|street|road|cathedral|castle|palace|city|town|beach|lake|"
+    r"mountain|island|[îi]le|monument|memorial|stadium|university|headquarters|hq|campus)\b",
+    re.I,
+)
+
+
+def _person(q: str) -> bool:
+    if _PERSON_WORDS.search(q):
+        return True
+    words = re.findall(r"[\wÀ-ÿ'-]+", q)
+    for i, w in enumerate(words):  # "Paul", "Paul Martin", "contrat de Jean Dupont"
+        if w.lower() in FIRST_NAMES and w[:1].isupper():
+            nxt = words[i + 1] if i + 1 < len(words) else ""
+            if not nxt or nxt[:1].isupper():
+                return True
+    return False
+
+
+def _not_a_place(q: str) -> bool:
+    """The object names a document, a meeting, an office notion or a person: no place intent at all."""
+    return bool(_DOC_TARGET.search(q) or (_person(q) and not _LANDMARK.search(q)))
+
+
+def _placey(q: str) -> bool:
+    """A place-like target worth an automatic call: a proper noun, a landmark noun, an address or a kind."""
+    from birds.harness.geo import looks_like_address
+
+    if looks_like_address(q) or _LANDMARK.search(q) or _kind_in(q):
+        return True
+    return any(w[:1].isupper() for w in re.findall(r"[\wÀ-ÿ'-]+", q))
+
+
+def _kind_in(q: str) -> bool:
+    return any(re.search(rf"\b(?:{rx})\b", q, re.I) for rx, _ in KINDS)
+
+
 _HOWTO = re.compile(
     r"^\s*(?:comment (?:faire|ajouter|cr[ée]er|changer|modifier|ins[ée]rer)|how (?:do|can|to) "
     r"(?:i |you )?(?:add|create|change|insert|make))\b",
@@ -157,6 +228,14 @@ _HOWTO = re.compile(
 _DEICTIC = re.compile(
     r"(?:là|la|ici|là-bas|here|there|it|chez (?:lui|elle|eux|moi|nous)|cet endroit|ce lieu|cette adresse|"
     r"this place|that place)",
+    re.I,
+)
+
+
+_URL = re.compile(r"\bhttps?://\S+|\bwww\.\S+", re.I)
+_PERSON_HOME = re.compile(
+    r"\b(?:o[uù] (?:habite|vit|loge|demeure)\w*|where (?:does|do|did) .{1,60}? (?:live|stay)|"
+    r"adresse (?:perso\w*|priv[ée]e|du domicile)|home address)\b",
     re.I,
 )
 
@@ -185,8 +264,8 @@ def _ok(name: str) -> bool:
 
 
 def places(text: str, lang: str = "fr") -> Intent | None:
-    raw = " ".join((text or "").split())
-    if not raw or _NEVER.search(raw) or _HOWTO.search(raw):
+    raw = " ".join(_URL.sub(" ", text or "").split())
+    if not raw or _NEVER.search(raw) or _HOWTO.search(raw) or _PERSON_HOME.search(raw):
         return None
     t = normalise(raw)
     m = _RX_LIST.search(t)
@@ -195,7 +274,7 @@ def places(text: str, lang: str = "fr") -> Intent | None:
             i.strip(" .") for i in re.split(r"[,;\n]|\s+et\s+|\s+and\s+|\s+-\s+", m.group("list")) if i.strip(" .")
         ]
         items = [_clean_name(i) for i in items]
-        items = [i for i in items if _ok(i)]
+        items = [i for i in items if _ok(i) and not _not_a_place(i)]
         if 2 <= len(items) <= 5:
             return Intent("find_places", {"query": " ; ".join(items)}, keep_web=True, mode="list")
     m = _RX_NEAR.search(t)
@@ -205,29 +284,46 @@ def places(text: str, lang: str = "fr") -> Intent | None:
         if kind and _DEICTIC.fullmatch(near):  # "près de là": the place is in the conversation, not in these words
             return Intent("find_places", None, keep_web=False)
         if kind and _ok(near):
+            if _not_a_place(near) or re.match(r"chez\b", near, re.I):  # "près de chez Paul": a private home
+                return None
             return Intent("find_places", {"query": kind, "near": near}, keep_web=False, mode="near")
     m = _RX_ROUTE.search(t)
     if m:
         a, b = _clean_name(m.group("a")), _clean_name(m.group("b"))
         if _ok(a) and _ok(b):
-            return Intent("find_places", {"query": b, "near": a}, keep_web=False, mode="route")
+            if _not_a_place(a) or _not_a_place(b):
+                return None
+            if _placey(a) and _placey(b):
+                return Intent("find_places", {"query": b, "near": a}, keep_web=False, mode="route")
+            return Intent("find_places", None, keep_web=True)
     m = _RX_ROUTE1.search(t)
     if m:
         b = _clean_name(m.group("b"))
         if _ok(b):
-            return Intent("find_places", {"query": b}, keep_web=False, mode="route")
+            if _not_a_place(b):
+                return None  # "comment aller à l'essentiel dans une présentation"
+            if _placey(b):
+                return Intent("find_places", {"query": b}, keep_web=False, mode="route")
+            return Intent("find_places", None, keep_web=True)
     from birds.harness.geo import find_address
 
     addr = find_address(raw)  # a typed postal address wins over "où est ..." (BAN geocodes it exactly)
     if addr and _PLACE_WORD.search(raw):
         addr = re.sub(r"\s+(?:à|a|in)\s+(?=[A-ZÀ-Ý])", " ", addr)
         return Intent("find_places", {"query": addr}, keep_web=False, mode="address")
-    m = _RX_WHERE.search(t)
+    m = _RX_WHERE.search(t) or _RX_SITUE_MAP.search(t)
     if m:
         q = _clean_name(m.group("q"))
-        if _ok(q) and not re.fullmatch(r"(?:il|elle|ça|ca|it|they|là|la)", q, re.I):
+        if re.fullmatch(r"(?:il|elle|ça|ca|it|they|là|la)", q, re.I):
+            return Intent("find_places", None, keep_web=True)
+        if not _ok(q) or _not_a_place(q):
+            return None  # "où est le contrat de Paul Martin", "where is the Q3 report": not a place at all
+        if _placey(q):
             return Intent("find_places", {"query": q}, keep_web=False, mode="where")
+        return Intent("find_places", None, keep_web=True)
     if _HINT.search(raw):
+        if _DOC_TARGET.search(raw) and not re.search(r"\b(?:carte|map|itin[ée]raire|plan d'accès)\b", raw, re.I):
+            return None
         return Intent("find_places", None, keep_web=True)
     return None
 
@@ -281,7 +377,7 @@ def company_id(text: str) -> str:
 
 
 def company(text: str, lang: str = "fr") -> Intent | None:
-    raw = " ".join((text or "").replace("’", "'").split())
+    raw = " ".join(_URL.sub(" ", (text or "").replace("’", "'")).split())
     if not raw or _HOWTO.search(raw):
         return None
     ident = company_id(raw)
@@ -389,7 +485,7 @@ def parse_amount(text: str) -> float | None:
 
 
 def fx(text: str, lang: str = "fr") -> Intent | None:
-    raw = " ".join((text or "").replace("’", "'").split())
+    raw = " ".join(_URL.sub(" ", (text or "").replace("’", "'")).split())
     if not raw:
         return None
     keep = bool(_FX_KEEP_WEB.search(raw))

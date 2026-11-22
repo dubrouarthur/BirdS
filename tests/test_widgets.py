@@ -235,6 +235,26 @@ def test_geo_off_withdraws_the_tools(tmp_path):
     assert not set(json.loads(a.llm.prompts[0])["tools"]) & set(EXTRA_TOOL_NAMES)
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Où est le contrat de Paul Martin ?",
+        "Donne-moi l'adresse de Jean Dupont, mon collègue",
+        "Adresse de facturation du client Dupont ?",
+        "Where is the Q3 report?",
+        "c'est où la réunion de demain ?",
+        "where does John Smith live",
+        "Où sont les fichiers de la compta ?",
+    ],
+)
+def test_office_questions_are_never_sent_to_a_geocoder(tmp_path, text):
+    a, seen = agent(tmp_path, ["Je ne peux pas chercher dans vos fichiers."])
+    run = a.run(text)
+    assert not seen and not run.steps
+    tools = json.loads(a.llm.prompts[0])["tools"]
+    assert "find_places" not in tools
+
+
 def test_attachment_address_is_not_geocoded(tmp_path):
     a, seen = agent(tmp_path, ["ok"])
     a.run("Résume ce document", request_text="Résume ce document", attached=True)
@@ -438,7 +458,7 @@ def test_ics_golden():
     assert all(len(line.encode()) <= 75 for line in lines)
     assert "DTSTART:20260329T080000Z" in lines and "DTEND:20260329T090000Z" in lines  # CEST after the DST change
     unfolded = text.replace("\r\n ", "")
-    assert "SUMMARY:Réunion très importante avec l’équipe de développement\\, à Paris\; salle B" in unfolded
+    assert "SUMMARY:Réunion très importante avec l’équipe de développement\\, à Paris\\; salle B" in unfolded
     assert "LOCATION:Paris\\, 8e" in unfolded and "DESCRIPTION:ligne 1\\nligne 2" in unfolded
     assert "METHOD:PUBLISH" in lines and not any(line.startswith("ATTENDEE") for line in lines)
 
