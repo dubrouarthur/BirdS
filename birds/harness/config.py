@@ -6,13 +6,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from birds.tools import BIRD_TOOL_NAMES
+from birds.tools import PRODUCT_TOOL_NAMES
 
 
 @dataclass
 class Config:
     workspace: Path
-    allowed_tools: tuple[str, ...] = tuple(BIRD_TOOL_NAMES)  # per-deployment allowlist
+    allowed_tools: tuple[str, ...] = tuple(PRODUCT_TOOL_NAMES)  # per-deployment allowlist
     allow_python: bool = False  # run_python is NOT a sandbox: enable only inside a disposable container
     cache_salt: str | None = None  # vLLM prefix-cache isolation, one value per conversation (backends.cache_salt)
     route_tools: bool = True  # hide web tools for a plain "make me a file" request (agent.route)
@@ -53,6 +53,15 @@ class Config:
     gpu_label: str | None = None  # e.g. "NVIDIA L4, 72 W TDP"
     pue: float = 1.0  # 1.0 = GPU only
     audit_file: str | None = "bird_audit.jsonl"  # None: audit lines go to stdout (serverless logs)
+    # rich results (places, company register, ECB rates): BIRD_GEO=off withdraws the three tools
+    widgets: bool = True
+    geo_user_agent: str = "BirdHarness/0.1 (+geo)"  # generic: never a person's name or e-mail
+    nominatim_url: str = "https://nominatim.openstreetmap.org/search"
+    photon_url: str = "https://photon.komoot.io/api"
+    ban_url: str = "https://data.geopf.fr/geocodage/search"
+    company_url: str = "https://recherche-entreprises.api.gouv.fr/search"
+    fx_url: str = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+    geo_cache_dir: str | None = None  # optional disk cache (file names are hashes, never the query)
 
 
 @dataclass
@@ -70,6 +79,8 @@ class Context:
     step_info: dict | None = None  # set by a tool for the UI (e.g. which search backend answered); moved to the step
     lang: str = "fr"  # language of the conversation (search backends that care, e.g. Wikipedia)
     request: str = ""  # the user's own words for this run (make_slides checks that their figures made it in)
+    geo_calls: int = 0  # upstream geocoder requests of this run (cap: geo.MAX_LOOKUPS_PER_RUN)
+    place_calls: int = 0  # successful find_places calls of this run
 
     @property
     def workspace(self) -> Path:
