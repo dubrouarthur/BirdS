@@ -1711,8 +1711,17 @@ details[open] > summary > .chev {
   color: var(--accent);
 }
 .stopped {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
   font-size: 0.88rem;
+  color: var(--muted);
+}
+.stopped > span {
   font-style: italic;
+}
+.status-stopped {
   color: var(--muted);
 }
 .actions-row {

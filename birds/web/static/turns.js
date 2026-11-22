@@ -194,7 +194,7 @@ function renderSteps(turn) {
     // a step paused on the approval sheet is waiting for you, not running
     const step = asking && raw.status === "running" ? { ...raw, status: "awaiting" } : raw;
     const injection = (step.flags || []).includes("possible_injection");
-    const statusIcon = { done: "check", error: "cross", denied: "ban", awaiting: "shield" }[
+    const statusIcon = { done: "check", error: "cross", denied: "ban", awaiting: "shield", stopped: "pause" }[
       step.status
     ];
     const what = target(step.tool, step.arguments);
@@ -1213,7 +1213,15 @@ function fillAssistant(el, turn, isLast) {
     renderEmail(turn),
     renderError(turn, isLast),
     turn.status === "stopped" &&
-      h("p", { class: "stopped", text: t("turn.stopped") }),
+      h(
+        "div",
+        { class: "stopped" },
+        icon("pause"),
+        h("span", { text: turn.stoppedAt ? t("turn.stopped.at", { step: toolLabel(turn.stoppedAt) }) : t("turn.stopped") }),
+        isLast &&
+          !state.busy &&
+          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(), { "data-act": "restart" }),
+      ),
     renderActions(turn, isLast),
     renderReceipt(turn, isLast),
   ];

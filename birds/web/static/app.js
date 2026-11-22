@@ -1290,8 +1290,10 @@ async function runTurn(turn, extra = {}) {
     turn.live = null;
     if (turn.status !== "confirm")
       for (const step of turn.steps)
-        if (step.status === "running")
-          step.status = turn.status === "stopped" ? "denied" : "error";
+        if (step.status === "running") {
+          if (turn.status === "stopped") turn.stoppedAt = step.tool; // named in the notice
+          step.status = turn.status === "stopped" ? "stopped" : "error";
+        }
     if (turn.status === "stopped" && turn.text && !turn.answer)
       turn.answer = {
         content: turn.text,
