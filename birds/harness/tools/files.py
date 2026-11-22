@@ -242,7 +242,7 @@ def make_slides(args: dict, ctx) -> str:
         added = f" A 'key figures' slide was added first with figures from the request that were missing: " \
                 f"{', '.join(missing)}."
     p = _new_path(ctx, args["title"], ".pptx")
-    n = build_pptx(p, args["title"], slides, args.get("subtitle") or "")
+    n = build_pptx(p, args["title"], slides, args.get("subtitle") or "", getattr(ctx, "lang", "fr") or "fr")
     extra = f", {n - 1} after splitting long slides" if n - 1 != len(slides) else ""
     titles = "; ".join(f"{i}. {plain(str(s.get('title') or ''))[:60]}" for i, s in enumerate(slides, 2))
     return _done(ctx, p, f"title slide + {len(slides)} slides{extra}") + (

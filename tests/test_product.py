@@ -359,6 +359,73 @@ def test_xlsx_types_formats_and_formula_safety(tmp_path):
     assert ws.freeze_panes == "A2" and ws["A1"].fill.fgColor.rgb.endswith("0B1B3F")
 
 
+def test_docx_design_page_furniture_tables_lists_and_callouts(tmp_path):
+    import docx
+    from docx.oxml.ns import qn
+
+    content = (
+        "## Contexte\n### Détail\n1. un\n2. deux\n\nEntre les listes.\n\n1. trois\n"
+        "| Poste | Montant |\n|---|---|\n| Loyer | 1 200 € |\n| Total | 1 200 € |"
+    )
+    sections = [
+        {"heading": "Décisions", "content": "- Décision : on signe.\n- Le budget reste stable."},
+        {"heading": "Budget", "content": content},
+    ]
+    stats = office.build_docx(tmp_path / "d.docx", "Compte rendu", sections, "Comité")
+    d = docx.Document(str(tmp_path / "d.docx"))
+    assert stats == {"sections": 2, "tables": 1, "items": 5}
+    sec = d.sections[0]
+    assert round(sec.page_width.cm, 1) == 21.0 and round(sec.page_height.cm, 1) == 29.7  # A4
+    assert d.core_properties.author == "" and d.core_properties.title == "Compte rendu"
+    assert sec.different_first_page_header_footer and sec.header.paragraphs[0].text == "Compte rendu"
+    footer = sec.first_page_footer._element.xml
+    assert 'w:instr="PAGE"' in footer and 'w:instr="NUMPAGES"' in footer
+    styles = {p.text: p.style.name for p in d.paragraphs}
+    assert styles["Contexte"] == "Heading 2" and styles["Détail"] == "Heading 3"  # '##' / '###' of a section
+    assert styles["Décision : on signe."] == "Normal" and styles["Le budget reste stable."] == "Normal"  # callouts
+    numbered = [p for p in d.paragraphs if p.style.name == "List Number"]
+    nums = [p._p.pPr.find(qn("w:numPr")).find(qn("w:numId")).get(qn("w:val")) for p in numbered]
+    assert len(nums) == 3 and nums[0] == nums[1] != nums[2]  # a new list restarts at 1
+    tbl = d.tables[0]._tbl
+    borders = tbl.tblPr.find(qn("w:tblBorders"))
+    assert borders.find(qn("w:insideV")).get(qn("w:val")) == "nil"  # no vertical rules
+    assert tbl.tr_lst[0].trPr.find(qn("w:tblHeader")) is not None  # header repeats on each page
+    rows = d.tables[0].rows
+    assert rows[0].cells[1].paragraphs[0].alignment == 2  # header of a numeric column is right aligned
+    assert rows[2].cells[0].text == "Total" and all(r.bold for r in rows[2].cells[0].paragraphs[0].runs)
+    office.docx_from_markdown(tmp_path / "e.docx", "Réponse", "Intro\n\n## Partie\n- a\n\n---\n\nFin")
+    e = docx.Document(str(tmp_path / "e.docx"))
+    assert [(p.text, p.style.name) for p in e.paragraphs if p.text][:3] == [
+        ("Réponse", "Title"),
+        ("Intro", "Normal"),
+        ("Partie", "Heading 1"),  # the shallowest heading of an answer is a Heading 1
+    ]
+    assert "---" not in [p.text for p in e.paragraphs]  # a Markdown rule is a hairline, not text
+
+
+def test_xlsx_design_formats_totals_and_print(tmp_path):
+    import openpyxl
+
+    rows = [
+        ["Audit", 1, "1 800,00 €", "=B2*C2", "=D2/D$4"],
+        ["Atelier", 2, "650,00 €", "=B3*C3", "=D3/D$4"],
+        ["Total HT", "", "", "=SUM(D2:D3)", "=SUM(E2:E3)"],
+        ["Total TTC", "", "", "=D4*1.2", None],
+    ]
+    office.build_xlsx(tmp_path / "f.xlsx", "Facture", ["Désignation", "Qté", "Prix", "Montant", "Part"], rows)
+    ws = openpyxl.load_workbook(str(tmp_path / "f.xlsx")).active
+    fmt = {k: ws[k].number_format.removesuffix(office._NUM_PAD) for k in ("C2", "D2", "E2")}  # minus the inset
+    assert ws["C2"].value == 1800 and fmt["C2"] == '#,##0.00 "€"'  # the cents are kept
+    assert fmt["D2"] == '#,##0.00 "€"' and fmt["E2"] == "0.0 %"  # formulas formatted
+    assert ws["D2"].alignment.horizontal == "right" and ws["D1"].alignment.horizontal == "right"
+    assert ws["A4"].font.b and ws["A5"].font.b and ws["A5"].fill.fgColor.rgb.endswith("E2E9F8")  # totals
+    assert not ws["A2"].font.b and ws["A3"].fill.fgColor.rgb.endswith("F4F6FB")  # zebra on data rows
+    assert ws.auto_filter.ref == "A1:E3"  # the filter stops above the totals
+    assert ws.page_setup.paperSize == 9 and ws.page_setup.fitToWidth == 1 and ws.print_title_rows == "$1:$1"
+    assert ws.sheet_view.showGridLines is False and ws.freeze_panes == "A2"
+    assert [c.value for c in ws[5]] == ["Total TTC", None, None, "=D4*1.2", None]  # values unchanged
+
+
 # ------------------------------------------------------------------ energy estimate
 
 
