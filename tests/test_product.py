@@ -744,3 +744,26 @@ def test_scanned_pdf_read_once_per_conversation(tmp_path, monkeypatch):
     read = json.loads(llm.prompts[-1])["messages"][-1]["content"]
     assert "Page deux : total 1 250 €." in read and "scanned, read as an image" in read
     assert [e for e in second if e["type"] == "answer"][0]["content"] == "Le total est 1 250 €."
+
+
+def test_identifiers_stay_identifiers_in_sheets():
+    from birds.harness.office import typed_cell
+
+    assert typed_cell("2026", "Année") == (2026, "0") and typed_cell("75001", "Code postal") == ("75001", None)
+    assert typed_cell("552100554", "SIREN") == ("552100554", None)
+    assert typed_cell("+33 6 12 34 56 78", "Contact") == ("+33 6 12 34 56 78", None)
+    assert typed_cell("1 200", "Montant") == (1200, "#,##0")
+
+
+def test_wide_docx_table_gets_landscape_pages_and_no_cut_words(tmp_path):
+    import docx
+
+    head = "| " + " | ".join(f"Colonne {i}" for i in range(20)) + " |\n|" + "---|" * 20 + "\n"
+    body = "\n".join("| " + " | ".join(f"{r * i},5 €" for i in range(20)) + " |" for r in range(5))
+    office.build_docx(tmp_path / "w.docx", "T", [{"heading": "Vingt", "content": head + body}])
+    d = docx.Document(str(tmp_path / "w.docx"))
+    assert [s.page_width > s.page_height for s in d.sections] == [False, True]  # no blank portrait page after
+    cell = d.tables[0].rows[1].cells[3]
+    assert cell.paragraphs[0].style.name == "Bird Table Small" and "noWrap" in cell._tc.xml
+    h1 = next(p for p in d.paragraphs if p.text == "Vingt")
+    assert h1.style.name == "Heading 1" and "pBdr" not in h1.style.element.xml  # no rule under the page header

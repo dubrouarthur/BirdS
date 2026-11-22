@@ -1275,10 +1275,8 @@ _LANDSCAPE_TW = 14117  # 29.7 cm - 2 x 2.4 cm
 
 
 def _table(doc, rows: list[list[str]]) -> None:
-    from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.oxml.ns import qn
-    from docx.shared import Twips
 
     rows = rows[:200]
     width = max(len(r) for r in rows)
@@ -1344,8 +1342,7 @@ def _table(doc, rows: list[list[str]]) -> None:
         total = i > 0 and bool(row) and bool(_TOTAL_CELL.match(plain(row[0]).strip()))
         for j, cell in enumerate(r.cells):
             value = row[j] if j < len(row) else ""
-            cell.width = Twips(widths[j])
-            tc_pr = cell._tc.get_or_add_tcPr()
+            tc_pr = cell._tc.get_or_add_tcPr()  # tcW already comes from the grid (add_row)
             if j and numeric[j - 1] and not numeric[j]:  # air between right-aligned figures and the next text
                 mar, left = _w("w:tcMar"), _w("w:left")
                 _set(left, w=3 * pad, type="dxa")
@@ -1354,7 +1351,9 @@ def _table(doc, rows: list[list[str]]) -> None:
             figure = (numeric[j] or (i and _numeric(value))) and not (total and j == 0)
             if figure and i:
                 _put(tc_pr, _w("w:noWrap"), _TCPR)  # '1 250,50 €' never breaks over two lines
-            cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+            v_align = _w("w:vAlign")
+            _set(v_align, val="center")
+            _put(tc_pr, v_align, _TCPR)
             par = cell.paragraphs[0]
             par._p.style = sid["Bird Table Header" if i == 0 else "Bird Table"]  # the id: no style lookup per cell
             _add_runs(par, value, code_size=7 if small else 8.5)

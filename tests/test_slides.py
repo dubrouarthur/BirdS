@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from pptx import Presentation
 
 from birds.harness.config import Config, Context
@@ -114,3 +116,44 @@ def test_deck_design_has_no_theme_style_and_keeps_its_texts(tmp_path):
     assert all(f in texts[1] for f in ("1,2 M€", "+8 %", "31 %", "62", "120"))
     assert "01" in texts[2] and "Lot 5" in texts[3] and "Étape" not in texts[3]
     assert "5 / 5" in [sh.text_frame.text for sh in prs.slides[4].shapes if sh.has_text_frame]
+
+
+def test_split_parts_share_size_and_continue_numbering(tmp_path):
+    from birds.harness.office import build_pptx
+
+    bullets = [f"Point numéro {i} avec un texte de longueur moyenne pour voir la coupe" for i in range(1, 31)]
+    build_pptx(tmp_path / "d.pptx", "Deck", [{"title": "Liste", "bullets": bullets}])
+    prs = Presentation(str(tmp_path / "d.pptx"))
+    numbers, tops, sizes = [], set(), set()
+    for slide in list(prs.slides)[1:]:
+        for sh in slide.shapes:
+            text = sh.text_frame.text if sh.has_text_frame else ""
+            if re.fullmatch(r"\d\d", text):
+                numbers.append(int(text))
+            elif text.startswith("Point numéro"):
+                sizes.add(sh.text_frame.paragraphs[0].runs[0].font.size)
+        tops.add(min(sh.top for sh in slide.shapes if sh.has_text_frame and sh.text_frame.text.startswith("Point")))
+    assert numbers == list(range(1, 31))  # part 2 continues at 07, not 01
+    assert len(sizes) == 1 and len(tops) == 1  # one type size and one top edge for every part
+
+
+def test_long_titles_are_cut_and_kept_in_notes(tmp_path):
+    from birds.harness.office import build_pptx
+
+    long = "Stratégie de transformation numérique et plan de déploiement " * 8
+    build_pptx(tmp_path / "d.pptx", long, [{"title": long, "bullets": ["Un point", "Un autre"]}])
+    prs = Presentation(str(tmp_path / "d.pptx"))
+    assert len(prs.slides[0].shapes.title.text) <= 201 and prs.slides[0].shapes.title.text.endswith("…")
+    assert len(prs.slides[1].shapes.title.text) <= 161
+    assert prs.slides[1].notes_slide.notes_text_frame.text.startswith("Stratégie de transformation")
+
+
+def test_slide_text_keeps_figures_with_their_units():
+    from birds.harness.office import _kpi_split, _redundant, nbsp
+
+    assert nbsp("Marché en croissance de 6 % par an") == "Marché en croissance de 6\xa0% par an"
+    assert nbsp("3 200 clients") == "3\xa0200 clients" and nbsp("Questions ?") == "Questions\xa0?"
+    assert _kpi_split("Churn below 3%") == ("<\xa03%", "Churn", "")
+    assert _kpi_split("Délai : moins de 4 h")[0].startswith("<")
+    assert _redundant("Nouveaux clients", "Nouveaux clients") and _redundant("Objectif", "Objectif T4")
+    assert not _redundant("Marge", "Objectif T4")
