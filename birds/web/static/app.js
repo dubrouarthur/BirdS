@@ -63,7 +63,10 @@ const randomId = () =>
   globalThis.crypto?.randomUUID
     ? crypto.randomUUID()
     : "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
-        (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16),
+        (
+          c ^
+          (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))
+        ).toString(16),
       );
 const newConv = () => ({
   id: uid("c"),
@@ -90,7 +93,12 @@ function slim(conv) {
           return {
             ...turn,
             // images are never stored: only their name and size survive a reload
-            images: (turn.images || []).map(({ name, w, h: hh, sent }) => ({ name, w, h: hh, sent })),
+            images: (turn.images || []).map(({ name, w, h: hh, sent }) => ({
+              name,
+              w,
+              h: hh,
+              sent,
+            })),
           };
         const { ui, live, text, ...rest } = turn;
         return {
@@ -268,9 +276,15 @@ function renderSidebar() {
         c.att &&
           h(
             "span",
-            { class: "conv-att", title: t(c.att === "image" ? "att.has.image" : "att.has.doc") },
+            {
+              class: "conv-att",
+              title: t(c.att === "image" ? "att.has.image" : "att.has.doc"),
+            },
             icon(c.att === "image" ? "image" : "clip"),
-            h("span", { class: "sr-only", text: t(c.att === "image" ? "att.has.image" : "att.has.doc") }),
+            h("span", {
+              class: "sr-only",
+              text: t(c.att === "image" ? "att.has.image" : "att.has.doc"),
+            }),
           ),
       ),
       h(
@@ -338,7 +352,7 @@ function exportConv(id) {
     (conv.title || "bird")
       .toLowerCase()
       .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "")
       .slice(0, 40) || "bird"
@@ -411,10 +425,14 @@ function updateTop() {
   };
   $("top-title").textContent =
     titles[state.view] || state.conv?.title || t("side.untitled");
-  const model = isDemo() ? `${modelLabel()} · ${t("demo.badge")}` : modelLabel();
+  const model = isDemo()
+    ? `${modelLabel()} · ${t("demo.badge")}`
+    : modelLabel();
   $("model-name").textContent = model;
   $("btn-model").classList.toggle("is-demo", isDemo());
-  const label = t("nav.model", { model: isDemo() ? model : `${model} (${activeModel()})` });
+  const label = t("nav.model", {
+    model: isDemo() ? model : `${model} (${activeModel()})`,
+  });
   $("btn-model").setAttribute("aria-label", label);
   $("btn-model").title = label;
   const s = totals(convUsages(state.conv));
@@ -520,18 +538,66 @@ function renderChat() {
 // ------------------------------------------------------------------ scrolling
 
 let stick = true;
+// pinned: a long answer reached the top of the view; we hold it there so it is read from its start, and the scroll
+// listener never clears this (only an explicit jump, a send or opening a conversation does)
+let pinned = false;
+let followTurn = null; // id of the answer being streamed: the only one we anchor to
 const scroller = () => $("scroll");
 const nearBottom = () =>
   scroller().scrollHeight - scroller().scrollTop - scroller().clientHeight <
   120;
+/** Top of the user turn that asked for `turnId`, in the scroller's content coordinates (null when not found). */
+function anchorOf(turnId) {
+  const el = turnId && document.querySelector(`[data-turn="${turnId}"]`);
+  if (!el) return null;
+  const prev = el.previousElementSibling;
+  const target = prev?.classList.contains("turn-user") ? prev : el;
+  const sc = scroller();
+  return (
+    target.getBoundingClientRect().top -
+    sc.getBoundingClientRect().top +
+    sc.scrollTop
+  );
+}
 function scrollToEnd(force) {
-  if (force) stick = true;
-  if (stick) scroller().scrollTop = scroller().scrollHeight;
+  const sc = scroller();
+  if (state.view === "chat" && !(state.conv?.turns || []).length) {
+    // an empty chat opens at its top (the welcome lines and the examples), never scrolled to its bottom
+    stick = true;
+    pinned = false;
+    sc.scrollTop = 0;
+    updateJump();
+    return;
+  }
+  if (force) {
+    stick = true;
+    pinned = false;
+    followTurn = null;
+  }
+  const bottom = sc.scrollHeight - sc.clientHeight;
+  // once the stream is over, an answer that overflows by less than the "near bottom" margin just ends at the bottom
+  const slack = state.busy ? 0 : 120;
+  if (pinned && !state.busy && bottom - sc.scrollTop <= slack) pinned = false;
+  if (stick && !pinned) {
+    const anchor = anchorOf(followTurn);
+    if (anchor !== null && anchor - 8 < bottom - slack) {
+      sc.scrollTop = Math.max(0, anchor - 8); // the answer is taller than the view: stop at its question
+      pinned = true;
+    } else sc.scrollTop = sc.scrollHeight;
+  }
   updateJump();
 }
 function updateJump() {
-  $("btn-jump").hidden =
-    state.view !== "chat" || stick || !(state.conv?.turns || []).length;
+  const btn = $("btn-jump");
+  const away = pinned ? !nearBottom() : !stick;
+  btn.hidden =
+    state.view !== "chat" || !away || !(state.conv?.turns || []).length;
+  const key = pinned && state.busy ? "turn.jump.more" : "turn.jump";
+  const label = btn.querySelector("span");
+  if (label && label.dataset.i18n !== key) {
+    label.dataset.i18n = key;
+    label.textContent = t(key);
+  }
 }
 
 // ------------------------------------------------------------------ composer
@@ -569,10 +635,14 @@ function updateComposer() {
           : !text.trim() && !images
             ? "composer.send.empty"
             : "";
-  const nAtt = images + (state.conv?.attachments || []).filter((a) => !a.sent && !a.lost).length;
+  const nAtt =
+    images +
+    (state.conv?.attachments || []).filter((a) => !a.sent && !a.lost).length;
   send.disabled = !!reason;
   send.hidden = state.busy;
-  const label = nAtt ? t(nAtt === 1 ? "att.send.one" : "att.send.many", { n: nAtt }) : t("composer.send");
+  const label = nAtt
+    ? t(nAtt === 1 ? "att.send.one" : "att.send.many", { n: nAtt })
+    : t("composer.send");
   send.title = reason ? t(reason) : label;
   send.setAttribute("aria-label", label);
   const photo = $("btn-photo");
@@ -580,7 +650,9 @@ function updateComposer() {
   photo.setAttribute("aria-disabled", String(!canImages));
   photo.title = canImages ? t("att.photo") : t("att.img.unsupported");
   $("photo-take").hidden = $("photo-pick").hidden = !canImages;
-  $("photo-note").textContent = canImages ? t("att.photo.note") : t("att.img.unsupported");
+  $("photo-note").textContent = canImages
+    ? t("att.photo.note")
+    : t("att.img.unsupported");
   const nDocs = nAtt - images;
   $("btn-attach").dataset.count = nDocs ? String(nDocs) : "";
   $("btn-photo").dataset.count = images ? String(images) : "";
@@ -623,7 +695,8 @@ function renderAttachments() {
           { class: `att-in${isNew(img.id) ? " att-new" : ""}` },
           imageCard(img, {
             onRemove: () => removeImage(img.id, rerender),
-            onOpen: () => openLightbox(readyImages(), readyImages().indexOf(img)),
+            onOpen: () =>
+              openLightbox(readyImages(), readyImages().indexOf(img)),
           }),
         ),
       ),
@@ -632,7 +705,10 @@ function renderAttachments() {
           "li",
           { class: `att-in${isNew(doc.name) ? " att-new" : ""}` },
           docCard(
-            { ...doc, size: doc.size || (doc.content ? doc.content.length : 0) },
+            {
+              ...doc,
+              size: doc.size || (doc.content ? doc.content.length : 0),
+            },
             {
               onRemove: removeDoc(i),
               status: doc.lost
@@ -674,7 +750,7 @@ function addAttachment(name, content, encoding = "text", size = 0) {
   let safe =
     name
       .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^A-Za-z0-9._-]+/g, "-")
       .replace(/^[-.]+|[-.]+$/g, "")
       .slice(0, 60) || "document.txt";
@@ -697,7 +773,8 @@ function addAttachment(name, content, encoding = "text", size = 0) {
 function imagesAvailable() {
   const modes = state.health?.images_modes || {};
   const mode = activeMode();
-  if (mode === "user") return modes.user !== false && state.prefs.userImages !== false;
+  if (mode === "user")
+    return modes.user !== false && state.prefs.userImages !== false;
   return !!modes[mode];
 }
 
@@ -831,7 +908,8 @@ function apiMessages(resend = false) {
   const lastUser = turns.map((x) => x.role).lastIndexOf("user");
   turns.forEach((turn, i) => {
     if (turn.role === "user") {
-      const answered = turns[i + 1]?.role === "assistant" && turns[i + 1].answer?.content;
+      const answered =
+        turns[i + 1]?.role === "assistant" && turns[i + 1].answer?.content;
       if (i !== lastUser && !answered) return; // a request that never got an answer is not history
       // the exact text the model received for that turn (image transcriptions and notes included)
       if (turn.sent && (i !== lastUser || resend)) {
@@ -842,12 +920,18 @@ function apiMessages(resend = false) {
       const notes =
         i === lastUser
           ? []
-          : (turn.images || []).map((img) => `[${t("att.img.note")} : ${img.name}]`);
-      messages.push({ role: "user", content: [turn.content, ...notes].join("\n") });
+          : (turn.images || []).map(
+              (img) => `[${t("att.img.note")} : ${img.name}]`,
+            );
+      messages.push({
+        role: "user",
+        content: [turn.content, ...notes].join("\n"),
+      });
     } else if (turn.answer?.content) {
       const m = { role: "assistant", content: turn.answer.content };
       if (turn.answer.memo) m.memo = turn.answer.memo;
-      if (["stopped", "length"].includes(turn.answer.stop_reason)) m.interrupted = true;
+      if (["stopped", "length"].includes(turn.answer.stop_reason))
+        m.interrupted = true;
       messages.push(m);
     }
   });
@@ -924,14 +1008,18 @@ function handleEvent(turn, event) {
       // the exact user text the model got: stored on the user turn and sent back as history from now on
       const turns = state.conv.turns;
       const userTurn = turns[turns.indexOf(turn) - 1];
-      if (userTurn?.role === "user") userTurn.sent = String(event.content ?? "");
+      if (userTurn?.role === "user")
+        userTurn.sent = String(event.content ?? "");
       return;
     }
     case "delta_reset":
       turn.text = "";
       break;
     case "status":
-      turn.live = event.state === "waking" ? { ...event, since: turn.live?.since || Date.now() } : null;
+      turn.live =
+        event.state === "waking"
+          ? { ...event, since: turn.live?.since || Date.now() }
+          : null;
       if (event.state === "waking" && (event.attempt || 1) === 1)
         announce(t("live.waking"));
       break;
@@ -999,6 +1087,7 @@ async function runTurn(turn, extra = {}) {
   turn.error = null;
   updateComposer();
   updateTurn(turn);
+  followTurn = turn.id;
   let finished = false;
   turn.started = Date.now();
   const ticker = window.setInterval(tick, 1000);
@@ -1006,7 +1095,8 @@ async function runTurn(turn, extra = {}) {
     const { resend, ...rest } = extra;
     extra = rest;
     if (!state.conv.cid) state.conv.cid = randomId();
-    if (!state.conv.lang) state.conv.lang = state.prefs.lang === "en" ? "en" : "fr"; // pinned for the conversation
+    if (!state.conv.lang)
+      state.conv.lang = state.prefs.lang === "en" ? "en" : "fr"; // pinned for the conversation
     const body = {
       messages: apiMessages(!!resend),
       conv_lang: state.conv.lang,
@@ -1015,7 +1105,11 @@ async function runTurn(turn, extra = {}) {
       lang: state.prefs.lang,
       attachments: state.conv.attachments
         .filter((a) => a.content && !a.lost)
-        .map(({ name, content, encoding }) => ({ name, content, encoding: encoding || "text" })),
+        .map(({ name, content, encoding }) => ({
+          name,
+          content,
+          encoding: encoding || "text",
+        })),
       ...extra,
     };
     const response = await fetch("/api/chat", {
@@ -1121,7 +1215,14 @@ function send(text) {
   const images = readyImages();
   let content = String(text ?? "").trim();
   if (!content && images.length) content = t("att.img.default");
-  if (!content || state.busy || pendingConfirm() || !state.online || busyImages()) return;
+  if (
+    !content ||
+    state.busy ||
+    pendingConfirm() ||
+    !state.online ||
+    busyImages()
+  )
+    return;
   const conv = state.conv;
   if (state.editing) {
     while (
@@ -1144,7 +1245,14 @@ function send(text) {
         size: size || (c ? c.length : 0),
         encoding: encoding || "text",
       })),
-      images: images.map(({ name, w, h: hh, sent, thumb, view }) => ({ name, w, h: hh, sent, thumb, view })),
+      images: images.map(({ name, w, h: hh, sent, thumb, view }) => ({
+        name,
+        w,
+        h: hh,
+        sent,
+        thumb,
+        view,
+      })),
     },
     turn,
   );
@@ -1187,11 +1295,20 @@ async function retryStep(turn, step) {
     const response = await fetch("/api/tool", {
       method: "POST",
       headers: requestHeaders(),
-      body: JSON.stringify({ tool: step.tool, arguments: step.arguments || {}, lang: state.prefs.lang }),
+      body: JSON.stringify({
+        tool: step.tool,
+        arguments: step.arguments || {},
+        lang: state.prefs.lang,
+      }),
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(httpMessage(response.status, data?.detail));
-    if (!data.ok) return toast(t("retry.failed", { error: String(data.error || "").slice(0, 220) }), "error");
+    if (!response.ok)
+      throw new Error(httpMessage(response.status, data?.detail));
+    if (!data.ok)
+      return toast(
+        t("retry.failed", { error: String(data.error || "").slice(0, 220) }),
+        "error",
+      );
     turn.files.push(...(data.files || []));
     step.retried = true;
     step.status = "done";
@@ -1216,7 +1333,12 @@ async function exportAnswer(turn, format) {
       .replace(/[^A-Za-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
       .slice(0, 50) || "bird";
-  if (format === "md") return download(`${base}.md`, "text/markdown", new Blob([content], { type: "text/markdown" }));
+  if (format === "md")
+    return download(
+      `${base}.md`,
+      "text/markdown",
+      new Blob([content], { type: "text/markdown" }),
+    );
   try {
     const response = await fetch("/api/export", {
       method: "POST",
@@ -1224,11 +1346,19 @@ async function exportAnswer(turn, format) {
       body: JSON.stringify({ format: "docx", title, content }),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    download(`${base}.docx`, mime, new Blob([await response.arrayBuffer()], { type: mime }));
+    const mime =
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    download(
+      `${base}.docx`,
+      mime,
+      new Blob([await response.arrayBuffer()], { type: mime }),
+    );
     toast(t("export.done"), "ok");
   } catch (error) {
-    toast(t("export.failed", { error: String(error?.message || error) }), "error");
+    toast(
+      t("export.failed", { error: String(error?.message || error) }),
+      "error",
+    );
   }
 }
 
@@ -1345,7 +1475,8 @@ function bind() {
     zone.classList.add("is-drop");
   });
   zone.addEventListener("dragover", (e) => {
-    if ([...(e.dataTransfer?.types || [])].includes("Files")) e.preventDefault();
+    if ([...(e.dataTransfer?.types || [])].includes("Files"))
+      e.preventDefault();
   });
   zone.addEventListener("dragleave", () => {
     depth = Math.max(0, depth - 1);
@@ -1482,7 +1613,11 @@ async function loadHealth() {
     if (!response.ok) throw new Error(String(response.status));
     state.health = await response.json();
     showBanner("");
-    if (state.prefs.mode === "demo" && !state.prefs.demoChosen && state.health?.modes?.server) {
+    if (
+      state.prefs.mode === "demo" &&
+      !state.prefs.demoChosen &&
+      state.health?.modes?.server
+    ) {
       // a visitor who tried the demo before the operator connected a model would otherwise stay in demo mode
       state.prefs.mode = "";
       savePrefs();
