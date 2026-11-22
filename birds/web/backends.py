@@ -54,6 +54,7 @@ class ChatRequest:
     attachments: list[dict[str, str]] = field(default_factory=list)  # [{"name", "content"}] text documents
     resume: dict | None = None  # verified payload of a confirm token
     decision: bool | None = None  # the user's answer to that confirmation
+    images: list[dict] = field(default_factory=list)  # [{"name", "url": data URL}] of the LAST user message only
 
 
 @dataclass
@@ -94,8 +95,14 @@ def step_event(
     seconds: float = 0.0,
     flags: list[str] | None = None,
     preview: str = "",
+    info: dict | None = None,
+    repairs: list[str] | None = None,
+    code: str | None = None,
 ) -> Event:
     return {
+        "info": dict(info or {}),
+        "repairs": list(repairs or []),
+        "code": code,
         "type": "step",
         "index": index,
         "tool": tool,
@@ -121,10 +128,20 @@ def usage_event(
     energy_kind: str | None = None,
     energy_source: str | None = None,
     tokens_kind: str = "counted",
+    energy_method: str | None = None,
+    energy_basis: dict | None = None,
+    busy_seconds: float | None = None,
+    first_token_seconds: float | None = None,
+    history: dict | None = None,
 ) -> Event:
     if energy_wh is None or energy_kind not in ("measured", "estimated"):
-        energy_wh, energy_kind, energy_source = None, None, None
+        energy_wh, energy_kind, energy_source, energy_method, energy_basis = None, None, None, None, None
     return {
+        "energy_method": energy_method,  # "nvidia_smi" | "calibration" | "power_time" | None
+        "energy_basis": energy_basis,  # power x time: {"watts", "busy_seconds", "pue", "gpu"}
+        "busy_seconds": None if busy_seconds is None else round(float(busy_seconds), 2),
+        "first_token_seconds": None if first_token_seconds is None else round(float(first_token_seconds), 2),
+        "history": history,  # {"turns", "dropped_turns", "history_tokens_est", "budget"}
         "type": "usage",
         "prompt_tokens": int(prompt_tokens),
         "completion_tokens": int(completion_tokens),
@@ -160,14 +177,23 @@ def file_preview(tool: str, args: dict) -> dict | None:
     cut = lambda v, n: str(v if v is not None else "")[:n]  # noqa: E731
     if tool == "make_slides":
         slides = [
-            {"title": cut(s.get("title"), 160), "bullets": [cut(b, 240) for b in (s.get("bullets") or [])[:8]]}
+            {
+                "title": cut(s.get("title"), 160),
+                "bullets": [cut(b, 240) for b in (s.get("bullets") or [])[:14]],
+                "notes": cut(s.get("notes"), 400),
+            }
             for s in (a.get("slides") or [])[:30]
             if isinstance(s, dict)
         ]
-        return {"kind": "slides", "title": cut(a.get("title"), 160), "slides": slides}
+        return {
+            "kind": "slides",
+            "title": cut(a.get("title"), 160),
+            "slides": slides,
+            "subtitle": cut(a.get("subtitle"), 160),
+        }
     if tool == "make_document":
         sections = [
-            {"heading": cut(s.get("heading"), 160), "content": cut(s.get("content"), 420)}
+            {"heading": cut(s.get("heading"), 160), "content": cut(s.get("content"), 1200)}
             for s in (a.get("sections") or [])[:20]
             if isinstance(s, dict)
         ]
@@ -794,12 +820,38 @@ def _source_title(url: str) -> str:
     return (parts.netloc + path) if parts.netloc else str(url)
 
 
+_IMAGE_PROMPT = {
+    "fr": "Transcris fidèlement le contenu de cette image pour qu'un collègue qui ne la voit pas puisse travailler "
+    "dessus : tout le texte visible mot pour mot (les tableaux en Markdown), puis en une ou deux phrases ce que montre "
+    "l'image. N'invente rien : écris [illisible] pour ce que tu ne peux pas lire.",
+    "en": "Transcribe this image faithfully so that a colleague who cannot see it can work with it: all visible text "
+    "word for word (tables in Markdown), then one or two sentences on what the image shows. Invent nothing: write "
+    "[illegible] for what you cannot read.",
+}
+_IMAGE_NOTE = {"fr": "Image jointe", "en": "Attached image"}
+_SEARCH_CODES = {
+    "search_quota": ("Quota de recherche atteint", "Search quota reached"),
+    "search_rate_limited": (
+        "Trop de recherches à la suite, réessayez dans un instant",
+        "Too many searches, try again shortly",
+    ),
+    "search_unauthorized": ("Clé de l'API de recherche refusée", "Search API key refused"),
+    "search_bad_request": ("Requête refusée par le moteur de recherche", "Query refused by the search engine"),
+    "search_failed": ("Le moteur de recherche n'a pas répondu", "The search engine did not answer"),
+}
+
+
 class HarnessBackend:
     """Adapter over ``birds.harness`` (agent loop, tools, guardrails, meter). Stateless between requests.
 
     ``workspace=None`` (serverless): each request gets a fresh temporary folder, deleted at the end; ``read_file``
     is offered to the model only when the user attached a document. With a persistent ``workspace`` (local use),
     the harness works there and keeps its audit file; without one, audit lines go to stdout.
+
+    History: earlier turns go through ``birds.harness.history.window`` (token budget, coarse cuts that keep the
+    prompt prefix stable for the server's prefix cache, compact memo of past tool use).
+    Images: read first through ``/v1/chat/completions`` (the only route that carries them), transcribed to text,
+    then the normal agent run (with its tools) works on that text.
     """
 
     def __init__(
@@ -813,6 +865,7 @@ class HarnessBackend:
         config: dict | None = None,
         http=None,
         search=None,
+        history_tokens: int = 6000,
     ) -> None:
         try:
             from birds.harness import Agent, Config
@@ -823,8 +876,21 @@ class HarnessBackend:
         self.kind, self.model, self.http, self.search = kind, model, http, search
         self.workspace = Path(workspace).resolve() if workspace else None
         self.config = dict(config or {})
+        self.history_tokens = history_tokens
         probe = Config(workspace=Path(tempfile.gettempdir()), audit_file=None, **self.config)
-        self.tools = [t["function"]["name"] for t in Agent(llm, self.tok, probe, http=http, search=search).tools]
+        agent = Agent(llm, self.tok, probe, http=http, search=search)
+        self.tools = [t["function"]["name"] for t in agent.tools]
+        backend = agent.search
+        self.search_info = (
+            None
+            if backend is None
+            else {
+                "backend": getattr(backend, "name", "?"),
+                "label": getattr(backend, "label", ""),
+                "fallback": getattr(getattr(backend, "fallback", None), "label", None),
+            }
+        )
+        self.images = hasattr(llm, "chat")
 
     def _config(self, workspace: Path, request: ChatRequest, ctx: RunContext):
         from birds.harness import Config
@@ -837,14 +903,63 @@ class HarnessBackend:
         cfg.timeout_s = max(0.0, min(cfg.timeout_s, ctx.seconds_left()))
         return cfg
 
+    def _read_images(self, request: ChatRequest, ctx: RunContext, lang: str, first_index: int, question: str):
+        """Transcribe each attached image (one chat-completions call per image, no tools). Returns (texts, usages)."""
+        texts, usages = [], []
+        for k, img in enumerate(request.images):
+            index = first_index + k
+            args = {"name": img["name"]}
+            ctx.check()
+            ctx.emit(step_event(index, "read_image", args, "running"))
+            prompt = _IMAGE_PROMPT[lang] + (
+                f"\n\n(Demande de l'utilisateur, pour contexte : {question[:300]})"
+                if lang == "fr"
+                else f"\n\n(User request, for context: {question[:300]})"
+            )
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": img["url"]}},
+                        {"type": "text", "text": prompt},
+                    ],
+                }
+            ]
+            t0 = time.monotonic()
+            out = self.llm.chat(
+                messages,
+                700,
+                on_status=lambda state, info: ctx.emit({"type": "status", "state": state, **(info or {})}),
+                deadline=ctx.deadline - 20,
+            )
+            text = (out.get("text") or "").strip()
+            usages.append(out)
+            texts.append((img["name"], text))
+            ctx.emit(
+                step_event(
+                    index,
+                    "read_image",
+                    args,
+                    "done" if text else "error",
+                    _t(lang, f"{len(text)} caractères lus", f"{len(text)} characters read") if text else "empty",
+                    time.monotonic() - t0,
+                    preview=" ".join(text.split())[:200],
+                )
+            )
+        return texts, usages
+
     def run(self, request: ChatRequest, ctx: RunContext) -> None:
-        from birds.harness import Agent
-        from birds.harness.agent import PAUSE, Hooks
+        from birds.harness import Agent, guard
+        from birds.harness.agent import PAUSE, Hooks, detect_lang
+        from birds.harness.history import memo, window
+        from birds.harness.meter import estimate_power_time
+        from birds.sources.identity import DEFAULT_SYSTEM
 
         lang = "en" if request.lang == "en" else "fr"
         ephemeral = self.workspace is None
         workspace = Path(tempfile.mkdtemp(prefix="bird-run-")) if ephemeral else self.workspace
         t0 = time.monotonic()
+        image_texts, image_usage, hist_stats = [], [], None
         try:
             attach_dir = workspace if ephemeral else workspace / ATTACH_DIR
             names = []
@@ -854,16 +969,17 @@ class HarnessBackend:
                 (attach_dir / name).write_text(doc["content"], encoding="utf-8")
                 names.append(name if ephemeral else f"{ATTACH_DIR}/{name}")
             cfg = self._config(workspace, request, ctx)
+            offset = len(request.images) if request.resume is None else 0
 
             def on_step_start(index: int, tool: str, arguments: dict) -> None:
                 ctx.check()  # stop between two tool calls when the user pressed stop
-                ctx.emit(step_event(index, tool, _plain(arguments), "running"))
+                ctx.emit(step_event(index + offset, tool, _plain(arguments), "running"))
 
             hooks = Hooks(
                 on_token=lambda text: ctx.emit({"type": "delta", "content": text}),
                 on_reset=lambda: ctx.emit({"type": "delta_reset"}),
                 on_step_start=on_step_start,
-                on_step_end=lambda index, step: ctx.emit(self._step_event(index, step, lang)),
+                on_step_end=lambda index, step: ctx.emit(self._step_event(index + offset, step, lang)),
                 on_status=lambda state, info: ctx.emit({"type": "status", "state": state, **(info or {})}),
             )
             agent = Agent(
@@ -885,10 +1001,22 @@ class HarnessBackend:
             else:
                 *history, last = request.messages
                 user = last["content"]
+                if request.images:
+                    if not self.images:
+                        raise HarnessUnavailable(
+                            _t(lang, "ce modèle ne peut pas lire d'images ici", "this model cannot read images here")
+                        )
+                    image_texts, image_usage = self._read_images(request, ctx, lang, 0, user)
+                    for name, text in image_texts:
+                        user += f"\n\n[{_IMAGE_NOTE[lang]} : {name}]\n{text or '(illisible)'}"
                 if names:
                     note = _ATTACH_NOTE[lang]
                     user += "\n\n" + "\n".join(f"[{note} : {n}]" for n in names)
-                run = agent.run(user, history=history or None, thinking=request.thinking)
+                user_lang = detect_lang(last["content"]) if last["content"].strip() else lang
+                kept, summary, hist_stats = window(history, self.history_tokens, lang=user_lang)
+                system = DEFAULT_SYSTEM[user_lang] + ("\n\n" + summary if summary else "")
+                kept = [{**m, "content": guard.defang(m["content"])} for m in kept]
+                run = agent.run(user, history=kept or None, system=system, thinking=request.thinking)
             ctx.check()
             report = run.report or {}
             previews = iter(
@@ -902,6 +1030,17 @@ class HarnessBackend:
                     files.append(inline_file(path, preview, ctx.max_inline_file_bytes))
             seconds = float(carry.get("seconds") or 0.0) + (time.monotonic() - t0)
             energy, energy_kind = report.get("energy_wh"), report.get("energy_kind")
+            energy_method, energy_basis = report.get("energy_method"), report.get("energy_basis")
+            energy_source = report.get("energy_source")
+            busy = float(report.get("busy_seconds") or 0.0)
+            tin, tout = report.get("prompt_tokens") or 0, report.get("completion_tokens") or 0
+            for u in image_usage:  # image tokens are prompt tokens of the reading call
+                tin += int(u.get("prompt_tokens") or 0)
+                tout += int(u.get("completion_tokens") or 0)
+                busy += float(u.get("busy_seconds") or 0.0)
+            if image_usage and energy_method == "power_time" and cfg.gpu_watts:
+                est = estimate_power_time(cfg.gpu_watts, busy, pue=cfg.pue, label=cfg.gpu_label)
+                energy, energy_source, energy_basis = est["energy_wh"], est["energy_source"], est["energy_basis"]
             if energy_kind == "measured" and carry.get("energy_wh") is not None:
                 energy = round(energy + float(carry["energy_wh"]), 4)
             if run.stop_reason == "confirm":
@@ -937,14 +1076,23 @@ class HarnessBackend:
                 if m:
                     titles[m.group(1)] = m.group(2).strip()
             draft = run.drafts[-1] if run.drafts else None
+            sources = [
+                {"n": n, "title": titles.get(str(url)) or _source_title(url), "url": str(url)}
+                for n, url in enumerate(run.sources, 1)
+            ]
+            turn_memo = memo(
+                run.lang,
+                [{"tool": s.tool, "arguments": s.arguments} for s in run.steps if not s.error],
+                sources,
+                [f["name"] for f in files],
+                draft,
+                " ".join(t for _, t in image_texts),
+            )
             ctx.emit(
                 {
                     "type": "answer",
                     "content": str(run.answer),
-                    "sources": [
-                        {"n": n, "title": titles.get(str(url)) or _source_title(url), "url": str(url)}
-                        for n, url in enumerate(run.sources, 1)
-                    ],
+                    "sources": sources,
                     "files": files,
                     "draft_email": None
                     if draft is None
@@ -956,21 +1104,29 @@ class HarnessBackend:
                         "body": str(draft.get("body") or ""),
                     },
                     "stop_reason": run.stop_reason,
+                    "memo": turn_memo,
+                    "images": [{"name": n, "text": t[:4000]} for n, t in image_texts],
                 }
             )
             ctx.emit(
                 usage_event(
                     model=self.model,
                     thinking=request.thinking,
-                    prompt_tokens=report.get("prompt_tokens") or 0,
-                    completion_tokens=report.get("completion_tokens") or 0,
+                    prompt_tokens=tin,
+                    completion_tokens=tout,
                     seconds=seconds,
-                    tool_calls=report.get("tool_calls") or len(run.steps),
+                    tool_calls=(report.get("tool_calls") or len(run.steps)) + len(image_usage),
                     bytes_fetched=report.get("bytes_fetched") or 0,
                     energy_wh=energy,
                     energy_kind=energy_kind,
-                    energy_source=report.get("energy_source"),
+                    energy_source=energy_source,
                     tokens_kind="counted" if report.get("tokens_exact", True) else "estimated",
+                    energy_method=energy_method,
+                    energy_basis=energy_basis,
+                    busy_seconds=busy or None,
+                    first_token_seconds=(image_usage[0].get("first_token_seconds") if image_usage else None)
+                    or report.get("first_token_seconds"),
+                    history=hist_stats,
                 )
             )
         finally:
@@ -980,12 +1136,16 @@ class HarnessBackend:
     @staticmethod
     def _step_event(index: int, step, lang: str) -> Event:
         decision = str(getattr(step, "decision", "allow"))
-        preview = ""
+        preview, code = "", None
+        info = dict(getattr(step, "info", {}) or {})
         if decision.startswith("denied"):
             status = "denied"
             summary = _t(lang, *_DENIED_SUMMARY.get(decision, _DENIED_SUMMARY["denied_unconfirmed"]))
         elif step.error:
-            status, summary = "error", str(step.error)[:200]
+            status, summary = "error", str(step.error)[:300]
+            code = info.get("code")
+            if code in _SEARCH_CODES:
+                summary = _t(lang, *_SEARCH_CODES[code]) + (f" ({info.get('label')})" if info.get("label") else "")
         else:
             status = "done"
             summary = _t(
@@ -995,4 +1155,16 @@ class HarnessBackend:
             if text.startswith("["):  # drop the fixed "external data" line the harness puts in front
                 text = text.split("\n", 1)[-1]
             preview = " ".join(text.split())[:200]
-        return step_event(index, step.tool, _plain(step.arguments), status, summary, step.seconds, step.flags, preview)
+        return step_event(
+            index,
+            step.tool,
+            _plain(step.arguments),
+            status,
+            summary,
+            step.seconds,
+            step.flags,
+            preview,
+            info=info,
+            repairs=getattr(step, "repairs", None),
+            code=code,
+        )

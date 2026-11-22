@@ -48,8 +48,26 @@ USAGE_KEYS = {
     "co2_g",
     "model",
     "thinking",
+    "energy_method",
+    "energy_basis",
+    "busy_seconds",
+    "first_token_seconds",
+    "history",
 }
-STEP_KEYS = {"type", "index", "tool", "arguments", "status", "summary", "seconds", "flags", "preview"}
+STEP_KEYS = {
+    "type",
+    "index",
+    "tool",
+    "arguments",
+    "status",
+    "summary",
+    "seconds",
+    "flags",
+    "preview",
+    "info",
+    "repairs",
+    "code",
+}
 SECRET = b"test-signing-secret"
 
 
@@ -531,7 +549,7 @@ def test_file_preview_is_trimmed():
     sheet = file_preview("make_sheet", {"title": "T", "columns": ["a", "b"], "rows": rows})
     assert sheet["total_rows"] == 50 and len(sheet["rows"]) == 8 and len(sheet["rows"][0][1]) == 60
     slides = file_preview("make_slides", {"title": "T", "slides": [{"title": "S", "bullets": ["b"] * 20}]})
-    assert slides["kind"] == "slides" and len(slides["slides"][0]["bullets"]) == 8
+    assert slides["kind"] == "slides" and len(slides["slides"][0]["bullets"]) == 14
     assert file_preview("draft_email", {}) is None and file_preview("make_slides", "not a dict")["slides"] == []
 
 
@@ -793,7 +811,13 @@ def test_harness_steps_files_and_draft_from_a_temporary_workspace(tmp_path, monk
     assert answer["draft_email"] == {"to": "camille@example.org", "subject": "Plan", "body": "Bonjour,\nvoici le plan."}
     (file,) = answer["files"]
     assert file["name"].endswith(".pptx") and base64.b64decode(file["data"])[:2] == b"PK"
-    assert file["preview"] == {"kind": "slides", "title": "Plan", "slides": slides}
+    assert file["preview"] == {
+        "kind": "slides",
+        "title": "Plan",
+        "slides": [{**slides[0], "notes": ""}],
+        "subtitle": "",
+    }
+    assert answer["memo"].startswith("[Mémo de ce tour — outils : make_slides « Plan » ; draft_email « Plan »")
     assert not list(tmp_path.glob("bird-run-*")), "the per-request workspace must be deleted"
     lines = [json.loads(ln) for ln in capsys.readouterr().out.splitlines() if ln.startswith("{")]
     assert [ln["event"] for ln in lines] == ["tool_call", "tool_call", "run"]  # audit log on stdout, as JSON lines

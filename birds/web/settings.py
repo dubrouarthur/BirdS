@@ -83,6 +83,7 @@ class Settings:
     max_attachment_chars: int = 60_000
     max_steps: int = 6
     max_calls_per_step: int = 3
+    history_tokens: int = 6000  # estimated tokens of earlier turns sent with each request (history.window)
     max_tokens: int = 1536  # per generation: a full make_slides call needs room
     max_inline_file_bytes: int = 3_000_000
     # time
@@ -172,6 +173,7 @@ class Settings:
             active_params_b=_num(get("BIRD_ACTIVE_PARAMS_B"), 4.0, float, 0.1),
             compare_classes=classes,
             max_tokens=_num(get("BIRD_MAX_TOKENS"), 1536, int, 256),
+            history_tokens=_num(get("BIRD_HISTORY_TOKENS"), 6000, int, 500),
             base_url=base_url,
             model=get("BIRD_MODEL") or "adubrou/Bird-S-4B",
             model_label=get("BIRD_MODEL_LABEL") or "Bird S 4B",

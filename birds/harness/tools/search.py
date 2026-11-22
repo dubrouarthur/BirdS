@@ -53,6 +53,13 @@ def _json(r, label: str = "the search service") -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _retry_after(r) -> float | None:
+    try:
+        return float(r.headers.get("retry-after") or "")
+    except ValueError:
+        return None
+
+
 def _clean(text) -> str:
     text = re.sub(r"<[^>]+>", "", str(text or ""))
     return " ".join(html.unescape(text).split())
@@ -174,8 +181,13 @@ class WikipediaBackend:
     name = "wikipedia"
     LANGS = ("fr", "en")
 
-    def __init__(self, http, timeout: float = 10.0, contact: str | None = None, lang: str = "fr"):
+    def __init__(
+        self, http, timeout: float = 10.0, contact: str | None = None, lang: str = "fr", sleep=None, retries: int = 1
+    ):
+        import time
+
         self.http, self.timeout, self.default_lang = http, timeout, lang if lang in self.LANGS else "fr"
+        self.sleep, self.retries = sleep or time.sleep, retries
         self.headers = {"User-Agent": user_agent(contact), "Accept": "application/json"}
 
     @property
@@ -205,9 +217,13 @@ class WikipediaBackend:
             "utf8": 1,
             "maxlag": 5,
         }
-        r = self.http.get(
-            f"https://{lang}.wikipedia.org/w/api.php", params=params, headers=self.headers, timeout=self.timeout
-        )
+        url = f"https://{lang}.wikipedia.org/w/api.php"
+        r = self.http.get(url, params=params, headers=self.headers, timeout=self.timeout)
+        if r.status_code in (429, 503):  # Wikimedia asks clients to honour Retry-After; one short, polite retry
+            wait = _retry_after(r)
+            if wait is not None and wait <= 3 and self.retries:
+                self.sleep(max(1.0, wait))
+                r = self.http.get(url, params=params, headers=self.headers, timeout=self.timeout)
         pages = ((_json(r, self.label).get("query") or {}).get("pages")) or []
         pages = sorted((p for p in pages if isinstance(p, dict)), key=lambda p: p.get("index") or 0)
         return [

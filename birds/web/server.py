@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import json
+import re
 import threading
 import time
 from collections import deque
@@ -46,6 +47,12 @@ MODES = ("demo", "server", "user")
 class Message(BaseModel):
     role: Literal["user", "assistant"]
     content: str
+    memo: str | None = Field(default=None, max_length=4000)  # compact record of the tools of that turn
+
+
+class ImageIn(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    url: str = Field(min_length=32, max_length=1_500_000)  # data:image/(png|jpeg|webp);base64,...
 
 
 class Attachment(BaseModel):
@@ -58,6 +65,7 @@ class ChatBody(BaseModel):
     thinking: bool = False
     lang: Literal["fr", "en"] = "fr"
     attachments: list[Attachment] = Field(default_factory=list)
+    images: list[ImageIn] = Field(default_factory=list, max_length=3)  # for the last user message only
     approved: list[str] = Field(default_factory=list, max_length=1)  # confirm token the user approved
     denied: list[str] = Field(default_factory=list, max_length=1)  # confirm token the user refused
 
@@ -312,9 +320,10 @@ def create_app(
         llm, model, base = user_client(request, s.max_seconds)
         cfg = harness_config(s)
         cfg.update(wh_per_1k_tokens=None, calibration_source=None, measure_gpu=False)  # not the operator's hardware
-        return HarnessBackend(llm, kind="completions", model=model, config=cfg), "user:" + tokens.digest([base, model])[
-            :16
-        ]
+        backend = HarnessBackend(
+            llm, kind="completions", model=model, config=cfg, http=fetch_client(s), history_tokens=s.history_tokens
+        )
+        return backend, "user:" + tokens.digest([base, model])[:16]
 
     # ------------------------------------------------------------------ API
 
@@ -346,6 +355,9 @@ def create_app(
             "modes": {"demo": True, "server": server is not None, "user": bool(s.allow_user_endpoint)},
             "demo_model": demo.model,
             "access_required": bool(s.access_code),
+            "images": bool(getattr(shown, "images", False)),
+            "image_limits": {"min_pixels": IMAGE_MIN_PIXELS, "min_side": IMAGE_MIN_SIDE, "max_side": 1568, "max": 3},
+            "history_tokens": s.history_tokens,
             "endpoint_hosts": ["*." + h for h in s.endpoint_allowed_hosts],
             "signing": s.signing,
             "grid_intensity_g_per_kwh": s.grid_intensity,
@@ -466,10 +478,16 @@ def create_app(
         if body.approved and body.denied:
             raise ApiError(422, "invalid_request", "approve or deny, not both")
 
-        messages = [m.model_dump() for m in body.messages]
+        images = [{"name": sanitize_filename(i.name), "url": check_image(i.url)} for i in body.images]
+        messages = [m.model_dump(exclude_none=True) for m in body.messages]
         attachments = [{"name": sanitize_filename(a.name), "content": a.content} for a in body.attachments]
         backend, binding = backend_for(mode, request)
-        conv = tokens.digest({"m": messages, "a": [[a["name"], tokens.digest(a["content"])] for a in attachments]})
+        conv = tokens.digest(
+            {
+                "m": [{"role": m["role"], "content": m["content"]} for m in messages],
+                "a": [[a["name"], tokens.digest(a["content"])] for a in attachments],
+            }
+        )
         resume, decision = None, None
         if body.approved or body.denied:
             try:
@@ -479,7 +497,7 @@ def create_app(
             if resume.get("conv") != conv or resume.get("bind") != binding:
                 raise ApiError(400, "confirm_invalid", "this confirmation belongs to another conversation or model")
             decision = bool(body.approved)
-        chat_request = ChatRequest(messages, body.thinking, body.lang, attachments, resume, decision)
+        chat_request = ChatRequest(messages, body.thinking, body.lang, attachments, resume, decision, images)
 
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue[Event | None] = asyncio.Queue()
@@ -564,6 +582,36 @@ def create_app(
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app
+
+
+IMAGE_MIN_PIXELS = 200_000  # below this, the live model hallucinated on a real test (400 x 220): refuse
+IMAGE_MIN_SIDE = 300
+IMAGE_MAX_SIDE = 2048  # the browser downsizes to 1568 px; anything larger did not come from our UI
+
+
+def check_image(url: str) -> str:
+    """Validate an image data URL: PNG, JPEG or WebP, decodable, within size bounds. Never stored."""
+    import base64
+    import io
+
+    m = re.match(r"^data:image/(png|jpeg|webp);base64,([A-Za-z0-9+/=]+)$", url)
+    if not m:
+        raise ApiError(415, "image_type", "images must be PNG, JPEG or WebP data URLs")
+    try:
+        raw = base64.b64decode(m.group(2), validate=True)
+        from PIL import Image
+
+        with Image.open(io.BytesIO(raw)) as im:
+            fmt, (w, h) = (im.format or "").lower(), im.size
+    except Exception:
+        raise ApiError(415, "image_invalid", "this image cannot be read") from None
+    if fmt not in ("png", "jpeg", "webp"):
+        raise ApiError(415, "image_type", "images must be PNG, JPEG or WebP")
+    if w * h < IMAGE_MIN_PIXELS or min(w, h) < IMAGE_MIN_SIDE:
+        raise ApiError(422, "image_too_small", f"image too small to be read reliably ({w}x{h})")
+    if max(w, h) > IMAGE_MAX_SIDE:
+        raise ApiError(413, "image_too_large", f"image too large ({w}x{h})")
+    return url
 
 
 def _sse(event: Event) -> str:
