@@ -133,7 +133,7 @@ def test_health(client):
         assert tool["en"].strip() and not tool["en"].rstrip().endswith(":"), tool
     search = next(x for x in data["tools_info"]["tools"] if x["name"] == "web_search")
     assert search["state"] == "on" and search["fr"] == "Cherche sur le web et cite ses sources"
-    assert data["thinking_default"] is False and data["access_required"] is False
+    assert data["thinking_default"] is True and data["access_required"] is False
     assert data["grid_intensity_g_per_kwh"] is None and data["equivalent"] is None
     assert data["endpoint_hosts"] == ["*.endpoints.huggingface.cloud"]
     assert data["limits"]["max_messages"] == 60 and data["signing"] == "configured"

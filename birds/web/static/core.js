@@ -39,7 +39,7 @@ export const store = {
   },
 };
 
-const DEFAULT_PREFS = { lang: "fr", theme: "system", thinking: false, mode: "", endpoint: "", token: "", model: "", access: "", welcomed: false };
+const DEFAULT_PREFS = { lang: "fr", theme: "system", thinking: true, thinkingV: 2, mode: "", endpoint: "", token: "", model: "", access: "", welcomed: false };
 
 /** First visit (nothing stored): French when any of the browser's languages is French, English otherwise. */
 function detectLang() {
@@ -58,7 +58,7 @@ export const state = {
   convs: [], // index: [{id, title, created, updated, n}]
   conv: null, // the open conversation {id, title, created, updated, turns, attachments}
   view: "chat",
-  thinking: false,
+  thinking: true,
   busy: false,
   abort: null,
   online: typeof navigator === "undefined" ? true : navigator.onLine !== false,
@@ -66,10 +66,17 @@ export const state = {
   seq: 0,
 };
 if (state.prefs.lang !== "en") state.prefs.lang = "fr";
+// Reasoning became the default (v2). Prefs saved before kept the old default (false) without anyone choosing
+// it: switch them on once; a choice made in Settings after that is kept.
+if (storedPrefs && storedPrefs.thinkingV !== 2) {
+  state.prefs.thinking = true;
+  state.prefs.thinkingV = 2;
+}
 state.thinking = !!state.prefs.thinking;
 
 export const t = makeT(() => state.prefs.lang);
 export const savePrefs = () => store.set("bird.prefs", JSON.stringify(state.prefs));
+if (storedPrefs && storedPrefs.thinkingV !== 2) savePrefs();
 export const resetPrefs = () => (state.prefs = { ...DEFAULT_PREFS, lang: state.prefs.lang, welcomed: true });
 
 /** The mode actually used for requests: the saved choice if this server offers it, else the server default. */

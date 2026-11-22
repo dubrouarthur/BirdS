@@ -386,7 +386,7 @@ def create_app(
                 "classes": [{"fr": fr, "en": en, "active_params_b": b} for fr, en, b in s.compare_classes],
                 "reference": s.reference,
             },
-            "thinking_default": False,
+            "thinking_default": True,
             "default_mode": default_mode(),
             "modes": {"demo": True, "server": server is not None, "user": bool(s.allow_user_endpoint)},
             "demo_model": demo.model,

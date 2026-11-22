@@ -1858,7 +1858,7 @@ async function init() {
     },
     onReset: () => {
       state.convs = [];
-      state.thinking = false;
+      state.thinking = !!state.prefs.thinking;
       state.conv = newConv();
       refreshAll();
     },
