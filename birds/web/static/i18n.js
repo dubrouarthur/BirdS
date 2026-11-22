@@ -42,6 +42,11 @@ export const STRINGS = {
     "empty.examples": "Pour commencer",
     "empty.examples.doc": "Avec votre document",
     "ex.email.title": "Mail",
+    "ex.email.starter": "Destinataire, objectif, ton : je rédige.",
+    "ex.minutes.starter": "Collez vos notes, j'en fais un compte rendu.",
+    "ex.slides.starter": "Un sujet, un public : je prépare le .pptx.",
+    "ex.search.starter": "Une question : je cherche et je cite mes sources.",
+    "ex.starter.aria": "prépare un modèle à compléter : {what}",
     "ex.email.prompt":
       "Réponds à Camille : son offre nous convient, demande le délai de livraison et les conditions de paiement.",
     "ex.guard.title": "Voir comment Bird se protège",
@@ -651,6 +656,11 @@ export const STRINGS = {
     "empty.examples": "To get started",
     "empty.examples.doc": "With your document",
     "ex.email.title": "Email",
+    "ex.email.starter": "Recipient, goal, tone: I draft it.",
+    "ex.minutes.starter": "Paste your notes, I turn them into minutes.",
+    "ex.slides.starter": "A topic, an audience: I build the .pptx.",
+    "ex.search.starter": "A question: I search and cite my sources.",
+    "ex.starter.aria": "prepares a form to complete: {what}",
     "ex.email.prompt":
       "Reply to Camille: her offer works for us, ask for the delivery time and the payment terms.",
     "ex.guard.title": "See how Bird protects itself",

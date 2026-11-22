@@ -565,16 +565,21 @@ function renderEmpty() {
             class: "chip",
             type: "button",
             "data-example": key,
-            title: t(`ex.${key}.prompt`),
-            "aria-label": `${t(`ex.${key}.title`)} — ${t(`ex.${key}.prompt`)}`,
-            onclick: () => send(t(`ex.${key}.prompt`)),
+            // without a document, a starter fills the composer with a short form to complete (the slash
+            // templates) instead of sending a canned request into a throwaway conversation; with a
+            // document, the action applies to it and is sent as is
+            title: withDoc ? t(`ex.${key}.prompt`) : t(`slash.${STARTER[key]}.hint`),
+            "aria-label": withDoc
+              ? `${t(`ex.${key}.title`)} — ${t(`ex.${key}.prompt`)}`
+              : `${t(`ex.${key}.title`)} — ${t("ex.starter.aria", { what: t(`slash.${STARTER[key]}.hint`) })}`,
+            onclick: () => (withDoc ? send(t(`ex.${key}.prompt`)) : pickSlash(STARTER[key])),
           },
           h("span", { class: "chip-icon" }, icon(ico)),
           h(
             "span",
             { class: "chip-text" },
             h("span", { class: "chip-title", text: t(`ex.${key}.title`) }),
-            h("span", { class: "chip-prompt", text: t(`ex.${key}.prompt`) }),
+            h("span", { class: "chip-prompt", text: withDoc ? t(`ex.${key}.prompt`) : t(`ex.${key}.starter`) }),
           ),
         ),
       ),
@@ -927,6 +932,7 @@ async function onFiles(files) {
 }
 
 // slash-style quick actions
+const STARTER = { email: "mail", minutes: "cr", slides: "pres", search: "search" }; // empty-state chip -> template
 const SLASH = [
   ["mail", "draft_email"],
   ["cr", "make_document"],
