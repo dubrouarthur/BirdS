@@ -4451,6 +4451,21 @@ ol.a4-list > li::before {
   font-weight: 700;
   border: 0;
 }
+/* the first column (usually the identifier) stays in view when a wide sheet scrolls sideways */
+.xl-table :is(th, td):first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+}
+.xl-table th:first-child {
+  z-index: 2;
+}
+.xl-table td:first-child {
+  background: #fff;
+}
+.xl-scroll.is-x :is(th, td):first-child {
+  box-shadow: 6px 0 6px -4px rgb(11 27 63 / 0.28);
+}
 .xl-table .num {
   text-align: end;
   font-variant-numeric: tabular-nums;

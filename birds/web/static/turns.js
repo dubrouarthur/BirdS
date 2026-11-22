@@ -604,7 +604,12 @@ function renderFiles(turn) {
                 n: p.v === 2 ? (p.blocks || []).filter((b) => b && b.k === "h" && b.l === 1).length : (p.sections || []).length,
               })
             : p.kind === "sheet"
-              ? t("files.rows", { n: p.total_rows || 0 })
+              ? [
+                  t("files.rows", { n: p.total_rows || 0 }),
+                  (p.columns || []).length > 1 && t("files.cols", { n: p.columns.length }),
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
               : "";
       const kind =
         {

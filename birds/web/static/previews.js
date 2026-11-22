@@ -502,30 +502,37 @@ export function sheetPreview(p) {
     body.append(tr);
   }
   const more = num(p.total_rows) - (p.rows || []).length;
+  const scroller = h(
+    "div",
+    {
+      class: "xl-scroll",
+      tabindex: "0",
+      "aria-label": t("files.preview"),
+      // a shadow on the frozen first column while the sheet is scrolled sideways
+      onscroll: (e) => e.currentTarget.classList.toggle("is-x", Math.abs(e.currentTarget.scrollLeft) > 0),
+    },
+    h(
+      "table",
+      { class: "xl-table" },
+      colgroup,
+      h(
+        "thead",
+        null,
+        h(
+          "tr",
+          null,
+          (p.columns || []).map((c, j) =>
+            h("th", { scope: "col", class: cls(j), text: String(c) }),
+          ),
+        ),
+      ),
+      body,
+    ),
+  );
   return h(
     "div",
     { class: "xl" },
-    h(
-      "div",
-      { class: "xl-scroll", tabindex: "0", "aria-label": t("files.preview") },
-      h(
-        "table",
-        { class: "xl-table" },
-        colgroup,
-        h(
-          "thead",
-          null,
-          h(
-            "tr",
-            null,
-            (p.columns || []).map((c, j) =>
-              h("th", { scope: "col", class: cls(j), text: String(c) }),
-            ),
-          ),
-        ),
-        body,
-      ),
-    ),
+    scroller,
     more > 0 &&
       h("p", { class: "hint", text: t("files.more.rows", { n: more }) }),
   );
