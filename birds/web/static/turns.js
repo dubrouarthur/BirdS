@@ -67,10 +67,16 @@ function liveLine(turn) {
   let text;
   let sub = "";
   let calm = false;
+  let retry = null;
   if (turn.live?.state === "waking") {
     text = t("live.waking");
     sub = t("live.waking.sub", { n: turn.live.attempt || 1 });
     calm = true;
+    const wait = Number(turn.live.retry_in);
+    if (wait >= 0) {
+      const at = String((turn.live.at || Date.now()) + wait * 1000);
+      retry = h("span", { class: "num", "data-retry-at": at, text: retryText(Number(at)) });
+    }
   } else if (running) {
     const key = `live.${running.tool}`;
     const label = t(key) === key ? t("live.tool") : t(key);
@@ -104,9 +110,14 @@ function liveLine(turn) {
         h("span", { text }),
         h("span", { class: "live-time num", "data-since": String(since), "aria-hidden": "true", text: elapsed(since) }),
       ),
-      sub ? h("p", { class: "live-sub", text: sub }) : auto,
+      sub ? h("p", { class: "live-sub" }, retry && [retry, " · "], sub) : auto,
     ),
   );
+}
+
+function retryText(at) {
+  const left = Math.max(0, Math.ceil((at - Date.now()) / 1000));
+  return left > 0 ? t("live.retry.in", { n: left }) : t("live.retry.now");
 }
 
 function autoSub(started, first) {
@@ -123,6 +134,7 @@ const elapsed = (since) => {
 /** Called every second while a request runs: only the small timers change, nothing else is redrawn. */
 export function tick() {
   for (const el of document.querySelectorAll("[data-since]")) el.textContent = elapsed(el.dataset.since);
+  for (const el of document.querySelectorAll("[data-retry-at]")) el.textContent = retryText(Number(el.dataset.retryAt));
   for (const el of document.querySelectorAll("[data-auto-sub]")) {
     const line = autoSub(Number(el.dataset.started), el.dataset.autoSub);
     if (el.textContent !== line) el.textContent = line;
@@ -880,7 +892,7 @@ function fullReceipt(turn) {
             out: fmtInt(u.completion_tokens),
           }),
         ),
-        figure(fmtSeconds(u.seconds), t("meter.time")),
+        figure(fmtSeconds(u.seconds), t("meter.time"), turn.wake_s > 0 ? t("meter.wake", { s: fmtSeconds(turn.wake_s) }) : null),
         energy
           ? figure(
               fmtEnergy(u.energy_wh, u.energy_kind),

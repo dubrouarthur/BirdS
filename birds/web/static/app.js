@@ -478,9 +478,15 @@ function updateTop() {
   $("footprint-total").textContent = s.n
     ? `${fmtInt(s.prompt + s.completion)} tokens`
     : t("nav.footprint");
-  document.title = state.conv?.title
-    ? `${state.conv.title} — Bird`
-    : t("app.title");
+  syncTitle();
+}
+
+/** While the model wakes up and the tab is in the background, the tab title says so. */
+function syncTitle() {
+  const base = state.conv?.title ? `${state.conv.title} — Bird` : t("app.title");
+  const last = state.conv?.turns?.[state.conv.turns.length - 1];
+  const waking = state.busy && last?.live?.state === "waking";
+  document.title = waking && document.hidden ? `${t("title.waking")} · ${base}` : base;
 }
 
 function applyTheme() {
@@ -1099,10 +1105,22 @@ function paintSoon(turn) {
   });
 }
 
+/** The model answered after a wake-up: keep how long the wait was, for the receipt. */
+function endWake(turn) {
+  if (turn.wakeStart && !turn.wake_s) turn.wake_s = Math.round((Date.now() - turn.wakeStart) / 100) / 10;
+  turn.wakeStart = 0;
+  if (turn.live?.state === "waking") {
+    turn.live = null;
+    syncTitle();
+  }
+}
+
 function handleEvent(turn, event) {
+  if (turn.wakeStart && event.type !== "status") endWake(turn);
   switch (event.type) {
     case "delta":
       turn.text += String(event.content ?? "");
+      if (turn.live) endWake(turn);
       turn.live = null;
       return paintSoon(turn);
     case "user": {
@@ -1117,12 +1135,16 @@ function handleEvent(turn, event) {
       turn.text = "";
       break;
     case "status":
-      turn.live =
-        event.state === "waking"
-          ? { ...event, since: turn.live?.since || Date.now() }
-          : null;
+      if (event.state === "waking") {
+        turn.wakeStart = turn.wakeStart || Date.now();
+        turn.live = { ...event, since: turn.live?.since || Date.now(), at: Date.now() };
+      } else {
+        endWake(turn);
+        turn.live = null;
+      }
       if (event.state === "waking" && (event.attempt || 1) === 1)
         announce(t("live.waking"));
+      syncTitle();
       break;
     case "step": {
       const i = turn.steps.findIndex((s) => s.index === event.index);
@@ -1287,7 +1309,9 @@ async function runTurn(turn, extra = {}) {
     window.clearInterval(ticker);
     state.abort = null;
     state.busy = false;
+    if (turn.wakeStart) endWake(turn);
     turn.live = null;
+    syncTitle();
     if (turn.status !== "confirm")
       for (const step of turn.steps)
         if (step.status === "running") {
@@ -1681,6 +1705,7 @@ function bind() {
     $(id).addEventListener("click", () => showView(view));
   $("nav-shortcuts").addEventListener("click", openShortcuts);
   $("btn-jump").addEventListener("click", () => scrollToEnd(true));
+  document.addEventListener("visibilitychange", syncTitle);
   scroller().addEventListener(
     "scroll",
     () => {
