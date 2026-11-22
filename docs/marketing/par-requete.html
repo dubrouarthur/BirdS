@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Bird — Combien coûte une réponse ?</title>
+<style>
+  :root { --navy:#0B1B3F; --blue:#1E5BD8; --sky:#8FB3FF; --ink2:#4A5468; --mute:#7A8396; --hair:#E2E5EC; --grey:#A7B0C2; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { width:1080px; height:1350px; }
+  body { background:#fff; color:var(--navy); font-family:"Inter",system-ui,sans-serif; position:relative; }
+  .wrap { position:absolute; inset:70px 80px 54px; display:flex; flex-direction:column; }
+  .kick { font-size:17px; font-weight:700; letter-spacing:2.2px; text-transform:uppercase; color:var(--blue); }
+  h1 { margin-top:14px; font-family:"Inter Display","Inter",sans-serif; font-size:84px; line-height:1; font-weight:800; letter-spacing:-3px; }
+  .sub { margin-top:16px; font-size:24px; color:var(--ink2); }
+  .head { margin-top:46px; display:grid; grid-template-columns:200px 1fr 1fr; gap:24px; padding-bottom:16px; border-bottom:3px solid var(--navy); }
+  .head div { font-size:24px; font-weight:800; }
+  .head small { display:block; font-size:16px; font-weight:500; color:var(--mute); margin-top:4px; }
+  .head .bird { color:var(--blue); }
+  .row { display:grid; grid-template-columns:200px 1fr 1fr; gap:24px; align-items:center; padding:44px 0; border-bottom:1px solid var(--hair); }
+  .row .k { font-size:26px; font-weight:800; }
+  .row .k small { display:block; font-size:16px; font-weight:500; color:var(--mute); margin-top:4px; }
+  .num { font-family:"Inter Display","Inter",sans-serif; font-size:58px; font-weight:800; letter-spacing:-2px; line-height:1; }
+  .num span { font-size:26px; letter-spacing:0; margin-left:4px; }
+  .bird .num { color:var(--blue); }
+  .eq { margin-top:10px; font-size:18px; color:var(--ink2); line-height:1.35; }
+  .bar { margin-top:14px; height:14px; background:var(--grey); border-radius:7px; }
+  .bird .bar { background:var(--blue); }
+  .drops { margin-top:14px; display:flex; gap:6px; align-items:flex-end; height:40px; }
+  .drops svg { width:26px; height:36px; }
+  .verdict { margin-top:44px; background:var(--navy); color:#fff; border-radius:24px; padding:26px 34px; display:flex; gap:40px; align-items:center; }
+  .verdict b { white-space:nowrap; font-family:"Inter Display","Inter",sans-serif; font-size:46px; font-weight:800; letter-spacing:-1.5px; line-height:1; display:block; }
+  .verdict span { display:block; margin-top:6px; font-size:18px; color:#B8C4DD; }
+  .verdict .sep { width:1px; align-self:stretch; background:rgba(255,255,255,.2); }
+  .foot { margin-top:auto; font-size:13px; line-height:1.45; color:var(--mute); }
+  .brand { position:absolute; right:80px; top:66px; display:flex; align-items:center; gap:10px; font-size:24px; font-weight:800; }
+  .brand svg { width:36px; height:32px; } .brand span { color:var(--blue); }
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="drop" viewBox="0 0 26 36"><path d="M13 1C13 1 2 15 2 23a11 11 0 0 0 22 0C24 15 13 1 13 1z"/></symbol>
+</defs></svg>
+<div class="brand"><svg viewBox="0 0 64 56" aria-hidden="true"><g fill="#0B1B3F"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>Bird <span>S 4B</span></div>
+<div class="wrap">
+  <div class="kick">Une réponse courte, par exemple un mail</div>
+  <h1>Combien coûte<br>une réponse ?</h1>
+  <p class="sub">Électricité et eau consommées pour répondre à une demande.</p>
+
+  <div class="head"><div></div><div>ChatGPT<small>moyenne annoncée par OpenAI¹</small></div><div class="bird">Bird S 4B<small>notre estimation, borne haute²</small></div></div>
+
+  <div class="row">
+    <div class="k">Électricité<small>par réponse</small></div>
+    <div><div class="num">0,34<span>Wh</span></div><div class="bar" style="width:100%"></div><div class="eq">une ampoule LED de 10 W allumée <b>2 minutes</b></div></div>
+    <div class="bird"><div class="num">≤ 0,13<span>Wh</span></div><div class="bar" style="width:38%"></div><div class="eq">la même ampoule allumée <b>moins d'une minute</b></div></div>
+  </div>
+
+  <div class="row">
+    <div class="k">Eau<small>refroidissement</small></div>
+    <div><div class="num">0,32<span>mL</span></div>
+      <div class="drops" style="color:#A7B0C2">
+        <svg fill="currentColor"><use href="#drop"/></svg><svg fill="currentColor"><use href="#drop"/></svg><svg fill="currentColor"><use href="#drop"/></svg><svg fill="currentColor"><use href="#drop"/></svg><svg fill="currentColor"><use href="#drop"/></svg><svg fill="currentColor"><use href="#drop"/></svg>
+      </div><div class="eq">environ <b>6 gouttes</b></div></div>
+    <div class="bird"><div class="num">≈ 0,02<span>mL</span></div>
+      <div class="drops"><svg viewBox="0 0 26 36"><defs><clipPath id="half"><rect x="0" y="22" width="26" height="14"/></clipPath></defs><path d="M13 1C13 1 2 15 2 23a11 11 0 0 0 22 0C24 15 13 1 13 1z" fill="none" stroke="#1E5BD8" stroke-width="2"/><path d="M13 1C13 1 2 15 2 23a11 11 0 0 0 22 0C24 15 13 1 13 1z" fill="#1E5BD8" clip-path="url(#half)"/></svg></div>
+      <div class="eq"><b>moins d'une demi-goutte</b></div></div>
+  </div>
+
+  <div class="verdict">
+    <div><b>3 à 9 × moins</b><span>d'électricité par réponse courte</span></div>
+    <div class="sep"></div>
+    <div><b>≈ 15 × moins</b><span>d'eau, surtout grâce au refroidissement du centre de données</span></div>
+  </div>
+
+  <p class="foot">¹ Sam Altman, « The Gentle Singularity », juin 2025 : 0,34 Wh et 0,000085 gallon (≈ 0,32 mL) par requête moyenne ; méthode non publiée. Pour comparaison, Google annonce 0,24 Wh et 0,26 mL pour la requête texte médiane de Gemini (août 2025). ² Bird sur un GPU NVIDIA L4 (puissance maximale 72 W) chez AWS : 72 W × durée mesurée d'une réponse courte (1,7 à 5,5 s) × PUE 1,15, soit 0,04 à 0,13 Wh ; eau = énergie × efficacité hydrique d'AWS (0,15 L/kWh, 2024). Borne haute : la carte tourne rarement à pleine puissance. Les périmètres des chiffres publiés ne sont pas identiques ; ordres de grandeur, pas mesures comparées. Une goutte ≈ 0,05 mL.</p>
+</div></body></html>
