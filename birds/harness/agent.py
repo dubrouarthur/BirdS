@@ -94,7 +94,10 @@ _FILE_ASK = re.compile(
 _NEEDS_WEB = re.compile(
     r"https?://|www\.|\b(?:cherch|recherch|search|look up|web|internet|en ligne|online|actualit|news|r[ée]cent|"
     r"latest|dernier|derni[èe]re|aujourd|today|cette ann[ée]e|this year|prix|price|taux|rate|cours|v[ée]rifi|"
-    r"source|cite|20[2-3]\d)",
+    r"source|cite|20[2-3]\d|"
+    # a trend over the years needs real figures: never withdraw the web from it (else the model invents a series)
+    r"(?:depuis|since|entre|between|from|de)\s+(?:l.an\s+)?(?:19|20)\d\d|[ée]volu|trend|tendance|historique|"
+    r"population|statisti|insee|eurostat)",
     re.I,
 )
 

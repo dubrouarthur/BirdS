@@ -747,3 +747,26 @@ def test_inline_answer_after_the_reminder_is_kept(tmp_path):
     agent, llm = make(tmp_path, [CLAIM, inline])
     run = agent.run("Ajoute une diapo sur les risques")
     assert len(llm.prompts) == 2 and run.answer == inline
+
+
+def test_trend_questions_keep_the_web_tools():
+    from birds.harness.agent import route
+
+    for q in ("Fais un tableur de la population de Paris depuis 2012", "Fais une courbe de l'évolution du chômage",
+              "Make a spreadsheet of inflation in France since 2015"):
+        assert route(q) == set(), q
+    assert route("Fais une présentation sur notre bilan 2016") == {"web_search", "read_page"}
+
+
+def test_platform_logs_hold_metadata_only():
+    import io
+
+    stream = io.StringIO()
+    guard.Audit(None, stream=stream).log(
+        "tool_call", tool="draft_email", arguments={"to": ["a@b.fr"], "body": "Salaire de Paul : 4 200 €"},
+        error="ToolError: Paul n'a pas répondu",
+    )
+    guard.Audit(None, stream=stream).log("run", sources=["https://exemple.fr/dossier/paul?id=7"], files=["bird_out/paie.xlsx"])
+    out = stream.getvalue()
+    assert "Paul" not in out and "4 200" not in out and "a@b.fr" not in out and "dossier" not in out
+    assert '"body": 25' in out and "exemple.fr" in out and ".xlsx" in out

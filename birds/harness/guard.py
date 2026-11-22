@@ -341,6 +341,8 @@ class Audit:
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def log(self, event: str, **fields) -> None:
+        if not self.path:  # platform logs: metadata only, never what the user asked or what a tool wrote
+            fields = meta_only(fields)
         rec = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "event": event, **fields}
         line = json.dumps(redact(rec), ensure_ascii=False, default=str)
         if self.path:
@@ -350,6 +352,27 @@ class Audit:
             import sys
 
             print(line, file=self.stream or sys.stdout, flush=True)
+
+
+def meta_only(fields: dict) -> dict:
+    """What may reach a hosting platform's logs: argument names and sizes, source domains, file types. The
+    conversation stays in the user's browser, so its content (queries, mail bodies, slide text, URLs with
+    paths) never goes to stdout."""
+    from urllib.parse import urlsplit
+
+    out = dict(fields)
+    if isinstance(out.get("arguments"), dict):
+        out["arguments"] = {
+            k: len(v if isinstance(v, str) else json.dumps(v, ensure_ascii=False, default=str))
+            for k, v in out["arguments"].items()
+        }
+    if isinstance(out.get("sources"), list):
+        out["sources"] = sorted({urlsplit(str(u)).hostname or "?" for u in out["sources"]})
+    if isinstance(out.get("files"), list):
+        out["files"] = [Path(str(f)).suffix.lower() or "?" for f in out["files"]]
+    if isinstance(out.get("error"), str):
+        out["error"] = out["error"].split(":", 1)[0][:60]
+    return out
 
 
 def short_args(args: dict, limit: int = 300) -> dict:
