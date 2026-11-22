@@ -732,8 +732,8 @@ class _DemoRun:
             return self.finish(self.t("Pas de taux de référence BCE pour cette devise.",
                                       "No ECB reference rate for this currency."))  # fmt: skip
         w = widgets[0]
-        fmt = (lambda x: f"{x:,.2f}".replace(",", "\u202f").replace(".", ",")) if self.lang == "fr" else (
-            lambda x: f"{x:,.2f}")  # fmt: skip
+        fmt = (lambda x: f"{x:,.{4 if x < 10 else 2}f}".replace(",", "\u202f").replace(".", ",")) if self.lang == "fr" else (
+            lambda x: f"{x:,.{4 if x < 10 else 2}f}")  # fmt: skip
         text = self.t(
             f"{fmt(w['amount'])} {w['from']} = **{fmt(w['result'])} {w['to']}** au taux de référence de la BCE du "
             f"{w['date']} [1]. C'est un taux indicatif, pas un cours de marché en temps réel.",

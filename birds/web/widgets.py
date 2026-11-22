@@ -19,15 +19,6 @@ MAX_WIDGET_BYTES = 8_000
 MAX_TOTAL_BYTES = 24_000
 DEFAULT_TZ = "Europe/Paris"
 
-EVENT_ASK = re.compile(
-    r"\b(?:r[ée]unions?|rendez-vous|rdv|meeting|call|visio|visioconf[ée]rence|point|entretien|d[ée]jeuner|d[îi]ner|"
-    r"webinaire|webinar|s[ée]minaire|formation|atelier|invitation|invite|planifie[rz]?|programme[rz]?|cale[rz]?|"
-    r"organise[rz]?|schedule|book|set up a)\b",
-    re.I,
-)
-_HOWTO = re.compile(
-    r"^\s*(?:comment|how (?:do|can|to)|est-ce qu'on peut|peut-on|quelle est la (?:meilleure )?fa[çc]on)\b", re.I
-)
 _TITLE = re.compile(
     r"\b(?P<noun>r[ée]union|rdv|rendez-vous|call|point|d[ée]jeuner|d[îi]ner|meeting|visio|entretien|atelier|lunch|"
     r"dinner)\s+(?:avec|with)\s+(?P<who>[^,.;:!?\n]{2,40}?)(?=\s+(?:le|la|les|demain|aujourd|après|lundi|mardi|"
@@ -45,8 +36,6 @@ _LOC = re.compile(
     r"\b(?:chez|at|au|à la|à l')\s+(?P<loc>[A-ZÀ-Ý][^,.;:!?\n]{2,50}?)(?=\s+(?:le|à|a|de|à\s+\d|demain|lundi|mardi|"
     r"mercredi|jeudi|vendredi|et|and|on|at)\b|[,.;:!?\n]|$)"
 )
-_WEAK = {"point", "formation", "programme", "programmer", "invitation", "invite", "cale", "caler", "book", "call"}
-_NOT_EVENT = re.compile(r"\b(?:actualit\w*|nouvelles|news|cherche\w*|recherche\w*|r[ée]sume\w*|summari[sz]e)\b", re.I)
 _VISIO = re.compile(r"\b(?:visio\w*|teams|zoom|google meet|meet|call|webinaire|webinar)\b", re.I)
 _TITLES_FR = {"rdv": "Rendez-vous", "rendez-vous": "Rendez-vous", "call": "Appel", "visio": "Visio",
               "lunch": "Déjeuner", "dinner": "Dîner", "meeting": "Réunion"}  # fmt: skip
@@ -84,13 +73,11 @@ def event_widget(text: str, now: datetime, lang: str, *, draft: dict | None = No
                  holidays=None) -> dict | None:  # fmt: skip
     """The event card for an ask such as « réunion avec Paul jeudi à 14h », or None (no day written: no card)."""
     words = " ".join((text or "").split())
-    if not words or not EVENT_ASK.search(words) or _HOWTO.search(words) or _NOT_EVENT.search(words):
+    if not when.event_words(words):
         return None
-    got = when.parse(words, now, lang)
-    weak = {m.group(0).lower() for m in EVENT_ASK.finditer(words)} <= _WEAK
-    if got is not None and weak and got["all_day"]:
-        return None  # "fais le point sur les ventes d'aujourd'hui": a weak word with no time is not a meeting
-    if got is None and draft:  # the draft's subject and body as a second source; the user's words win
+    got = when.event_ask(words, now, lang)
+    if got is None and draft and when.parse(words, now, lang) is None:
+        # the draft's subject and body as a second source; the user's words win
         got = when.parse(f"{draft.get('subject', '')} {draft.get('body', '')}", now, lang)
     if got is None:
         return None

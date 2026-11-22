@@ -138,6 +138,11 @@ def _payload(r: dict, lang: str) -> dict:
     return out
 
 
+def _eur(v: float, fr: bool) -> str:
+    s = f"{v:,.0f} €"
+    return s.replace(",", "\u202f") if fr else s
+
+
 def _text(p: dict, lang: str, n_src: int) -> str:
     fr = lang == "fr"
     if not p.get("public", True):
@@ -166,9 +171,9 @@ def _text(p: dict, lang: str, n_src: int) -> str:
     if p.get("finances"):
         f = p["finances"]
         if f.get("revenue") is not None:
-            rows.append(((f"Chiffre d'affaires {f['year']}", f"Revenue {f['year']}"), f"{f['revenue']:,.0f} €"))
+            rows.append(((f"Chiffre d'affaires {f['year']}", f"Revenue {f['year']}"), _eur(f['revenue'], fr)))
         if f.get("net_income") is not None:
-            rows.append(((f"Résultat net {f['year']}", f"Net income {f['year']}"), f"{f['net_income']:,.0f} €"))
+            rows.append(((f"Résultat net {f['year']}", f"Net income {f['year']}"), _eur(f['net_income'], fr)))
     lines = [f"{k[0] if fr else k[1]} : {v}" for k, v in rows if v]
     lines.append(f"Source : {p['source']['url']} [{n_src}]")
     lines.append(

@@ -237,3 +237,34 @@ def parse(text: str, now: datetime, lang: str = "fr") -> dict | None:
         "matched": " ".join(sorted((x for x in matched if x), key=t.find)),
         "assumptions": notes,
     }
+# ---------------------------------------------------------------- is this an ask for a meeting/event?
+
+EVENT_ASK = re.compile(
+    r"\b(?:r[ée]unions?|rendez-vous|rdv|meeting|call|visio|visioconf[ée]rence|point|entretien|d[ée]jeuner|d[îi]ner|"
+    r"webinaire|webinar|s[ée]minaire|formation|atelier|invitation|invite|planifie[rz]?|programme[rz]?|cale[rz]?|"
+    r"organise[rz]?|schedule|book|set up a)\b",
+    re.I,
+)
+_HOWTO = re.compile(
+    r"^\s*(?:comment|how (?:do|can|to)|est-ce qu'on peut|peut-on|quelle est la (?:meilleure )?fa[çc]on)\b", re.I
+)
+_WEAK = {"point", "formation", "programme", "programmer", "invitation", "invite", "cale", "caler", "book", "call"}
+_NOT_EVENT = re.compile(r"\b(?:actualit\w*|nouvelles|news|cherche\w*|recherche\w*|r[ée]sume\w*|summari[sz]e)\b", re.I)
+
+
+def event_words(text: str) -> bool:
+    """The words ask to set up a meeting or an event (not a how-to, not a search, not a summary)."""
+    t = " ".join((text or "").split())
+    return bool(t and EVENT_ASK.search(t) and not _HOWTO.search(t) and not _NOT_EVENT.search(t))
+
+
+def event_ask(text: str, now: datetime, lang: str = "fr") -> dict | None:
+    """``parse`` of an event ask, or None: no event word, no day, or a weak word ("point") with no time."""
+    t = " ".join((text or "").split())
+    if not event_words(t):
+        return None
+    got = parse(t, now, lang)
+    weak = {m.group(0).lower() for m in EVENT_ASK.finditer(t)} <= _WEAK
+    if got is not None and weak and got["all_day"]:
+        return None  # "fais le point sur les ventes d'aujourd'hui": a weak word with no time is not a meeting
+    return got

@@ -102,6 +102,43 @@ _NEEDS_WEB = re.compile(
 )
 
 
+EVENT_NOTE = {
+    # the resolved day is written out: live model, given only "le 25 décembre", wrote "dimanche 25 décembre" (a Friday)
+    "fr": "\n\n(Note de Bird : une fiche d'agenda pour le {slot} avec un bouton « Ajouter au calendrier » est affichée "
+    "sous ta réponse. Confirme ce créneau en une phrase, avec ce jour exact ; ne fais un mail ou un document que si "
+    "la demande le dit ; n'invente ni lieu ni participant.)",
+    "en": "\n\n(Bird's note: an event card for {slot} with an 'Add to calendar' button is shown under your answer. "
+    "Confirm this slot in one sentence, with this exact day; write an e-mail or a document only if the request says "
+    "so; invent no place or participant.)",
+}
+_DAYS = {
+    "fr": ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"),
+    "en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+}
+_MONTHS = {
+    "fr": ("janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre",
+           "novembre", "décembre"),
+    "en": ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+           "November", "December"),
+}  # fmt: skip
+
+
+def _event_slot(text: str, lang: str) -> str:
+    """'vendredi 25 décembre 2026, 12:00–13:00' for an event ask in the user's words, else ''."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from birds.harness import when
+
+    got = when.event_ask(text, datetime.now(ZoneInfo("Europe/Paris")), lang)
+    if got is None:
+        return ""
+    lg = "en" if lang == "en" else "fr"
+    s, e = got["start"], got["end"]
+    day = f"{_DAYS[lg][s.weekday()]} {s.day} {_MONTHS[lg][s.month - 1]} {s.year}"
+    return day if got["all_day"] else f"{day}, {s:%H:%M}–{e:%H:%M}"
+
+
 def route(user: str, attached: bool = False) -> set[str]:
     """Tools NOT worth offering for this request (a smaller prompt, and fewer detours for a small model).
 
@@ -355,7 +392,10 @@ class Agent:
         else:
             run = Run(lang=lang or detect_lang(user))
             ctx = Context(
-                config=cfg, http=self.http, search=self.search, lang=run.lang,
+                config=cfg,
+                http=self.http,
+                search=self.search,
+                lang=run.lang,
                 request=user if request_text is None else request_text,
             )
             messages = list(history or [])
@@ -373,6 +413,12 @@ class Agent:
             prefill = next((i for i in found if i.args), None)
             if prefill and not prefill.keep_web and (prefill.tool == "convert_currency" or not _NEEDS_WEB.search(req)):
                 routed |= {"web_search", "read_page"}
+            slot = "" if prefill or _NEEDS_WEB.search(req) else _event_slot(req, run.lang)
+            if slot:
+                # "cale un déjeuner le 25 décembre à midi": the UI shows an event card (.ics) built from these
+                # words; live model, offered the web, searched "restaurants ouverts le 25 décembre" and refused
+                routed |= {"web_search", "read_page"}
+                messages[-1]["content"] += EVENT_NOTE["en" if run.lang == "en" else "fr"].format(slot=slot)
             nudged, withdrawn, file_nudged = False, set(routed), False
             gen, ok, forced = 0, 0, None
             auto_calls = 0
@@ -522,9 +568,7 @@ class Agent:
             paused = False
             while queue:
                 c = queue[0]
-                step, result = self._call(
-                    c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced, routed
-                )
+                step, result = self._call(c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced, routed)
                 forced = None
                 if auto_calls:
                     step.info["auto"], auto_calls = True, 0

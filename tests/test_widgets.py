@@ -441,3 +441,14 @@ def test_ics_golden():
     assert "SUMMARY:Réunion très importante avec l’équipe de développement\\, à Paris\; salle B" in unfolded
     assert "LOCATION:Paris\\, 8e" in unfolded and "DESCRIPTION:ligne 1\\nligne 2" in unfolded
     assert "METHOD:PUBLISH" in lines and not any(line.startswith("ATTENDEE") for line in lines)
+
+
+def test_event_ask_withdraws_the_web_and_tells_the_model(tmp_path):
+    a, _ = agent(tmp_path, ["C'est noté."])
+    a.run("Cale un déjeuner avec l'équipe le 25 décembre à midi")
+    prompt = json.loads(a.llm.prompts[0])
+    assert "web_search" not in prompt["tools"] and "Ajouter au calendrier" in prompt["messages"][-1]["content"]
+    assert "25 décembre 20" in prompt["messages"][-1]["content"] and "12:00–13:00" in prompt["messages"][-1]["content"]
+    b, _ = agent(tmp_path, ["ok"])
+    b.run("Cherche les actualités de la réunion de l'OPEP demain")
+    assert "Ajouter au calendrier" not in json.loads(b.llm.prompts[0])["messages"][-1]["content"]

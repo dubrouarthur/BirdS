@@ -74,12 +74,14 @@ def _tail(lang: str) -> str:
         return (
             "Ces lieux viennent d'OpenStreetMap et peuvent être incomplets. Une carte et des fiches sont affichées "
             "à l'utilisateur sous ta réponse : ne recopie pas toutes les adresses ; résume, ne cite que ces lieux, "
-            "ne donne ni note, ni prix, ni temps de trajet."
+            "ne donne ni note, ni prix, ni temps de trajet. Tu ne connais ni les lignes de métro ou de bus, ni les "
+            "parkings, ni les entrées : ne les invente pas ; dis que le lien « Itinéraire » de la carte donne l'accès."
         )
     return (
         "These come from OpenStreetMap and may be incomplete. A map and cards are shown to the user under your "
         "answer: do not repeat every address; summarise, mention only these places, give no ratings, prices or "
-        "travel times."
+        "travel times. You know no metro or bus lines, car parks or entrances: do not invent them; say that the "
+        "map's 'Directions' link shows how to get there."
     )
 
 

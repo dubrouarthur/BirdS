@@ -58,7 +58,9 @@ def convert_currency(args: dict, ctx) -> str:
     if a == b:
         raise ToolError("the two currencies are the same")
     rate = rates[b] / rates[a]  # units of b for 1 a
-    result = round(amount * rate, 2)
+    raw = amount * rate
+    digits = 4 if raw < 10 else 2  # "1 EUR = 0,8374 GBP", not 0,84: the card shows the same figure
+    result = round(raw, digits)
     if ECB_PAGE not in ctx.sources:
         ctx.sources.append(ECB_PAGE)
     n_src = ctx.sources.index(ECB_PAGE) + 1
@@ -80,12 +82,12 @@ def convert_currency(args: dict, ctx) -> str:
     digits_amt = 0 if float(amount).is_integer() else 2
     if lang == "fr":
         return (
-            f"{_fmt(amount, lang, digits_amt)} {a} = {_fmt(result, lang)} {b} (taux de référence BCE du {date} : "
+            f"{_fmt(amount, lang, digits_amt)} {a} = {_fmt(result, lang, digits)} {b} (taux de référence BCE du {date} : "
             f"{eur_line} ; 1 {a} = {rate:.4f} {b}). C'est un taux de référence indicatif, pas un cours de marché. "
             f"Une carte de conversion est affichée à l'utilisateur. Donne ce chiffre exact. Source à citer : [{n_src}]."
         )
     return (
-        f"{_fmt(amount, lang, digits_amt)} {a} = {_fmt(result, lang)} {b} (ECB reference rate of {date}: {eur_line}; "
+        f"{_fmt(amount, lang, digits_amt)} {a} = {_fmt(result, lang, digits)} {b} (ECB reference rate of {date}: {eur_line}; "
         f"1 {a} = {rate:.4f} {b}). A reference rate, not a market quote. A conversion card is shown to the user. "
         f"Give this exact figure. Source to cite: [{n_src}]."
     )
