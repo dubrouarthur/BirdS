@@ -456,6 +456,7 @@ function drawLine(spec, fmt) {
       );
   });
   const marks = labels.map(() => []);
+  const ends = [];
   const markers = labels.length <= 24;
   for (let j = 0; j < nS; j++) {
     let d = "";
@@ -487,19 +488,22 @@ function drawLine(spec, fmt) {
         .map((r) => r[j + 1])
         .findLastIndex((v) => typeof v === "number");
       if (lastIdx >= 0)
-        g.append(
-          s(
-            "text",
-            {
-              class: "chart-direct",
-              x: x(lastIdx) + 8,
-              y: y(spec.rows[lastIdx][j + 1]) + 4,
-            },
-            cut(spec.columns[j + 1], 14),
-          ),
-        );
+        ends.push({
+          x: x(lastIdx) + 8,
+          y: y(spec.rows[lastIdx][j + 1]) + 4,
+          text: cut(spec.columns[j + 1], 14),
+        });
     }
   }
+  // end labels: pushed apart to 14px at least (sorted by height); dropped if they cannot fit (the legend stays)
+  ends.sort((p, q) => p.y - q.y);
+  for (let k = 1; k < ends.length; k++)
+    ends[k].y = Math.max(ends[k].y, ends[k - 1].y + 14);
+  const over = ends.length ? ends[ends.length - 1].y - (H - m.b + 4) : 0;
+  if (over > 0) for (const e of ends) e.y -= over;
+  if (!ends.length || ends[0].y >= m.t + 4)
+    for (const e of ends)
+      g.append(s("text", { class: "chart-direct", x: e.x, y: e.y }, e.text));
   const hits = labels.map((_, i) => ({
     x: m.l + band * i,
     y: m.t,
