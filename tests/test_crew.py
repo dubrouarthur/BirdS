@@ -563,6 +563,21 @@ def test_years_in_the_minutes_follow_the_notes():
     assert cc.fix_years("Prochaine réunion en décembre 2026.", ERP_NOTES) == ("Prochaine réunion en décembre 2026.", 0)
 
 
+def test_decks_get_the_requested_count_without_filler_slides(tmp_path):
+    crew = Crew(make_agent(tmp_path, Script(lambda *a: "")), decide(ASK_DECK))
+    b = crew_mod.Brief(tool="make_slides", instr=ASK_DECK, n_slides=4, allowed=cc.allowed_figures("4 % 22 % 26 % 52 %"))
+    slides = [{"title": "Titre de la présentation", "bullets": ["Le télétravail en France"]},
+              {"title": "2019", "bullets": ["4 % des salariés"]}, {"title": "2021", "bullets": ["22 % des salariés"]},
+              {"title": "Analyse", "bullets": ["Une évolution marquée"]}, {"title": "2023", "bullets": ["26 % des salariés"]},
+              {"title": "Les cadres", "bullets": ["52 % des cadres"]}, {"title": "Le hybride", "bullets": ["Deux jours"]},
+              {"title": "Remerciements", "bullets": ["Merci de votre attention"]}]  # fmt: skip
+    args = {"title": "Le télétravail", "slides": slides}
+    structure, notes = crew._structure(b, args, "")
+    assert structure < 1 and any("remerciements" in n for n in notes)
+    out, _ = crew._post(b, args)
+    assert [x["title"] for x in out["slides"]] == ["2019", "2021", "2023", "Les cadres"]
+
+
 # ------------------------------------------------------------------ 3. JSON repair and salvage
 
 
@@ -780,7 +795,7 @@ def test_deck_runs_in_parallel_within_the_limits(tmp_path):
     assert len(llm.prompts) == 4 and 2 <= llm.peak <= crew_mod.MAX_CONCURRENT
     assert wall < 4 * 0.3 * 0.8  # 2 extractors then 2 drafts: about 2 calls of wall time, not 4
     assert run.sources == ["https://news.test/tt1", "https://news.test/tt2"]
-    assert "Sources" in run.answer and "6 diapositives" not in run.answer  # 6 + Sources slide: counted from the file
+    assert "6 diapositives, plus une diapositive Sources" in run.answer  # the Sources slide comes on top
     assert any("écarté" in c for c in events[-1]["caveats"])  # the invented 61 % was dropped and said so
 
 

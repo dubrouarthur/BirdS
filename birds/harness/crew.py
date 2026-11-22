@@ -288,6 +288,40 @@ _COUNTRIES = (
 )  # fmt: skip
 
 
+_COVER = re.compile(
+    r"^(?:titre(?: de la pr[ée]sentation)?|title(?: slide)?|page de garde|couverture|merci\w*|remerciements?|"
+    r"questions?|q\s*&\s*a|thank\w*|fin|the end)\b",
+    re.I,
+)
+_GENERIC = re.compile(
+    r"^(?:analyse|conclusions?|synth[èe]se|introduction|sommaire|agenda|plan|perspectives?|summary|overview|outlook)\s*$",
+    re.I,
+)
+
+
+def _figures_in(slide: dict) -> int:
+    return sum(bool(cc.figures(str(x))) for x in slide.get("bullets") or [])
+
+
+def _filler(slide: dict, deck_title=None) -> bool:
+    """A cover or closing slide (the file already has its own cover), or a generic « Analyse / Conclusion » slide
+    that carries no figure."""
+    t = " ".join(str(slide.get("title") or "").split()).strip(" .:!?")
+    if not t or _COVER.match(t) or (deck_title and cc.fold(t) == cc.fold(deck_title)):
+        return True
+    return bool(_GENERIC.match(t)) and not _figures_in(slide)
+
+
+def _fit_slides(slides: list[dict], n: int, deck_title=None) -> list[dict]:
+    """The requested number of content slides: cover, thank-you and empty generic slides out; if still too many,
+    the slides with the fewest figures go, from the end, order kept."""
+    out = [x for x in slides if not _filler(x, deck_title)] or slides
+    while len(out) > n:
+        weakest = min(range(len(out)), key=lambda i: (_figures_in(out[i]), -i))
+        out.pop(weakest)
+    return out
+
+
 class _Fallback(Exception):
     def __init__(self, reason: str):
         super().__init__(reason)
@@ -1027,12 +1061,15 @@ class Crew:
         fr, notes, checks = self.lang == "fr", [], []
         if b.tool == "make_slides":
             slides = args.get("slides") or []
-            ok = len(slides) == b.n_slides
+            filler = [x for x in slides if _filler(x, args.get("title"))]
+            ok = len(slides) == b.n_slides and not filler
             checks.append(ok)
             if not ok:
                 notes.append(
-                    f"il faut exactement {b.n_slides} diapositives" if fr else f"exactly {b.n_slides} slides are needed"
-                )
+                    f"il faut exactement {b.n_slides} diapositives de contenu, sans diapositive de titre, de "
+                    "remerciements ni de diapositive générique sans chiffre" if fr else
+                    f"exactly {b.n_slides} content slides are needed, no title, thank-you or generic slide without data"
+                )  # fmt: skip
             fig = [x for s in slides for x in s.get("bullets") or [] if cc.figures(str(x))]
             cited = sum(bool(re.search(r"\[\d{1,2}\]\s*\W*$", str(x))) for x in fig)
             ok = not fig or not b.sources or cited / len(fig) >= 0.7
@@ -1174,7 +1211,8 @@ class Crew:
                 removed += len(s.get("bullets") or []) - len(keep)
                 if keep:
                     slides.append({**s, "bullets": keep})
-            if src:
+            slides = _fit_slides(slides, b.n_slides, args.get("title"))
+            if src:  # the Sources slide comes on top of the requested count
                 slides.append({"title": "Sources", "bullets": src})
             args["slides"] = slides or args.get("slides") or []
         elif b.tool == "make_document":
@@ -1282,8 +1320,12 @@ class Crew:
             lines = [head]
         elif tool == "make_slides":
             titles = [t for t in actx.get("titles", []) if t]
-            lines = [(f"La présentation « {actx['title']} » est prête : {len(titles)} diapositives." if fr
-                      else f"The deck “{actx['title']}” is ready: {len(titles)} slides.")]  # fmt: skip
+            content = [x for x in titles if x != "Sources"]
+            extra = len(content) != len(titles)
+            lines = [(f"La présentation « {actx['title']} » est prête : {len(content)} diapositives"
+                      + (", plus une diapositive Sources." if extra else ".") if fr
+                      else f"The deck “{actx['title']}” is ready: {len(content)} slides"
+                      + (", plus a Sources slide." if extra else "."))]  # fmt: skip
             lines.append(" · ".join(titles))
         elif tool == "make_document":
             lines = [
