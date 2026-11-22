@@ -715,3 +715,22 @@ def test_declutter_separates_overlapping_pins():
         for j in range(i + 1, len(labels)):
             a, b = labels[i], labels[j]
             assert abs(a[0] - b[0]) >= 26 or abs(a[1] - b[1]) >= 26
+
+
+@needs_node
+def test_live_zoom_swaps_image_and_pins_together():
+    w = demo_widget("find_places", {"query": "tour Eiffel"}, static=False)
+    assert not w["map"].get("static")
+    got = run_js(
+        "const imgs = []; globalThis.Image = class { set src(v) { this._s = v; imgs.push(this); } };"
+        "const el = render(data.w); const f = el.querySelector('.map-frame'); const img = f.querySelector('img');"
+        "const pin = f.querySelector('.map-pin'); const y0 = pin.style.props['--y']; const s0 = img.attributes.src;"
+        "f.querySelector('.map-zoom-in').click();"
+        "const during = [img.attributes.src === s0, pin.style.props['--y'] === y0, f.classList.contains('is-loading'),"
+        " f.getAttribute('aria-busy')];"
+        "imgs.at(-1).onload(); out({ during, after: [img.src.endsWith('&dz=1'), f.classList.contains('is-loading'),"
+        " f.getAttribute('aria-busy')] });",
+        w=w,
+    )
+    assert got["during"] == [True, True, True, "true"]
+    assert got["after"] == [True, False, "false"]

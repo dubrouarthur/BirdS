@@ -1,7 +1,7 @@
 // Rich result cards under an answer: places + static map, company, currency, event (.ics).
 // Data come from the server's `widgets` list (tool results and the user's own words, never model text).
 // Built with h() only (text nodes, no innerHTML with data); positions set through CSSOM (CSP: no style attribute).
-import { button, copyText, download, h, icon, state, t } from "./core.js";
+import { button, copyText, download, h, icon, state, t, toast } from "./core.js";
 import { safeUrl } from "./markdown.js";
 import { buildIcs, icsName } from "./ics.js";
 
@@ -325,16 +325,36 @@ function mapFrame(w, places, center, opts = {}) {
   };
   place();
   if (typeof ResizeObserver === "function") new ResizeObserver(place).observe(frame);
+  // zoom: the new image is loaded first, then swapped with the pins in one go (they never sit on the old image)
+  let pending = null;
   const zoom = (step) => () => {
     const next = Math.max(-2, Math.min(3, dz + step));
     if (next === dz) return;
-    dz = next;
-    frame.classList.remove("is-broken");
-    img.hidden = false;
-    img.src = `${m.src}${dz ? `&dz=${dz}` : ""}`;
-    place();
-    zin.disabled = dz >= 3;
-    zout.disabled = dz <= -2;
+    const src = `${m.src}${next ? `&dz=${next}` : ""}`;
+    const pre = new Image();
+    pending = pre;
+    frame.classList.add("is-loading");
+    frame.setAttribute("aria-busy", "true");
+    const done = (okay) => {
+      if (pending !== pre) return; // a later click won
+      pending = null;
+      frame.classList.remove("is-loading");
+      frame.setAttribute("aria-busy", "false");
+      if (!okay) {
+        toast(t("map.unavailable"), "error");
+        return;
+      }
+      dz = next;
+      frame.classList.remove("is-broken");
+      img.hidden = false;
+      img.src = src;
+      place();
+      zin.disabled = dz >= 3;
+      zout.disabled = dz <= -2;
+    };
+    pre.onload = () => done(true);
+    pre.onerror = () => done(false);
+    pre.src = src;
   };
   const zin = button("btn-icon map-zoom-in", "plus", t("map.zoomIn"), zoom(1));
   const zout = button(
