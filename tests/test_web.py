@@ -25,6 +25,7 @@ from birds.web.backends import (
     HarnessBackend,
     RunContext,
     file_preview,
+    hide_out_paths,
     pick_scenario,
     sanitize_filename,
     step_event,
@@ -1162,3 +1163,20 @@ def test_energy_wording_states_its_scope():
     assert len(less) == 2 and all(re.search(r"génération|generation", s) for s in less)
     upper = re.findall(r'"meter\.energy\.upper":\s*"([^"]+)"', text)
     assert len(upper) == 2 and all(re.search(r"génération|generating", s) for s in upper)
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Voici `bird_out/x-2026.docx`.", "Voici `x-2026.docx`."),
+        ("`bird_out/x.docx`, prêt", "`x.docx`, prêt"),
+        ("**bird_out/x-2026.docx**", "**x-2026.docx**"),
+        ('"bird_out/x.docx"', '"x.docx"'),
+        ("'bird_out/x.docx'", "'x.docx'"),
+        ("Fichier : bird_out/x.docx.", "Fichier : x.docx."),
+        ("(bird_out/sub/x.xlsx)", "(x.xlsx)"),
+        ("see foo/bird_out/x.docx", "see foo/bird_out/x.docx"),
+    ],
+)
+def test_hide_out_paths_keeps_markdown_and_quotes(text, expected):
+    assert hide_out_paths(text) == expected

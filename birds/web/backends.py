@@ -162,13 +162,18 @@ def usage_event(
     }
 
 
-_OUT_PATH = re.compile(r"`?(?:\./)?\bbird_out/(?:[^\s`/]+/)*([^\s`/)\]]+?)([.,;:!?]?)`?(?=[\s)\]]|$)")
+# Only the folder prefix and the name are touched: the backticks, bold markers, quotes and punctuation around
+# the path stay as written ("`bird_out/x.docx`." -> "`x.docx`.", "**bird_out/x.docx**" -> "**x.docx**").
+_OUT_PATH = re.compile(
+    r"(?<![\w/.-])(?:\./)?bird_out/(?:[^\s`*\"'/()\[\]<>]+/)*([^\s`*\"'/()\[\]<>]+?)"
+    r"(?=[.,;:!?]*(?:[\s`*\"')\]<>]|$))"
+)
 
 
 def hide_out_paths(text: str) -> str:
     """'bird_out/x-2026.docx' -> 'x-2026.docx': that server folder is gone after the request; the file is the
     download card under the answer."""
-    return _OUT_PATH.sub(lambda m: sanitize_filename(m.group(1)) + m.group(2), text)
+    return _OUT_PATH.sub(lambda m: sanitize_filename(m.group(1)), text)
 
 
 def output_file(workspace: Path, rel: object) -> Path | None:

@@ -665,7 +665,12 @@ function renderEmail(turn) {
   const body = String(draft.body ?? "");
   // a bare name ("Marc Petit") is not an address: shown to complete, never put in the mailto: link
   const isAddress = (s) => /^[^@\s<>,;]+@[^@\s<>,;]+\.[^@\s<>,;]+$/.test(s);
-  const parts = to.split(",").map((s) => s.trim()).filter(Boolean);
+  // "Marc <marc@example.fr>" keeps only the address in angle brackets
+  const parts = to
+    .split(",")
+    .map((s) => s.trim())
+    .map((s) => (s.match(/<([^<>\s]+@[^<>\s]+)>$/) || [null, s])[1])
+    .filter(Boolean);
   const hint = [String(draft.to_hint ?? "").trim(), ...parts.filter((s) => !isAddress(s))]
     .filter(Boolean)
     .join(", ");
