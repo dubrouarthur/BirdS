@@ -1386,13 +1386,32 @@ details[open] > summary > .chev {
   overflow-x: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius-s);
-  background: var(--surface);
+  /* scroll shadows: an edge darkens while columns hide beyond it */
+  background:
+    linear-gradient(to right, var(--surface) 30%, transparent) left / 28px 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 30%, transparent) right / 28px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--scroll-shade), transparent) left / 12px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--scroll-shade), transparent) right / 12px 100% no-repeat scroll,
+    var(--surface);
+}
+.table-wrap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .md table,
 .sheet-preview {
-  inline-size: 100%;
+  inline-size: max-content; /* columns keep their words whole; the wrap scrolls instead */
+  min-inline-size: 100%;
   border-collapse: collapse;
   font-size: 0.93rem;
+  background: transparent;
+}
+.md table th,
+.md table td,
+.sheet-preview th,
+.sheet-preview td {
+  min-inline-size: 9ch;
+  background: transparent;
 }
 .md th,
 .md td,
