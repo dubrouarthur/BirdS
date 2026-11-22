@@ -562,6 +562,16 @@ function exportPng(svg, title) {
 
 // ------------------------------------------------------------------ the card
 
+/** One reshaping the server did ({code, n, label, items}), in the UI language. An older stored conversation may
+ * hold the server's English sentence: it is shown as it is. */
+function reshapedText(item) {
+  if (!item || typeof item !== "object") return String(item ?? "");
+  const items = (Array.isArray(item.items) ? item.items : []).join(", ");
+  const key = `chart.reshaped.${item.code}`;
+  const text = t(key, { n: item.n ?? "", label: item.label ?? "", items });
+  return text === key ? String(item.code || "") : text;
+}
+
 let seq = 0;
 
 /** A chart card: title, plot (hover and keyboard), legend, data table and actions. ``onXlsx(spec)`` exports. */
@@ -809,7 +819,9 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
         "p",
         { class: "chart-note" },
         icon("info"),
-        t("chart.reshaped", { notes: spec.reshaped.join(" ; ") }),
+        t("chart.reshaped", {
+          notes: spec.reshaped.map(reshapedText).join(lang === "en" ? "; " : " ; "),
+        }),
       ),
     table,
     h(

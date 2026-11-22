@@ -159,7 +159,7 @@ def _infer_type(rows: list[list], unit: str | None, request: str) -> tuple[str, 
 def normalize_chart(args: dict, lang: str = "fr", request: str = "") -> tuple[dict, list[str]]:
     """(chart spec, notes). The spec is JSON-safe: {title, type, unit, columns, rows, notes, reshaped}."""
     notes: list[str] = []
-    reshaped: list[str] = []
+    reshaped: list[dict] = []  # codes the browser translates (FR/EN); reshaped_text() says them to the model
     title = " ".join(str(args.get("title") or "").split())
     if len(title) > 120:
         title, _ = title[:119].rstrip() + "…", notes.append("title cut to 120 characters")
@@ -246,11 +246,11 @@ def normalize_chart(args: dict, lang: str = "fr", request: str = "") -> tuple[di
         kind, why = _infer_type(rows[:-1] if total_row else rows, unit, request)
         notes.append(why)
     if total_row and kind in ("bar", "pie"):
-        rows.pop()
-        reshaped.append("'Total' row dropped: it would dwarf the bars")
+        rows_total_label = rows.pop()[0]
+        reshaped.append({"code": "total_dropped", "label": rows_total_label})
     if kind == "line" and len(rows) < 2:
         kind = "bar"
-        reshaped.append("a line needs at least 2 points: shown as bars")
+        reshaped.append({"code": "line_to_bar"})
     if kind == "pie":
         if len(columns) > 2:
             raise _err("a pie shows one series; use type bar to compare several")
@@ -259,7 +259,7 @@ def normalize_chart(args: dict, lang: str = "fr", request: str = "") -> tuple[di
         gaps = [r[0] for r in rows if r[1] is None]
         if gaps:
             rows = [r for r in rows if r[1] is not None]
-            reshaped.append("empty slices dropped: " + ", ".join(gaps[:5]))
+            reshaped.append({"code": "empty_dropped", "n": len(gaps), "items": gaps[:5]})
         if sum(r[1] for r in rows) <= 0:
             raise _err("a pie needs a total above 0")
         if len(rows) > MAX_SLICES:
@@ -268,7 +268,7 @@ def normalize_chart(args: dict, lang: str = "fr", request: str = "") -> tuple[di
             other = sum(r[1] for r in folded)
             rows = [rows[k] for k in sorted(keep)] + [[_OTHER.get(lang, _OTHER["fr"]), round(other, 10)]]
             reshaped.append(
-                f"{len(folded)} small slices grouped in '{rows[-1][0]}': " + ", ".join(r[0] for r in folded[:6])
+                {"code": "folded", "n": len(folded), "label": rows[-1][0], "items": [r[0] for r in folded[:6]]}
             )
     spec = {
         "title": title or ("Graphique" if lang != "en" else "Chart"),
@@ -276,10 +276,21 @@ def normalize_chart(args: dict, lang: str = "fr", request: str = "") -> tuple[di
         "unit": unit or "",
         "columns": columns,
         "rows": rows,
-        "notes": notes + reshaped,
+        "notes": notes + [reshaped_text(r) for r in reshaped],
         "reshaped": reshaped,
     }
-    return spec, notes + reshaped
+    return spec, spec["notes"]
+
+
+def reshaped_text(item: dict) -> str:
+    """One reshaping, in English, for the model and the logs (the browser shows its own FR/EN sentence)."""
+    items = ", ".join(item.get("items") or [])
+    return {
+        "total_dropped": f"'{item.get('label')}' row dropped: it would dwarf the bars",
+        "line_to_bar": "a line needs at least 2 points: shown as bars",
+        "empty_dropped": f"empty slices dropped: {items}",
+        "folded": f"{item.get('n')} small slices grouped in '{item.get('label')}': {items}",
+    }.get(item.get("code"), str(item.get("code")))
 
 
 def chart_source(spec: dict, ctx) -> str:
@@ -315,10 +326,10 @@ def make_chart(args: dict, ctx) -> str:
         "Do not draw it again or list its figures, in text or as a table: comment on it in 1 to 3 sentences."
     )
     if spec["reshaped"]:
-        out += "\nAdjusted: " + "; ".join(spec["reshaped"])
+        out += "\nAdjusted: " + "; ".join(reshaped_text(r) for r in spec["reshaped"])
     if spec["source"] == "model":
         out += "\nThese figures are not from the user, a file or the web: say they are your own, unverified."
     return out
 
 
-__all__ = ["CHART_SERIES", "chart_number", "chart_source", "make_chart", "normalize_chart"]
+__all__ = ["CHART_SERIES", "chart_number", "chart_source", "make_chart", "normalize_chart", "reshaped_text"]

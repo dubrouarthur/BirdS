@@ -212,6 +212,13 @@ export const STRINGS = {
     "chart.source.web": "Données : le web (voir les sources)",
     "chart.source.model": "Chiffres fournis par Bird, non vérifiés",
     "chart.reshaped": "Données remises en forme : {notes}",
+    "chart.reshaped.total_dropped":
+      "ligne « {label} » retirée (elle écraserait les barres)",
+    "chart.reshaped.line_to_bar":
+      "une courbe demande au moins 2 points : affiché en barres",
+    "chart.reshaped.empty_dropped": "parts vides retirées : {items}",
+    "chart.reshaped.folded":
+      "{n} petites parts regroupées dans « {label} » : {items}",
     "chart.other": "Autres",
     "chart.export": "Graphique",
     "webimg.title": "Images du web",
@@ -852,6 +859,12 @@ export const STRINGS = {
     "chart.source.web": "Data: the web (see sources)",
     "chart.source.model": "Figures from Bird, not verified",
     "chart.reshaped": "Data reshaped: {notes}",
+    "chart.reshaped.total_dropped":
+      "“{label}” row dropped (it would dwarf the bars)",
+    "chart.reshaped.line_to_bar":
+      "a line needs at least 2 points: shown as bars",
+    "chart.reshaped.empty_dropped": "empty slices dropped: {items}",
+    "chart.reshaped.folded": "{n} small slices grouped in “{label}”: {items}",
     "chart.other": "Other",
     "chart.export": "Chart",
     "webimg.title": "Images from the web",

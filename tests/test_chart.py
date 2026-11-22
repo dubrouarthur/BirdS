@@ -199,6 +199,27 @@ def test_pie_folds_small_slices_into_other():
     assert sum(r[1] for r in spec["rows"]) == pytest.approx(100) and spec["rows"][-1][1] == pytest.approx(7)
 
 
+def test_reshaped_notes_are_codes_the_browser_translates():
+    # the UI shows them in French or English (i18n.js); the English sentence is only for the model
+    from birds.harness.tools.chart import reshaped_text
+    from birds.web.server import STATIC_DIR
+
+    rows = [[f"P{i}", v] for i, v in enumerate([30, 20, 15, 10, 8, 6, 4, 3, 2, 2])]
+    pie = norm({"title": "T", "type": "pie", "columns": ["X", "Y"], "rows": rows})
+    assert pie["reshaped"] == [{"code": "folded", "n": 3, "label": "Autres", "items": ["P7", "P8", "P9"]}]
+    total = norm(
+        {"title": "T", "type": "bar", "columns": ["X", "Y"], "rows": [["A", 1], ["B", 2], ["C", 3], ["Total", 6]]}
+    )
+    line = norm({"title": "T", "type": "line", "columns": ["X", "Y"], "rows": [["2025", 3]]})
+    gaps = norm({"title": "T", "type": "pie", "columns": ["X", "Y"], "rows": [["A", 1], ["B", None]]})
+    items = pie["reshaped"] + total["reshaped"] + line["reshaped"] + gaps["reshaped"]
+    assert {i["code"] for i in items} == {"folded", "total_dropped", "line_to_bar", "empty_dropped"}
+    assert "3 small slices grouped in 'Autres'" in reshaped_text(pie["reshaped"][0])
+    i18n = (STATIC_DIR / "i18n.js").read_text(encoding="utf-8")
+    for i in items:
+        assert i18n.count(f'"chart.reshaped.{i["code"]}"') == 2  # fr and en
+
+
 def test_type_inference():
     months = [["janvier", 12], ["février", 15.5], ["mars", 14], ["avril", 18]]
     assert norm({"title": "T", "columns": ["Mois", "V"], "rows": months})["type"] == "line"
