@@ -254,13 +254,32 @@ function chart(all) {
   );
 }
 
-function splitRow(label, usages, max) {
+const totalTokens = (u) => u.prompt_tokens + u.completion_tokens;
+const writtenTokens = (u) => u.completion_tokens;
+const avgBy = (list, f) => (list.length ? list.reduce((s, u) => s + f(u), 0) / list.length : 0);
+
+/**
+ * The one thinking comparison of the page (the panel and the lever line both use it): tokens the model WROTE,
+ * on answers without tools only (a tool turn re-reads pages and would swamp the effect), and at least two
+ * answers on each side, else no figure at all.
+ */
+function thinkingCompare(usages) {
+  const plain = usages.filter((u) => !(u.tool_calls > 0));
+  const on = plain.filter((u) => u.thinking);
+  const off = plain.filter((u) => !u.thinking);
+  return {
+    asked: usages.some((u) => u.thinking),
+    enough: on.length >= 2 && off.length >= 2,
+    on: on.length,
+    off: off.length,
+    avgOn: avgBy(on, writtenTokens),
+    avgOff: avgBy(off, writtenTokens),
+  };
+}
+
+function splitRow(label, usages, max, f, unitKey) {
   const n = usages.length;
-  const tokens = usages.reduce(
-    (sum, u) => sum + u.prompt_tokens + u.completion_tokens,
-    0,
-  );
-  const avg = n ? Math.round(tokens / n) : 0;
+  const avg = Math.round(avgBy(usages, f));
   const bar = h(
     "span",
     { class: "split-bar" },
@@ -274,57 +293,55 @@ function splitRow(label, usages, max) {
     bar,
     h("span", {
       class: "split-value num",
-      text: n ? t("fp.split.avg", { n: fmtInt(n), avg: fmtInt(avg) }) : "—",
+      text: n ? t(unitKey, { n: fmtInt(n), avg: fmtInt(avg) }) : "—",
     }),
   );
 }
 
 function splits(usages) {
-  const avgOf = (list) =>
-    list.length
-      ? list.reduce((s, u) => s + u.prompt_tokens + u.completion_tokens, 0) /
-        list.length
-      : 0;
+  // thinking rows: tokens written; tool rows: all tokens (a tool turn's cost is mostly what it reads)
   const on = usages.filter((u) => u.thinking);
   const off = usages.filter((u) => !u.thinking);
   const withTools = usages.filter((u) => u.tool_calls > 0);
   const without = usages.filter((u) => !u.tool_calls);
-  const max = Math.max(
-    avgOf(on),
-    avgOf(off),
-    avgOf(withTools),
-    avgOf(without),
-    1,
-  );
+  const maxThink = Math.max(avgBy(on, writtenTokens), avgBy(off, writtenTokens), 1);
+  const maxTools = Math.max(avgBy(withTools, totalTokens), avgBy(without, totalTokens), 1);
   return h(
     "section",
     { class: "panel" },
     h("h3", { class: "eyebrow", text: t("fp.split") }),
     h("p", { class: "split-title", text: t("fp.split.thinking") }),
-    splitRow(t("fp.split.off"), off, max),
-    splitRow(t("fp.split.on"), on, max),
+    splitRow(t("fp.split.off"), off, maxThink, writtenTokens, "fp.split.avg.out"),
+    splitRow(t("fp.split.on"), on, maxThink, writtenTokens, "fp.split.avg.out"),
     h("p", { class: "split-title", text: t("fp.split.tools") }),
-    splitRow(t("fp.split.without"), without, max),
-    splitRow(t("fp.split.with"), withTools, max),
+    splitRow(t("fp.split.without"), without, maxTools, totalTokens, "fp.split.avg"),
+    splitRow(t("fp.split.with"), withTools, maxTools, totalTokens, "fp.split.avg"),
   );
 }
 
-function comparison(usages) {
-  const avg = (list) =>
-    list.reduce((s, u) => s + u.prompt_tokens + u.completion_tokens, 0) /
-    list.length;
-  const on = usages.filter((u) => u.thinking);
-  const off = usages.filter((u) => !u.thinking);
-  if (!on.length || !off.length) return null;
-  const a = avg(on);
-  const b = avg(off);
+/** "1,9 fois plus": the ratio as the page words it, shared by the panel and the lever line. */
+function thinkRatio(c) {
+  const a = c.avgOn;
+  const b = c.avgOff;
   const x = a >= b ? a / Math.max(b, 1) : b / Math.max(a, 1);
-  const ratio =
-    x < 1.15
-      ? t("fp.compare.same")
-      : t(a >= b ? "fp.compare.more" : "fp.compare.less", {
-          x: fmtSig(Math.round(x * 10) / 10),
-        });
+  return x < 1.15
+    ? t("fp.compare.same")
+    : t(a >= b ? "fp.compare.more" : "fp.compare.less", { x: fmtSig(Math.round(x * 10) / 10) });
+}
+
+function comparison(usages) {
+  const c = thinkingCompare(usages);
+  if (!c.asked) return null;
+  if (!c.enough)
+    return h(
+      "section",
+      { class: "panel panel-accent", "data-compare": "1" },
+      h("h3", { class: "eyebrow", text: t("fp.compare.title") }),
+      h("p", { text: t("fp.compare.few", { a: c.on, b: c.off }) }),
+    );
+  const a = c.avgOn;
+  const b = c.avgOff;
+  const ratio = thinkRatio(c);
   return h(
     "section",
     { class: "panel panel-accent", "data-compare": "1" },
@@ -338,7 +355,7 @@ function comparison(usages) {
     }),
     h("p", {
       class: "hint",
-      text: t("fp.compare.note", { a: on.length, b: off.length }),
+      text: t("fp.compare.note", { a: c.on, b: c.off }),
     }),
   );
 }
@@ -396,6 +413,18 @@ function savings(usages, s) {
   const ref = cmp.reference;
   const withE = usages.filter(hasEnergy);
   const avg = withE.length ? withE.reduce((a, u) => a + u.energy_wh, 0) / withE.length : null;
+  // the label says what the entries are: all measured, all an upper bound (power x time), else an estimate
+  const allPower = withE.length > 0 && withE.every((u) => u.energy_method === "power_time");
+  const energyKind = withE.length && withE.every((u) => u.energy_kind === "measured")
+    ? "measured"
+    : allPower
+      ? "upper"
+      : "estimated";
+  const birdLabel = t("save.energy.bird", {
+    kind: t(`save.energy.kind.${energyKind}`),
+    k: fmtInt(withE.length),
+    n: fmtInt(usages.length),
+  });
   const energy =
     ref && ref.wh > 0 && ref.source
       ? h(
@@ -405,7 +434,7 @@ function savings(usages, s) {
           avg === null
             ? h("p", { class: "hint", text: t("save.energy.none") })
             : [
-                bar(t("save.energy.bird"), avg, Math.max(avg, ref.wh), `≈ ${fmtSig(avg)} Wh`, "sbar-bird"),
+                bar(birdLabel, avg, Math.max(avg, ref.wh), `${energyKind === "measured" ? "" : "≈ "}${fmtSig(avg)} Wh`, "sbar-bird"),
                 bar(ref[`label_${lang}`] || ref.label_fr || "", ref.wh, Math.max(avg, ref.wh), `${fmtSig(ref.wh)} Wh`),
                 h("p", {
                   class: "save-line",
@@ -418,15 +447,14 @@ function savings(usages, s) {
           h(
             "p",
             { class: "hint" },
-            t("save.energy.scope"),
+            t(allPower ? "save.energy.scope.max" : "save.energy.scope"),
             " ",
             h("a", { href: ref.source, target: "_blank", rel: "noopener noreferrer", text: t("save.source") }),
           ),
         )
       : h("p", { class: "hint", text: t("save.energy.unset") });
-  const on = usages.filter((u) => u.thinking);
   const off = usages.filter((u) => !u.thinking);
-  const avgTok = (l) => (l.length ? l.reduce((a, u) => a + u.completion_tokens, 0) / l.length : 0);
+  const think = thinkingCompare(usages);
   const levers = h(
     "ul",
     { class: "levers" },
@@ -437,16 +465,22 @@ function savings(usages, s) {
       null,
       h("strong", { text: t("save.lever.short") }),
       " ",
-      off.length ? t("save.lever.short.p", { n: fmtInt(Math.round(avgTok(off))) }) : t("save.lever.short.none"),
+      off.length ? t("save.lever.short.p", { n: fmtInt(Math.round(avgBy(off, writtenTokens))) }) : t("save.lever.short.none"),
     ),
     h(
       "li",
       null,
       h("strong", { text: t("save.lever.think") }),
       " ",
-      on.length && off.length
-        ? t("save.lever.think.p", { on: fmtInt(Math.round(avgTok(on))), off: fmtInt(Math.round(avgTok(off))) })
-        : t("save.lever.think.none"),
+      think.enough
+        ? t("save.lever.think.p", {
+            on: fmtInt(Math.round(think.avgOn)),
+            off: fmtInt(Math.round(think.avgOff)),
+            ratio: thinkRatio(think),
+          })
+        : think.asked
+          ? t("fp.compare.few", { a: think.on, b: think.off })
+          : t("save.lever.think.none"),
     ),
   );
   return h(
