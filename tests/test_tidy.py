@@ -75,8 +75,8 @@ def test_code_checks_parse_but_never_run(tmp_path):
     py = f"import pathlib\npathlib.Path({str(marker)!r}).write_text('x')\n"
     text = (
         f"{FENCE}python\n{py}{FENCE}\n\n{FENCE}python\ndef f(:\n    pass\n{FENCE}\n\n"
-        f"{FENCE}py\n>>> 1 +\n{FENCE}\n\n{FENCE}json\n{{\"a\": 1}}\n{FENCE}\n\n{FENCE}json\n{{\"a\": 1,}}\n{FENCE}\n\n"
-        f"{FENCE}json\n{{\"a\": 1, ...}}\n{FENCE}\n\n{FENCE}sql\nSELECT 1\n{FENCE}"
+        f'{FENCE}py\n>>> 1 +\n{FENCE}\n\n{FENCE}json\n{{"a": 1}}\n{FENCE}\n\n{FENCE}json\n{{"a": 1,}}\n{FENCE}\n\n'
+        f'{FENCE}json\n{{"a": 1, ...}}\n{FENCE}\n\n{FENCE}sql\nSELECT 1\n{FENCE}'
     )
     checks = code_checks(text)
     assert not marker.exists()
