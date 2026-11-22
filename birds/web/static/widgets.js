@@ -79,18 +79,113 @@ export function kindCount(kind, n) {
 }
 
 function detailLabel(detail) {
-  // OSM "cuisine" values are lists like "chinese;asian": translated piece by piece when known
-  const [cuisine, ...rest] = String(detail || "").split(" · ");
-  const parts = cuisine
+  // OSM "cuisine" values are lists like "chinese;asian": only the values with a translation are shown (free text
+  // such as "cave a manger, epicerie de terroirs" or a description is in no known language: dropped)
+  const [cuisine] = String(detail || "").split(" · ");
+  return cuisine
     .split(/[;,]/)
-    .map((c) => c.trim())
+    .map((c) => c.trim().toLowerCase())
     .filter(Boolean)
     .map((c) => {
       const key = `cuisine.${c}`;
       const v = t(key);
-      return v === key ? c.replace(/_/g, " ") : v;
-    });
-  return [parts.join(", "), ...rest].filter(Boolean).join(" · ");
+      return v === key ? "" : v;
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+// ------------------------------------------------------------------ opening hours (a small subset of OSM syntax)
+
+const OSM_DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+
+/** OSM opening_hours -> {today, rules: [[days, hours]]} in the UI language, or null (shown raw) when the value uses
+ * syntax beyond "Mo-Fr 09:00-12:00,14:00-18:00; Sa 10:00-13:00; Su off; PH off; 24/7". ``day``: 0 = Monday. */
+export function fmtHours(raw, day = (new Date().getDay() + 6) % 7) {
+  const text = String(raw || "").trim();
+  if (!text) return null;
+  const names = t("hours.days").split(",");
+  const clock = (hm) => {
+    const [h, m] = hm.split(":").map(Number);
+    if (state.prefs.lang === "en") return hm;
+    if (h === 0 && m === 0) return t("hours.midnight");
+    return m ? `${h} h ${String(m).padStart(2, "0")}` : `${h} h`;
+  };
+  const SPAN = /^([01]?\d|2[0-4]):([0-5]\d)\+?-([01]?\d|2[0-4]):([0-5]\d)\+?$/;
+  if (text === "24/7") return { today: t("hours.always"), rules: [[t("hours.everyDay"), t("hours.always")]] };
+  const rules = [];
+  const byDay = new Array(7).fill(null);
+  for (const part of text.split(";").map((x) => x.trim()).filter(Boolean)) {
+    const m = /^((?:(?:Mo|Tu|We|Th|Fr|Sa|Su|PH)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)(?:,(?:Mo|Tu|We|Th|Fr|Sa|Su|PH)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)*)?\s*(.*)$/.exec(part);
+    if (!m) return null;
+    const daysSpec = m[1] || "Mo-Su";
+    const rest = m[2].trim();
+    let hours;
+    if (/^(off|closed)$/i.test(rest)) hours = t("hours.closed");
+    else {
+      const spans = rest.split(",").map((x) => x.trim());
+      if (!spans.length || !spans.every((x) => SPAN.test(x))) return null;
+      hours = spans
+        .map((x) => {
+          const [, a, b, c, d] = SPAN.exec(x);
+          return `${clock(`${a.padStart(2, "0")}:${b}`)} – ${clock(`${c.padStart(2, "0")}:${d}`)}`;
+        })
+        .join(", ");
+    }
+    const labels = [];
+    for (const spec of daysSpec.split(",")) {
+      if (spec === "PH") {
+        labels.push(t("hours.holidays"));
+        continue;
+      }
+      const [a, b] = spec.split("-").map((d) => OSM_DAYS.indexOf(d));
+      const end = b === undefined ? a : b;
+      for (let i = a; ; i = (i + 1) % 7) {
+        byDay[i] = hours;
+        if (i === end) break;
+      }
+      if (a === 0 && end === 6) labels.push(t("hours.everyDay"));
+      else labels.push(b === undefined ? names[a] : `${names[a]}–${names[end]}`);
+    }
+    rules.push([labels.join(", "), hours]);
+  }
+  return { today: byDay[day] ?? (m0(text) ? t("hours.closed") : null), rules };
+}
+const m0 = (text) => /\b(Mo|Tu|We|Th|Fr|Sa|Su)\b/.test(text);
+
+function hoursBlock(raw) {
+  const got = fmtHours(raw);
+  const colon = state.prefs.lang === "en" ? ": " : " : ";
+  const label = h("span", { class: "muted", text: `${t("places.hours")} · ` });
+  if (!got)
+    return h("p", { class: "place-hours" }, label, h("span", { text: raw }));
+  const single = got.rules.length === 1;
+  const cap = (x) => x.charAt(0).toLocaleUpperCase(locale()) + x.slice(1);
+  return h(
+    "div",
+    { class: "place-hours" },
+    h(
+      "p",
+      null,
+      label,
+      h("span", {
+        text: single
+          ? `${cap(got.rules[0][0])}${colon}${got.rules[0][1]}`
+          : `${cap(t("hours.today"))}${colon}${got.today ?? "—"}`,
+      }),
+    ),
+    !single &&
+      h(
+        "details",
+        { class: "place-hours-all" },
+        h("summary", { text: t("hours.all") }),
+        h(
+          "ul",
+          null,
+          got.rules.map(([d, x]) => h("li", { text: `${cap(d)}${colon}${x}` })),
+        ),
+      ),
+  );
 }
 
 function section(type, title, ...body) {
@@ -244,13 +339,7 @@ function placeCard(p, mode, uidPrefix) {
       meta.length > 0 &&
         h("p", { class: "place-meta", text: meta.join(" · ") }),
       p.address && h("p", { class: "place-address", text: p.address }),
-      p.hours &&
-        h(
-          "p",
-          { class: "place-hours" },
-          h("span", { class: "muted", text: `${t("places.hours")} : ` }),
-          h("span", { text: p.hours }),
-        ),
+      p.hours && hoursBlock(p.hours),
       h(
         "p",
         { class: "place-actions" },

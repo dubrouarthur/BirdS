@@ -4648,6 +4648,18 @@ button.att-card {
   color: var(--ink-2);
   overflow-wrap: anywhere;
 }
+.place-hours p {
+  margin: 0;
+}
+.place-hours-all summary {
+  cursor: pointer;
+  color: var(--link);
+  inline-size: fit-content;
+}
+.place-hours-all ul {
+  margin: 2px 0 0;
+  padding-inline-start: 1.1em;
+}
 .place-actions {
   display: flex;
   flex-wrap: wrap;

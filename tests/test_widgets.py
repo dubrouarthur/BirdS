@@ -681,3 +681,24 @@ def test_place_titles_use_real_plurals():
     assert titles == "8 restaurants · autour de : Gare de Lyon"
     where = demo_widget("find_places", {"query": "20 avenue de Ségur Paris"})
     assert run_js("out(W.placesTitle(data.w));", w=where).endswith(" ?")
+
+
+@needs_node
+def test_opening_hours_are_translated_with_today_first():
+    raw = "Mo 10:00-19:00; Tu-We 10:00-20:00; Th-Fr 10:00-20:30; Sa 10:00-13:00,16:30-20:00"
+    fr = run_js("out([W.fmtHours(data.raw, 5), W.fmtHours(data.raw, 6), W.fmtHours('Mo-Su 07:00-00:00', 0),"
+                " W.fmtHours('09:30-23:45; Jun 21-Sep 02: 09:00-00:45', 0), W.fmtHours('24/7', 3)]);", raw=raw)  # fmt: skip
+    assert fr[0]["today"] == "10 h – 13 h, 16 h 30 – 20 h"
+    assert fr[0]["rules"][1] == ["mar.–mer.", "10 h – 20 h"]
+    assert fr[1]["today"] == "fermé"
+    assert fr[2] == {"today": "7 h – minuit", "rules": [["tous les jours", "7 h – minuit"]]}
+    assert fr[3] is None  # beyond the subset: shown raw
+    assert fr[4]["today"] == "24 h/24, 7 j/7"
+    en = run_js("out(W.fmtHours(data.raw, 0));", lang="en", raw=raw)
+    assert en["today"] == "10:00 – 19:00" and en["rules"][2][0] == "Thu–Fri"
+    w = demo_widget("find_places", {"query": "restaurant", "near": "gare de Lyon"})
+    shown = run_js("const el = render(data.w); out(el.querySelectorAll('.place-hours').map((x) => x.textContent)"
+                   ".concat(el.querySelectorAll('.place-meta').map((x) => x.textContent)));", w=w)  # fmt: skip
+    import re
+
+    assert shown and not [x for x in shown if re.search(r"\b(Mo|Tu|We|Th|Fr|Sa|Su)\b|_", x)], shown
