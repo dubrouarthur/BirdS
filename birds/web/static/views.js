@@ -18,11 +18,18 @@ import {
   state,
   store,
   t,
-  toast, modelLabel } from "./core.js";
+  toast,
+  modelLabel,
+} from "./core.js";
 
 let hooks = {};
 // replaceChildren would print null/false as text: drop them first
-const put = (el, ...children) => el.replaceChildren(...children.flat().filter((c) => c !== null && c !== undefined && c !== false));
+const put = (el, ...children) =>
+  el.replaceChildren(
+    ...children
+      .flat()
+      .filter((c) => c !== null && c !== undefined && c !== false),
+  );
 export const setViewHooks = (value) => (hooks = value);
 
 // ------------------------------------------------------------------ footprint ledger (all-time, local)
@@ -124,14 +131,36 @@ function chart(all) {
       "aria-label": t("fp.chart"),
     });
     el.append(
-      svg("line", { class: "chart-grid", x1: 0, x2: width, y1: top + 0.5, y2: top + 0.5 }),
-      svg("text", { class: "chart-scale", x: 0, y: top - 5 }, document.createTextNode(`${fmtInt(max)} tokens`)),
-      svg("line", { class: "chart-axis", x1: 0, x2: width, y1: height - 0.5, y2: height - 0.5 }),
+      svg("line", {
+        class: "chart-grid",
+        x1: 0,
+        x2: width,
+        y1: top + 0.5,
+        y2: top + 0.5,
+      }),
+      svg(
+        "text",
+        { class: "chart-scale", x: 0, y: top - 5 },
+        document.createTextNode(`${fmtInt(max)} tokens`),
+      ),
+      svg("line", {
+        class: "chart-axis",
+        x1: 0,
+        x2: width,
+        y1: height - 0.5,
+        y2: height - 0.5,
+      }),
     );
     const bars = usages.map((u, i) => {
       const x = gap + i * (barW + gap); // left-aligned
-      const hIn = Math.max(u.prompt_tokens > 0 ? 2 : 0, (u.prompt_tokens / max) * (plot - 2));
-      const hOut = Math.max(u.completion_tokens > 0 ? 2 : 0, (u.completion_tokens / max) * (plot - 2));
+      const hIn = Math.max(
+        u.prompt_tokens > 0 ? 2 : 0,
+        (u.prompt_tokens / max) * (plot - 2),
+      );
+      const hOut = Math.max(
+        u.completion_tokens > 0 ? 2 : 0,
+        (u.completion_tokens / max) * (plot - 2),
+      );
       const label = labelOf(u, i);
       const group = svg("g", {
         class: "chart-bar",
@@ -141,9 +170,30 @@ function chart(all) {
         "data-i": String(i),
       });
       group.append(
-        svg("rect", { class: "chart-hit", x: x - gap / 2, y: 0, width: barW + gap, height }),
-        svg("rect", { class: "series-in", x, y: height - 1 - hIn, width: barW, height: hIn }),
-        svg("path", { class: "series-out", d: topRounded(x, height - 1 - hIn - 2 - hOut, barW, hOut, Math.min(4, barW / 2)) }),
+        svg("rect", {
+          class: "chart-hit",
+          x: x - gap / 2,
+          y: 0,
+          width: barW + gap,
+          height,
+        }),
+        svg("rect", {
+          class: "series-in",
+          x,
+          y: height - 1 - hIn,
+          width: barW,
+          height: hIn,
+        }),
+        svg("path", {
+          class: "series-out",
+          d: topRounded(
+            x,
+            height - 1 - hIn - 2 - hOut,
+            barW,
+            hOut,
+            Math.min(4, barW / 2),
+          ),
+        }),
       );
       if (u.thinking)
         group.append(
@@ -165,7 +215,12 @@ function chart(all) {
       return group;
     });
     el.addEventListener("keydown", (e) => {
-      const go = { ArrowRight: current + 1, ArrowLeft: current - 1, Home: 0, End: bars.length - 1 }[e.key];
+      const go = {
+        ArrowRight: current + 1,
+        ArrowLeft: current - 1,
+        Home: 0,
+        End: bars.length - 1,
+      }[e.key];
       if (go === undefined) return;
       e.preventDefault();
       const next = Math.max(0, Math.min(bars.length - 1, go));
@@ -187,7 +242,8 @@ function chart(all) {
       const first = !lastW;
       lastW = w;
       window.clearTimeout(timer);
-      if (first) draw(); // now in the page: its real width
+      if (first)
+        draw(); // now in the page: its real width
       else timer = window.setTimeout(draw, 80); // debounced: a window drag redraws once
     }).observe(scroller);
   return h(
@@ -272,7 +328,8 @@ function chart(all) {
 
 const totalTokens = (u) => u.prompt_tokens + u.completion_tokens;
 const writtenTokens = (u) => u.completion_tokens;
-const avgBy = (list, f) => (list.length ? list.reduce((s, u) => s + f(u), 0) / list.length : 0);
+const avgBy = (list, f) =>
+  list.length ? list.reduce((s, u) => s + f(u), 0) / list.length : 0;
 
 /**
  * The one thinking comparison of the page (the panel and the lever line both use it): tokens the model WROTE,
@@ -320,18 +377,44 @@ function splits(usages) {
   const off = usages.filter((u) => !u.thinking);
   const withTools = usages.filter((u) => u.tool_calls > 0);
   const without = usages.filter((u) => !u.tool_calls);
-  const maxThink = Math.max(avgBy(on, writtenTokens), avgBy(off, writtenTokens), 1);
-  const maxTools = Math.max(avgBy(withTools, totalTokens), avgBy(without, totalTokens), 1);
+  const maxThink = Math.max(
+    avgBy(on, writtenTokens),
+    avgBy(off, writtenTokens),
+    1,
+  );
+  const maxTools = Math.max(
+    avgBy(withTools, totalTokens),
+    avgBy(without, totalTokens),
+    1,
+  );
   return h(
     "section",
     { class: "panel" },
     h("h3", { class: "eyebrow", text: t("fp.split") }),
     h("p", { class: "split-title", text: t("fp.split.thinking") }),
-    splitRow(t("fp.split.off"), off, maxThink, writtenTokens, "fp.split.avg.out"),
+    splitRow(
+      t("fp.split.off"),
+      off,
+      maxThink,
+      writtenTokens,
+      "fp.split.avg.out",
+    ),
     splitRow(t("fp.split.on"), on, maxThink, writtenTokens, "fp.split.avg.out"),
     h("p", { class: "split-title", text: t("fp.split.tools") }),
-    splitRow(t("fp.split.without"), without, maxTools, totalTokens, "fp.split.avg"),
-    splitRow(t("fp.split.with"), withTools, maxTools, totalTokens, "fp.split.avg"),
+    splitRow(
+      t("fp.split.without"),
+      without,
+      maxTools,
+      totalTokens,
+      "fp.split.avg",
+    ),
+    splitRow(
+      t("fp.split.with"),
+      withTools,
+      maxTools,
+      totalTokens,
+      "fp.split.avg",
+    ),
   );
 }
 
@@ -342,7 +425,9 @@ function thinkRatio(c) {
   const x = a >= b ? a / Math.max(b, 1) : b / Math.max(a, 1);
   return x < 1.15
     ? t("fp.compare.same")
-    : t(a >= b ? "fp.compare.more" : "fp.compare.less", { x: fmtSig(Math.round(x * 10) / 10) });
+    : t(a >= b ? "fp.compare.more" : "fp.compare.less", {
+        x: fmtSig(Math.round(x * 10) / 10),
+      });
 }
 
 function comparison(usages) {
@@ -398,7 +483,8 @@ function savings(usages, s, scripted = false) {
   const bird = Number(cmp.active_params_b) || 4;
   const tokens = s.prompt + s.completion;
   const gflop = (params, n) => 2 * params * n; // GFLOP: 2 x active parameters (in billions) per token
-  const fmtFlop = (g) => (g >= 1000 ? `${fmtSig(g / 1000)} TFLOP` : `${fmtSig(g)} GFLOP`);
+  const fmtFlop = (g) =>
+    g >= 1000 ? `${fmtSig(g / 1000)} TFLOP` : `${fmtSig(g)} GFLOP`;
   const classes = (cmp.classes || []).filter((c) => c.active_params_b > 0);
   const max = Math.max(bird, ...classes.map((c) => c.active_params_b));
   const theory = h(
@@ -406,7 +492,13 @@ function savings(usages, s, scripted = false) {
     { class: "save-block", "data-save": "compute" },
     h("p", { class: "save-title", text: t("save.compute.title") }),
     h("p", { class: "hint", text: t("save.compute.label") }),
-    bar(t("save.bird", { b: fmtSig(bird) }), bird, max, `${fmtSig(2 * bird)} GFLOP/token`, "sbar-bird"),
+    bar(
+      t("save.bird", { b: fmtSig(bird) }),
+      bird,
+      max,
+      `${fmtSig(2 * bird)} GFLOP/token`,
+      "sbar-bird",
+    ),
     classes.map((c) =>
       bar(
         `${c[lang] || c.fr} (~${fmtSig(c.active_params_b)} Md)`,
@@ -429,14 +521,18 @@ function savings(usages, s, scripted = false) {
   );
   const ref = cmp.reference;
   const withE = usages.filter(hasEnergy);
-  const avg = withE.length ? withE.reduce((a, u) => a + u.energy_wh, 0) / withE.length : null;
+  const avg = withE.length
+    ? withE.reduce((a, u) => a + u.energy_wh, 0) / withE.length
+    : null;
   // the label says what the entries are: all measured, all an upper bound (power x time), else an estimate
-  const allPower = withE.length > 0 && withE.every((u) => u.energy_method === "power_time");
-  const energyKind = withE.length && withE.every((u) => u.energy_kind === "measured")
-    ? "measured"
-    : allPower
-      ? "upper"
-      : "estimated";
+  const allPower =
+    withE.length > 0 && withE.every((u) => u.energy_method === "power_time");
+  const energyKind =
+    withE.length && withE.every((u) => u.energy_kind === "measured")
+      ? "measured"
+      : allPower
+        ? "upper"
+        : "estimated";
   const birdLabel = t("save.energy.bird", {
     kind: t(`save.energy.kind.${energyKind}`),
     k: fmtInt(withE.length),
@@ -451,8 +547,19 @@ function savings(usages, s, scripted = false) {
           avg === null
             ? h("p", { class: "hint", text: t("save.energy.none") })
             : [
-                bar(birdLabel, avg, Math.max(avg, ref.wh), `${energyKind === "measured" ? "" : "≈ "}${fmtSig(avg)} Wh`, "sbar-bird"),
-                bar(ref[`label_${lang}`] || ref.label_fr || "", ref.wh, Math.max(avg, ref.wh), `${fmtSig(ref.wh)} Wh`),
+                bar(
+                  birdLabel,
+                  avg,
+                  Math.max(avg, ref.wh),
+                  `${energyKind === "measured" ? "" : "≈ "}${fmtSig(avg)} Wh`,
+                  "sbar-bird",
+                ),
+                bar(
+                  ref[`label_${lang}`] || ref.label_fr || "",
+                  ref.wh,
+                  Math.max(avg, ref.wh),
+                  `${fmtSig(ref.wh)} Wh`,
+                ),
                 h("p", {
                   class: "save-line",
                   text:
@@ -466,7 +573,12 @@ function savings(usages, s, scripted = false) {
             { class: "hint" },
             t(allPower ? "save.energy.scope.max" : "save.energy.scope"),
             " ",
-            h("a", { href: ref.source, target: "_blank", rel: "noopener noreferrer", text: t("save.source") }),
+            h("a", {
+              href: ref.source,
+              target: "_blank",
+              rel: "noopener noreferrer",
+              text: t("save.source"),
+            }),
           ),
         )
       : h("p", { class: "hint", text: t("save.energy.unset") });
@@ -475,14 +587,30 @@ function savings(usages, s, scripted = false) {
   const levers = h(
     "ul",
     { class: "levers" },
-    h("li", null, h("strong", { text: t("save.lever.small") }), " ", t("save.lever.small.p", { b: fmtSig(bird) })),
-    h("li", null, h("strong", { text: t("save.lever.zero") }), " ", t("save.lever.zero.p")),
+    h(
+      "li",
+      null,
+      h("strong", { text: t("save.lever.small") }),
+      " ",
+      t("save.lever.small.p", { b: fmtSig(bird) }),
+    ),
+    h(
+      "li",
+      null,
+      h("strong", { text: t("save.lever.zero") }),
+      " ",
+      t("save.lever.zero.p"),
+    ),
     h(
       "li",
       null,
       h("strong", { text: t("save.lever.short") }),
       " ",
-      off.length ? t("save.lever.short.p", { n: fmtInt(Math.round(avgBy(off, writtenTokens))) }) : t("save.lever.short.none"),
+      off.length
+        ? t("save.lever.short.p", {
+            n: fmtInt(Math.round(avgBy(off, writtenTokens))),
+          })
+        : t("save.lever.short.none"),
     ),
     h(
       "li",
@@ -502,11 +630,20 @@ function savings(usages, s, scripted = false) {
   );
   return h(
     "section",
-    { class: "panel panel-save", "aria-labelledby": "save-title", "data-savings": "1" },
+    {
+      class: "panel panel-save",
+      "aria-labelledby": "save-title",
+      "data-savings": "1",
+    },
     h("h3", { id: "save-title", class: "save-head", text: t("save.title") }),
     theory,
     energy,
-    h("p", { class: "save-candid" }, icon("info"), h("span", { text: t("save.candid") })),
+    h(
+      "p",
+      { class: "save-candid" },
+      icon("info"),
+      h("span", { text: t("save.candid") }),
+    ),
     h("p", { class: "save-title", text: t("save.levers") }),
     levers,
   );
@@ -524,7 +661,9 @@ export function renderFootprint() {
   const counted = allScripted ? usages : real;
   const s = totals(counted);
   const demo = activeMode() === "demo" || allScripted;
-  const scriptedTag = allScripted ? h("span", { class: "tag tag-scripted", text: t("kind.scripted") }) : null;
+  const scriptedTag = allScripted
+    ? h("span", { class: "tag tag-scripted", text: t("kind.scripted") })
+    : null;
   const gi = state.health?.grid_intensity_g_per_kwh;
   const eq = state.health?.equivalent;
   const partial = (k) => (k < s.n ? t("fp.partial", { k, n: s.n }) : "");
@@ -577,7 +716,8 @@ export function renderFootprint() {
       h("p", { class: "hint", text: t("fp.method", { gi: fmtSig(gi) }) }),
   );
   if (!s.n) {
-    put(body, 
+    put(
+      body,
       head,
       h("p", { class: "panel panel-empty", text: t("fp.empty") }),
       demo && h("p", { class: "demo-note", text: t("demo.note") }),
@@ -598,7 +738,12 @@ export function renderFootprint() {
     : stat(
         t("fp.energy"),
         t("meter.energy.none.long"),
-        t(usages.some((u) => u.tokens_kind === "scripted") && !real.some(hasEnergy) ? "why.energy.demo" : "why.energy.none"),
+        t(
+          usages.some((u) => u.tokens_kind === "scripted") &&
+            !real.some(hasEnergy)
+            ? "why.energy.demo"
+            : "why.energy.none",
+        ),
         "stat-wide stat-none",
       );
   const co2Stat = s.co2N
@@ -635,7 +780,8 @@ export function renderFootprint() {
           }),
         )
       : null;
-  put(body, 
+  put(
+    body,
     head,
     allScripted && h("p", { class: "demo-note", text: t("demo.note") }),
     h(
@@ -651,20 +797,34 @@ export function renderFootprint() {
         `stat-hero${allScripted ? " stat-scripted" : ""}`,
       ),
       stat(t("fp.answers"), fmtInt(s.n)),
-      stat(t("fp.time"), fmtSeconds(s.seconds), null, allScripted ? "stat-scripted" : ""),
+      stat(
+        t("fp.time"),
+        fmtSeconds(s.seconds),
+        null,
+        allScripted ? "stat-scripted" : "",
+      ),
       stat(t("fp.tools"), fmtInt(s.tools)),
       stat(t("fp.fetched"), fmtBytes(s.bytes)),
       energyStat,
       co2Stat,
     ),
     equivalent,
-    demoN > 0 && !allScripted && h("p", { class: "hint fp-demo-excluded", text: t(demoN === 1 ? "fp.demo.excluded.one" : "fp.demo.excluded", { n: demoN }) }),
+    demoN > 0 &&
+      !allScripted &&
+      h("p", {
+        class: "hint fp-demo-excluded",
+        text: t(demoN === 1 ? "fp.demo.excluded.one" : "fp.demo.excluded", {
+          n: demoN,
+        }),
+      }),
     chart(usages),
     savings(counted, s, allScripted),
     scope === "conv" ? comparison(counted) : null,
     splits(counted),
     how,
-    demo && !allScripted && h("p", { class: "demo-note", text: t("demo.note") }),
+    demo &&
+      !allScripted &&
+      h("p", { class: "demo-note", text: t("demo.note") }),
     h("p", { class: "hint", text: t("fp.note") }),
     scope === "all" &&
       button("btn-outline btn-small", "trash", t("fp.reset"), () => {
@@ -694,7 +854,11 @@ export function toolsPanel() {
   if (!info) return null;
   const lang = state.prefs.lang === "en" ? "en" : "fr";
   const demo = activeMode() === "demo";
-  const label = { on: t("tools.on"), off: t("tools.off"), attach: t("tools.attach") };
+  const label = {
+    on: t("tools.on"),
+    off: t("tools.off"),
+    attach: t("tools.attach"),
+  };
   return h(
     "details",
     { class: "panel tools-panel", id: "settings-tools" },
@@ -702,7 +866,19 @@ export function toolsPanel() {
       "summary",
       null,
       icon("chevron", "chev"),
-      h("span", { class: "tools-sum" }, h("span", { id: "set-tools-title", class: "tools-sum-title", text: t("tools.title") }), h("span", { class: "hint", text: demo ? t("tools.demo") : t("tools.lead") })),
+      h(
+        "span",
+        { class: "tools-sum" },
+        h("span", {
+          id: "set-tools-title",
+          class: "tools-sum-title",
+          text: t("tools.title"),
+        }),
+        h("span", {
+          class: "hint",
+          text: demo ? t("tools.demo") : t("tools.lead"),
+        }),
+      ),
     ),
     h(
       "ul",
@@ -718,12 +894,21 @@ export function toolsPanel() {
             h("span", { class: "tool-name", text: t(`tool.${x.name}`) }),
             h("span", { class: "tool-why", text: x[lang] || "" }),
           ),
-          h("span", { class: `tag tag-tool-${x.state}`, text: label[x.state] || x.state }),
+          h("span", {
+            class: `tag tag-tool-${x.state}`,
+            text: label[x.state] || x.state,
+          }),
         ),
       ),
     ),
     info.search?.fallback &&
-      h("p", { class: "hint", text: t("tools.fallback", { label: info.search.label, fallback: info.search.fallback }) }),
+      h("p", {
+        class: "hint",
+        text: t("tools.fallback", {
+          label: info.search.label,
+          fallback: info.search.fallback,
+        }),
+      }),
   );
 }
 
@@ -759,7 +944,16 @@ export function renderSettings() {
       h(
         "span",
         { class: "mode-text" },
-        h("span", { class: "mode-title" }, title, !enabled && h("span", { class: "tag tag-unavailable", text: t("kind.unavailable") })),
+        h(
+          "span",
+          { class: "mode-title" },
+          title,
+          !enabled &&
+            h("span", {
+              class: "tag tag-unavailable",
+              text: t("kind.unavailable"),
+            }),
+        ),
         h("span", { class: "mode-hint", text: hint }),
       ),
     );
@@ -827,7 +1021,8 @@ export function renderSettings() {
   function apply(patch, quiet) {
     Object.assign(state.prefs, collect(), patch || {});
     savePrefs();
-    if (patch) hooks.onPrefs(); // a mode, language or theme change redraws the app
+    if (patch)
+      hooks.onPrefs(); // a mode, language or theme change redraws the app
     else hooks.onSaved(); // a typed field is only saved: redrawing here would steal the next click
     if (!quiet) toast(t("toast.saved"), "ok");
   }
@@ -862,7 +1057,8 @@ export function renderSettings() {
   const hosts = (hl.endpoint_hosts || ["*.endpoints.huggingface.cloud"]).join(
     ", ",
   );
-  put(body, 
+  put(
+    body,
     h(
       "section",
       { class: "panel", "aria-labelledby": "set-general-title" },
@@ -1013,18 +1209,41 @@ export function renderSettings() {
 export function renderAbout() {
   const block = (title, ...children) =>
     h("section", { class: "panel" }, h("h3", { text: title }), ...children);
-  put($("view-about-body"), 
+  put(
+    $("view-about-body"),
     h(
       "div",
       { class: "about-brand" },
-      h("img", { class: "lockup only-light", src: "/static/brand/logo-stacked.svg", alt: "Bird S 4B", width: "87", height: "112" }),
-      h("img", { class: "lockup only-dark", src: "/static/brand/logo-stacked-dark.svg", alt: "Bird S 4B", width: "87", height: "112" }),
+      h("img", {
+        class: "lockup only-light",
+        src: "/static/brand/logo-stacked.svg",
+        alt: "Bird S 4B",
+        width: "87",
+        height: "112",
+      }),
+      h("img", {
+        class: "lockup only-dark",
+        src: "/static/brand/logo-stacked-dark.svg",
+        alt: "Bird S 4B",
+        width: "87",
+        height: "112",
+      }),
       h("p", { class: "page-lead", text: t("about.tagline") }),
     ),
     h(
       "p",
       { class: "about-intro" },
-      h("button", { id: "about-intro", class: "btn", type: "button", onclick: () => openWelcome() }, icon("info"), h("span", { class: "btn-label", text: t("about.intro") })),
+      h(
+        "button",
+        {
+          id: "about-intro",
+          class: "btn",
+          type: "button",
+          onclick: () => openWelcome(),
+        },
+        icon("info"),
+        h("span", { class: "btn-label", text: t("about.intro") }),
+      ),
     ),
     block(t("about.what"), h("p", { text: t("about.what.p") })),
     block(t("about.deal"), h("p", { text: t("about.deal.p") })),
@@ -1077,7 +1296,8 @@ export function renderAbout() {
 }
 
 // The bird mark: a constant drawn here, never model output.
-const MARK = '<svg class="w-mark" viewBox="0 0 64 56" aria-hidden="true" focusable="false"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></svg>';
+const MARK =
+  '<svg class="w-mark" viewBox="0 0 64 56" aria-hidden="true" focusable="false"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></svg>';
 const svgFrom = (markup) => {
   const wrap = document.createElement("span");
   wrap.innerHTML = markup;
@@ -1095,17 +1315,18 @@ function setWelcomeLang(lang) {
 
 export function openWelcome({ focusLang } = {}) {
   const dialog = $("welcome");
-  const start = h("button", { id: "welcome-start", class: "btn btn-primary btn-cta", type: "button", text: t("welcome.start"), onclick: () => dialog.close() });
-  const pillar = (ico, title, text) =>
-    h("li", { class: "w-pillar" }, h("span", { class: "w-picon" }, icon(ico)), h("p", { class: "w-ptitle", text: title }), h("p", { class: "w-ptext", text }));
-  const examples = ["email", "minutes", "slides", "search"].map((key) =>
-    h(
-      "button",
-      { class: "w-ex", type: "button", onclick: () => (dialog.close(), hooks.onExample?.(t(`ex.${key}.prompt`))) },
-      icon({ email: "draft_email", minutes: "make_document", slides: "make_slides", search: "web_search" }[key]),
-      t(`ex.${key}.title`),
-    ),
-  );
+  const start = h("button", {
+    id: "welcome-start",
+    class: "btn btn-primary btn-cta",
+    type: "button",
+    text: t("welcome.start"),
+    onclick: () => dialog.close(),
+  });
+  // Short on purpose: brand, promise, credo in one line, three words, one button. Examples live on the empty
+  // screen behind the dialog; the philosophy lives on the "À propos" site.
+  const pillar = (ico, key) =>
+    h("li", { class: "w-pill" }, icon(ico), h("span", { text: t(key) }));
+  const site = state.health?.site_url;
   put(
     $("welcome-body"),
     h(
@@ -1114,8 +1335,13 @@ export function openWelcome({ focusLang } = {}) {
       h(
         "header",
         { class: "w-head" },
-        h("span", { class: "w-brand" }, svgFrom(MARK), h("b", { text: "Bird" }), h("span", { text: "S 4B" })),
-        h("span", { class: "w-tag" }, h("span", { class: "tri", "aria-hidden": "true" }, h("i"), h("i"), h("i")), t("welcome.france")),
+        h(
+          "span",
+          { class: "w-brand" },
+          svgFrom(MARK),
+          h("b", { text: "Bird" }),
+          h("span", { text: "S 4B" }),
+        ),
         h(
           "span",
           { class: "w-tools" },
@@ -1137,24 +1363,39 @@ export function openWelcome({ focusLang } = {}) {
           ),
           h(
             "button",
-            { id: "welcome-close", class: "btn btn-quiet btn-icon w-close", type: "button", "aria-label": t("close"), title: t("close"), onclick: () => dialog.close() },
+            {
+              id: "welcome-close",
+              class: "btn btn-quiet btn-icon w-close",
+              type: "button",
+              "aria-label": t("close"),
+              title: t("close"),
+              onclick: () => dialog.close(),
+            },
             icon("cross"),
           ),
         ),
       ),
-      h("h2", { id: "welcome-title", class: "w-title", text: t("welcome.title") }),
-      h("p", { id: "welcome-lead", class: "w-lead", text: t("welcome.mission") }),
+      h("h2", {
+        id: "welcome-title",
+        class: "w-title",
+        text: t("welcome.title"),
+      }),
+      h("p", { id: "welcome-lead", class: "w-lead", text: t("welcome.credo") }),
       h(
         "ul",
-        { class: "w-pillars" },
-        pillar("leaf", t("welcome.tiny"), t("welcome.tiny.p")),
-        pillar("eye", t("welcome.sober"), t("welcome.sober.p")),
-        pillar("shield", t("welcome.candid"), t("welcome.candid.p")),
+        { class: "w-pills", "aria-label": t("welcome.values") },
+        pillar("leaf", "welcome.tiny"),
+        pillar("eye", "welcome.sober"),
+        pillar("shield", "welcome.candid"),
       ),
-      h("p", { class: "w-sub", text: t("welcome.good") }),
-      h("div", { class: "w-exs" }, examples),
-      h("p", { class: "w-deal" }, h("strong", { text: t("welcome.deal") }), " ", t("welcome.deal.p")),
-      h("div", { class: "w-actions" }, h("p", { class: "w-privacy" }, icon("check"), h("span", { text: t("welcome.local") })), start),
+      h(
+        "div",
+        { class: "w-actions" },
+        site
+          ? h("a", { class: "w-more", href: site, text: t("welcome.more") })
+          : h("span"),
+        start,
+      ),
     ),
   );
   if (!dialog.open) {
@@ -1180,7 +1421,8 @@ export function openShortcuts() {
       ),
       h("dd", { text: label }),
     );
-  put($("shortcuts-body"), 
+  put(
+    $("shortcuts-body"),
     h(
       "dl",
       { class: "keys" },

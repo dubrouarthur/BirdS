@@ -4329,3 +4329,46 @@ button.att-card {
 .tools-panel[open] > summary {
   margin-block-end: 10px;
 }
+
+/* compact welcome: three one-word principles in a row */
+.w-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.w-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-block-size: 36px;
+  padding: 0 14px 0 11px;
+  border-radius: 999px;
+  background: var(--w-chip);
+  color: var(--w-ink);
+  font: 650 0.9rem var(--sans);
+}
+.w-pill .icon {
+  color: var(--w-blue);
+}
+.welcome .w-more {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.welcome {
+  inline-size: min(34rem, calc(100vw - 20px));
+}
+@media (max-width: 520px) {
+  .welcome .w-actions {
+    position: static;
+    margin: 4px 0 0;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+}
