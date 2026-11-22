@@ -3881,6 +3881,12 @@ button.att-card {
 .file-card.file-slides {
   --deck-w: min(860px, max(20rem, (100dvh - 470px) * 16 / 9));
 }
+/* a phone in portrait keeps the full column width: the slide is small enough there */
+@media (max-width: 640px) and (orientation: portrait) {
+  .file-card.file-slides {
+    --deck-w: 100%;
+  }
+}
 @media (min-width: 1180px) {
   .file-card.file-slides {
     margin-inline: min(0px, calc((100% - var(--deck-w) - 20px) / 2));
