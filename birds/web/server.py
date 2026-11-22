@@ -252,7 +252,10 @@ class ImageCache:
 
 
 IMG_MAX_BYTES = 2_000_000
-IMG_MAX_PIXELS = 40_000_000
+# 16 Mpx is ample for a 640 px card. A small compressible file can still decode big (an 8000 x 5000 RGBA PNG of
+# 165 KB is 160 MB of pixels), so decoding is also bounded in concurrency.
+IMG_MAX_PIXELS = 16_000_000
+IMG_DECODES = threading.BoundedSemaphore(3)
 IMG_MAX_SIDE, IMG_MIN_SIDE, IMG_OUT_SIDE = 8000, 64, 640
 _MAGIC = {
     "image/png": lambda b: b.startswith(b"\x89PNG\r\n\x1a\n"),
@@ -284,14 +287,18 @@ def reencode_image(ctype: str, raw: bytes) -> bytes:
             if min(w, h) < IMG_MIN_SIDE:
                 raise ApiError(422, "image_too_small", "image too small to show")
             im.seek(0)
-            frame = ImageOps.exif_transpose(im.copy())
+            # no full-size copy: JPEG decodes at a reduced scale (draft), the rest is reduced in place
+            if im.format == "JPEG":
+                im.draft("RGB", (2 * IMG_OUT_SIDE, 2 * IMG_OUT_SIDE))
+            with IMG_DECODES:
+                im.thumbnail((IMG_OUT_SIDE, IMG_OUT_SIDE), reducing_gap=2.0)
+            frame = ImageOps.exif_transpose(im)  # on the small image: a small copy, detached from the file
+            alpha = frame.mode in ("RGBA", "LA") or (frame.mode == "P" and "transparency" in frame.info)
+            frame = frame.convert("RGBA" if alpha else "RGB")
     except ApiError:
         raise
     except Exception:  # noqa: BLE001 - truncated, corrupt or a decompression bomb
         raise ApiError(422, "image_invalid", "this image cannot be read") from None
-    frame.thumbnail((IMG_OUT_SIDE, IMG_OUT_SIDE))
-    alpha = frame.mode in ("RGBA", "LA") or (frame.mode == "P" and "transparency" in frame.info)
-    frame = frame.convert("RGBA" if alpha else "RGB")
     out = io.BytesIO()
     frame.save(out, "WEBP", quality=80, method=4)
     return out.getvalue()

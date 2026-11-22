@@ -339,6 +339,23 @@ def test_api_img_rate_limit(monkeypatch):
     assert codes == [400, 400, 429]
 
 
+def test_reencode_bounds_decoding_and_keeps_orientation():
+    from PIL import Image
+
+    from birds.web.server import ApiError, reencode_image
+
+    with pytest.raises(ApiError) as err:  # 20 Mpx: a small compressible file that would decode to 80 MB
+        reencode_image("image/png", _png_header(5000, 4000))
+    assert err.value.detail["code"] == "image_invalid"
+    im = Image.new("RGB", (4000, 1000), "blue")  # JPEG decoded at reduced scale, EXIF rotation applied
+    exif = im.getexif()
+    exif[0x0112] = 6
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", exif=exif.tobytes())
+    out = Image.open(io.BytesIO(reencode_image("image/jpeg", buf.getvalue())))
+    assert out.format == "WEBP" and out.size == (160, 640) and not out.getexif()
+
+
 def _trickler(script):
     """A local HTTP server that runs ``script(conn)`` for each connection (a slow or hostile upstream)."""
     import socket
