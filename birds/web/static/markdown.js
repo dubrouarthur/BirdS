@@ -366,11 +366,17 @@ const figureOf = (text) => {
     : null;
 };
 
-// "Avantages", "Avantages courants", "Points forts du leasing": the keyword opens a label of at most 5 words
+// "Avantages", "Avantages courants", "Points forts du leasing": the keyword opens a label of at most 5 words.
+// "Pour" and "Contre" count only alone ("Pour vos salariés" is not a list of pros), and "Risques" pairs only with
+// a clear "Avantages" / "Points forts" label.
 const PROS =
-  /^(avantages?|points? forts?|atouts?|pour|pros|advantages?|benefits?|strengths?)(\s\S+){0,4}$/i;
+  /^(?:(?:avantages?|points? forts?|atouts?|pros|advantages?|benefits?|strengths?)(\s\S+){0,4}|pour)$/i;
 const CONS =
-  /^(inconvénients?|points? faibles?|limites?|contre|risques?|cons|disadvantages?|drawbacks?|weaknesses?|risks?)(\s\S+){0,4}$/i;
+  /^(?:(?:inconvénients?|points? faibles?|limites?|cons|disadvantages?|drawbacks?|weaknesses?)(\s\S+){0,4}|contre)$/i;
+const RISKS = /^(?:risques?|risks?)(\s\S+){0,4}$/i;
+const CLEAR_PROS = /^(?:avantages?|points? forts?|advantages?|strengths?)\b/i;
+const isProsCons = (pro, con) =>
+  PROS.test(pro) && (CONS.test(con) || (RISKS.test(con) && CLEAR_PROS.test(pro)));
 
 // ------------------------------------------------------------------ lists
 
@@ -944,10 +950,9 @@ function prosCons(out, ctx) {
     if (
       d &&
       a.kind === "heading" &&
-      PROS.test(norm(a.label)) &&
       b.kind === "list" &&
       c.kind === "heading" &&
-      CONS.test(norm(c.label)) &&
+      isProsCons(norm(a.label), norm(c.label)) &&
       d.kind === "list"
     ) {
       const col = (cls, h, list) =>

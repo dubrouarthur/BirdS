@@ -342,3 +342,14 @@ test("dialogues and transcripts stay text lines, not label/value rows", () => {
   }
   assert.match(md("Date : 12 mars\nLieu : Paris\nDurée : 2 h"), /md-pairs/);
 });
+
+test("pros/cons need real pros and cons labels", () => {
+  for (const s of [
+    "Pour vos salariés\n- a\n- b\n\nRisques juridiques\n- c\n- d",
+    "Pour l'entreprise\n- a\n\nContre-indications\n- b",
+    "Atouts du site\n- a\n\nRisques\n- b",
+  ])
+    assert.doesNotMatch(md(s), /md-proscons/, s);
+  for (const s of ["Pour\n- a\n\nContre\n- b", "Avantages\n- a\n\nRisques\n- b", "Points forts\n- a\n\nLimites\n- b"])
+    assert.match(md(s), /md-proscons/, s);
+});
