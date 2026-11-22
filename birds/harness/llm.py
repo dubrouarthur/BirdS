@@ -91,6 +91,62 @@ def _meta(obj: dict, meta: dict | None) -> None:
         meta["cached_tokens"] = details["cached_tokens"]
 
 
+_ESCAPES = re.compile(r"\\[nrt\"\\/]|\\u[0-9a-fA-F]{4}")  # JSON escapes are not letters
+
+
+def find_loop(
+    text: str, *, min_span: int = 400, min_copies: int = 3, probe: int = 40, window: int = 12000
+) -> int | None:
+    """Where to cut ``text`` if it ends in a degenerate loop, else ``None``.
+
+    A loop is the end of the text repeating one exact unit (a word, a line, a paragraph) back to back, at least
+    ``min_copies`` times and over at least ``min_span`` characters. The unit's length is found from the previous
+    occurrences of the last ``probe`` characters. The returned index keeps the first copy and drops the repeats.
+    Real prose, tables and code almost never repeat 400 identical characters in a row; a small model stuck in
+    greedy decoding does, until ``max_tokens``. A unit without any letter or digit (spaces, dashes, empty table
+    rows) must run eight times longer. Measured on 264k training answers: only degenerate samples are flagged.
+    """
+    if len(text) < min_span:
+        return None
+    tail = text[-window:]
+    n, key = len(tail), tail[-probe:]
+    end = n - 1
+    for _ in range(4):  # the nearest few occurrences of the closing characters: candidate periods
+        i = tail.rfind(key, 0, end)
+        if i < 0:
+            return None
+        period = n - probe - i
+        end = i + probe - 1
+        if period * min_copies > n:
+            return None
+        unit, copies = tail[-period:], 1
+        while (copies + 1) * period <= n and tail[n - (copies + 1) * period : n - copies * period] == unit:
+            copies += 1
+        # blank or ruled lines (table padding, separators) repeat legitimately: they need a far longer run
+        need = min_span if any(c.isalnum() for c in _ESCAPES.sub("", unit)) else min_span * 8
+        if copies >= min_copies and copies * period >= need:
+            # the repeated run may start before a whole number of copies: walk back to where it really begins,
+            # then keep exactly one unit from there (the text can end mid-copy while streaming)
+            start = n - copies * period
+            while start > 0 and tail[start - 1] == tail[start - 1 + period]:
+                start -= 1
+            return len(text) - n + start + period
+    return None
+
+
+class _LoopGuard:
+    """Checks the growing text for a loop every ``every`` new characters (the check is cheap but not free)."""
+
+    def __init__(self, every: int = 48):
+        self.every, self.next, self.cut = every, every, None
+
+    def check(self, text: str) -> int | None:
+        if self.cut is None and len(text) >= self.next:
+            self.next = len(text) + self.every
+            self.cut = find_loop(text)
+        return self.cut
+
+
 class _StopCutter:
     """Forwards text but never a stop string, even when the server streams it split across chunks."""
 
@@ -285,11 +341,14 @@ class CompletionsClient:
             cutter = _StopCutter(stop, on_token)
             mark = {"start": time.monotonic(), "first": None}
             meta: dict = {}
+            loop = _LoopGuard()
 
-            def on_piece(piece, cutter=cutter, mark=mark):
+            def on_piece(piece, cutter=cutter, mark=mark, loop=loop):
                 if piece and mark["first"] is None:
                     mark["first"] = time.monotonic()
                 cutter.feed(piece)
+                if not cutter.done and loop.check(cutter.text) is not None:
+                    cutter.done = True  # closing the stream makes the server abort the request: the GPU stops
                 return cutter.done
 
             left = self.timeout if deadline is None else deadline - time.monotonic()
@@ -317,6 +376,8 @@ class CompletionsClient:
                     on_status("waking", {"attempt": attempt, "retry_in": wait})
                 self.sleep(wait)
         text = cutter.finish()
+        if loop.cut is not None:
+            text, meta["finish_reason"] = text[: loop.cut].rstrip(), "repetition"
         end = time.monotonic()
         return {
             "text": text,
@@ -419,13 +480,20 @@ class FakeClient:
     def generate(self, prompt: str, max_tokens: int, stop: list[str], *, on_token=None, **_) -> dict:
         self.prompts.append(prompt)
         raw = self.outputs.pop(0) if self.outputs else ""
-        text = _cut(raw, stop)
-        if on_token:
-            for i in range(0, len(text), self.chunk):
+        text, reason, loop = _cut(raw, stop), None, _LoopGuard()
+        for i in range(0, len(text), self.chunk):
+            if on_token:
                 on_token(text[i : i + self.chunk])
+            cut = loop.check(text[: i + self.chunk])
+            if cut is not None:
+                text, reason = text[:cut].rstrip(), "repetition"
+                break
+        if reason is None and find_loop(text) is not None:
+            text, reason = text[: find_loop(text)].rstrip(), "repetition"
         return {
             "text": text,
             "prompt_tokens": len(prompt) // 4,
             "completion_tokens": len(raw) // 4,
             "seconds": self.seconds,
+            **({"finish_reason": reason} if reason else {}),
         }

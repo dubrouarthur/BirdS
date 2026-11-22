@@ -1037,7 +1037,7 @@ function apiMessages(resend = false) {
     } else if (turn.answer?.content) {
       const m = { role: "assistant", content: turn.answer.content };
       if (turn.answer.memo) m.memo = turn.answer.memo;
-      if (["stopped", "length"].includes(turn.answer.stop_reason))
+      if (["stopped", "length", "repetition"].includes(turn.answer.stop_reason))
         m.interrupted = true;
       messages.push(m);
     }

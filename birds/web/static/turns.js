@@ -1250,6 +1250,17 @@ function fillAssistant(el, turn, isLast) {
     renderFiles(turn),
     renderEmail(turn),
     renderError(turn, isLast),
+    turn.status !== "stopped" &&
+      turn.answer?.stop_reason === "repetition" &&
+      h(
+        "div",
+        { class: "stopped", "data-notice": "looped" },
+        icon("pause"),
+        h("span", { text: t("turn.looped") }),
+        isLast &&
+          !state.busy &&
+          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(), { "data-act": "restart" }),
+      ),
     turn.status === "stopped" &&
       h(
         "div",

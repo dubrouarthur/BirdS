@@ -30,6 +30,12 @@ OUT_OF_TIME = {
     "en étapes plus courtes.",
     "en": "I ran out of the time allowed for one request. Try again, or split the request into shorter steps.",
 }
+LOOPED = {
+    "fr": "Je me suis mis à tourner en boucle, alors je me suis arrêté pour ne pas gaspiller de calcul. Relancez, ou "
+    "reformulez la demande plus précisément.",
+    "en": "I started going round in circles, so I stopped rather than waste compute. Try again, or phrase the request "
+    "more precisely.",
+}
 DENIED = {
     "denied_unconfirmed": "Action not performed: this run read external content that looks like it contains instructions, "
     "and the user did not confirm this action. Tell the user what you wanted to do and why.",
@@ -345,6 +351,8 @@ class Agent:
                         run.stop_reason = "answer" if content else "empty_output"
                         if content and out.get("finish_reason") == "length":
                             run.stop_reason = "length"  # cut by max_tokens: kept, but marked as interrupted
+                    if out.get("finish_reason") == "repetition":
+                        run.stop_reason = "repetition"  # the model looped: stopped early, one copy kept
                     break
                 if gen == cfg.max_steps - 1:
                     run.stop_reason = "max_steps"  # the last allowed generation still asks for tools: they are not run
@@ -450,6 +458,8 @@ class Agent:
             messages.append({"role": "assistant", "content": content})
         elif run.stop_reason == "timeout":
             run.answer = OUT_OF_TIME[run.lang]
+        elif run.stop_reason == "repetition":
+            run.answer = content or LOOPED[run.lang]
         else:
             run.answer = content or FALLBACK[run.lang]
         run.messages, run.sources, run.drafts, run.files = messages, ctx.sources, ctx.drafts, ctx.files
