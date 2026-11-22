@@ -1154,3 +1154,11 @@ def test_sheet_preview_cells_end_with_an_ellipsis_when_cut():
     assert short == "court"
     slides = file_preview("make_slides", {"title": "x" * 300, "slides": []})
     assert slides["title"].endswith("…") and len(slides["title"]) == 160
+def test_energy_wording_states_its_scope():
+    """The estimate covers the GPU while it generates, nothing else: no claim that idle or wake-up cost nothing."""
+    text = (STATIC_DIR / "i18n.js").read_text(encoding="utf-8")
+    assert "pas de GPU allumé pour rien" not in text and "no GPU running for nothing" not in text
+    less = re.findall(r'"save\.energy\.less":\s*"([^"]+)"', text)
+    assert len(less) == 2 and all(re.search(r"génération|generation", s) for s in less)
+    upper = re.findall(r'"meter\.energy\.upper":\s*"([^"]+)"', text)
+    assert len(upper) == 2 and all(re.search(r"génération|generating", s) for s in upper)
