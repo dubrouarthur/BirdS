@@ -145,7 +145,8 @@ def test_plain_answer_streams_then_gives_the_full_answer(client, lang):
     events = chat(client, "Bonjour" if lang == "fr" else "Hello", lang=lang)
     assert types(events) == ["answer", "usage", "done"]
     answer, usage = one(events, "answer"), one(events, "usage")
-    assert set(answer) == {"type", "content", "sources", "files", "draft_email", "stop_reason"}
+    assert set(answer) == {"type", "content", "sources", "files", "draft_email", "stop_reason", "charts", "web_images"}
+    assert answer["charts"] == [] and answer["web_images"] == []
     assert "Bird" in answer["content"] and ("démo" in answer["content"] or "demo" in answer["content"])
     assert len([e for e in events if e["type"] == "delta"]) > 5
     assert streamed(events) == answer["content"]  # what was streamed is exactly the final answer
@@ -586,7 +587,12 @@ def test_sanitize_filename():
 def test_file_preview_is_trimmed():
     rows = [[i, "x" * 200] for i in range(50)]
     sheet = file_preview("make_sheet", {"title": "T", "columns": ["a", "b"], "rows": rows})
-    assert sheet["total_rows"] == 50 and len(sheet["rows"]) == 8 and len(sheet["rows"][0][1]) == 160 and sheet["rows"][0][1].endswith("…")
+    assert (
+        sheet["total_rows"] == 50
+        and len(sheet["rows"]) == 8
+        and len(sheet["rows"][0][1]) == 160
+        and sheet["rows"][0][1].endswith("…")
+    )
     slides = file_preview("make_slides", {"title": "T", "slides": [{"title": "S", "bullets": ["b"] * 20}]})
     assert slides["kind"] == "slides" and len(slides["slides"][0]["bullets"]) == 14
     assert file_preview("draft_email", {}) is None and file_preview("make_slides", "not a dict")["slides"] == []
@@ -1093,6 +1099,8 @@ def test_resume_still_delivers_a_file_made_after_approval(tmp_path, monkeypatch)
 
 def test_signing_key_is_not_derived_from_the_public_vercel_url():
     assert Settings.from_env({"VERCEL_URL": "bird.vercel.app"}).signing == "ephemeral"
+
+
 def test_draft_email_result_says_bird_cannot_send_and_keeps_names_apart():
     from birds.harness.config import Context
     from birds.harness.tools.actions import draft_email
@@ -1121,6 +1129,8 @@ def test_answer_event_carries_the_recipient_to_complete():
     with TestClient(app) as client:
         draft = one(chat(client, "Écris un mail à Marc Petit pour fixer un point"), "answer")["draft_email"]
     assert draft["to"] == "" and draft["to_hint"] == "Marc Petit"
+
+
 @pytest.mark.parametrize(
     ("text", "expected", "never"),
     [
@@ -1145,6 +1155,8 @@ def test_demo_routing_needs_explicit_markers_and_formats_win(text, expected, nev
         assert got == expected
     if never:
         assert got != never
+
+
 def test_sheet_preview_cells_end_with_an_ellipsis_when_cut():
     from birds.web.backends import file_preview
 
@@ -1155,6 +1167,8 @@ def test_sheet_preview_cells_end_with_an_ellipsis_when_cut():
     assert short == "court"
     slides = file_preview("make_slides", {"title": "x" * 300, "slides": []})
     assert slides["title"].endswith("…") and len(slides["title"]) == 160
+
+
 def test_energy_wording_states_its_scope():
     """The estimate covers the GPU while it generates, nothing else: no claim that idle or wake-up cost nothing."""
     text = (STATIC_DIR / "i18n.js").read_text(encoding="utf-8")

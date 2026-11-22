@@ -63,3 +63,32 @@ def verify(token: str, secret: bytes, now: float | None = None) -> dict:
     if (now if now is not None else time.time()) > payload["exp"]:
         raise TokenError("expired token")
     return payload
+
+
+# ---------------------------------------------------------------- web image URLs (/api/img)
+
+
+def _image_sig(u: str, e: int, secret: bytes) -> str:
+    return hmac.new(secret, f"img|{e}|{u}".encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def sign_image_url(u: str, secret: bytes, ttl: float, now: float | None = None) -> str:
+    """Same-origin path that serves image ``u`` through the server. Only URLs signed here are served, so /api/img
+    is not an open proxy: it shows what Bird surfaced in an answer, for ``ttl`` seconds."""
+    from urllib.parse import urlencode
+
+    e = int((now if now is not None else time.time()) + ttl)
+    return "/api/img?" + urlencode({"u": u, "e": e, "s": _image_sig(u, e, secret)})
+
+
+def check_image_sig(u: str, e: str, s: str, secret: bytes, now: float | None = None) -> None:
+    """Raise TokenError('invalid signature' | 'expired') unless (u, e, s) was issued by sign_image_url."""
+    try:
+        exp = int(e)
+    except (TypeError, ValueError):
+        raise TokenError("invalid signature") from None
+    given = (s or "").encode("ascii", "ignore") if isinstance(s, str) else b""
+    if not hmac.compare_digest(given, _image_sig(u, exp, secret).encode()):
+        raise TokenError("invalid signature")
+    if (now if now is not None else time.time()) > exp:
+        raise TokenError("expired")

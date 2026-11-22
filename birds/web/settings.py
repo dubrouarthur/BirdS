@@ -76,6 +76,8 @@ class Settings:
     # protection of a public URL
     access_code: str | None = None
     rate_limit: int = 20  # requests per minute and per IP, per instance (best effort)
+    img_rate_limit: int = 60  # /api/img requests per minute and per IP (a separate window: an answer shows 3)
+    image_ttl: float = 7 * 86400.0  # how long a signed web image URL stays valid (conversations reloaded later)
     max_messages: int = 60
     max_message_chars: int = 24_000
     max_request_chars: int = 400_000
@@ -193,6 +195,8 @@ class Settings:
             equivalent=equivalent,
             access_code=access,
             rate_limit=_num(get("BIRD_RATE_LIMIT"), 20, int, 0),
+            img_rate_limit=_num(get("BIRD_IMG_RATE_LIMIT"), 60, int, 0),
+            image_ttl=_num(get("BIRD_IMAGE_TTL"), 7 * 86400.0, float, 60.0),
             max_seconds=_num(get("BIRD_MAX_SECONDS"), 240.0, float, 5.0),
             signing_secret=key,
             signing=signing,
