@@ -68,6 +68,7 @@ class Context:
     bytes_fetched: int = 0
     step_info: dict | None = None  # set by a tool for the UI (e.g. which search backend answered); moved to the step
     lang: str = "fr"  # language of the conversation (search backends that care, e.g. Wikipedia)
+    request: str = ""  # the user's own words for this run (make_slides checks that their figures made it in)
 
     @property
     def workspace(self) -> Path:

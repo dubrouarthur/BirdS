@@ -279,6 +279,7 @@ class Agent:
                 files=list(st["files"]),
                 bytes_fetched=int(st["bytes_fetched"]),
                 lang=st["lang"],
+                request=str(st.get("request", "")),
             )
             messages, seen, queue = st["messages"], set(st["seen"]), list(st["queue"])
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
@@ -288,7 +289,10 @@ class Agent:
             forced = "confirmed" if decision is True else "denied_unconfirmed"
         else:
             run = Run(lang=lang or detect_lang(user))
-            ctx = Context(config=cfg, http=self.http, search=self.search, lang=run.lang)
+            ctx = Context(
+                config=cfg, http=self.http, search=self.search, lang=run.lang,
+                request=user if request_text is None else request_text,
+            )
             messages = list(history or [])
             if not messages or messages[0]["role"] != "system":
                 messages.insert(0, {"role": "system", "content": system or DEFAULT_SYSTEM[run.lang]})
@@ -442,6 +446,7 @@ class Agent:
                     "bad_streak": bad_streak,
                     "nudged": nudged,
                     "withdrawn": sorted(withdrawn),
+                    "request": ctx.request,
                     "gen": gen,
                     "ok": ok,
                     "content": content,

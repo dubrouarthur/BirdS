@@ -116,12 +116,26 @@ def _done(ctx, p: Path, summary: str) -> str:
 
 def make_slides(args: dict, ctx) -> str:
     _need("pptx", "python-pptx")
-    from birds.harness.office import build_pptx
+    from birds.harness.office import KEY_FIGURES, build_pptx, figure_bullets, missing_figures, plain
 
+    slides = [dict(s) for s in args["slides"]]
+    # A small model drops figures the user gave ("CA 1,2 M€ (+8 %), marge 31 %") and then says they are in the
+    # deck. Every figure of the request that is nowhere in the slides goes on a key-figures slide, first.
+    missing = missing_figures(getattr(ctx, "request", "") or "", slides, args["title"])
+    added = ""
+    if missing:
+        lang = getattr(ctx, "lang", "fr")
+        slides.insert(0, {"title": KEY_FIGURES[lang if lang in KEY_FIGURES else "fr"],
+                          "bullets": figure_bullets(ctx.request, missing)})
+        added = f" A 'key figures' slide was added first with figures from the request that were missing: " \
+                f"{', '.join(missing)}."
     p = _new_path(ctx, args["title"], ".pptx")
-    n = build_pptx(p, args["title"], args["slides"], args.get("subtitle") or "")
-    extra = f", {n - 1} after splitting long slides" if n - 1 != len(args["slides"]) else ""
-    return _done(ctx, p, f"title slide + {len(args['slides'])} slides{extra}")
+    n = build_pptx(p, args["title"], slides, args.get("subtitle") or "")
+    extra = f", {n - 1} after splitting long slides" if n - 1 != len(slides) else ""
+    titles = "; ".join(f"{i}. {plain(str(s.get('title') or ''))[:60]}" for i, s in enumerate(slides, 2))
+    return _done(ctx, p, f"title slide + {len(slides)} slides{extra}") + (
+        f"\nSlides: {titles}.{added}\nDescribe the deck from this list only: do not claim content that is not in it."
+    )
 
 
 def make_document(args: dict, ctx) -> str:

@@ -181,13 +181,117 @@ def _level(bullet: str) -> tuple[int, str]:
     return (1, m.group(2).strip()) if m and m.group(2).strip() else (0, bullet.strip())
 
 
+# ------------------------------------------------------------------ figures the user gave must reach the deck
+
+KEY_FIGURES = {"fr": "Chiffres clés", "en": "Key figures"}
+
+_FIG = re.compile(
+    r"(?<![\w,.])[+\-−]?\d{1,3}(?:[   ]\d{3})*(?:[.,]\d+)?|(?<![\w,.])[+\-−]?\d+(?:[.,]\d+)?"
+)
+_FIG_UNIT = re.compile(r"\s?(?:%|M€|K€|k€|Md€|Mds€|€|M\b|Md\b|k\b|pts?\b|points?\b)", re.I)
+_COUNT_WORDS = re.compile(
+    r"\s*(?:slides?|diapo\w*|pages?|parties|sections?|points?|minutes?|min\b|mots|lignes|colonnes|bullets?)", re.I
+)
+
+
+def _core(fig: str) -> str:
+    """'1 250,00' -> '1250', '+8' -> '8', '1,2' -> '1.2': the value, whatever the spacing and decimal mark."""
+    f = re.sub(r"[   ]", "", fig).lstrip("+-−")
+    f = f.replace(",", ".")
+    if "." in f:
+        f = f.rstrip("0").rstrip(".") if re.fullmatch(r"\d+\.\d+", f) else f
+    return f
+
+
+def figures(text: str) -> list[str]:
+    """The figures of a request, with their unit ('1,2 M€', '+8 %', '14'), leaving out counts of the deck itself
+    ('6 slides') and small list numbers. Years are figures too."""
+    out = []
+    for m in _FIG.finditer(text or ""):
+        after = text[m.end() : m.end() + 20]
+        if _COUNT_WORDS.match(after):
+            continue
+        unit = _FIG_UNIT.match(after)
+        fig = m.group(0) + (unit.group(0) if unit else "")
+        if not unit and _core(m.group(0)) in {str(i) for i in range(10)} and not re.match(r"\s*[a-zà-ÿ]{3,}", after):
+            continue  # a lone digit with nothing after it is a list number, not a figure
+        out.append(fig.strip())
+    return out
+
+
+def missing_figures(request: str, slides: list[dict], title: str = "") -> list[str]:
+    """Figures of the request that appear nowhere in the deck (title, slide titles, bullets, notes)."""
+    deck = " ".join(
+        [title]
+        + [str(s.get("title") or "") for s in slides]
+        + [str(b) for s in slides for b in (s.get("bullets") or [])]
+        + [str(s.get("notes") or "") for s in slides]
+    )
+    have = {_core(m.group(0)) for m in _FIG.finditer(deck)}
+    seen, out = set(), []
+    for f in figures(request):
+        core = _core(re.sub(_FIG_UNIT.pattern + "$", "", f, flags=re.I).strip())
+        if core and core not in have and core not in seen:
+            seen.add(core)
+            out.append(f)
+    return out
+
+
+def figure_bullets(request: str, missing: list[str]) -> list[str]:
+    """The passages of the request that carry the missing figures, as bullets ('CA 1,2 M€ (+8 %)')."""
+    body = request.split(":", 1)[1] if ":" in request else request
+    parts = [p.strip(" .;\n") for p in re.split(r"[;\n]|,(?!\d)|\s+et\s+|\s+and\s+", body) if p.strip(" .;\n")]
+    out = []
+    for f in missing:
+        core = _core(re.sub(_FIG_UNIT.pattern + "$", "", f, flags=re.I).strip())
+        part = next((p for p in parts if core in {_core(m.group(0)) for m in _FIG.finditer(p)}), f)
+        part = part[:1].upper() + part[1:]
+        if part not in out:
+            out.append(part[:90])
+    return out
+
+
+# ------------------------------------------------------------------ layouts chosen from the content
+
+_STEP = re.compile(r"^(?:(?:phase|étape|etape|step|stage|jalon)\s*\d+|\d{1,2}[.)])\s*[:.\-–—]?\s*", re.I)
+
+
+def layout_of(bullets: list[str]) -> str:
+    """'kpi' (1-4 short lines, each with a figure), 'steps' (3-5 numbered phases), 'columns' (6+ short points)
+    or 'bullets'."""
+    if any(_level(b)[0] for b in bullets):
+        return "bullets"
+    if 3 <= len(bullets) <= 5 and all(_STEP.match(b) and len(_STEP.sub("", b)) <= 70 for b in bullets):
+        return "steps"  # before kpi: "Phase 1 : ..." carries a digit but is not a figure
+    if 1 <= len(bullets) <= 4 and all(len(b) <= 60 and _FIG.search(b) and not _STEP.match(b) for b in bullets):
+        return "kpi"
+    if len(bullets) >= 6 and all(len(b) <= 60 for b in bullets):
+        return "columns"
+    return "bullets"
+
+
+def kpi_parts(bullet: str) -> tuple[str, str]:
+    """'CA : 1,2 M€ (+8 %)' -> ('1,2 M€', 'CA (+8 %)'): the first figure, big, and what it measures."""
+    text = plain(bullet)
+    m = _FIG.search(text)
+    unit = _FIG_UNIT.match(text[m.end() :])
+    end = m.end() + (len(unit.group(0)) if unit else 0)
+    big = text[m.start() : end].strip()
+    label = (text[: m.start()] + " " + text[end:]).replace(":", " ").strip()
+    label = re.sub(r"\s{2,}", " ", re.sub(r"^\W+|[\s:–—-]+$", "", label)).strip(" :–—-")
+    label = re.sub(r"\(\s*\)", "", label).strip()
+    return big, label[:1].upper() + label[1:] if label else ""
+
+
 def plan_slides(slides: list[dict], max_lines: int = 6, max_chars: int = 520) -> list[dict]:
     """Split long slides into balanced continuation slides so nothing overflows; each part keeps the title."""
     out = []
     for s in slides:
         bullets = [str(b) for b in (s.get("bullets") or []) if str(b).strip()]
         chars = sum(len(b) for b in bullets)
-        n_parts = max(1, -(-len(bullets) // max_lines), -(-chars // max_chars))
+        short = all(len(b) <= 60 for b in bullets) and not any(_level(b)[0] for b in bullets)
+        lines, limit = (10, 640) if short else (max_lines, max_chars)  # short points fit on two columns
+        n_parts = max(1, -(-len(bullets) // lines), -(-chars // limit))
         n_parts = min(n_parts, max(1, len(bullets)))
         size = -(-len(bullets) // n_parts) if bullets else 0
         parts = [bullets[i : i + size] for i in range(0, len(bullets), size)] if bullets else [[]]
@@ -216,6 +320,7 @@ def _font_size(bullets: list[str]) -> float:
 def build_pptx(path, title: str, slides: list[dict], subtitle: str = "") -> int:
     """Write the deck; return the number of slides written (title slide included)."""
     from pptx import Presentation
+    from pptx.enum.shapes import MSO_SHAPE
     from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
     from pptx.util import Emu, Inches, Pt
 
@@ -276,17 +381,70 @@ def build_pptx(path, title: str, slides: list[dict], subtitle: str = "") -> int:
             tb.text_frame.word_wrap, tb.text_frame.vertical_anchor = True, MSO_ANCHOR.BOTTOM
             _text(tb.text_frame, item["title"], 36 if len(item["title"]) < 50 else 28, NAVY, bold=True)
             _box(s, Inches(0.7), Inches(1.6), Inches(0.9), Emu(45000), BLUE)
-            body = s.shapes.add_textbox(Inches(0.7), Inches(2.0), W - Inches(1.4), H - Inches(2.8))
-            tf = body.text_frame
-            tf.word_wrap = True
-            size = _font_size(item["bullets"])
-            for i, raw in enumerate(item["bullets"]):
-                level, text = _level(raw)
-                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-                _runs(p, text, size - 3 * level, INK if level == 0 else "39435C")
-                _bullet(p, level, "•" if level == 0 else "–")
-                p.space_after = Pt(14 if level == 0 else 6)
-                p.line_spacing = 1.08
+            kind = layout_of(item["bullets"])
+            top, left, width, bottom = Inches(2.15), Inches(0.7), W - Inches(1.4), H - Inches(0.95)
+            if kind == "kpi":
+                k = len(item["bullets"])
+                gap = Inches(0.35)
+                cw = (width - gap * (k - 1)) // k
+                if k == 1:  # one figure: a single centred hero card
+                    cw = min(width, Inches(6.5))
+                    left = left + (width - cw) // 2
+                ch = min(Inches(3.1), bottom - top - Inches(0.3))
+                y = top + (bottom - top - ch) // 2
+                for j, raw in enumerate(item["bullets"]):
+                    big, label = kpi_parts(raw)
+                    x = left + j * (cw + gap)
+                    _box(s, x, y, cw, ch, SOFT)
+                    _box(s, x, y, Inches(0.09), ch, BLUE)
+                    tb = s.shapes.add_textbox(x + Inches(0.4), y + Inches(0.35), cw - Inches(0.6), Inches(1.4))
+                    tb.text_frame.word_wrap, tb.text_frame.vertical_anchor = True, MSO_ANCHOR.BOTTOM
+                    _text(tb.text_frame, big, 72 if k == 1 else 54 if len(big) <= 7 and k <= 3 else 44 if len(big) <= 9 else 34, NAVY,
+                          bold=True)
+                    tb = s.shapes.add_textbox(x + Inches(0.4), y + Inches(1.85), cw - Inches(0.6), ch - Inches(2.05))
+                    tb.text_frame.word_wrap = True
+                    _text(tb.text_frame, label or " ", 20 if k <= 3 else 18, MUTED)
+            elif kind == "steps":
+                k = len(item["bullets"])
+                cw = width // k
+                cy = top + Inches(1.0)
+                d = Inches(0.8)
+                _box(s, left + cw // 2, cy + d // 2 - Emu(19050), cw * (k - 1), Emu(38100), LINE)
+                for j, raw in enumerate(item["bullets"]):
+                    num = re.search(r"\d+", raw)
+                    label = _STEP.sub("", plain(raw)).strip()
+                    cx = left + j * cw + cw // 2
+                    dot = s.shapes.add_shape(MSO_SHAPE.OVAL, cx - d // 2, cy, d, d)
+                    dot.line.fill.background()
+                    dot.fill.solid()
+                    dot.fill.fore_color.rgb = _rgb(BLUE if j < k - 1 else NAVY)
+                    dot.shadow.inherit = False
+                    dtf = dot.text_frame
+                    dtf.vertical_anchor = MSO_ANCHOR.MIDDLE
+                    _text(dtf, num.group(0) if num else str(j + 1), 24, "FFFFFF", bold=True).alignment = PP_ALIGN.CENTER
+                    tb = s.shapes.add_textbox(cx - cw // 2 + Inches(0.15), cy + d + Inches(0.35), cw - Inches(0.3),
+                                              Inches(2.4))
+                    tb.text_frame.word_wrap = True
+                    pp = _text(tb.text_frame, label, 22 if k <= 4 else 19, INK)
+                    pp.alignment = PP_ALIGN.CENTER
+                    pp.line_spacing = 1.08
+            else:
+                cols = 2 if kind == "columns" else 1
+                half = (len(item["bullets"]) + 1) // 2
+                groups = [item["bullets"][:half], item["bullets"][half:]] if cols == 2 else [item["bullets"]]
+                cw = (width - Inches(0.6)) // 2 if cols == 2 else width
+                size = _font_size(item["bullets"] if cols == 1 else groups[0])
+                for g, group in enumerate(groups):
+                    body = s.shapes.add_textbox(left + g * (cw + Inches(0.6)), top, cw, bottom - top)
+                    tf = body.text_frame
+                    tf.word_wrap = True
+                    for i, raw in enumerate(group):
+                        level, text = _level(raw)
+                        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+                        _runs(p, text, size - 3 * level, INK if level == 0 else "39435C")
+                        _bullet(p, level, "•" if level == 0 else "–")
+                        p.space_after = Pt(16 if level == 0 else 6)
+                        p.line_spacing = 1.1
             footer(s, n)
         if item["notes"]:
             s.notes_slide.notes_text_frame.text = item["notes"][:4000]
