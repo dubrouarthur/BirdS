@@ -924,6 +924,50 @@ _SEARCH_CODES = {
 IMAGE_TEXT_CHARS = 2400  # hard cap of one image transcription, applied before it is used anywhere
 
 
+def own_words(content: str) -> str:
+    """The user's own text of a turn, without the attachment notes and image transcriptions added to it (a
+    regenerated turn comes back as the exact text sent before, notes included)."""
+    cut = len(content)
+    for note in (*_IMAGE_NOTE.values(), *_ATTACH_NOTE.values()):
+        i = content.find("\n\n[" + note + " :")
+        if i >= 0:
+            cut = min(cut, i)
+    return content[:cut].strip()
+
+
+_OCR_ASK = re.compile(
+    r"\b(?:ocr|transcri\w*|retranscri\w*|recopie\w*|d[ée]chiffre\w*|extrai\w*|extract\w*|copy|lis|lire|read)\b"
+    r"|qu.est.ce qu(?:i est |.il y a d.)[ée]crit|que dit|what does .{0,20}say|what.s written",
+    re.I,
+)
+_OTHER_WORK = re.compile(
+    r"\b(?:tradu\w*|translat\w*|r[ée]sum\w*|summar\w*|analys\w*|expli\w*|calcul\w*|compar\w*|v[ée]rifi\w*|"
+    r"check|corrig\w*|correct\w*|r[ée]pond\w*|reply|answer|total|combien|how much|how many|pourquoi|why|"
+    r"montant|amount|quel(?:le)?s?|which|what is|c.est quoi|r[ée]dige\w*|write|draft|cr[ée]e\w*|create|make|fais un|"
+    r"fais une|g[ée]n[èe]re\w*|generate|liste\w*|list|classe\w*|trie\w*|sort)\b",
+    re.I,
+)
+
+
+def ocr_only(words: str) -> bool:
+    """True when the user only asks to read out the text of the attached image(s): the transcription IS the answer,
+    no second generation needed. Anything more (translate, summarise, a file, a question) goes to the model."""
+    from birds.harness.agent import _FILE_ASK, _NEEDS_WEB
+
+    w = (words or "").strip()
+    if not w or len(w) > 160 or not _OCR_ASK.search(w):
+        return False
+    if _OTHER_WORK.search(_OCR_ASK.sub(" ", w)) or _FILE_ASK.search(w) or _NEEDS_WEB.search(w):
+        return False
+    return True
+
+
+_OCR_HEAD = {
+    "fr": ("Voici le texte lu dans **{name}** :", "Je n'ai pas pu lire de texte dans **{name}**."),
+    "en": ("Here is the text read in **{name}**:", "I could not read any text in **{name}**."),
+}
+
+
 _MEMO_ECHO = re.compile(r"\s*\[(?:Mémo de ce tour|Memo of this turn) —[^\]]*\]?\s*$")
 
 
@@ -1070,6 +1114,33 @@ class HarnessBackend:
         cfg.cache_salt = cache_salt(getattr(request, "conversation_id", None)) if self.cache_isolation else None
         return cfg
 
+    @staticmethod
+    def _ocr_answer(image_texts, image_usage, lang: str, cfg, wall: float):
+        """The answer to a pure OCR request: the transcriptions themselves, with the reading calls' usage."""
+        from birds.harness import guard, meter
+        from birds.harness.agent import Run
+
+        parts = []
+        for name, text in image_texts:
+            head, empty = _OCR_HEAD[lang]
+            text = guard.redact(guard.truncate(text or "", IMAGE_TEXT_CHARS)).strip()
+            parts.append(head.format(name=name) + "\n\n" + text if text else empty.format(name=name))
+        run = Run(lang=lang, answer="\n\n---\n\n".join(parts), stop_reason="answer")
+        run.report = meter.report(
+            [{k: u.get(k) for k in ("prompt_tokens", "completion_tokens", "seconds", "busy_seconds",
+                                    "first_token_seconds")} for u in image_usage],
+            wall_seconds=wall,
+            tool_calls=len(image_usage),
+            bytes_fetched=0,
+            measured_wh=None,
+            wh_per_1k_tokens=cfg.wh_per_1k_tokens,
+            calibration_source=cfg.calibration_source,
+            gpu_watts=cfg.gpu_watts,
+            gpu_label=cfg.gpu_label,
+            pue=cfg.pue,
+        )
+        return run
+
     def _read_images(
         self, request: ChatRequest, ctx: RunContext, lang: str, first_index: int, question: str, salt: str | None = None
     ):
@@ -1195,7 +1266,20 @@ class HarnessBackend:
                 )
                 state_ui = len(kept) + 1  # index of this turn's user message in the agent's messages
                 ctx.emit({"type": "user", "content": user_sent})
-                run = agent.run(user_sent, history=kept or None, system=system, thinking=request.thinking, lang=rl)
+                words = own_words(last["content"])
+                if image_texts and not names and ocr_only(words):
+                    run = self._ocr_answer(image_texts, image_usage, rl, cfg, time.monotonic() - t0)
+                    image_usage = []  # already counted in run.report
+                else:
+                    run = agent.run(
+                        user_sent,
+                        history=kept or None,
+                        system=system,
+                        thinking=request.thinking,
+                        lang=rl,
+                        request_text=words,
+                        attached=bool(names or image_texts),
+                    )
             ctx.check()
             report = run.report or {}
             previews = iter(

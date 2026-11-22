@@ -71,13 +71,18 @@ _NEEDS_WEB = re.compile(
 )
 
 
-def route(user: str) -> set[str]:
+def route(user: str, attached: bool = False) -> set[str]:
     """Tools NOT worth offering for this request (a smaller prompt, and fewer detours for a small model).
 
-    A request for a file or a draft that names no need for outside information gets no web tools: the live model,
-    offered web_search, searched first on "make a 4-slide deck on remote work" and then never made the deck.
+    ``user`` must be the user's OWN words, without the text of attachments or image transcriptions: an invoice
+    full of dates and prices must not look like a request for fresh information.
+
+    A request for a file or a draft, or any request about an attached document or image, that names no need for
+    outside information gets no web tools. Live model: offered web_search, it searched first on "make a 4-slide
+    deck on remote work" and then never made the deck; on "make a spreadsheet from this invoice" (photo), it called
+    read_page on the attachment and gave up.
     """
-    if _FILE_ASK.search(user or "") and not _NEEDS_WEB.search(user or ""):
+    if (attached or _FILE_ASK.search(user or "")) and not _NEEDS_WEB.search(user or ""):
         return {"web_search", "read_page"}
     return set()
 
@@ -245,6 +250,8 @@ class Agent:
         lang: str | None = None,
         resume: dict | None = None,
         decision: bool | None = None,
+        request_text: str | None = None,
+        attached: bool = False,
     ) -> Run:
         """Run one user request, or continue one that stopped on a pending confirmation.
 
@@ -252,6 +259,8 @@ class Agent:
         ``run.pending`` (the action) and ``run.state``. Calling ``run(resume=state, decision=True|False)`` later,
         possibly in another process, performs or refuses that action and carries on: nothing is generated twice.
         The caller is responsible for the integrity of ``state`` between the two calls (the web app signs it).
+        ``request_text`` is the user's own words when ``user`` also carries attachment text (used to choose the
+        tools); ``attached`` says the request comes with a document or an image.
         """
         cfg, t0, hooks = self.cfg, time.monotonic(), self.hooks
         deadline = t0 + cfg.timeout_s
@@ -286,7 +295,7 @@ class Agent:
             messages.append({"role": "user", "content": guard.defang(user)})
             seen, queue = set(), []
             budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
-            nudged, withdrawn = False, (route(user) if cfg.route_tools else set())
+            nudged, withdrawn = False, (route(user if request_text is None else request_text, attached) if cfg.route_tools else set())
             gen, ok, forced = 0, 0, None
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
 

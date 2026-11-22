@@ -588,3 +588,50 @@ def test_demo_answers_an_image_turn_and_health_lists_image_modes():
     assert h["images_modes"]["demo"] is True and h["images_modes"]["server"] is False
     assert [e["tool"] for e in events if e["type"] == "step"][0] == "read_image"
     assert "Mode démo" in [e for e in events if e["type"] == "answer"][0]["content"]
+
+
+# ------------------------------------------------------------------ OCR requests and tool routing with attachments
+
+
+def test_ocr_only_detection():
+    from birds.web.backends import ocr_only, own_words
+
+    for q in ("Fais l'OCR de cette image.", "OCR stp", "Peux-tu extraire le texte ?", "Transcris cette photo",
+              "Qu'est-ce qui est écrit ?", "Extract the text", "Recopie le texte de l'image"):
+        assert ocr_only(q), q
+    for q in ("Fais un tableur à partir de cette facture.", "Traduis le texte en anglais", "Quel est le total ?",
+              "Lis cette facture et dis-moi combien je dois", "Extrais le texte et résume-le", "Total ?", "",
+              "OCR puis cherche l'entreprise sur le web"):
+        assert not ocr_only(q), q
+    sent = "Fais l'OCR.\n\n[Image jointe : f.png]\n[Donnée externe : …]\nFACTURE 2026"
+    assert own_words(sent) == "Fais l'OCR."
+
+
+def test_ocr_request_answers_with_the_transcription_in_one_call(tmp_path):
+    llm = FakeClient(["FACTURE n° 7\nDate : 12/03/2026\nTotal TTC : 1 250,00 €"])
+    app = create_app(Settings(rate_limit=0, demo_delay=0), server_backend=HarnessBackend(llm, _Tok()))
+    body = {"messages": [{"role": "user", "content": "Fais l'OCR de cette image."}],
+            "images": [{"name": "f.png", "url": _png(960, 540)}]}
+    with TestClient(app) as c:
+        events = _sse(c.post("/api/chat", json=body))
+    assert llm.prompts == ["<chat>"]  # the reading call only: no second generation, no tool
+    answer = [e for e in events if e["type"] == "answer"][0]
+    assert "Total TTC : 1 250,00 €" in answer["content"] and "f.png" in answer["content"]
+    usage = [e for e in events if e["type"] == "usage"][0]
+    assert usage["prompt_tokens"] > 0 and usage["completion_tokens"] > 0
+    assert [s["tool"] for s in events if s["type"] == "step"] == ["read_image", "read_image"]
+
+
+def test_attachment_requests_get_no_web_tools_unless_asked(tmp_path):
+    llm = FakeClient(["Facture 2026, prix unitaire 50 €, taux de TVA 20 %", "ok", "Facture 2026", "ok"])
+    app = create_app(Settings(rate_limit=0, demo_delay=0), server_backend=HarnessBackend(llm, _Tok()))
+    img = [{"name": "f.png", "url": _png(960, 540)}]
+    with TestClient(app) as c:
+        _sse(c.post("/api/chat", json={"messages": [{"role": "user", "content": "Fais un tableur à partir de "
+                                                     "cette facture."}], "images": img}))
+        _sse(c.post("/api/chat", json={"messages": [{"role": "user", "content": "Vérifie sur le web le SIRET de "
+                                                     "ce fournisseur."}], "images": img}))
+    tools_plain = json.loads(llm.prompts[1])["tools"]
+    tools_web = json.loads(llm.prompts[3])["tools"]
+    assert "web_search" not in tools_plain and "read_page" not in tools_plain and "make_sheet" in tools_plain
+    assert "web_search" in tools_web

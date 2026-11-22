@@ -111,7 +111,11 @@ def test_u4_tools_block_identical_with_and_without_attachments():
         c.post("/api/chat", json={"messages": [{"role": "user", "content": "Bonjour"}]})
         att = [{"name": "n.txt", "content": "x"}]
         c.post("/api/chat", json={"messages": [{"role": "user", "content": "Bonjour"}], "attachments": att})
-    assert json.loads(llm.prompts[0])["tools"] == json.loads(llm.prompts[1])["tools"]
+    plain, attached = json.loads(llm.prompts[0])["tools"], json.loads(llm.prompts[1])["tools"]
+    # read_file is always offered (it never appears or disappears with an attachment); the only change allowed is the
+    # routing rule that withdraws the web tools from a request about an attachment that names no need for the web
+    assert "read_file" in plain and "read_file" in attached
+    assert [t for t in plain if t not in ("web_search", "read_page")] == attached
 
 
 def test_u5_languages():

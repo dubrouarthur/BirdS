@@ -189,7 +189,7 @@ Extract a pure helper backends.prepare_turn(messages, conv_lang, ui_lang, attach
   - The newest turn is always kept.
   - Kept history is at or below HIGH unless only one turn remains.
 - U3 Determinism: two `python -I` subprocesses produce identical sha256 of system, kept and user_sent.
-- U4 Tools: allowed_tools and the rendered <tools> section are identical with and without attachments.
+- U4 Tools: allowed_tools and the rendered <tools> section are identical with and without attachments, except for the routing rule (agent.route): a request about an attachment or image whose own words name no need for the web gets no web_search/read_page (measured: the live model called read_page on an attached invoice photo). That turn loses the prefix cache; read_file itself never appears or disappears.
 - U5 Languages
   - conv_lang comes from request.conv_lang. It ignores message content and a later request.lang change.
   - run_lang:
