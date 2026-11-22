@@ -251,6 +251,7 @@ class DemoBackend:
     delay: float = 1.0  # multiplier on the scripted pauses (0 in tests)
     kind: str = "demo"
     model: str = "bird-demo"
+    images: bool = True  # scripted: a fake transcription, labelled as such
     tools: list[str] = field(
         default_factory=lambda: [
             "web_search",
@@ -272,6 +273,9 @@ class DemoBackend:
             run.resume_email(request.resume, bool(request.decision))
             return
         last = next((m["content"] for m in reversed(request.messages) if m["role"] == "user"), "")
+        if request.images:
+            run.scenario_image()
+            return
         getattr(run, "scenario_" + pick_scenario(last, bool(request.attachments)))()
 
 
@@ -371,6 +375,27 @@ class _DemoRun:
         return entry
 
     # -- scenarios
+    def scenario_image(self) -> None:
+        names = [i["name"] for i in self.req.images]
+        for name in names:
+            self.step(
+                "read_image",
+                {"name": name},
+                self.t("Transcription de démonstration (aucun modèle)", "Demo transcription (no model)"),
+                1.2,
+                preview=self.t("[démo] Texte lu dans l'image…", "[demo] Text read in the image…"),
+            )
+        self.finish(
+            self.t(
+                "**Mode démo** : je n'ai pas réellement lu votre image, aucun modèle ne tourne ici. Avec le vrai modèle, "
+                "Bird transcrit d'abord l'image (texte, tableaux), puis répond ou crée un fichier à partir de cette "
+                "transcription. Rien n'est conservé : l'image n'est envoyée qu'avec ce message.",
+                "**Demo mode**: I did not really read your image, no model runs here. With the real model, Bird first "
+                "transcribes the image (text, tables), then answers or creates a file from that transcription. Nothing "
+                "is kept: the image is sent with this message only.",
+            )
+        )
+
     def scenario_plain(self) -> None:
         self.think(
             "Question simple, pas besoin d'outil. Je réponds directement et brièvement.",
@@ -846,6 +871,14 @@ _SEARCH_CODES = {
 IMAGE_TEXT_CHARS = 2400  # hard cap of one image transcription, applied before it is used anywhere
 
 
+_MEMO_ECHO = re.compile(r"\s*\[(?:Mémo de ce tour|Memo of this turn) —[^\]]*\]?\s*$")
+
+
+def strip_memo(text: str) -> str:
+    """The model sees memos at the end of past answers and sometimes imitates one: never show or keep that echo."""
+    return _MEMO_ECHO.sub("", text).rstrip() if "[" in text else text
+
+
 def conv_lang(request: ChatRequest) -> str:
     """The conversation's language, pinned by the client at its first message (never detected, never changes):
     the persona, the summary note and the markers of past turns depend on it, so the prompt prefix stays stable."""
@@ -943,6 +976,7 @@ class HarnessBackend:
         search=None,
         history_tokens: int = 6000,
         msg_cap_tokens: int = 3168,
+        cache_isolation: bool = True,
     ) -> None:
         try:
             from birds.harness import Agent, Config
@@ -954,6 +988,7 @@ class HarnessBackend:
         self.workspace = Path(workspace).resolve() if workspace else None
         self.config = dict(config or {})
         self.history_tokens, self.msg_cap_tokens = history_tokens, msg_cap_tokens
+        self.cache_isolation = cache_isolation
         probe = Config(workspace=Path(tempfile.gettempdir()), audit_file=None, **self.config)
         agent = Agent(llm, self.tok, probe, http=http, search=search)
         self.tools = [t["function"]["name"] for t in agent.tools]
@@ -979,7 +1014,7 @@ class HarnessBackend:
             # prefix and must not change from one turn to the next.
             cfg.audit_file = None
         cfg.timeout_s = max(0.0, min(cfg.timeout_s, ctx.seconds_left()))
-        cfg.cache_salt = cache_salt(getattr(request, "conversation_id", None))
+        cfg.cache_salt = cache_salt(getattr(request, "conversation_id", None)) if self.cache_isolation else None
         return cfg
 
     def _read_images(
@@ -1031,7 +1066,7 @@ class HarnessBackend:
         return texts, usages
 
     def run(self, request: ChatRequest, ctx: RunContext) -> None:
-        from birds.harness import Agent
+        from birds.harness import Agent, guard
         from birds.harness.agent import PAUSE, Hooks
         from birds.harness.history import memo
         from birds.harness.meter import estimate_power_time
@@ -1098,6 +1133,10 @@ class HarnessBackend:
                     image_texts, image_usage = self._read_images(
                         request, ctx, rl, 0, last["content"], salt=cfg.cache_salt
                     )
+                    for name, text in image_texts:  # read_file("photo.jpg") returns what was read in it
+                        (workspace / (sanitize_filename(name) + ".txt")).write_text(
+                            guard.truncate(text or "", IMAGE_TEXT_CHARS), encoding="utf-8"
+                        )
                 system, kept, user_sent, hist_stats = prepare_turn(
                     request.messages, conv, rl, names, image_texts, self.history_tokens, self.msg_cap_tokens
                 )
@@ -1179,7 +1218,7 @@ class HarnessBackend:
             ctx.emit(
                 {
                     "type": "answer",
-                    "content": str(run.answer),
+                    "content": strip_memo(str(run.answer)),
                     "sources": sources,
                     "files": files,
                     "draft_email": None

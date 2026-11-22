@@ -575,10 +575,15 @@ function updateComposer() {
   const label = nAtt ? t(nAtt === 1 ? "att.send.one" : "att.send.many", { n: nAtt }) : t("composer.send");
   send.title = reason ? t(reason) : label;
   send.setAttribute("aria-label", label);
-  for (const id of ["btn-attach", "btn-photo"]) {
-    const b = $(id);
-    if (b) b.dataset.count = nAtt ? String(nAtt) : "";
-  }
+  const photo = $("btn-photo");
+  const canImages = imagesAvailable();
+  photo.setAttribute("aria-disabled", String(!canImages));
+  photo.title = canImages ? t("att.photo") : t("att.img.unsupported");
+  $("photo-take").hidden = $("photo-pick").hidden = !canImages;
+  $("photo-note").textContent = canImages ? t("att.photo.note") : t("att.img.unsupported");
+  const nDocs = nAtt - images;
+  $("btn-attach").dataset.count = nDocs ? String(nDocs) : "";
+  $("btn-photo").dataset.count = images ? String(images) : "";
   $("send-why").textContent = reason ? t(reason) : "";
   $("btn-stop").hidden = !state.busy;
   const count = $("composer-count");
@@ -592,6 +597,8 @@ function updateComposer() {
   updateSlash();
 }
 
+const shownAttachments = new Set(); // the entrance animation plays once per attachment, not at every redraw
+const isNew = (key) => !shownAttachments.has(key) && shownAttachments.add(key);
 function renderAttachments() {
   const docs = state.conv?.attachments || [];
   const imgs = pending.images;
@@ -613,7 +620,7 @@ function renderAttachments() {
       imgs.map((img) =>
         h(
           "li",
-          { class: "att-in" },
+          { class: `att-in${isNew(img.id) ? " att-new" : ""}` },
           imageCard(img, {
             onRemove: () => removeImage(img.id, rerender),
             onOpen: () => openLightbox(readyImages(), readyImages().indexOf(img)),
@@ -623,7 +630,7 @@ function renderAttachments() {
       docs.map((doc, i) =>
         h(
           "li",
-          { class: "att-in" },
+          { class: `att-in${isNew(doc.name) ? " att-new" : ""}` },
           docCard(
             { ...doc, size: doc.size || (doc.content ? doc.content.length : 0) },
             {
@@ -685,8 +692,17 @@ function addAttachment(name, content, encoding = "text", size = 0) {
   return true;
 }
 
+/** Images work in the demo (scripted), with the operator's model if it serves /v1/chat/completions, and with
+ * "Mon endpoint" unless "Tester la connexion" found no such route. */
+function imagesAvailable() {
+  const modes = state.health?.images_modes || {};
+  const mode = activeMode();
+  if (mode === "user") return modes.user !== false && state.prefs.userImages !== false;
+  return !!modes[mode];
+}
+
 async function onFiles(files) {
-  const imageMode = state.health?.images && activeMode() !== "demo";
+  const imageMode = imagesAvailable();
   for (const file of files) {
     if (isImageFile(file)) {
       if (!imageMode) {
@@ -1306,7 +1322,6 @@ function bind() {
       $("btn-photo").setAttribute("aria-expanded", "false");
     });
   $("btn-photo").addEventListener("click", () => {
-    if (!(state.health?.images && activeMode() !== "demo")) return toast(t("att.img.unsupported"), "error");
     const menu = $("photo-menu");
     menu.hidden = !menu.hidden;
     $("btn-photo").setAttribute("aria-expanded", String(!menu.hidden));

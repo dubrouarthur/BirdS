@@ -11,6 +11,7 @@ from birds.harness.guard import Blocked, ToolError
 
 TEXT_SUFFIXES = {".txt", ".md", ".csv", ".tsv", ".json", ".log", ".yaml", ".yml", ".xml", ".html"}
 OUT_DIR = "bird_out"
+IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".gif"}
 
 
 def safe_path(workspace: Path, path: str) -> Path:
@@ -72,6 +73,10 @@ READERS = {".pdf": _pdf, ".docx": _docx, ".xlsx": _xlsx, ".pptx": _pptx}
 
 def read_file(args: dict, ctx) -> str:
     p = safe_path(ctx.workspace, args["path"])
+    if p.suffix.lower() in IMAGE_SUFFIXES and not p.is_file():
+        side = p.with_name(p.name + ".txt")  # an image sent with the message: what the model read in it
+        if side.is_file():
+            return side.read_text(encoding="utf-8").strip() or "(the image has no readable text)"
     if not p.is_file():
         raise ToolError(f"file not found in the workspace: {args['path']}")
     size, suffix = p.stat().st_size, p.suffix.lower()

@@ -279,7 +279,7 @@ class Agent:
             messages.append({"role": "user", "content": guard.defang(user)})
             seen, queue = set(), []
             budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
-            nudged, withdrawn = False, (route(user) if cfg.route_tools and not history else set())
+            nudged, withdrawn = False, (route(user) if cfg.route_tools else set())
             gen, ok, forced = 0, 0, None
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
 

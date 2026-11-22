@@ -175,6 +175,7 @@ def build_server_backend(s: Settings) -> Backend | None:
             config=harness_config(s),
             history_tokens=s.history_tokens,
             msg_cap_tokens=s.history_msg_tokens,
+            cache_isolation=s.cache_isolation,
         )
     if not s.base_url:
         return None
@@ -196,6 +197,7 @@ def build_server_backend(s: Settings) -> Backend | None:
         http=fetch_client(s),
         history_tokens=s.history_tokens,
         msg_cap_tokens=s.history_msg_tokens,
+        cache_isolation=s.cache_isolation,
     )
 
 
@@ -346,6 +348,7 @@ def create_app(
             http=fetch_client(s),
             history_tokens=s.history_tokens,
             msg_cap_tokens=s.history_msg_tokens,
+            cache_isolation=s.cache_isolation,
         )
         return backend, "user:" + tokens.digest([base, model])[:16]
 
@@ -380,10 +383,15 @@ def create_app(
             "demo_model": demo.model,
             "access_required": bool(s.access_code),
             "images": bool(getattr(shown, "images", False)),
+            "images_modes": {
+                "demo": bool(getattr(demo, "images", False)),
+                "server": bool(getattr(server, "images", False)) if server is not None else False,
+                "user": bool(s.allow_user_endpoint),  # confirmed per endpoint by "Tester la connexion"
+            },
             "image_limits": {"min_pixels": IMAGE_MIN_PIXELS, "min_side": IMAGE_MIN_SIDE, "max_side": 1568, "max": 3},
             "history_tokens": s.history_tokens,
             "history_msg_tokens": s.history_msg_tokens,
-            "cache_isolation": "salted",
+            "cache_isolation": "salted" if s.cache_isolation else "off",
             "endpoint_hosts": ["*." + h for h in s.endpoint_allowed_hosts],
             "signing": s.signing,
             "grid_intensity_g_per_kwh": s.grid_intensity,

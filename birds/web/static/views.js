@@ -779,6 +779,10 @@ export function renderSettings() {
       result.className = "test-result";
       result.textContent = t("set.endpoint.testing");
       const out = await hooks.testEndpoint();
+      if (out.ok && typeof out.images === "boolean") {
+        state.prefs.userImages = out.images; // the photo button follows what this endpoint can do
+        savePrefs();
+      }
       testBtn.disabled = false;
       result.className = `test-result ${out.ok ? "is-ok" : out.status === "waking" ? "is-calm" : "is-bad"}`;
       result.replaceChildren(

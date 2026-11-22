@@ -2727,6 +2727,8 @@ kbd {
 .att-in {
   flex: none;
   scroll-snap-align: start;
+}
+.att-new {
   animation: att-in 0.22s ease-out;
 }
 @keyframes att-in {
@@ -2793,12 +2795,15 @@ button.att-card {
   font-weight: 600;
 }
 .att-sub {
+  min-inline-size: 0;
   font-size: 0.74rem;
   color: var(--muted);
-  white-space: nowrap;
+}
+.att-sub .att-status {
+  display: inline-block; /* wraps under the size on narrow cards instead of running out of the card */
 }
 .att-status {
-  margin-inline-start: 6px;
+  margin-inline-start: 4px;
   padding: 1px 7px;
   border-radius: 999px;
   font-weight: 600;
@@ -2937,18 +2942,21 @@ button.att-card {
   text-align: center;
 }
 .photo-menu {
-  position: absolute;
-  inset-block-end: calc(100% + 8px);
-  inset-inline-start: 8px;
-  z-index: 6;
+  /* a bottom sheet in the thumb zone. Fixed, because the dock scrolls (overflow) and would clip a popover:
+     the first version was hidden behind the conversation and a tap went to the example below it */
+  position: fixed;
+  inset-inline: max(12px, var(--safe-l));
+  inset-block-end: calc(12px + var(--safe-b));
+  z-index: 60;
   display: grid;
   gap: 2px;
-  inline-size: min(19rem, calc(100vw - 48px));
-  padding: 6px;
+  max-inline-size: 26rem;
+  margin-inline: auto;
+  padding: 8px;
   border: 1px solid var(--line);
-  border-radius: 16px;
+  border-radius: 20px;
   background: var(--surface);
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 -8px 40px rgb(11 27 63 / 0.28);
   animation: rise 0.16s ease-out;
 }
 .photo-opt {
@@ -3420,7 +3428,7 @@ button.att-card {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .att-in,
+  .att-new,
   .photo-menu {
     animation: none;
   }
@@ -3718,6 +3726,11 @@ button.att-card {
   :root:not([data-theme="light"]) .welcome .w-scene {
     background: radial-gradient(60% 70% at 50% 60%, #1a2540, transparent 70%);
   }
+  :root:not([data-theme="light"]) .welcome .w-deal {
+    background: #2e2614;
+    border-color: #8a6d24;
+    color: #f2d58f;
+  }
   :root:not([data-theme="light"]) .welcome .w-ex,
   :root:not([data-theme="light"]) .welcome .w-picon {
     background: #1d2d55;
@@ -3770,4 +3783,8 @@ button.att-card {
   .welcome[open] {
     animation: none;
   }
+}
+
+#btn-photo[aria-disabled="true"] {
+  opacity: 0.45;
 }

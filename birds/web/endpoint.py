@@ -157,4 +157,10 @@ def probe(client: CompletionsClient, lang: str) -> dict:
     except EndpointError as e:
         return {"ok": False, "status": e.kind, "message": explain(e.kind, lang), "http_status": e.status}
     code = "ok" if info.get("usage_reported") else "ok_no_usage"
-    return {"ok": True, "status": code, "message": explain(code, lang), "seconds": info.get("seconds")}
+    images = False
+    try:  # images go through /v1/chat/completions: one more 1-token call says whether that route exists
+        client.chat([{"role": "user", "content": "Bonjour"}], 1)
+        images = True
+    except Exception:  # noqa: BLE001 - only a capability check
+        images = False
+    return {"ok": True, "status": code, "message": explain(code, lang), "seconds": info.get("seconds"), "images": images}
