@@ -619,7 +619,12 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
     assert not re.search(r"\son[a-z]+\s*=", html), "inline event handler"
     assert not re.search(r"https?://|//[a-z]", html), "external origin in index.html"
     css = (STATIC_DIR / "app.css").read_text()
-    assert "url(" not in css and "@import" not in css and "@font-face" not in css
+    # the only url() is the same-origin Carlito of the file previews (fonts/*.woff2, served from /static/fonts)
+    urls = re.findall(r"url\(([^)]*)\)", css)
+    assert urls and all(re.fullmatch(r'"fonts/carlito-(regular|bold)\.woff2"', u) for u in urls), urls
+    assert "@import" not in css and css.count("@font-face") == 2
+    for name in ("carlito-regular.woff2", "carlito-bold.woff2", "OFL.txt"):
+        assert client.get(f"/static/fonts/{name}").status_code == 200
     scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "previews.js"]
     brand = [
         "mark.svg",
@@ -641,7 +646,11 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
 
 def test_static_payload_budget():
     files = [p for p in STATIC_DIR.rglob("*") if p.is_file()]
-    total = sum(p.stat().st_size for p in files)
+    fonts = STATIC_DIR / "fonts"
+    total = sum(p.stat().st_size for p in files if fonts not in p.parents)
+    # Carlito (regular + bold, unmodified woff2) is fetched only when a file preview is drawn, then cached: its own
+    # budget, outside the page's
+    assert sum(p.stat().st_size for p in fonts.iterdir()) < 400_000
     # raised from 250 kB when images, attachments, previews and the savings report were added; what travels is
     # gzip-compressed (about 80 kB for all the text files); raised to 400 kB for the P1 UX backlog (welcome toggle,
     # code-block headers, action menu, chart keyboard support, approval and stop states); to 425 kB for the file

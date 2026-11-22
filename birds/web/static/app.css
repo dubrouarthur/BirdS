@@ -3824,6 +3824,22 @@ button.att-card {
 .md-small table {
   font-size: 0.78rem;
 }
+/* Carlito (SIL OFL, fonts/OFL.txt): Calibri's metric twin, served from this site so a slide, a page or a sheet
+   breaks its lines where the file does on every device, with or without Office installed */
+@font-face {
+  font-family: Carlito;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local("Carlito"), local("Carlito-Regular"), url("fonts/carlito-regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: Carlito;
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local("Carlito Bold"), local("Carlito-Bold"), url("fonts/carlito-bold.woff2") format("woff2");
+}
 /* Previews drawn from the written file. The slide, the page and the sheet keep the file's own colours (white,
    navy, blue) in both themes: they are the document; only the frame around them follows the theme. */
 .file-card.file-slides .card-preview > :not(summary),
@@ -3868,9 +3884,6 @@ button.att-card {
   color: #121a2e;
   text-align: start;
   user-select: text;
-}
-.slide-canvas.no-calibri {
-  --pt: calc(var(--px) * 1.3333 * 0.91);
 }
 .sh {
   position: absolute;

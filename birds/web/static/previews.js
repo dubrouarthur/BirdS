@@ -9,26 +9,6 @@ const color = (v, d) => (HEX.test(String(v || "")) ? `#${v}` : d);
 const px = (el, prop, v) =>
   el.style.setProperty(prop, `calc(var(--px) * ${num(v)})`);
 
-// Calibri, or its metric twin Carlito, sets the line breaks of the real file; without either the fallback face is
-// wider, so the text is drawn a little smaller to keep the same breaks (checked once per page).
-let narrow = null;
-function hasCalibri() {
-  if (narrow !== null) return narrow;
-  try {
-    const c = document.createElement("canvas").getContext("2d");
-    const w = (f) => (
-      (c.font = `40px ${f}`),
-      c.measureText("Mesurez l'espace des lettres 0123").width
-    );
-    narrow = ["Carlito", "Calibri"].some(
-      (f) => w(`${f}, monospace`) !== w("monospace"),
-    );
-  } catch {
-    narrow = true;
-  }
-  return narrow;
-}
-
 function para(p, heading) {
   const runs = Array.isArray(p.r) ? p.r : [];
   const el = h(heading ? "h4" : "p", { class: "sh-p" });
@@ -76,9 +56,7 @@ function para(p, heading) {
 
 /** One slide, drawn from its shapes. `live`: the big stage (real headings); thumbnails are decorative. */
 export function slideCanvas(slide, live) {
-  const canvas = h("div", {
-    class: `slide-canvas${hasCalibri() ? "" : " no-calibri"}`,
-  });
+  const canvas = h("div", { class: "slide-canvas" });
   for (const sh of Array.isArray(slide.shapes) ? slide.shapes : []) {
     const el = h("div", {
       class: `sh sh-${sh.g === "o" ? "o" : sh.g === "rr" ? "rr" : "r"}`,
