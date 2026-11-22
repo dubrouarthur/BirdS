@@ -1820,13 +1820,8 @@ function bind() {
     } else if (e.key === "Escape") {
       if (e.defaultPrevented || document.querySelector("dialog[open]")) return;
       const target = e.target;
-      // Escape in another field (the conversation search, a rename box) is that field's own: it clears it,
-      // it never stops the answer that is being written
-      if (
-        /^(INPUT|SELECT|TEXTAREA)$/.test(target?.tagName || "") &&
-        target.id !== "composer-input"
-      )
-        return;
+      // Escape in another field (the conversation search, a rename box) never stops the answer that is being
+      // written; it still closes the drawer or leaves a page view (the stop() branch below checks the target)
       if (isNarrow() && document.body.classList.contains("side-open"))
         setSidebar(false); // the open drawer is on top: Escape closes it first, an answer keeps streaming
       else if (state.busy) {
