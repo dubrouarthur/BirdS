@@ -248,9 +248,12 @@ function mapFrame(w, places, center, opts = {}) {
   if (!m || !MAP_SRC.test(String(m.src || ""))) return null;
   let dz = 0;
   const frame = h("div", { class: "map-frame" });
+  // live maps: an @2x render for high-density screens (same area, zoom + 1); the frame never exceeds 640 px
+  const srcset = (src) => (m.static ? null : `${src} 1x, ${src}&s=2 2x`);
   const img = h("img", {
     class: "map-img",
     src: m.src,
+    srcset: srcset(m.src),
     width: String(m.w || 640),
     height: String(m.h || 360),
     alt: opts.alt || t("map.alt.one"),
@@ -332,6 +335,7 @@ function mapFrame(w, places, center, opts = {}) {
     if (next === dz) return;
     const src = `${m.src}${next ? `&dz=${next}` : ""}`;
     const pre = new Image();
+    if (srcset(src)) pre.srcset = srcset(src);
     pending = pre;
     frame.classList.add("is-loading");
     frame.setAttribute("aria-busy", "true");
@@ -348,6 +352,7 @@ function mapFrame(w, places, center, opts = {}) {
       frame.classList.remove("is-broken");
       img.hidden = false;
       img.src = src;
+      img.srcset = srcset(src) || "";
       place();
       zin.disabled = dz >= 3;
       zout.disabled = dz <= -2;

@@ -166,8 +166,12 @@ class Tiles:
         return body, False
 
 
-def render_map(center, z: int, tiles: Tiles, template: str, attribution: str, w: int = MAP_W, h: int = MAP_H):
-    """(WebP bytes, partial, tiles used, from cache). Pillow stitches the tiles that cover the w x h window."""
+def render_map(center, z: int, tiles: Tiles, template: str, attribution: str, w: int = MAP_W, h: int = MAP_H,
+               scale: int = 1):  # fmt: skip
+    """(WebP bytes, partial, tiles used, from cache). Pillow stitches the tiles that cover the w x h window.
+    ``scale=2`` is the @2x image for high-density screens: the same area at zoom z+1, twice the pixels."""
+    if scale == 2:
+        z, w, h = z + 1, w * 2, h * 2
     from PIL import Image, ImageDraw, ImageFont
 
     Image.MAX_IMAGE_PIXELS = 4_000_000
@@ -197,11 +201,12 @@ def render_map(center, z: int, tiles: Tiles, template: str, attribution: str, w:
     if count and failed == count:
         raise guard.ToolError("every tile failed")
     draw = ImageDraw.Draw(img, "RGBA")
-    font = ImageFont.load_default(size=11)
+    font = ImageFont.load_default(size=11 * scale)
     box = draw.textbbox((0, 0), attribution, font=font)
     tw, th = box[2] - box[0], box[3] - box[1]
-    draw.rectangle((w - tw - 10, h - th - 8, w, h), fill=(255, 255, 255, 204))
-    draw.text((w - tw - 5, h - th - 5 - box[1]), attribution, fill=(34, 34, 34, 255), font=font)
+    pad = 5 * scale
+    draw.rectangle((w - tw - 2 * pad, h - th - pad - 3 * scale, w, h), fill=(255, 255, 255, 204))
+    draw.text((w - tw - pad, h - th - pad - box[1]), attribution, fill=(34, 34, 34, 255), font=font)
     out = io.BytesIO()
     img.save(out, "WEBP", quality=78, method=4)
     return out.getvalue(), failed > 0, count, cached
@@ -251,12 +256,12 @@ def make_router(settings, harness_cfg) -> APIRouter:
         return Response(body, media_type=ctype, headers={"Cache-Control": "private, max-age=86400", **(extra or {})})
 
     @router.get("/api/map", include_in_schema=False)
-    def get_map(request: Request, t: str = "", dz: int = 0):
+    def get_map(request: Request, t: str = "", dz: int = 0, s: int = 1):
         check(request, map_limit)
         if not getattr(settings, "geo", True):
             raise err(503, "geo_disabled", "maps are switched off on this deployment")
-        if not -2 <= dz <= 3:
-            raise err(400, "bad_params", "dz must be between -2 and 3")
+        if not -2 <= dz <= 3 or s not in (1, 2):
+            raise err(400, "bad_params", "dz must be between -2 and 3, s 1 or 2")
         try:
             p = tokens.verify(t, secret)
         except tokens.TokenError as e:
@@ -266,20 +271,20 @@ def make_router(settings, harness_cfg) -> APIRouter:
             if p.get("k") != "map":
                 raise ValueError
             lat, lon = float(p["c"][0]), float(p["c"][1])
-            z = max(3, min(18, int(p["z"]) + dz))
+            z = max(3, min(18 - (s - 1), int(p["z"]) + dz))
             layer = "ign" if p.get("l") == "ign" and getattr(settings, "tile_layer", "osm") == "ign" else "osm"
             if not (-85.06 <= lat <= 85.06 and -180 <= lon <= 180):
                 raise ValueError
         except (KeyError, TypeError, ValueError, IndexError):
             raise err(400, "bad_params", "invalid map token") from None
-        key = (lat, lon, z, layer)
+        key = (lat, lon, z, layer, s)
         hit = finals.get(key)
         if hit:
             return image(hit, "image/webp")
         template = IGN_TILES if layer == "ign" else (getattr(settings, "tile_url", None) or OSM_TILES)
         t0 = time.monotonic()
         try:
-            body, partial, n, cached = render_map((lat, lon), z, tiles, template, ATTRIBUTION[layer])
+            body, partial, n, cached = render_map((lat, lon), z, tiles, template, ATTRIBUTION[layer], scale=s)
         except guard.Blocked:
             raise err(403, "blocked", "the tile server is not allowed by the egress policy") from None
         except guard.ToolError:

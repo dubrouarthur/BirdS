@@ -4477,7 +4477,9 @@ button.att-card {
 /* static map: one same-origin image, pins overlaid by the client (positions through CSSOM --x/--y) */
 .map-frame {
   position: relative;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 16 / 9; /* the image's own ratio: pins and the burnt-in attribution stay valid (never cropped) */
+  inline-size: 100%;
+  max-inline-size: 640px; /* the 1x image's natural width: never upscaled */
   overflow: hidden;
   border-radius: var(--radius-s);
   border: 1px solid var(--line);
@@ -5034,11 +5036,6 @@ button.att-card {
   overflow: hidden;
 }
 
-@media (min-width: 720px) {
-  .widget-company .map-frame {
-    aspect-ratio: 2 / 1;
-  }
-}
 @media (max-width: 480px) {
   .widget {
     padding: 12px;

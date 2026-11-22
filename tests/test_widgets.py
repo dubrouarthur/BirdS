@@ -392,6 +392,9 @@ def test_api_map_renders_webp_and_caches(app_client):
     assert Image.open(io.BytesIO(r.content)).size == (640, 360)
     n = calls["tiles"]
     assert 4 <= n <= 12 and calls["max"] <= 2
+    r2 = client.get(f"/api/map?t={t}&s=2")  # @2x: same area at zoom + 1, attribution burnt in at 2x
+    assert r2.status_code == 200 and Image.open(io.BytesIO(r2.content)).size == (1280, 720)
+    assert client.get(f"/api/map?t={t}&s=3").status_code == 400
     client.get(f"/api/map?t={t}&dz=1")
     m = calls["tiles"]
     client.get(f"/api/map?t={t}&dz=1")
