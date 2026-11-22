@@ -4516,7 +4516,7 @@ button.att-card {
   position: absolute;
   inset-inline-start: var(--x, 50%);
   inset-block-start: var(--y, 50%);
-  transform: translate(-50%, calc(-100% - var(--tail)));
+  transform: translate(calc(-50% + var(--dx, 0px)), calc(-100% - var(--tail) + var(--dy, 0px)));
   transform-origin: 50% calc(100% + var(--tail));
   display: grid;
   place-items: center;
@@ -4545,17 +4545,65 @@ button.att-card {
   border-block-start: var(--tail) solid var(--pin-bg);
   pointer-events: none;
 }
-.map-pin[hidden] {
+/* an invisible 44 px touch target around the 26 px label */
+.map-pin::before {
+  content: "";
+  position: absolute;
+  inset: -11px;
+  border-radius: 50%;
+}
+.map-pin.is-moved::after {
   display: none;
 }
-.map-pin-center {
-  --pin-bg: #c2410c;
+.map-pin[hidden],
+.map-leader[hidden],
+.map-center[hidden] {
+  display: none;
 }
 .map-pin.is-active,
 .map-pin:hover {
   --pin-bg: #1e5bd8;
-  transform: translate(-50%, calc(-100% - var(--tail))) scale(1.18);
+  transform: translate(calc(-50% + var(--dx, 0px)), calc(-100% - var(--tail) + var(--dy, 0px))) scale(1.18);
   z-index: 2;
+}
+/* a moved pin: a thin leader from its true point (with a dot) to the label */
+.map-leader {
+  position: absolute;
+  inset-inline-start: var(--x, 50%);
+  inset-block-start: var(--y, 50%);
+  inline-size: var(--len, 0px);
+  block-size: 2px;
+  margin-block-start: -1px;
+  background: #0b1b3f;
+  transform: rotate(var(--angle, 0rad));
+  transform-origin: 0 50%;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.85);
+}
+.map-leader::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -4px;
+  inset-block-start: -3px;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 50%;
+  background: #0b1b3f;
+  border: 1.5px solid #fff;
+  box-sizing: border-box;
+}
+/* the centre of a "near" search: an orange ring under the numbered pins */
+.map-center {
+  position: absolute;
+  inset-inline-start: var(--x, 50%);
+  inset-block-start: var(--y, 50%);
+  inline-size: 18px;
+  block-size: 18px;
+  translate: -50% -50%;
+  border: 4px solid #c2410c;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.85);
+  box-shadow: 0 0 0 2px #fff, 0 1px 4px rgb(0 0 0 / 0.35);
+  box-sizing: border-box;
 }
 .map-attr {
   position: absolute;

@@ -206,6 +206,41 @@ function footer(...parts) {
   return h("footer", { class: "widget-source" }, ...parts);
 }
 
+// ------------------------------------------------------------------ pin declutter
+
+const PIN = 26; // label size in CSS px (.map-pin, border-box)
+const TAIL = 7; // .map-pin --tail: from the point to the label's bottom
+
+/** Offsets [dx, dy] in px for pins whose labels would overlap: the first pin stays, the next ones try nearby
+ * slots (right, left, up, diagonals, then farther). Rings ({ring: true}) never move but are avoided.
+ * ``pts``: [{x, y, ring?}] in px (the point each pin marks). */
+export function declutter(pts, size = PIN, gap = 3) {
+  const step = size + gap;
+  const slots = [[0, 0]];
+  for (const k of [1, 2, 3])
+    slots.push(
+      [k * step, 0], [-k * step, 0], [0, -k * step], [k * step, -k * step], [-k * step, -k * step],
+      [k * step, k * step * 0.5], [-k * step, k * step * 0.5],
+    ); // prettier-ignore
+  const boxes = [];
+  const hit = (cx, cy) => boxes.some(([bx, by, r]) => Math.abs(bx - cx) < r && Math.abs(by - cy) < r);
+  for (const q of pts) if (q.ring) boxes.push([q.x, q.y, (size + 16) / 2 + gap]);
+  return pts.map((q) => {
+    if (q.ring) return [0, 0];
+    const cy0 = q.y - TAIL - size / 2;
+    for (const [dx, dy] of slots) {
+      const cx = q.x + dx;
+      const cy = cy0 + dy;
+      if (!hit(cx, cy)) {
+        boxes.push([cx, cy, size + gap]);
+        return [dx, dy];
+      }
+    }
+    boxes.push([q.x, cy0, size + gap]);
+    return [0, 0];
+  });
+}
+
 // ------------------------------------------------------------------ map frame (shared by places and company)
 
 function mapFrame(w, places, center, opts = {}) {
@@ -241,21 +276,55 @@ function mapFrame(w, places, center, opts = {}) {
       h("span", { text: label }),
     );
     pin.addEventListener("click", () => opts.onPin?.(p));
-    pins.push([pin, p]);
-    layer.append(pin);
+    // a thin leader from the true point to a pin moved aside by declutter()
+    const leader = h("span", { class: "map-leader", hidden: true });
+    pins.push([pin, p, leader]);
+    layer.append(leader, pin);
   };
-  if (center) addPin({ ...center, n: "★" }, "★", "map-pin-center");
+  // the centre of a "near" search is a ring drawn under the numbered pins, not a pin of its own
+  if (center) {
+    const ring = h("span", { class: "map-center" });
+    pins.push([ring, { ...center, n: "★" }, null]);
+    layer.append(ring);
+  }
   for (const p of places) addPin(p, String(p.n), "");
   const place = () => {
     const z = (m.z || 15) + dz;
-    for (const [pin, p] of pins) {
+    const W = frame.clientWidth || 0;
+    const H = frame.clientHeight || 0;
+    const pts = [];
+    for (const [pin, p, leader] of pins) {
       const [x, y] = pinPos(p.lat, p.lon, m.c, z, m.w || 640, m.h || 360);
       pin.style.setProperty("--x", `${x.toFixed(2)}%`);
       pin.style.setProperty("--y", `${y.toFixed(2)}%`);
+      if (leader) {
+        leader.style.setProperty("--x", `${x.toFixed(2)}%`);
+        leader.style.setProperty("--y", `${y.toFixed(2)}%`);
+      }
       pin.hidden = x < 1 || x > 99 || y < 2 || y > 98;
+      if (!pin.hidden) pts.push({ x: (x / 100) * W, y: (y / 100) * H, pin, leader, ring: !leader });
     }
+    // overlapping pins are fanned out (in CSS px, once the frame has a size), each with a leader to its point
+    const moves = W ? declutter(pts) : pts.map(() => [0, 0]);
+    pts.forEach((q, i) => {
+      if (q.ring) return;
+      const [dx, dy] = moves[i];
+      const moved = dx !== 0 || dy !== 0;
+      q.pin.style.setProperty("--dx", `${dx}px`);
+      q.pin.style.setProperty("--dy", `${dy}px`);
+      q.pin.classList.toggle("is-moved", moved);
+      q.leader.hidden = !moved;
+      if (moved) {
+        // from the point to the bottom of the moved label (TAIL above the point, plus the move)
+        const lx = dx;
+        const ly = dy - TAIL;
+        q.leader.style.setProperty("--len", `${Math.hypot(lx, ly).toFixed(1)}px`);
+        q.leader.style.setProperty("--angle", `${Math.atan2(ly, lx).toFixed(4)}rad`);
+      }
+    });
   };
   place();
+  if (typeof ResizeObserver === "function") new ResizeObserver(place).observe(frame);
   const zoom = (step) => () => {
     const next = Math.max(-2, Math.min(3, dz + step));
     if (next === dz) return;

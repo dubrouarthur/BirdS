@@ -614,7 +614,7 @@ def test_pin_tip_is_on_the_coordinate():
     css = (STATIC / "app.css").read_text(encoding="utf-8")
     pin = re.search(r"\n\.map-pin \{(.*?)\n\}", css, re.S).group(1)
     tail = re.search(r"\n\.map-pin::after \{(.*?)\n\}", css, re.S).group(1)
-    assert "transform: translate(-50%, calc(-100% - var(--tail)))" in pin and "border-radius: 13px;" in pin
+    assert "transform: translate(calc(-50% + var(--dx, 0px)), calc(-100% - var(--tail) + var(--dy, 0px)))" in pin and "border-radius: 13px;" in pin
     assert "inset-inline-start: 50%" in tail and "translate: -50% 0" in tail
     assert "border-block-start: var(--tail) solid" in tail
 
@@ -702,3 +702,16 @@ def test_opening_hours_are_translated_with_today_first():
     import re
 
     assert shown and not [x for x in shown if re.search(r"\b(Mo|Tu|We|Th|Fr|Sa|Su)\b|_", x)], shown
+
+
+@needs_node
+def test_declutter_separates_overlapping_pins():
+    pts = [{"x": 100, "y": 100}, {"x": 104, "y": 102}, {"x": 100, "y": 98}, {"x": 300, "y": 100},
+           {"x": 120, "y": 121, "ring": True}]  # fmt: skip
+    moves = run_js("out(W.declutter(data.p));", p=pts)
+    assert moves[0] == [0, 0] and moves[3] == [0, 0] and moves[4] == [0, 0]
+    labels = [(p["x"] + dx, p["y"] - 20 + dy) for p, (dx, dy) in zip(pts[:4], moves[:4], strict=True)]
+    for i in range(len(labels)):
+        for j in range(i + 1, len(labels)):
+            a, b = labels[i], labels[j]
+            assert abs(a[0] - b[0]) >= 26 or abs(a[1] - b[1]) >= 26
