@@ -672,14 +672,18 @@ function codeBlock(code, name, closed, ctx) {
       .replace(/\s+/g, " ")
       .trim(),
   );
+  // The head has its tools from the first streamed line (wrap and download wait, disabled, for the closing fence),
+  // so nothing moves in the head when the block completes.
+  const off = closed ? "" : " disabled";
   const tools = [];
-  if (closed && n > 1)
+  if (!closed || n > 1)
     tools.push(
-      `<button type="button" class="code-btn code-btn--icon" data-code-wrap aria-pressed="${ctx.wrap}" title="${escapeHtml(L.wrap)}">${ICON.wrap}<span class="sr-only">${escapeHtml(L.wrap)}</span></button>`,
+      `<button type="button" class="code-btn code-btn--icon" data-code-wrap aria-pressed="${ctx.wrap}" title="${escapeHtml(L.wrap)}"${off}>${ICON.wrap}<span class="sr-only">${escapeHtml(L.wrap)}</span></button>`,
     );
   if (
-    closed &&
-    (n >= 3 || (n >= 2 && ["json", "sql", "python"].includes(info.key)))
+    !closed ||
+    n >= 3 ||
+    (n >= 2 && ["json", "sql", "python"].includes(info.key))
   ) {
     const fname =
       file ||
@@ -688,7 +692,7 @@ function codeBlock(code, name, closed, ctx) {
         : `bird-${info.key || "code"}.${info.ext}`);
     const dl = escapeHtml(L.downloadLabel.replace("{file}", fname));
     tools.push(
-      `<button type="button" class="code-btn" data-code-download data-file="${escapeHtml(fname)}" data-mime="${info.mime}" aria-label="${dl}" title="${dl}">${ICON.download}<span class="code-btn-t">${escapeHtml(L.download)}</span></button>`,
+      `<button type="button" class="code-btn" data-code-download data-file="${escapeHtml(fname)}" data-mime="${info.mime}" aria-label="${dl}" title="${dl}"${off}>${ICON.download}<span class="code-btn-t">${escapeHtml(L.download)}</span></button>`,
     );
   }
   tools.push(

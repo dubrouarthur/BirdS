@@ -5203,6 +5203,11 @@ button.att-card {
   padding-inline-start: calc(var(--ln-gut) + 2ch); /* a wrapped line hangs, so the next real line still reads as new */
   text-indent: -2ch;
 }
+.code-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+  background: none;
+}
 .code-block[data-collapsed] pre.code-pre {
   max-block-size: calc(18 * 1.6em + 12px);
   overflow: hidden;

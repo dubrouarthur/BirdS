@@ -419,6 +419,11 @@ test("code blocks keep their layout from the first streamed line to the final re
   const src = answer("json_bash");
   const sig = (h) => (h.startsWith("<figure") ? h.match(/^<[^>]*>/)[0].replace(/ data-lines="\d+"/, "") : "");
   flips(src, sig).forEach((h, k) => assert.ok(h.filter(Boolean).length <= 2, `block ${k}: ${h.join(" -> ")}`));
+  // the head's tools are there from the start, disabled until the fence closes
+  const open = renderBlocks(stabilize(`${FENCE}bash\nls`), { rich: true, lang: "fr" }).join("");
+  assert.match(open, /data-code-wrap[^>]*disabled/);
+  assert.match(open, /data-code-download[^>]*disabled/);
+  assert.match(open, /data-copy-code/);
   const long = `${FENCE}bash\n${Array.from({ length: 30 }, (_, k) => `echo ${k}`).join("\n")}`;
   const streaming = renderBlocks(stabilize(long), { rich: true, lang: "fr" }).join("");
   assert.match(streaming, /data-lines="30" data-long>/); // numbered while streaming, never folded
