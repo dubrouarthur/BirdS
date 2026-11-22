@@ -22,6 +22,7 @@ class Config:
     max_result_chars: int = 6000  # per tool result
     max_context_chars: int = 24000  # all tool results of a run together
     max_tokens: int = 1024  # per generation
+    think_chars: int = 12000  # reasoning longer than this with no answer yet is cut; the step is redone without it
     timeout_s: float = 180.0  # wall clock for the whole run
     max_side_effects: int = 5  # draft_email / make_* / run_python calls per run
     # network

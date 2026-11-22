@@ -149,16 +149,83 @@ def find_loop(
     return None
 
 
-class _LoopGuard:
-    """Checks the growing text for a loop every ``every`` new characters (the check is cheap but not free)."""
+_FENCE_LINE = re.compile(r"^\s{0,3}(```|~~~)")
+_DATA_LINE = re.compile(r"\||\t|;.*;|,.*,.*,")  # table rows, CSV/TSV lines: structured data repeats legitimately
+_WORD = re.compile(r"[^\W\d_]{2,}", re.UNICODE)
 
-    def __init__(self, every: int = 48):
-        self.every, self.next, self.cut = every, every, None
+
+def _prose_lines(text: str) -> list[str]:
+    """Lines of running text: code blocks, table rows and CSV-like lines left out."""
+    out, in_code = [], False
+    for line in text.split("\n"):
+        if _FENCE_LINE.match(line):
+            in_code = not in_code
+            continue
+        if in_code or not line.strip() or _DATA_LINE.search(line):
+            continue
+        out.append(line)
+    return out
+
+
+def find_soft_loop(text: str, *, window: int = 8000, min_hits: int = 6, min_words: int = 240) -> int | None:
+    """Where to cut ``text`` if it ends in a loop that is not an exact repeat, else ``None``.
+
+    Two shapes a small model falls into, that ``find_loop`` misses because the copies differ slightly:
+    - the same line again and again with only a number changing (« Étape 7 : vérifier le dossier », « Étape 8 : … »),
+      or reworded copies of one sentence: the last lines are dominated by one normalised line;
+    - prose that goes round in circles: in the last ``min_words`` words, fewer than a third of the 3-word sequences
+      are new.
+    Code blocks, tables and CSV-like lines are ignored (structured data repeats legitimately). The cut keeps the text
+    up to the second copy of the repeated line, or before the circling stretch.
+    """
+    tail = text[-window:]
+    lines = _prose_lines(tail)
+    if len(lines) >= min_hits:
+        norm = [re.sub(r"[\W\d_]+", "", ln.lower()) for ln in lines]
+        recent = [n for n in norm[-12:] if len(n) >= 12]
+        if recent:
+            top = max(set(recent), key=recent.count)
+            hits = [i for i, n in enumerate(norm) if n == top]
+            # a list of facts changes several numbers per line (« 2 ans : 35 900 € », « 3 ans : 49 450 € »); a loop
+            # bumps one counter and copies the rest (« Étape 7 : vérifier… », « Étape 8 : vérifier… »)
+            nums = [re.findall(r"\d+", lines[i]) for i in hits]
+            varying = sum(len({tuple(n[k:k + 1]) for n in nums}) > 1 for k in range(max(map(len, nums), default=0)))
+            if len(hits) >= min_hits and varying <= 1 and recent.count(top) * 2 >= len(norm[-12:]):
+                third = lines[hits[2]]
+                at = tail.rfind(third, 0, len(tail) - sum(len(ln) + 1 for ln in lines[hits[2] + 1 :]) + 1)
+                if at > 0:
+                    return len(text) - len(tail) + at
+    words = _WORD.findall(" ".join(lines))[-min_words * 2 :]
+    if len(words) >= min_words:
+        last = [w.lower() for w in words[-min_words:]]
+        grams = [tuple(last[i : i + 3]) for i in range(len(last) - 2)]
+        if len(set(grams)) * 3 < len(grams):
+            anchor = " ".join(words[-min_words : -min_words + 3])
+            at = tail.find(anchor)
+            if at > 0:
+                return len(text) - len(tail) + at
+    return None
+
+
+class _LoopGuard:
+    """Checks the growing text for a loop every ``every`` new characters (the check is cheap but not free), and,
+    with ``think_limit``, stops reasoning that runs past that many characters without reaching an answer."""
+
+    def __init__(self, every: int = 48, think_limit: int | None = None):
+        self.every, self.next, self.cut, self.reason = every, every, None, None
+        self.think_limit, self.soft_next = think_limit, 480
 
     def check(self, text: str) -> int | None:
         if self.cut is None and len(text) >= self.next:
             self.next = len(text) + self.every
             self.cut = find_loop(text)
+            if self.cut is None and len(text) >= self.soft_next:  # the softer check is costlier: less often
+                self.soft_next = len(text) + 240
+                self.cut = find_soft_loop(text)
+            if self.cut is not None:
+                self.reason = "repetition"
+            elif self.think_limit and len(text) > self.think_limit and "</think>" not in text:
+                self.cut, self.reason = len(text), "think_budget"
         return self.cut
 
 
@@ -337,6 +404,7 @@ class CompletionsClient:
         _chars=None,
         extra=None,
         cancel=None,
+        think_limit=None,
         **_,
     ) -> dict:
         """``deadline`` is a ``time.monotonic()`` value: waiting for a waking endpoint and reading stop before it.
@@ -361,7 +429,7 @@ class CompletionsClient:
             cutter = _StopCutter(stop, on_token)
             mark = {"start": time.monotonic(), "first": None}
             meta: dict = {}
-            loop = _LoopGuard()
+            loop = _LoopGuard(think_limit=think_limit)
 
             def on_piece(piece, cutter=cutter, mark=mark, loop=loop):
                 if cancel is not None and cancel.is_set():
@@ -406,7 +474,7 @@ class CompletionsClient:
                     raise Cancelled from None  # stopped while waiting for the endpoint to wake up: no more attempts
         text = cutter.finish()
         if loop.cut is not None:
-            text, meta["finish_reason"] = text[: loop.cut].rstrip(), "repetition"
+            text, meta["finish_reason"] = text[: loop.cut].rstrip(), loop.reason
         end = time.monotonic()
         return {
             "text": text,
@@ -506,19 +574,21 @@ class FakeClient:
         self.chats = getattr(self, "chats", []) + [messages]
         return self.generate("<chat>", max_tokens, STOP, on_token=on_token)
 
-    def generate(self, prompt: str, max_tokens: int, stop: list[str], *, on_token=None, **_) -> dict:
+    def generate(self, prompt: str, max_tokens: int, stop: list[str], *, on_token=None, think_limit=None, **_) -> dict:
         self.prompts.append(prompt)
         raw = self.outputs.pop(0) if self.outputs else ""
-        text, reason, loop = _cut(raw, stop), None, _LoopGuard()
+        text, reason, loop = _cut(raw, stop), None, _LoopGuard(think_limit=think_limit)
         for i in range(0, len(text), self.chunk):
             if on_token:
                 on_token(text[i : i + self.chunk])
             cut = loop.check(text[: i + self.chunk])
             if cut is not None:
-                text, reason = text[:cut].rstrip(), "repetition"
+                text, reason = text[:cut].rstrip(), loop.reason
                 break
         if reason is None and find_loop(text) is not None:
             text, reason = text[: find_loop(text)].rstrip(), "repetition"
+        if reason is None and find_soft_loop(text) is not None:
+            text, reason = text[: find_soft_loop(text)].rstrip(), "repetition"
         return {
             "text": text,
             "prompt_tokens": len(prompt) // 4,

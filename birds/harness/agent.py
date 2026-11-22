@@ -281,6 +281,7 @@ class Hooks:
 class Run:
     answer: str = ""
     stop_reason: str = ""
+    think_cut: bool = False  # the reasoning ran past cfg.think_chars and the step was redone without it
     lang: str = "en"
     steps: list[Step] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
@@ -388,8 +389,9 @@ class Agent:
 
     def _generate(self, prompt: str, thinking: bool, deadline: float) -> tuple[dict, AnswerStream | None]:
         hooks = self.hooks
+        limit = {"think_limit": self.cfg.think_chars} if thinking and accepts(self.llm.generate, "think_limit") else {}
         if not self._llm_kwargs:
-            return self.llm.generate(prompt, self.cfg.max_tokens, STOP), None
+            return self.llm.generate(prompt, self.cfg.max_tokens, STOP, **limit), None
         stream = AnswerStream(hooks.on_token, thinking) if hooks.on_token else None
         out = self.llm.generate(
             prompt,
@@ -400,6 +402,7 @@ class Agent:
             deadline=deadline,
             **({"extra": {"cache_salt": self.cfg.cache_salt}} if self.cfg.cache_salt else {}),
             **({"cancel": hooks.cancel} if hooks.cancel is not None and accepts(self.llm.generate, "cancel") else {}),
+            **limit,
         )
         return out, stream
 
@@ -488,18 +491,25 @@ class Agent:
                 if time.monotonic() > deadline:
                     run.stop_reason = "timeout"
                     break
+                step_thinking = thinking
                 try:
                     with gpu:
+                        offered = [t for t in self.tools if t["function"]["name"] not in withdrawn]
                         out, stream = self._generate(
-                            render_prompt(
-                                self.tok,
-                                messages,
-                                [t for t in self.tools if t["function"]["name"] not in withdrawn],
-                                thinking,
-                            ),
-                            thinking,
-                            deadline,
+                            render_prompt(self.tok, messages, offered, step_thinking), step_thinking, deadline
                         )
+                        stuck = out.get("finish_reason") in ("think_budget", "repetition")
+                        if step_thinking and stuck and "</think>" not in (out.get("text") or ""):
+                            # the reasoning ran on, or looped, with no answer in sight: count it, then answer this
+                            # step directly instead of showing nothing
+                            run.usage.append({k: out.get(k) for k in ("prompt_tokens", "completion_tokens", "seconds",
+                                                                      "busy_seconds", "finish_reason") if k in out})
+                            run.think_cut, step_thinking = True, False
+                            if stream is not None and hooks.on_reset:
+                                hooks.on_reset()
+                            out, stream = self._generate(
+                                render_prompt(self.tok, messages, offered, False), False, deadline
+                            )
                 except EndpointError as e:
                     if e.kind != "timeout":
                         raise
@@ -523,7 +533,7 @@ class Agent:
                     }
                 )
                 text = out.get("text") or ""
-                if thinking and "</think>" not in text:
+                if step_thinking and "</think>" not in text:
                     text = "<think>" + text + "</think>"  # ran out of budget while reasoning: there is no answer
                 parsed = parse_output(text)
                 content, run.reasoning = guard.redact(parsed["content"]), parsed["reasoning"]

@@ -95,7 +95,39 @@ def test_agent_marks_the_run_and_keeps_one_copy(tmp_path):
 
 
 def test_agent_explains_a_loop_during_reasoning(tmp_path):
-    agent = Agent(FakeClient(["<think>Je réfléchis encore. " * 80]), Tok(), Config(workspace=tmp_path))
+    # the reasoning loops, then the direct answer loops too: the user is told, nothing is invented
+    agent = Agent(FakeClient(["<think>Je réfléchis encore. " * 80, "Je réfléchis encore. " * 80]), Tok(), Config(workspace=tmp_path))
     run = agent.run("Question ?", lang="fr", thinking=True)
-    assert run.stop_reason == "repetition"
-    assert "boucle" in run.answer
+    assert run.stop_reason == "repetition" and run.think_cut
+    assert run.answer == "Je réfléchis encore."  # one copy kept, the repeats dropped, the UI says it was cut
+
+
+def test_soft_loops_are_caught_and_data_lists_are_not():
+    from birds.harness.llm import find_soft_loop
+
+    counter = "Plan.\n" + "".join(f"Étape {i} : vérifier le dossier du client et relancer le juridique.\n" for i in range(1, 30))
+    cut = find_soft_loop(counter)
+    assert cut is not None and counter[:cut].count("vérifier le dossier") == 2
+    circling = "Intro.\n" + ("Il faut bien préparer la réunion. Une réunion préparée est une bonne réunion. " * 25)
+    assert find_soft_loop(circling) is not None
+    salaries = "".join(f"- {i} années d'expérience : {30000 + i * 3171} €\n" for i in range(1, 30))
+    csv = "\n".join(f"{i},Client {i},{i * 3.5:.2f},actif" for i in range(300))
+    table = "| Mois | Ventes |\n|---|---|\n" + "".join(f"| M{i} | {i * 10} |\n" for i in range(80))
+    code = "```python\n" + "".join(f"x{i} = compute({i})\n" for i in range(200)) + "```"
+    for text in (salaries, csv, table, code, PARA * 2):
+        assert find_soft_loop(text) is None, text[:40]
+
+
+def test_reasoning_that_never_ends_is_cut_and_the_step_answers_directly(tmp_path):
+    long_think = "<think>" + " ".join(f"Hypothèse {i} : le coût {i * 37} € change la marge de {i % 9} points." for i in range(400))
+    llm = FakeClient([long_think, "Voici la réponse."])
+    agent = Agent(llm, Tok(), Config(workspace=tmp_path, think_chars=3000))
+    run = agent.run("Question difficile ?", lang="fr", thinking=True)
+    assert run.think_cut and run.answer == "Voici la réponse." and run.stop_reason == "answer"
+    assert len(llm.prompts) == 2
+
+
+def test_a_reasoning_loop_also_falls_back_to_a_direct_answer(tmp_path):
+    llm = FakeClient(["<think>" + "Je pèse le pour et le contre, une hypothèse après l'autre. " * 400, "Voici la réponse."])
+    run = Agent(llm, Tok(), Config(workspace=tmp_path)).run("Question ?", lang="fr", thinking=True)
+    assert run.think_cut and run.answer == "Voici la réponse."
