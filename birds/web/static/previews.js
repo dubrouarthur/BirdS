@@ -87,6 +87,7 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
   const stage = h("div", {
     class: "deck-stage",
     tabindex: "0",
+    role: "group",
     "aria-roledescription": t("files.deck.slide"),
   });
   const counter = h("p", {
@@ -116,6 +117,7 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
       {
         type: "button",
         class: "deck-thumb",
+        tabindex: "-1",
         "aria-label": t("files.deck.goto", {
           n: s.n || i + 1,
           title: s.title || "",
@@ -145,14 +147,22 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
       "aria-label",
       t("files.deck.goto", { n: s.n || at + 1, title: s.title || "" }),
     );
-    counter.textContent = `${s.n || at + 1} / ${total}`;
+    // seen: "2 / 31"; heard: "Slide 2 of 31: Part 1"
+    counter.replaceChildren(
+      h("span", { "aria-hidden": "true", text: `${s.n || at + 1} / ${total}` }),
+      h("span", {
+        class: "sr-only",
+        text: t("files.deck.status", { n: s.n || at + 1, total, title: s.title || "" }),
+      }),
+    );
     prev.disabled = at === 0;
     next.disabled = at === slides.length - 1;
-    thumbs.forEach((b, j) =>
-      j === at
-        ? b.setAttribute("aria-current", "true")
-        : b.removeAttribute("aria-current"),
-    );
+    // one tab stop for the whole filmstrip (the current slide); arrows move within it
+    thumbs.forEach((b, j) => {
+      b.tabIndex = j === at ? 0 : -1;
+      if (j === at) b.setAttribute("aria-current", "true");
+      else b.removeAttribute("aria-current");
+    });
     const th = thumbs[at];
     if (th && film.scrollWidth > film.clientWidth) {
       film.scrollTo({
@@ -168,6 +178,7 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
     else if (e.key === "End") go(slides.length - 1);
     else return;
     e.preventDefault();
+    if (e.target.classList?.contains("deck-thumb")) thumbs[at].focus();
   };
   // swipe with one finger; two fingers are a pinch zoom, never a slide change
   let x0 = null;
