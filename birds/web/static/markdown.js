@@ -691,7 +691,7 @@ function paragraph(para, start, lines, i, ctx, depth) {
         RE_FENCE.test(lines[j]) ||
         isTableStart(lines, j));
     const label =
-      (start === 0 || !lines[start - 1].trim()) && opensBlock
+      (start === 0 || !lines[start - 1].trim()) && opensBlock && indentOf(para[0]) < 2
         ? pseudoHeading(texts[0])
         : null;
     if (label)
@@ -777,6 +777,24 @@ function quote(inner, ctx, depth) {
   return `<blockquote>${blockList(inner, ctx, depth + 1)
     .map((b) => b.html)
     .join("\n")}</blockquote>`;
+}
+
+const indentOf = (line) => line.match(/^\s*/)[0].replace(/\t/g, "    ").length;
+
+/** After a blank line inside a list: is the next line an indented paragraph of the last item? */
+function continuation(lines, i, items) {
+  let j = i;
+  while (j < lines.length && !lines[j].trim()) j++;
+  if (j >= lines.length) return false;
+  const next = lines[j];
+  return (
+    indentOf(next) >= 2 &&
+    indentOf(next) > items[items.length - 1].indent &&
+    !RE_ITEM.test(next) &&
+    !RE_FENCE.test(next) &&
+    !RE_QUOTE.test(next) &&
+    !isTableStart(lines, j)
+  );
 }
 
 function blockList(lines, ctx, depth) {
@@ -891,6 +909,12 @@ function blockList(lines, ctx, depth) {
               ? last.text.replace(/(?: +|\\)$/, "") + "\u0001"
               : last.text + " ") + lines[i].trim();
           i += 1;
+        } else if (ctx.rich && !lines[i].trim() && items.length && continuation(lines, i, items)) {
+          // "* x" / blank / "  suite de x": an indented paragraph belongs to the item above it
+          let j = i;
+          while (!lines[j].trim()) j++;
+          items[items.length - 1].text += `\u0001\u0001${lines[j].trim()}`;
+          i = j + 1;
         } else if (
           !lines[i].trim() &&
           i + 1 < lines.length &&
@@ -942,7 +966,7 @@ function blockList(lines, ctx, depth) {
       ctx.letter = true;
     // "Recommandation" alone on the first line of a paragraph of prose: a heading over that paragraph
     const lead =
-      ctx.rich && depth === 0 && para.length >= 2 && (start === 0 || !lines[start - 1].trim())
+      ctx.rich && depth === 0 && para.length >= 2 && indentOf(para[0]) < 2 && (start === 0 || !lines[start - 1].trim())
         ? leadHeading(para)
         : null;
     if (lead) {

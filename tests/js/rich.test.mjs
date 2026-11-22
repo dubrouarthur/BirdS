@@ -365,3 +365,14 @@ test("key numbers: dates, phone numbers and years are not figures", () => {
   assert.match(md("- CA : 412 000 €\n- Marge : 38 %\n- Clients : 14"), /md-kpis/);
   assert.match(md("- Visiteurs : 12 400\n- Inscrits : 860\n- Abonnés : 95"), /md-kpis/);
 });
+
+test("an indented paragraph under a list item stays in that item", () => {
+  const out = md("* x\n\n  suite de x\n* y");
+  assert.doesNotMatch(out, /<h4/);
+  assert.equal((out.match(/<ul/g) || []).length, 1);
+  assert.match(out, /<li>x<br><br>suite de x<\/li><li>y<\/li>/);
+  assert.match(md("- a\n\n    détail du point a\n\n- b"), /<li>a<br><br>détail du point a<\/li><li>b/);
+  assert.match(md("- a\n\n```\ncode\n```"), /<\/ul>\n<figure class="code-block/); // a fence is not a continuation
+  assert.match(md("- a\n\nSuite du texte."), /<\/ul>\n<p>Suite du texte/); // not indented: a new paragraph
+  assert.doesNotMatch(md("  Sécurité\n- a"), /<h4/); // an indented line is never a heading
+});
