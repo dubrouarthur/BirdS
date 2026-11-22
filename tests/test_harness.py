@@ -677,3 +677,38 @@ def test_plain_answer_mentioning_a_document_is_untouched(tmp_path):
     agent, llm = make(tmp_path, [answer])
     run = agent.run("Combien de jours de congés avons-nous ?")
     assert len(llm.prompts) == 1 and run.answer == answer
+def _bomb(path, size):
+    import zipfile
+
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", "<Types/>")
+        zf.writestr("xl/worksheets/sheet1.xml", b"<c><v>0</v></c>" * (size // 15))
+
+
+@pytest.mark.parametrize("size", [60_000_000, 5_000_000])  # over 50 MB unpacked / a ratio over 100
+def test_xlsx_zip_bomb_is_refused_fast(tmp_path, size):
+    import time
+
+    _bomb(tmp_path / "bomb.xlsx", size)
+    assert (tmp_path / "bomb.xlsx").stat().st_size < 1_000_000
+    t0 = time.monotonic()
+    with pytest.raises(guard.ToolError, match="trop volumineux"):
+        TOOLS["read_file"]({"path": "bomb.xlsx"}, ctx(tmp_path))
+    assert time.monotonic() - t0 < 2
+
+
+def test_office_text_stops_at_the_cap(tmp_path, monkeypatch):
+    import openpyxl
+
+    from birds.harness.tools import files
+
+    wb = openpyxl.Workbook()
+    for i in range(500):
+        wb.active.append([f"ligne {i}", i, "texte assez long pour remplir la feuille"])
+    wb.save(tmp_path / "grand.xlsx")
+    monkeypatch.setattr(files, "TEXT_CAP", 2000)
+    text = TOOLS["read_file"]({"path": "grand.xlsx"}, ctx(tmp_path))
+    assert text.endswith("lines)") and "tronqué après" in text and len(text) < 2200
+    assert "ligne 0" in text and "ligne 499" not in text
+    monkeypatch.setattr(files, "TEXT_CAP", 200_000)
+    assert "ligne 499" in TOOLS["read_file"]({"path": "grand.xlsx"}, ctx(tmp_path))
