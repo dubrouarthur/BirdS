@@ -759,9 +759,36 @@ export function meterTable(usage) {
   );
 }
 
-function renderReceipt(turn) {
+/** The latest answer shows its full receipt; earlier ones fold it into a one-line chip that expands in place. */
+function renderReceipt(turn, isLast = true) {
   const u = turn.usage;
   if (!u) return null;
+  if (isLast) return fullReceipt(turn);
+  const open = !!turn.ui.receipt;
+  const energy = hasEnergy(u) ? fmtEnergy(u.energy_wh, u.energy_kind) : `${t("meter.energy")} ${t("meter.energy.none")}`;
+  const id = `rc-${turn.id}`;
+  const chip = h(
+    "button",
+    {
+      class: "receipt-chip",
+      type: "button",
+      "aria-expanded": String(open),
+      "aria-controls": id,
+      onclick: () => {
+        turn.ui.receipt = !turn.ui.receipt;
+        updateTurn(turn);
+        document.querySelector(`[data-turn="${turn.id}"] .receipt-chip`)?.focus();
+      },
+    },
+    icon("leaf"),
+    h("span", { class: "receipt-chip-text num" }, `${fmtInt(u.prompt_tokens + u.completion_tokens)} ${t("meter.tokens")} · ${fmtSeconds(u.seconds)} · ${energy}`),
+    icon("chevron", "chev"),
+  );
+  return h("div", { class: `receipt-fold${open ? " is-open" : ""}` }, chip, open && h("div", { id }, fullReceipt(turn)));
+}
+
+function fullReceipt(turn) {
+  const u = turn.usage;
   const energy = hasEnergy(u);
   const figure = (value, label, sub, cls = "") => {
     const v = h("span", { class: "fig-value num", text: value });
@@ -1154,7 +1181,7 @@ function fillAssistant(el, turn, isLast) {
     turn.status === "stopped" &&
       h("p", { class: "stopped", text: t("turn.stopped") }),
     renderActions(turn, isLast),
-    renderReceipt(turn),
+    renderReceipt(turn, isLast),
   ];
   el.replaceChildren(...children.filter(Boolean));
   el.setAttribute("aria-busy", String(turn.status === "running"));
