@@ -196,7 +196,7 @@
   const BASE = [1.115, 585, 0, 522];
   const CAM = {
     hook:    [[0, 1.0, 585, 0, 820], [2.25, 1.0, 585, 0, 820], [2.6, 0.93, 585, 0, 830], [3.0, 0.93, 585, 0, 830]],
-    mail:    [[0, 1.6, 585, 470, 1080], [1.35, 1.62, 585, 470, 1080], [1.85, ...BASE], [2.45, ...BASE],
+    mail:    [[0, 1.6, 585, 470, 1080], [1.6, 1.62, 585, 470, 1080], [2.05, ...BASE], [2.5, ...BASE],
               [3.05, 1.5, 585, 610, 1020], [5.6, 1.55, 585, 620, 1020]],
     deck:    [[0, ...BASE], [1.0, ...BASE], [1.55, 1.5, 585, 620, 1100], [2.4, 1.53, 585, 620, 1100], [6.6, 1.4, 585, 620, 1100]],
     invoice: [[0, 1.35, 585, 1950, 1250], [0.55, 1.35, 585, 1950, 1250], [1.0, ...BASE], [1.45, ...BASE],
@@ -213,12 +213,12 @@
 
   // credo line reveal times (absolute s), synced to the voice-over word timings
   const CREDO_VO = 25.1;
-  const CREDO_T = [0, 0.7, 1.25, 1.95, 2.65, 3.8, 4.55].map((x) => CREDO_VO + x);
+  const CREDO_T = [0, 0.65, 1.15, 1.8, 2.5, 3.6, 4.35].map((x) => CREDO_VO + x);
 
   // audio cues for audio.py: voice-over clips and sound effects
   window.AUDIO = {
-    vo: [[0.1, 'hook1'], [1.3, 'hook2'], [3.45, 'mail'], [8.85, 'deck'], [15.5, 'invoice'], [20.8, 'receipt'], [CREDO_VO, 'credo']],
-    sfx: [[0.0, 'whoosh'], [0.75, 'boom'], [1.15, 'squeeze'], [2.42, 'pop'], [3.0, 'whip'],
+    vo: [[0.1, 'hook1'], [1.3, 'hook2'], [3.2, 'mail'], [8.85, 'deck'], [15.5, 'invoice'], [20.8, 'receipt'], [CREDO_VO, 'credo']],
+    sfx: [[0.0, 'whoosh'], [0.75, 'boom'], [1.15, 'squeeze'], [2.3, 'pop'], [3.0, 'whip'],
           [5.08, 'send'], [5.9, 'pop'], [8.6, 'whip'], [9.9, 'pop'], [10.9, 'swish'], [11.8, 'swish'], [12.7, 'swish'],
           [13.6, 'pop'], [15.2, 'whip'], [15.59, 'send'], [16.7, 'pop'], [16.8, 'swish'], [17.3, 'tick'],
           [20.6, 'whip'], [22.95, 'pop'], [25.0, 'whoosh'], [25.85, 'shimmer'], [31.1, 'sting']],
@@ -344,7 +344,7 @@
       h1.querySelector('.r1').style.transform = `translateY(${(1 - r1o) * -30}px)`;
       const h2 = $('h2');
       const ws = h2.querySelectorAll('.w');
-      const times = [1.28, 1.28, 1.28, 2.2, 2.2, 2.62];
+      const times = [1.28, 1.28, 1.28, 2.12, 2.12, 2.5];
       ws.forEach((w, i) => {
         if (w.id === 'hmarkw') {
           const p = prog(t, times[i], times[i] + 0.36);

@@ -23,7 +23,7 @@ const PY = process.env.AUDIO_PY || path.join(HERE, "..", "..", "..", ".venv", "b
 function soundtrackAndMux() {
   execFileSync(PY, ["-I", path.join(HERE, "audio.py"), CUES, WAV], { stdio: "inherit" });
   execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", SILENT, "-i", WAV,
-    "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
+    "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
     "-shortest", "-movflags", "+faststart", OUT], { stdio: "inherit" });
 }
 

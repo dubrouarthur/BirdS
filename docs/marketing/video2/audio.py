@@ -49,7 +49,7 @@ def vo_clip(name):
     if not os.path.exists(path):
         os.makedirs(VO_DIR, exist_ok=True)
         subprocess.run(
-            [os.environ["PIPER"], "-m", os.environ["PIPER_VOICE"], "-f", path],
+            [os.environ["PIPER"], "-m", os.environ["PIPER_VOICE"], "--noise-scale", "0.333", "-f", path],
             input=VO_TEXT[name].encode(),
             check=True,
             capture_output=True,
