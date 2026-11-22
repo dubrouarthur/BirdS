@@ -31,6 +31,24 @@ OUT_OF_TIME = {
     "en étapes plus courtes.",
     "en": "I ran out of the time allowed for one request. Try again, or split the request into shorter steps.",
 }
+NO_FILE = {
+    "fr": "Je n'ai pas produit de fichier cette fois. Redemandez-le en reprenant le contenu.",
+    "en": "I did not produce a file this time. Ask for it again, with the content.",
+}
+# The answer says a file exists ("diapositive 6, intégrée à votre présentation") while no make_* tool ran.
+_EDIT_ASK = re.compile(
+    r"\b(?:ajoute[rz]?|modifie[rz]?|met[sz]? à jour|mettre à jour|add (?:a|an|one) (?:slide|section|sheet)|update)\b",
+    re.I,
+)
+_FILE_CLAIM = re.compile(
+    r"\b(?:fichier|pr[ée]sentation|diapositive|diapo|document|tableur|file|deck|presentation|slide|spreadsheet)\b"
+    r".{0,40}\b(?:pr[êe]te?s?|int[ée]gr[ée]e?s?|mise? à jour|disponibles?|ready|updated|saved|added)\b",
+    re.I | re.S,
+)
+NO_FILE_NUDGE = (
+    "No file exists: nothing was created or updated, because no make_* tool ran. Call the make_* tool now with the "
+    "full content, or tell the user plainly that no file was produced."
+)
 LOOPED = {
     "fr": "Je me suis mis à tourner en boucle, alors je me suis arrêté pour ne pas gaspiller de calcul. Relancez, ou "
     "reformulez la demande plus précisément.",
@@ -86,6 +104,15 @@ def route(user: str, attached: bool = False) -> set[str]:
     if (attached or _FILE_ASK.search(user or "")) and not _NEEDS_WEB.search(user or ""):
         return {"web_search", "read_page"}
     return set()
+
+
+def _file_or_edit_ask(text: str) -> bool:
+    return bool(_FILE_ASK.search(text or "") or _EDIT_ASK.search(text or ""))
+
+
+def _made_file(run, ctx: Context) -> bool:
+    """A make_* tool succeeded in this run, or a draft exists (a mail ask is answered by a draft, not a file)."""
+    return bool(ctx.drafts) or any(s.tool.startswith("make_") and not s.error for s in run.steps)
 
 
 _URL_IN_TEXT = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
@@ -301,6 +328,7 @@ class Agent:
             messages, seen, queue = st["messages"], set(st["seen"]), list(st["queue"])
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
             nudged = bool(st.get("nudged", False))
+            file_nudged = bool(st.get("file_nudged", False))
             withdrawn = set(st.get("withdrawn", []))
             routed = set(st.get("routed", []))
             gen, ok, content = st["gen"], st["ok"], st.get("content", "")
@@ -318,7 +346,7 @@ class Agent:
             seen, queue = set(), []
             budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
             routed = route(user if request_text is None else request_text, attached) if cfg.route_tools else set()
-            nudged, withdrawn = False, set(routed)
+            nudged, withdrawn, file_nudged = False, set(routed), False
             gen, ok, forced = 0, 0, None
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
 
@@ -385,6 +413,26 @@ class Agent:
                             run.stop_reason = "length"  # cut by max_tokens: kept, but marked as interrupted
                     if out.get("finish_reason") == "repetition":
                         run.stop_reason = "repetition"  # the model looped: stopped early, one copy kept
+                    if run.stop_reason == "answer" and not _made_file(run, ctx):
+                        if not file_nudged and _file_or_edit_ask(ctx.request) and _FILE_CLAIM.search(content):
+                            if gen < cfg.max_steps - 1 and time.monotonic() < deadline:
+                                # it claims a file that does not exist: tell it once, and let it make the file
+                                file_nudged = True
+                                if stream is not None and stream.streamed and hooks.on_reset:
+                                    hooks.on_reset()
+                                messages.append(
+                                    {
+                                        "role": "assistant",
+                                        "content": parsed["content"],
+                                        "reasoning_content": parsed["reasoning"],
+                                    }
+                                )
+                                messages.append({"role": "tool", "content": NO_FILE_NUDGE})
+                                gen += 1
+                                continue
+                            content = NO_FILE[run.lang]
+                        elif file_nudged:
+                            content = NO_FILE[run.lang]  # reminded once, and still no file: say so, plainly
                     break
                 if gen == cfg.max_steps - 1:
                     run.stop_reason = "max_steps"  # the last allowed generation still asks for tools: they are not run
@@ -466,6 +514,7 @@ class Agent:
                     "side_effects": side_effects,
                     "bad_streak": bad_streak,
                     "nudged": nudged,
+                    "file_nudged": file_nudged,
                     "withdrawn": sorted(withdrawn),
                     "routed": sorted(routed),
                     "found": ctx.found,

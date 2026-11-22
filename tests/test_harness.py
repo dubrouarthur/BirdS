@@ -652,3 +652,27 @@ def test_withdrawn_tool_call_refused(tmp_path):
     assert "web_search" not in json.loads(llm.prompts[0])["tools"]
     assert run.steps[0].decision == "rejected" and "unknown tool" in run.steps[0].error
     assert Counting.calls == 0 and not seen
+CLAIM = "Voici la diapositive 6, intégrée à votre présentation."
+
+
+def test_false_file_claim_gets_one_reminder_then_an_honest_answer(tmp_path):
+    agent, llm = make(tmp_path, [CLAIM, "C'est fait, la présentation est mise à jour."])
+    run = agent.run("Ajoute une diapo sur les risques")
+    assert len(llm.prompts) == 2  # regenerated once after the reminder
+    assert "No file exists" in json.loads(llm.prompts[1])["messages"][-1]["content"]
+    assert "pas produit de fichier" in run.answer and run.stop_reason == "answer"
+
+
+def test_false_file_claim_then_the_file_is_made(tmp_path):
+    slides = [{"title": "Risques", "bullets": ["Retard", "Budget"]}]
+    outs = [CLAIM, call("make_slides", title="Risques", slides=slides), "La diapositive est prête."]
+    agent, llm = make(tmp_path, outs)
+    run = agent.run("Ajoute une diapo sur les risques")
+    assert len(llm.prompts) == 3 and run.files and "pas produit" not in run.answer
+
+
+def test_plain_answer_mentioning_a_document_is_untouched(tmp_path):
+    answer = "Le document RH, disponible sur l'intranet, indique 25 jours de congés."
+    agent, llm = make(tmp_path, [answer])
+    run = agent.run("Combien de jours de congés avons-nous ?")
+    assert len(llm.prompts) == 1 and run.answer == answer
