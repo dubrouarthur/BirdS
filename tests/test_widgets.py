@@ -430,6 +430,29 @@ def test_api_map_partial_and_geo_off(app_client, monkeypatch):
     assert off.get(f"/api/map?t={t}").json()["detail"]["code"] == "geo_disabled"
 
 
+def test_map_limit_ignores_a_forged_forwarded_for(app_client):
+    client, s, calls = app_client
+    t = mapimg.map_token(s.signing_secret, (48.8447, 2.3740), 15)
+    codes = [client.get(f"/api/map?t={t}&dz=1", headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code
+             for i in range(40)]  # fmt: skip
+    assert codes.count(429) == 10
+
+
+def test_tile_downloads_have_a_global_budget():
+    n = {"calls": 0}
+
+    def fetch(url, headers):
+        n["calls"] += 1
+        return 200, "image/png", tile_png(), {}
+
+    tiles = mapimg.Tiles(fetch, per_minute=3)
+    for i in range(3):
+        tiles.get(f"https://tile.example/{i}.png")
+    with pytest.raises(guard.ToolError):
+        tiles.get("https://tile.example/9.png")
+    assert n["calls"] == 3 and tiles.get("https://tile.example/0.png")[1]  # cached tiles stay free
+
+
 def test_api_icon(app_client):
     client, s, calls = app_client
     calls["icon"] = (FIX / "favicon_lemonde.ico").read_bytes()

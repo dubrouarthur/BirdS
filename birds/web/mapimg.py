@@ -96,10 +96,21 @@ def _registrable(host: str) -> str:
 class Tiles:
     """Decoded-tile cache (PNG bytes) with upstream freshness, stale-if-error and ETag revalidation."""
 
-    def __init__(self, fetch, disk: str | None = None, size: int = 256):
+    def __init__(self, fetch, disk: str | None = None, size: int = 256, per_minute: int = 120):
         self.fetch, self.disk, self.mem = fetch, disk, LRU(size)
         self.sem = threading.BoundedSemaphore(2)  # OSM policy: at most 2 concurrent downloads
         self.wall = time.time
+        # a process-wide cap on uncached tile downloads, whoever asks (the per-IP limiters can be shared by a NAT)
+        self.per_minute, self.recent, self.budget_lock = per_minute, [], threading.Lock()
+
+    def _spend(self) -> bool:
+        now = time.monotonic()
+        with self.budget_lock:
+            self.recent = [t for t in self.recent if now - t < 60]
+            if len(self.recent) >= self.per_minute:
+                return False
+            self.recent.append(now)
+            return True
 
     def _disk_path(self, key: str) -> Path | None:
         return Path(self.disk) / (hashlib.sha256(key.encode()).hexdigest() + ".tile") if self.disk else None
@@ -135,6 +146,8 @@ class Tiles:
             return hit[0], True
         headers = {"If-None-Match": hit[2]} if hit and hit[2] else None
         try:
+            if not self._spend():
+                raise guard.ToolError("tile download budget spent for this minute")
             with self.sem:
                 status, _, body, rh = self.fetch(url, headers)
         except (guard.Blocked, guard.ToolError):
@@ -200,7 +213,7 @@ def make_router(settings, harness_cfg) -> APIRouter:
 
     router = APIRouter()
     secret = settings.signing_secret
-    from .server import RateLimiter  # noqa: PLC0415 - avoids an import cycle at module load
+    from .server import RateLimiter, peer_ip  # noqa: PLC0415 - avoids an import cycle at module load
 
     map_limit, icon_limit = RateLimiter(getattr(settings, "map_rate_limit", 30)), RateLimiter(120)
     client = httpx.Client(trust_env=not settings.pin_dns, follow_redirects=False, timeout=10.0)
@@ -214,7 +227,11 @@ def make_router(settings, harness_cfg) -> APIRouter:
             headers=headers, max_redirects=2, redirect_ok=redirect_ok,
         )  # fmt: skip
 
-    tiles = Tiles(lambda url, headers: upstream(url, headers), getattr(settings, "tile_cache_dir", None))
+    tiles = Tiles(
+        lambda url, headers: upstream(url, headers),
+        getattr(settings, "tile_cache_dir", None),
+        per_minute=getattr(settings, "tile_fetch_per_min", 120),
+    )
     router.tiles = tiles  # tests
 
     def err(status: int, code: str, message: str):
@@ -227,10 +244,7 @@ def make_router(settings, harness_cfg) -> APIRouter:
         host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
         if origin and origin.split("://", 1)[-1].rstrip("/").lower() != host.lower():
             raise err(403, "cross_origin", "cross-origin requests are not accepted")
-        ip = (request.headers.get("x-forwarded-for", "").split(",")[0].strip()) or (
-            request.client.host if request.client else "?"
-        )
-        if not limiter.allow(ip):
+        if not limiter.allow(peer_ip(request, getattr(settings, "trusted_proxies", 0))):
             raise err(429, "rate_limited", "too many requests, wait a minute")
 
     def image(body: bytes, ctype: str, extra: dict | None = None) -> Response:

@@ -278,6 +278,17 @@ def tools_info(s: Settings, backend) -> dict:
     return {"tools": out, "search": search}
 
 
+def peer_ip(request, trusted_proxies: int = 0) -> str:
+    """The client address for the rate limiters. X-Forwarded-For is written by the client and is only read when the
+    operator says how many proxies of their own sit in front (``BIRD_TRUSTED_PROXIES``, 1 on Vercel): each proxy
+    appends the address it saw, so the client is the N-th entry from the right, never the first one."""
+    peer = request.client.host if request.client else "?"
+    if trusted_proxies <= 0:
+        return peer
+    hops = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",") if h.strip()]
+    return hops[-min(trusted_proxies, len(hops))] if hops else peer
+
+
 def create_app(
     settings: Settings | None = None, *, server_backend: Backend | None = None, demo: Backend | None = None
 ) -> FastAPI:
@@ -312,8 +323,7 @@ def create_app(
     # ------------------------------------------------------------------ request guards
 
     def client_ip(request: Request) -> str:
-        forwarded = request.headers.get("x-forwarded-for", "")
-        return forwarded.split(",")[0].strip() or (request.client.host if request.client else "?")
+        return peer_ip(request, settings.trusted_proxies)
 
     def guard_request(request: Request) -> None:
         """Same-origin only (no CORS headers are ever sent), then the best-effort rate limit."""

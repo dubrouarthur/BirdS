@@ -117,6 +117,8 @@ class Settings:
     tile_cache_dir: str | None = None
     geo_cache_dir: str | None = None
     map_rate_limit: int = 30
+    tile_fetch_per_min: int = 120  # uncached tile downloads per minute for the whole process
+    trusted_proxies: int = 0  # proxies of the operator in front (X-Forwarded-For is ignored when 0)
 
     @property
     def server_configured(self) -> bool:
@@ -224,4 +226,13 @@ class Settings:
             tile_layer="ign" if (get("BIRD_TILE_LAYER") or "").lower() == "ign" else "osm",
             tile_cache_dir=get("BIRD_TILE_CACHE_DIR"),
             geo_cache_dir=get("BIRD_GEO_CACHE_DIR"),
+            trusted_proxies=_proxies(get("BIRD_TRUSTED_PROXIES"), bool(get("VERCEL"))),
         )
+
+
+def _proxies(value: str | None, vercel: bool) -> int:
+    """BIRD_TRUSTED_PROXIES (0-5); on Vercel the edge rewrites X-Forwarded-For, so one hop is trusted by default."""
+    try:
+        return max(0, min(5, int(value))) if value is not None else (1 if vercel else 0)
+    except ValueError:
+        return 1 if vercel else 0

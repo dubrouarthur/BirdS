@@ -478,15 +478,21 @@ def test_rate_limit_is_per_client_and_best_effort():
     limiter = RateLimiter(2)
     assert [limiter.allow("a", now=t) for t in (0, 1, 2)] == [True, True, False]
     assert limiter.allow("b", now=2) and limiter.allow("a", now=62)
-    app = create_app(settings(rate_limit=2))
+    app = create_app(settings(rate_limit=2, trusted_proxies=1))  # one proxy of ours appends the client address
     with TestClient(app) as client:
         body = {"messages": [{"role": "user", "content": "Bonjour"}]}
         codes = [
-            client.post("/api/chat", json=body, headers={"X-Forwarded-For": "203.0.113.9"}).status_code
-            for _ in range(3)
+            client.post("/api/chat", json=body, headers={"X-Forwarded-For": f"10.0.0.{i}, 203.0.113.9"}).status_code
+            for i in range(3)
+        ]
+        assert codes == [200, 200, 429]  # the forged left-most entries change nothing
+        assert client.post("/api/chat", json=body, headers={"X-Forwarded-For": "203.0.113.10"}).status_code == 200
+    with TestClient(create_app(settings(rate_limit=2))) as client:  # no trusted proxy: the header is ignored
+        codes = [
+            client.post("/api/chat", json=body, headers={"X-Forwarded-For": f"10.0.0.{i}"}).status_code
+            for i in range(3)
         ]
         assert codes == [200, 200, 429]
-        assert client.post("/api/chat", json=body, headers={"X-Forwarded-For": "203.0.113.10"}).status_code == 200
 
 
 def test_cross_origin_requests_are_refused_and_no_cors_header_is_sent(client):
