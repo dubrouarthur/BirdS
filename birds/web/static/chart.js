@@ -772,6 +772,26 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
     tip.textContent = "";
     active = -1;
   };
+  let dismissing = false;
+  const dismissOnOutsideTap = () => {
+    if (dismissing) return;
+    dismissing = true;
+    const off = () => {
+      dismissing = false;
+      document.removeEventListener("pointerdown", outside, true);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+    const outside = (e) => {
+      if (!plot.contains(e.target)) (hide(), off());
+    };
+    const top = plot.getBoundingClientRect().top;
+    const onScroll = () => {
+      // a real scroll by the reader, not the small jump a tap's focus can cause
+      if (Math.abs(plot.getBoundingClientRect().top - top) > 24) hide(), off();
+    };
+    document.addEventListener("pointerdown", outside, true);
+    window.addEventListener("scroll", onScroll, { capture: true, passive: true });
+  };
   const draw = (width) => {
     W = Math.round(Math.max(MIN_W, Math.min(MAX_W, width)));
     drawnW = W;
@@ -803,10 +823,20 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
           height: hit.h,
         });
       if (!hit.path) drawn.g.append(target);
-      target.addEventListener("pointerenter", () => show(i));
-      target.addEventListener("pointerdown", () => show(i));
+      target.addEventListener("pointerenter", (e) => {
+        if (e.pointerType !== "touch") show(i);
+      });
+      target.addEventListener("pointerdown", (e) => {
+        if (e.pointerType !== "touch") return show(i);
+        // touch: a tap shows the value and keeps it (pointerleave follows every lift); a second tap hides it
+        if (active === i) return hide();
+        show(i);
+        dismissOnOutsideTap();
+      });
     });
-    next.addEventListener("pointerleave", hide);
+    next.addEventListener("pointerleave", (e) => {
+      if (e.pointerType !== "touch") hide();
+    });
     if (svg) svg.replaceWith(next);
     else plot.prepend(next);
     svg = next;
