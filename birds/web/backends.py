@@ -966,7 +966,10 @@ class HarnessBackend:
             for doc in request.attachments:
                 attach_dir.mkdir(parents=True, exist_ok=True)
                 name = sanitize_filename(doc["name"])
-                (attach_dir / name).write_text(doc["content"], encoding="utf-8")
+                if doc.get("encoding") == "base64":
+                    (attach_dir / name).write_bytes(base64.b64decode(doc["content"]))
+                else:
+                    (attach_dir / name).write_text(doc["content"], encoding="utf-8")
                 names.append(name if ephemeral else f"{ATTACH_DIR}/{name}")
             cfg = self._config(workspace, request, ctx)
             offset = len(request.images) if request.resume is None else 0

@@ -193,7 +193,15 @@ def test_string_arguments_are_coerced(tmp_path):
 def test_loop_detection(tmp_path):
     agent, llm = make(tmp_path, [call("web_search", query="x")] * 5)
     run = agent.run("Search x")
-    assert run.stop_reason == "loop" and len(run.steps) == 1 and len(run.usage) == 2
+    assert run.stop_reason == "loop" and len(run.steps) == 1 and len(run.usage) == 3  # one reminder, then stop
+    assert "already called" in json.loads(llm.prompts[2])["messages"][-1]["content"]
+
+
+def test_repeated_call_gets_one_reminder_then_the_run_goes_on(tmp_path):
+    outs = [call("web_search", query="x"), call("web_search", query="x"), call("make_sheet", title="T", columns=["a"], rows=[[1]]), "Voilà."]
+    agent, _ = make(tmp_path, outs)
+    run = agent.run("Cherche x puis fais un tableau")
+    assert run.stop_reason == "answer" and [s.tool for s in run.steps] == ["web_search", "make_sheet"] and run.files
 
 
 def test_step_limit_and_calls_per_step(tmp_path):

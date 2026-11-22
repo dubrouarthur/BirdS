@@ -241,6 +241,7 @@ class Agent:
             )
             messages, seen, queue = st["messages"], set(st["seen"]), list(st["queue"])
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
+            nudged = bool(st.get("nudged", False))
             gen, ok, content = st["gen"], st["ok"], st.get("content", "")
             forced = "confirmed" if decision is True else "denied_unconfirmed"
         else:
@@ -252,6 +253,7 @@ class Agent:
             messages.append({"role": "user", "content": guard.defang(user)})
             seen, queue = set(), []
             budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
+            nudged = False
             gen, ok, forced = 0, 0, None
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
 
@@ -314,8 +316,30 @@ class Agent:
                     for c in calls
                 ]
                 if any(k in seen for k in keys) or len(set(keys)) < len(keys):
-                    run.stop_reason = "loop"  # the same call with the same arguments again
-                    break
+                    if nudged:
+                        run.stop_reason = "loop"  # the same call with the same arguments again, after a reminder
+                        break
+                    # A small model sometimes repeats a call it already made. Tell it once, then go on.
+                    nudged = True
+                    messages.append(
+                        {
+                            "role": "assistant",
+                            "content": parsed["content"],
+                            "reasoning_content": parsed["reasoning"],
+                            "tool_calls": [{"type": "function", "function": dict(c)} for c in calls],
+                        }
+                    )
+                    for c in calls:
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "content": f"Error: {c['name']} was already called with these exact arguments and its "
+                                "result is above. Do not repeat it: use that result now, either to answer the user or "
+                                "to call the next tool the request needs.",
+                            }
+                        )
+                    gen += 1
+                    continue
                 seen.update(keys)
                 messages.append(
                     {
@@ -359,6 +383,7 @@ class Agent:
                     "budget": budget,
                     "side_effects": side_effects,
                     "bad_streak": bad_streak,
+                    "nudged": nudged,
                     "gen": gen,
                     "ok": ok,
                     "content": content,

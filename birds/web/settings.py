@@ -81,6 +81,7 @@ class Settings:
     max_request_chars: int = 400_000
     max_attachments: int = 4
     max_attachment_chars: int = 60_000
+    max_binary_chars: int = 3_400_000  # base64 of PDF/Office files + images per request (Vercel caps bodies at 4.5 MB)
     max_steps: int = 6
     max_calls_per_step: int = 3
     history_tokens: int = 6000  # estimated tokens of earlier turns sent with each request (history.window)

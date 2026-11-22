@@ -125,13 +125,24 @@
                 <button id="editing-cancel" class="link" type="button" data-i18n="composer.editing.cancel">Annuler</button>
               </p>
               <div id="attachments" class="attachments" hidden></div>
+              <div class="drop-hint" aria-hidden="true"><svg class="icon" viewBox="0 0 20 20" focusable="false"><path d="M10 3.500v9M6 9l4 4 4-4M4 16.500h12" /></svg><span data-i18n="att.drop">Déposez ici : images (PNG, JPEG, WebP), PDF, Word, Excel, PowerPoint, texte</span></div>
               <label class="sr-only" for="composer-input" data-i18n="composer.label">Votre message</label>
               <textarea id="composer-input" rows="1" maxlength="24000" enterkeyhint="send" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="slash-list" data-i18n-placeholder="composer.placeholder" placeholder="Écrivez à Bird…" aria-describedby="send-why composer-count"></textarea>
               <div class="composer-row">
                 <button id="btn-attach" class="btn btn-quiet btn-icon" type="button" data-i18n-aria="composer.attach">
                   <svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M14.5 9.5l-5 5a3 3 0 0 1-4.2-4.2l6-6a2 2 0 0 1 2.8 2.8l-5.800 5.800a1 1 0 0 1-1.400-1.400l5-5" /></svg>
                 </button>
-                <input id="file-input" class="sr-only" type="file" tabindex="-1" aria-hidden="true" multiple accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,.rst,.yaml,.yml,text/*" />
+                <input id="file-input" class="sr-only" type="file" tabindex="-1" aria-hidden="true" multiple accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,.rst,.yaml,.yml,.pdf,.docx,.xlsx,.pptx,text/*,image/png,image/jpeg,image/webp,image/heic,image/heif" />
+                <button id="btn-photo" class="btn btn-quiet btn-icon btn-photo" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="photo-menu" data-i18n-aria="att.photo">
+                  <svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 7.2c0-.9.7-1.6 1.6-1.6h2l1.2-1.800h4.400l1.200 1.800h2c.900 0 1.600.700 1.600 1.600v7.200c0 .900-.700 1.600-1.600 1.600H4.600c-.900 0-1.600-.700-1.600-1.600z" /><circle cx="10" cy="10.600" r="3" /></svg>
+                </button>
+                <div id="photo-menu" class="photo-menu" role="menu" hidden>
+                  <button id="photo-take" class="photo-opt" type="button" role="menuitem"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3 7.2c0-.9.7-1.6 1.6-1.6h2l1.2-1.800h4.400l1.200 1.800h2c.900 0 1.600.700 1.600 1.600v7.200c0 .900-.700 1.600-1.600 1.600H4.600c-.900 0-1.600-.700-1.600-1.600z" /><circle cx="10" cy="10.600" r="3" /></svg><span data-i18n="att.photo.take">Prendre une photo</span></button>
+                  <button id="photo-pick" class="photo-opt" type="button" role="menuitem"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><rect x="3" y="4" width="14" height="12" rx="1.600" /><circle cx="7.500" cy="8.300" r="1.400" /><path d="M3.500 14.500l4-4 3 3 2.500-2.500 3.500 3.500" /></svg><span data-i18n="att.photo.pick">Choisir une image</span></button>
+                  <p class="photo-note" data-i18n="att.photo.note">L'image est réduite ici, puis envoyée au modèle pour ce message seulement.</p>
+                </div>
+                <input id="photo-camera" class="sr-only" type="file" tabindex="-1" aria-hidden="true" accept="image/*" capture="environment" />
+                <input id="photo-library" class="sr-only" type="file" tabindex="-1" aria-hidden="true" multiple accept="image/png,image/jpeg,image/webp,image/heic,image/heif" />
                 <button id="btn-thinking" class="switch" type="button" role="switch" aria-checked="false" aria-describedby="thinking-hint">
                   <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
                   <span class="switch-label" data-i18n="composer.thinking">Réflexion</span>
@@ -178,6 +189,16 @@
         </div>
         <div id="shortcuts-body"></div>
       </div>
+    </dialog>
+
+    <dialog id="lightbox" class="lightbox" aria-labelledby="lightbox-cap">
+      <figure class="lightbox-fig">
+        <img id="lightbox-img" alt="" />
+        <figcaption id="lightbox-cap"></figcaption>
+      </figure>
+      <button id="lightbox-prev" class="btn btn-quiet btn-icon lightbox-nav lb-prev" type="button" data-i18n-aria="att.prev"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M12.500 5l-5 5 5 5" /></svg></button>
+      <button id="lightbox-next" class="btn btn-quiet btn-icon lightbox-nav lb-next" type="button" data-i18n-aria="att.next"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M7.500 5l5 5-5 5" /></svg></button>
+      <button id="lightbox-close" class="btn btn-quiet btn-icon lightbox-close" type="button" data-i18n-aria="close"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5.500 5.500l9 9M14.500 5.500l-9 9" /></svg></button>
     </dialog>
 
     <div id="toasts" class="toasts"></div>

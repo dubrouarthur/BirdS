@@ -29,7 +29,7 @@ from .settings import Settings
 STATIC_DIR = Path(__file__).parent / "static"
 
 CSP = (
-    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; "
+    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; "
     "manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 )
 SECURITY_HEADERS = {
@@ -58,6 +58,10 @@ class ImageIn(BaseModel):
 class Attachment(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     content: str
+    encoding: Literal["text", "base64"] = "text"  # base64: an office file or PDF, read by read_file on the server
+
+
+BINARY_ATTACHMENTS = (".pdf", ".docx", ".xlsx", ".pptx")
 
 
 class ChatBody(BaseModel):
@@ -367,6 +371,7 @@ def create_app(
                 "max_message_chars": s.max_message_chars,
                 "max_attachments": s.max_attachments,
                 "max_attachment_chars": s.max_attachment_chars,
+                "max_binary_chars": s.max_binary_chars,
                 "max_seconds": s.max_seconds,
                 "rate_per_minute": s.rate_limit,
             },
@@ -468,11 +473,20 @@ def create_app(
             raise ApiError(413, "message_too_long", f"a message is longer than {s.max_message_chars} characters")
         if len(body.attachments) > s.max_attachments:
             raise ApiError(413, "too_many_attachments", f"at most {s.max_attachments} attached documents")
-        if any(len(a.content) > s.max_attachment_chars for a in body.attachments):
+        texts = [a for a in body.attachments if a.encoding == "text"]
+        binaries = [a for a in body.attachments if a.encoding == "base64"]
+        if any(len(a.content) > s.max_attachment_chars for a in texts):
             raise ApiError(
                 413, "attachment_too_long", f"an attached document is longer than {s.max_attachment_chars} characters"
             )
-        total = sum(len(m.content) for m in body.messages) + sum(len(a.content) for a in body.attachments)
+        for a in binaries:
+            if not a.name.lower().endswith(BINARY_ATTACHMENTS):
+                raise ApiError(415, "attachment_type", "only PDF, DOCX, XLSX and PPTX files are sent as binary")
+            if not re.fullmatch(r"[A-Za-z0-9+/=]*", a.content):
+                raise ApiError(422, "attachment_invalid", "an attached file is not valid base64")
+        if sum(len(a.content) for a in binaries) + sum(len(i.url) for i in body.images) > s.max_binary_chars:
+            raise ApiError(413, "attachment_too_long", "the attached files and images are too large together")
+        total = sum(len(m.content) for m in body.messages) + sum(len(a.content) for a in texts)
         if total > s.max_request_chars:
             raise ApiError(413, "request_too_large", "the conversation is too long: start a new one")
         if body.approved and body.denied:
@@ -480,7 +494,9 @@ def create_app(
 
         images = [{"name": sanitize_filename(i.name), "url": check_image(i.url)} for i in body.images]
         messages = [m.model_dump(exclude_none=True) for m in body.messages]
-        attachments = [{"name": sanitize_filename(a.name), "content": a.content} for a in body.attachments]
+        attachments = [
+            {"name": sanitize_filename(a.name), "content": a.content, "encoding": a.encoding} for a in body.attachments
+        ]
         backend, binding = backend_for(mode, request)
         conv = tokens.digest(
             {

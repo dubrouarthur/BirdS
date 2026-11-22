@@ -29,6 +29,19 @@ import {
   updateTurn,
 } from "./turns.js";
 import {
+  addImage,
+  bindLightbox,
+  busyImages,
+  docCard,
+  imageCard,
+  isImageFile,
+  openLightbox,
+  pending,
+  readDocument,
+  readyImages,
+  removeImage,
+} from "./attach.js";
+import {
   convUsages,
   ledgerAdd,
   openShortcuts,
@@ -42,7 +55,6 @@ import {
 
 const PASTE_AS_FILE = 3000; // characters: longer pasted text becomes an attached document
 const KEEP_FILE_B64 = 400_000; // larger generated files are not kept in localStorage
-const TEXT_EXT = /\.(txt|md|markdown|csv|tsv|json|log|rst|yaml|yml)$/i;
 
 // ------------------------------------------------------------------ conversations (localStorage)
 
@@ -58,10 +70,20 @@ const newConv = () => ({
 function slim(conv) {
   return {
     ...conv,
+    // office files and PDFs are kept in memory only (too large for localStorage): after a reload they are listed
+    // but must be attached again to be read
+    attachments: (conv.attachments || []).map((a) =>
+      a.encoding === "base64" ? { ...a, content: null, lost: true } : a,
+    ),
     turns: conv.turns
       .filter((turn) => turn.role === "user" || turn.status !== "running")
       .map((turn) => {
-        if (turn.role === "user") return turn;
+        if (turn.role === "user")
+          return {
+            ...turn,
+            // images are never stored: only their name and size survive a reload
+            images: (turn.images || []).map(({ name, w, h: hh, sent }) => ({ name, w, h: hh, sent })),
+          };
         const { ui, live, text, ...rest } = turn;
         return {
           ...rest,
@@ -87,6 +109,11 @@ function saveConv() {
       created: conv.created,
       updated: conv.updated,
       n: conv.turns.length,
+      att: conv.turns.some((x) => (x.attachments || []).length)
+        ? "doc"
+        : conv.turns.some((x) => (x.images || []).length)
+          ? "image"
+          : "",
     };
     state.convs = [entry, ...state.convs.filter((c) => c.id !== conv.id)];
     let saved = store.set(`bird.conv.${conv.id}`, JSON.stringify(slim(conv)));
@@ -113,7 +140,10 @@ function loadConv(id) {
         ? {
             role: "user",
             content: String(x.content ?? ""),
-            attachments: x.attachments || [],
+            attachments: (x.attachments || []).map((a) =>
+              typeof a === "string" ? { name: a } : a,
+            ),
+            images: Array.isArray(x.images) ? x.images : [],
           }
         : { steps: [], files: [], ...x, ui: {} },
     );
@@ -227,6 +257,13 @@ function renderSidebar() {
           onclick: () => openConv(c.id),
         },
         h("span", { class: "conv-title", text: title }),
+        c.att &&
+          h(
+            "span",
+            { class: "conv-att", title: t(c.att === "image" ? "att.has.image" : "att.has.doc") },
+            icon(c.att === "image" ? "image" : "clip"),
+            h("span", { class: "sr-only", text: t(c.att === "image" ? "att.has.image" : "att.has.doc") }),
+          ),
       ),
       h(
         "button",
@@ -511,19 +548,29 @@ function updateComposer() {
   const el = input();
   const text = el.value;
   const send = $("btn-send");
-  const pending = pendingConfirm();
+  const awaiting = pendingConfirm();
+  const images = readyImages().length;
   const reason = !state.online
     ? "composer.send.offline"
     : state.busy
       ? "composer.send.busy"
-      : pending
+      : awaiting
         ? "composer.send.pending"
-        : !text.trim()
-          ? "composer.send.empty"
-          : "";
+        : busyImages()
+          ? "att.reading"
+          : !text.trim() && !images
+            ? "composer.send.empty"
+            : "";
+  const nAtt = images + (state.conv?.attachments || []).filter((a) => !a.sent && !a.lost).length;
   send.disabled = !!reason;
   send.hidden = state.busy;
-  send.title = t(reason || "composer.send");
+  const label = nAtt ? t(nAtt === 1 ? "att.send.one" : "att.send.many", { n: nAtt }) : t("composer.send");
+  send.title = reason ? t(reason) : label;
+  send.setAttribute("aria-label", label);
+  for (const id of ["btn-attach", "btn-photo"]) {
+    const b = $(id);
+    if (b) b.dataset.count = nAtt ? String(nAtt) : "";
+  }
   $("send-why").textContent = reason ? t(reason) : "";
   $("btn-stop").hidden = !state.busy;
   const count = $("composer-count");
@@ -538,51 +585,69 @@ function updateComposer() {
 }
 
 function renderAttachments() {
-  const list = state.conv?.attachments || [];
+  const docs = state.conv?.attachments || [];
+  const imgs = pending.images;
   const box = $("attachments");
-  box.hidden = !list.length;
+  box.hidden = !docs.length && !imgs.length;
+  if (box.hidden) return box.replaceChildren();
+  const rerender = () => (renderAttachments(), updateComposer());
+  const removeDoc = (i) => () => {
+    announce(t("att.removed", { name: docs[i].name }));
+    docs.splice(i, 1);
+    rerender();
+    renderEmpty();
+    saveIfStarted();
+  };
   box.replaceChildren(
     h(
       "ul",
-      { class: "att-list" },
-      list.map((a, i) =>
+      { class: "att-tray", "aria-label": t("att.tray") },
+      imgs.map((img) =>
         h(
           "li",
-          { class: "att" },
-          icon("file"),
-          h("span", { class: "att-name", text: a.name }),
-          h("span", { class: "att-size num", text: fmtInt(a.content.length) }),
-          h(
-            "button",
+          { class: "att-in" },
+          imageCard(img, {
+            onRemove: () => removeImage(img.id, rerender),
+            onOpen: () => openLightbox(readyImages(), readyImages().indexOf(img)),
+          }),
+        ),
+      ),
+      docs.map((doc, i) =>
+        h(
+          "li",
+          { class: "att-in" },
+          docCard(
+            { ...doc, size: doc.size || (doc.content ? doc.content.length : 0) },
             {
-              class: "att-remove",
-              type: "button",
-              "aria-label": t("composer.attach.remove", { name: a.name }),
-              onclick: () => (
-                state.conv.attachments.splice(i, 1),
-                renderAttachments(),
-                renderEmpty(),
-                saveIfStarted()
-              ),
+              onRemove: removeDoc(i),
+              status: doc.lost
+                ? { kind: "err", text: t("att.doc.lost") }
+                : doc.sent
+                  ? { kind: "ok", text: t("att.doc.inconv") }
+                  : { kind: "ok", text: t("att.ready") },
             },
-            icon("cross"),
           ),
         ),
       ),
     ),
-    h("p", { class: "att-note" }, icon("info"), t("composer.attach.note")),
+    h(
+      "p",
+      { class: "att-note" },
+      icon("info"),
+      t(imgs.length ? "att.note.images" : "composer.attach.note"),
+    ),
   );
 }
 const saveIfStarted = () => state.conv.turns.length && saveConv();
 
-function addAttachment(name, content) {
+function addAttachment(name, content, encoding = "text", size = 0) {
   const limits = state.health?.limits || {};
   const maxChars = limits.max_attachment_chars || 60_000;
   const maxCount = limits.max_attachments || 4;
   const list = state.conv.attachments;
   if (list.length >= maxCount)
     return toast(t("composer.attach.toomany", { max: maxCount }), "error");
-  if (content.length > maxChars)
+  if (encoding === "text" && content.length > maxChars)
     return toast(
       t("composer.attach.toolarge", {
         name,
@@ -603,26 +668,27 @@ function addAttachment(name, content) {
   const ext = safe.slice(stem.length);
   for (let n = 2; list.some((a) => a.name === safe); n++)
     safe = `${stem}-${n}${ext}`;
-  list.push({ name: safe, content });
+  list.push({ name: safe, content, encoding, size: size || content.length });
+  announce(t("att.added", { name: safe }));
   renderAttachments();
+  updateComposer();
   renderEmpty();
   saveIfStarted();
   return true;
 }
 
 async function onFiles(files) {
+  const imageMode = state.health?.images && activeMode() !== "demo";
   for (const file of files) {
-    if (
-      !(
-        TEXT_EXT.test(file.name) ||
-        /^text\//.test(file.type) ||
-        file.type === "application/json"
-      )
-    ) {
-      toast(t("composer.attach.type", { name: file.name }), "error");
+    if (isImageFile(file)) {
+      if (!imageMode) {
+        toast(t("att.img.unsupported"), "error");
+        continue;
+      }
+      addImage(file, () => (renderAttachments(), updateComposer()));
       continue;
     }
-    if (file.size > 2_000_000) {
+    if (file.size > 2_000_000 && !/\.(pdf|docx|xlsx|pptx)$/i.test(file.name)) {
       toast(
         t("composer.attach.toolarge", {
           name: file.name,
@@ -633,7 +699,12 @@ async function onFiles(files) {
       );
       continue;
     }
-    addAttachment(file.name, await file.text());
+    const doc = await readDocument(file);
+    if (doc.error) {
+      toast(t(doc.error, { name: doc.name }), "error");
+      continue;
+    }
+    addAttachment(doc.name, doc.content, doc.encoding, doc.size);
   }
   input().focus();
 }
@@ -731,12 +802,22 @@ function newAssistantTurn() {
 
 function apiMessages() {
   const messages = [];
-  for (const turn of state.conv.turns) {
-    if (turn.role === "user")
-      messages.push({ role: "user", content: turn.content });
-    else if (turn.answer?.content)
-      messages.push({ role: "assistant", content: turn.answer.content });
-  }
+  const turns = state.conv.turns;
+  const lastUser = turns.map((x) => x.role).lastIndexOf("user");
+  turns.forEach((turn, i) => {
+    if (turn.role === "user") {
+      // past images are never sent again: only a mention (what Bird read in them is in its memo)
+      const notes =
+        i === lastUser
+          ? []
+          : (turn.images || []).map((img) => `[${t("att.img.note")} : ${img.name}]`);
+      messages.push({ role: "user", content: [turn.content, ...notes].join("\n") });
+    } else if (turn.answer?.content) {
+      const m = { role: "assistant", content: turn.answer.content };
+      if (turn.answer.memo) m.memo = turn.answer.memo;
+      messages.push(m);
+    }
+  });
   // The API expects the conversation to end with the user's message.
   while (messages.length && messages[messages.length - 1].role !== "user")
     messages.pop();
@@ -846,6 +927,8 @@ function handleEvent(turn, event) {
         sources: event.sources || [],
         draft_email: event.draft_email || null,
         stop_reason: event.stop_reason || "answer",
+        memo: String(event.memo || ""),
+        images: event.images || [],
       };
       turn.files.push(...(event.files || []));
       turn.text = "";
@@ -882,7 +965,9 @@ async function runTurn(turn, extra = {}) {
       messages: apiMessages(),
       thinking: !!turn.thinking,
       lang: state.prefs.lang,
-      attachments: state.conv.attachments,
+      attachments: state.conv.attachments
+        .filter((a) => a.content && !a.lost)
+        .map(({ name, content, encoding }) => ({ name, content, encoding: encoding || "text" })),
       ...extra,
     };
     const response = await fetch("/api/chat", {
@@ -984,8 +1069,10 @@ async function runTurn(turn, extra = {}) {
 }
 
 function send(text) {
-  const content = String(text ?? "").trim();
-  if (!content || state.busy || pendingConfirm() || !state.online) return;
+  const images = readyImages();
+  let content = String(text ?? "").trim();
+  if (!content && images.length) content = t("att.img.default");
+  if (!content || state.busy || pendingConfirm() || !state.online || busyImages()) return;
   const conv = state.conv;
   if (state.editing) {
     while (
@@ -998,19 +1085,34 @@ function send(text) {
   }
   if (!conv.turns.length) conv.title = autoTitle(content);
   const turn = newAssistantTurn();
+  const newDocs = conv.attachments.filter((a) => !a.sent && !a.lost);
   conv.turns.push(
-    { role: "user", content, attachments: conv.attachments.map((a) => a.name) },
+    {
+      role: "user",
+      content,
+      attachments: newDocs.map(({ name, size, encoding, content: c }) => ({
+        name,
+        size: size || (c ? c.length : 0),
+        encoding: encoding || "text",
+      })),
+      images: images.map(({ name, w, h: hh, sent, thumb }) => ({ name, w, h: hh, sent, thumb })),
+    },
     turn,
   );
+  for (const a of newDocs) a.sent = true;
+  const payload = images.map(({ name, url }) => ({ name, url }));
+  lastImages = payload; // kept in memory only, so "regenerate" can send them again
+  pending.images = [];
   input().value = "";
   autosize();
   renderChat();
   scrollToEnd(true);
   announce(t("live.sent"));
   input().focus();
-  runTurn(turn);
+  runTurn(turn, payload.length ? { images: payload } : {});
 }
 
+let lastImages = [];
 function regenerate() {
   if (state.busy) return;
   const turns = state.conv.turns;
@@ -1019,7 +1121,61 @@ function regenerate() {
   turns[turns.length - 1] = turn;
   renderChat();
   scrollToEnd(true);
-  runTurn(turn);
+  const user = turns[turns.length - 2];
+  const again = (user?.images || []).length && lastImages.length ? { images: lastImages } : {};
+  runTurn(turn, again);
+}
+
+// ------------------------------------------------------------------ helpers that need no model
+
+/** Run a file step again on the server (same validation and generator, no model call). */
+async function retryStep(turn, step) {
+  try {
+    const response = await fetch("/api/tool", {
+      method: "POST",
+      headers: requestHeaders(),
+      body: JSON.stringify({ tool: step.tool, arguments: step.arguments || {}, lang: state.prefs.lang }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(httpMessage(response.status, data?.detail));
+    if (!data.ok) return toast(t("retry.failed", { error: String(data.error || "").slice(0, 220) }), "error");
+    turn.files.push(...(data.files || []));
+    step.status = "done";
+    step.summary = t("retry.done");
+    updateTurn(turn);
+    saveConv();
+    toast(t("retry.done"), "ok");
+  } catch (error) {
+    toast(String(error?.message || error), "error");
+  }
+}
+
+/** Any answer as a Word document (made on the server from its Markdown) or as a Markdown file (here). */
+async function exportAnswer(turn, format) {
+  const content = String(turn.answer?.content || "");
+  const userTurn = state.conv.turns[state.conv.turns.indexOf(turn) - 1];
+  const title = (state.conv.title || userTurn?.content || "Bird").slice(0, 80);
+  const base =
+    title
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^A-Za-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 50) || "bird";
+  if (format === "md") return download(`${base}.md`, "text/markdown", new Blob([content], { type: "text/markdown" }));
+  try {
+    const response = await fetch("/api/export", {
+      method: "POST",
+      headers: requestHeaders(),
+      body: JSON.stringify({ format: "docx", title, content }),
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    download(`${base}.docx`, mime, new Blob([await response.arrayBuffer()], { type: mime }));
+    toast(t("export.done"), "ok");
+  } catch (error) {
+    toast(t("export.failed", { error: String(error?.message || error) }), "error");
+  }
 }
 
 function editLast() {
@@ -1087,6 +1243,12 @@ function bind() {
     }
   });
   el.addEventListener("paste", (e) => {
+    const files = [...(e.clipboardData?.files || [])].filter(isImageFile);
+    if (files.length) {
+      e.preventDefault(); // a pasted screenshot becomes an image attachment
+      onFiles(files);
+      return;
+    }
     const text = e.clipboardData?.getData("text/plain") || "";
     if (text.length < PASTE_AS_FILE) return;
     e.preventDefault(); // a long paste becomes a document chip instead of flooding the message
@@ -1098,10 +1260,51 @@ function bind() {
       toast(t("composer.attach.pasted"), "ok");
   });
   $("btn-attach").addEventListener("click", () => $("file-input").click());
-  $("file-input").addEventListener("change", (e) => {
-    onFiles([...e.target.files]);
-    e.target.value = "";
+  for (const id of ["file-input", "photo-camera", "photo-library"])
+    $(id).addEventListener("change", (e) => {
+      onFiles([...e.target.files]);
+      e.target.value = "";
+      $("photo-menu").hidden = true;
+      $("btn-photo").setAttribute("aria-expanded", "false");
+    });
+  $("btn-photo").addEventListener("click", () => {
+    if (!(state.health?.images && activeMode() !== "demo")) return toast(t("att.img.unsupported"), "error");
+    const menu = $("photo-menu");
+    menu.hidden = !menu.hidden;
+    $("btn-photo").setAttribute("aria-expanded", String(!menu.hidden));
+    if (!menu.hidden) $("photo-take").focus();
   });
+  $("photo-take").addEventListener("click", () => $("photo-camera").click());
+  $("photo-pick").addEventListener("click", () => $("photo-library").click());
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest?.("#photo-menu, #btn-photo")) {
+      $("photo-menu").hidden = true;
+      $("btn-photo").setAttribute("aria-expanded", "false");
+    }
+  });
+  // drag-and-drop anywhere on the composer
+  const zone = $("composer");
+  let depth = 0;
+  zone.addEventListener("dragenter", (e) => {
+    if (![...(e.dataTransfer?.types || [])].includes("Files")) return;
+    e.preventDefault();
+    depth += 1;
+    zone.classList.add("is-drop");
+  });
+  zone.addEventListener("dragover", (e) => {
+    if ([...(e.dataTransfer?.types || [])].includes("Files")) e.preventDefault();
+  });
+  zone.addEventListener("dragleave", () => {
+    depth = Math.max(0, depth - 1);
+    if (!depth) zone.classList.remove("is-drop");
+  });
+  zone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    depth = 0;
+    zone.classList.remove("is-drop");
+    onFiles([...(e.dataTransfer?.files || [])]);
+  });
+  bindLightbox();
   $("btn-stop").addEventListener("click", stop);
   $("btn-thinking").addEventListener("click", () => {
     state.thinking = !state.thinking;
@@ -1230,6 +1433,12 @@ async function loadHealth() {
     if (!response.ok) throw new Error(String(response.status));
     state.health = await response.json();
     showBanner("");
+    if (state.prefs.mode === "demo" && state.health?.modes?.server) {
+      // a visitor who tried the demo before the operator connected a model would otherwise stay in demo mode
+      state.prefs.mode = "";
+      savePrefs();
+      toast(t("mode.switched"), "ok");
+    }
   } catch {
     state.health = null;
     showBanner(t("error.health"));
@@ -1257,6 +1466,9 @@ async function init() {
     onChange: (turn) => (updateTurn(turn), saveConv()),
     onOpenFootprint: () => showView("footprint"),
     onOpenSettings: () => showView("settings"),
+    onRetryStep: retryStep,
+    onExport: exportAnswer,
+    onLightbox: openLightbox,
   });
   setViewHooks({
     onPrefs: () => {
