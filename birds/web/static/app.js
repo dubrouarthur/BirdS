@@ -646,7 +646,25 @@ const input = () => $("composer-input");
 function autosize() {
   const el = input();
   el.style.height = "auto";
-  el.style.height = `${Math.min(el.scrollHeight, 240)}px`;
+  // never more than 28% of what is visible (the keyboard takes the rest on phones), never more than 240px
+  const visible = window.visualViewport?.height || window.innerHeight || 857;
+  el.style.height = `${Math.min(el.scrollHeight, Math.round(visible * 0.28), 240)}px`;
+}
+
+// The app fills the visual viewport, so the dock stays above an on-screen keyboard.
+function trackViewport() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  let frame = 0;
+  const apply = () => {
+    frame = 0;
+    document.documentElement.style.setProperty("--vvh", `${Math.round(vv.height)}px`);
+    autosize();
+  };
+  const soon = () => frame || (frame = requestAnimationFrame(apply));
+  vv.addEventListener("resize", soon);
+  vv.addEventListener("scroll", soon);
+  apply();
 }
 
 function pendingConfirm() {
@@ -1761,6 +1779,7 @@ async function init() {
   const current = store.get("bird.current");
   state.conv = (current && loadConv(current)) || newConv();
   bind();
+  trackViewport();
   applyTheme();
   applyStrings();
   setSidebar(!isNarrow() && store.get("bird.side") !== "0");
