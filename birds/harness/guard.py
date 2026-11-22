@@ -12,6 +12,7 @@ import re
 import socket
 import time
 import unicodedata
+from contextlib import contextmanager
 from pathlib import Path
 
 import httpx
@@ -120,38 +121,93 @@ def check_url(url: str, cfg) -> list[str]:
     return ips
 
 
-def fetch(ctx, url: str) -> tuple[str, str, bytes]:
-    """GET a text resource. Every hop (redirects included) is validated. Returns (final URL, content type, body)."""
-    cfg, start = ctx.config, time.monotonic()
+@contextmanager
+def _hops(http, cfg, url: str, headers: dict, timeout: float):
+    """Open a GET, following redirects by hand: every hop goes through check_url and, with pin_dns, connects to the
+    address that was validated. Yields (final URL, open streamed response)."""
     for _ in range(cfg.max_redirects + 1):
         ips = check_url(url, cfg)
         u = httpx.URL(url)
-        target, ext = u, {}
-        headers = {"User-Agent": USER_AGENT, "Accept": "text/html,text/plain;q=0.9,*/*;q=0.1"}
+        target, ext, hdrs = u, {}, dict(headers)
         if cfg.pin_dns:  # connect to the address we validated, so a second DNS answer cannot differ (rebinding)
             target, ext = u.copy_with(host=ips[0]), {"sni_hostname": u.host}
-            headers["Host"] = u.netloc.decode("ascii")
-        with ctx.http.stream(
-            "GET", target, headers=headers, extensions=ext, follow_redirects=False, timeout=cfg.http_timeout
-        ) as r:
+            hdrs["Host"] = u.netloc.decode("ascii")
+        with http.stream("GET", target, headers=hdrs, extensions=ext, follow_redirects=False, timeout=timeout) as r:
             if r.status_code in (301, 302, 303, 307, 308) and r.headers.get("location"):
                 url = str(u.join(r.headers["location"]))
                 continue
+            yield str(u), r
+            return
+    raise Blocked("too many redirects")
+
+
+def _ctype(r) -> str:
+    return r.headers.get("content-type", "").split(";")[0].strip().lower()
+
+
+def fetch(ctx, url: str) -> tuple[str, str, bytes]:
+    """GET a text resource. Every hop (redirects included) is validated. Returns (final URL, content type, body)."""
+    cfg, start = ctx.config, time.monotonic()
+    headers = {"User-Agent": USER_AGENT, "Accept": "text/html,text/plain;q=0.9,*/*;q=0.1"}
+    with _hops(ctx.http, cfg, url, headers, cfg.http_timeout) as (final, r):
+        if r.status_code >= 400:
+            raise ToolError(f"HTTP {r.status_code}")
+        ctype = _ctype(r)
+        if not ctype.startswith(_TEXT_TYPES):
+            raise Blocked(f"content type not allowed: {ctype or 'missing'}")
+        if int(r.headers.get("content-length") or 0) > cfg.max_bytes:
+            raise Blocked("response too large")
+        body = b""
+        for chunk in r.iter_bytes():
+            body += chunk
+            if len(body) >= cfg.max_bytes or time.monotonic() - start > 2 * cfg.http_timeout:
+                break
+        ctx.bytes_fetched += len(body)
+        return final, ctype, body[: cfg.max_bytes]
+
+
+IMAGE_TYPES = ("image/png", "image/jpeg", "image/webp", "image/gif")
+IMAGE_USER_AGENT = "BirdHarness/0.1 (+image)"
+
+
+class FetchError(ToolError):
+    """An image fetch failed: ``code`` is one of upstream, image_type, too_large (the web app maps it to HTTP)."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+def fetch_image(http, cfg, url: str, max_bytes: int = 2_000_000, timeout: float = 8.0) -> tuple[str, bytes]:
+    """GET an image through the same egress policy as read_page (check_url on every hop, DNS pinning). No browser
+    header is ever forwarded: only a fixed User-Agent and Accept. A body over ``max_bytes`` is refused, not cut.
+    The client's cookie jar is cleared afterwards, so nothing persists between two images."""
+    start = time.monotonic()
+    headers = {"User-Agent": IMAGE_USER_AGENT, "Accept": "image/webp,image/png,image/jpeg,image/gif;q=0.9"}
+    try:
+        with _hops(http, cfg, url, headers, timeout) as (_, r):
             if r.status_code >= 400:
-                raise ToolError(f"HTTP {r.status_code}")
-            ctype = r.headers.get("content-type", "").split(";")[0].strip().lower()
-            if not ctype.startswith(_TEXT_TYPES):
-                raise Blocked(f"content type not allowed: {ctype or 'missing'}")
-            if int(r.headers.get("content-length") or 0) > cfg.max_bytes:
-                raise Blocked("response too large")
+                raise FetchError("upstream", f"HTTP {r.status_code}")
+            ctype = _ctype(r)
+            if ctype not in IMAGE_TYPES:
+                raise FetchError("image_type", f"not an image type we accept: {ctype or 'missing'}")
+            if int(r.headers.get("content-length") or 0) > max_bytes:
+                raise FetchError("too_large", "image too large")
             body = b""
             for chunk in r.iter_bytes():
                 body += chunk
-                if len(body) >= cfg.max_bytes or time.monotonic() - start > 2 * cfg.http_timeout:
-                    break
-            ctx.bytes_fetched += len(body)
-            return str(u), ctype, body[: cfg.max_bytes]
-    raise Blocked("too many redirects")
+                if len(body) > max_bytes:
+                    raise FetchError("too_large", "image too large")
+                if time.monotonic() - start > 2 * timeout:
+                    raise FetchError("upstream", "too slow")
+            return ctype, body
+    except httpx.HTTPError as e:
+        raise FetchError("upstream", type(e).__name__) from None
+    finally:
+        try:
+            http.cookies.clear()
+        except Exception:  # noqa: BLE001 - a client without a jar
+            pass
 
 
 # ---------------------------------------------------------------- untrusted content
