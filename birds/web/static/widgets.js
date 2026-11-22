@@ -54,10 +54,28 @@ function fmtDist(m) {
     : `${nf({ maximumFractionDigits: 1 }).format(m / 1000)} km`;
 }
 
+// find_places' query keywords (intents.KINDS) -> the OSM kind keys of the label tables
+const KIND_ALIAS = {
+  coworking: "coworking_space",
+  bookshop: "books",
+  "subway station": "subway_entrance",
+};
+const kindKey = (kind) =>
+  KIND_ALIAS[kind] || String(kind || "").trim().replace(/\s+/g, "_");
+
 function kindLabel(kind) {
-  const key = `place.kind.${kind}`;
+  const key = `place.kind.${kindKey(kind)}`;
   const v = t(key);
   return v === key ? String(kind || "").replace(/_/g, " ") : v;
+}
+
+/** "8 restaurants", "1 hôpital", "3 bornes de recharge": explicit plural forms, never a bare "+s". */
+export function kindCount(kind, n) {
+  const key = `place.kinds.${kindKey(kind)}`;
+  const plural = t(key);
+  const one = kindLabel(kind).toLocaleLowerCase(locale());
+  if (n === 1) return `1 ${one}`;
+  return `${nf({ maximumFractionDigits: 0 }).format(n)} ${plural === key ? one : plural}`;
 }
 
 function detailLabel(detail) {
@@ -253,11 +271,15 @@ function placeCard(p, mode, uidPrefix) {
 
 function placesTitle(w) {
   const n = (w.places || []).length;
-  if (w.mode === "near" && w.center)
+  if (w.mode === "near" && w.center) {
+    // "8 restaurants · autour de : Gare de Lyon": no article to guess before the place's name
+    const [count, ...kinds] = kindCount(w.query, n).split(" ");
     return t("places.title.near", {
-      kind: kindLabel(w.query) + (n > 1 ? "s" : ""),
+      n: count,
+      kinds: kinds.join(" "),
       near: w.center.name,
     });
+  }
   if (w.mode === "route" && w.center)
     return t("places.title.route", {
       a: w.center.name,
@@ -600,6 +622,8 @@ function renderFx(w) {
 // ------------------------------------------------------------------ event
 
 /** The event card's chips for the fields as they are now: [["warn" | "info", label], ...]. */
+export { placesTitle };
+
 export function eventChips(f, holidays = {}, warnings = []) {
   const out = [];
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(f.date || ""));

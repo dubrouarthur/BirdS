@@ -665,3 +665,19 @@ def test_more_places_is_a_toggle_that_keeps_focus():
     )
     assert got["v0"] == 3 and got["a"] == ["4", "true", 8]
     assert got["b"][:3] == [True, "false", 3] and "Voir les 5 autres" in got["b"][3] and got["inDoc"]
+
+
+@needs_node
+def test_place_titles_use_real_plurals():
+    kinds = ["hospital", "post office", "fuel", "fitness centre", "charging station", "fast_food", "pharmacy",
+             "restaurant", "subway station", "bookshop"]  # fmt: skip
+    fr = run_js("out(data.k.map((k) => W.kindCount(k, 3)).concat([W.kindCount('hospital', 1)]));", k=kinds)
+    en = run_js("out(data.k.map((k) => W.kindCount(k, 2)));", lang="en", k=kinds)
+    assert fr == ["3 hôpitaux", "3 bureaux de poste", "3 stations-service", "3 salles de sport", "3 bornes de recharge",
+                  "3 fast-foods", "3 pharmacies", "3 restaurants", "3 stations de métro", "3 librairies", "1 hôpital"]  # fmt: skip
+    assert en[6] == "2 pharmacies" and en[5] == "2 fast-food restaurants" and en[1] == "2 post offices"
+    w = demo_widget("find_places", {"query": "restaurant", "near": "gare de Lyon"})
+    titles = run_js("out(W.placesTitle(data.w));", w=w)
+    assert titles == "8 restaurants · autour de : Gare de Lyon"
+    where = demo_widget("find_places", {"query": "20 avenue de Ségur Paris"})
+    assert run_js("out(W.placesTitle(data.w));", w=where).endswith(" ?")
