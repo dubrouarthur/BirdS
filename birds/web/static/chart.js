@@ -748,7 +748,7 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
       return `${row[0]} — ${fmt(row[1])} (${pct} %)`;
     }
     if (series.length === 1) return `${row[0]} — ${fmt(row[1])}`;
-    return `${row[0]} — ${series.map((name, j) => `${name}${lang === "en" ? ":" : " :"} ${fmt(row[j + 1])}`).join(" ; ")}`;
+    return null; // several series: one line each (tipLines)
   };
   const show = (i) => {
     if (i < 0 || i >= n || !drawn) return;
@@ -757,11 +757,42 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
     );
     plot.classList.add("has-active");
     active = i;
-    tip.textContent = tipText(i);
-    const hit = drawn.hits[i];
-    tip.style.left = `${Math.max(4, Math.min(96, hit.tipX * 100))}%`;
-    tip.style.top = `${Math.max(2, hit.tipY * 100)}%`;
+    const text = tipText(i);
+    const sep = lang === "en" ? ":" : "\u00a0:";
+    tip.replaceChildren(
+      ...(text !== null
+        ? [text]
+        : [
+            h("span", { class: "chart-tip-head", text: String(spec.rows[i][0]) }),
+            ...series.map((name, j) =>
+              h(
+                "span",
+                { class: "chart-tip-row" },
+                h("span", {
+                  class: `chart-swatch series-bg-${j + 1}`,
+                  "aria-hidden": "true",
+                }),
+                `${name}${sep} ${fmt(spec.rows[i][j + 1])}`,
+              ),
+            ),
+          ]),
+    );
     tip.classList.add("is-shown");
+    // placed in px against the plot after measuring: centred on the item, never past either edge
+    const hit = drawn.hits[i];
+    const pw = plot.clientWidth;
+    const ph = plot.clientHeight;
+    const tw = tip.offsetWidth;
+    const th = tip.offsetHeight;
+    // near an edge it flips to the other side of the item rather than covering it
+    const cx = hit.tipX * pw;
+    let left = cx - tw / 2;
+    if (left + tw > pw - 4) left = cx - tw - 10;
+    else if (left < 4) left = cx + 10;
+    left = Math.max(4, Math.min(pw - tw - 4, left));
+    const top = Math.max(2, Math.min(ph - th - 2, hit.tipY * ph));
+    tip.style.left = `${Math.round(left)}px`;
+    tip.style.top = `${Math.round(top)}px`;
   };
   const hide = () => {
     drawn?.marks.forEach((group) =>

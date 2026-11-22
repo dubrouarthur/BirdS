@@ -1894,7 +1894,10 @@ details[open] > summary > .chev {
 .chart-tip {
   position: absolute;
   z-index: 2;
-  max-inline-size: min(280px, 90%);
+  display: grid;
+  gap: 2px;
+  inline-size: max-content;
+  max-inline-size: min(260px, calc(100% - 8px));
   padding: 6px 9px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
@@ -1904,11 +1907,19 @@ details[open] > summary > .chev {
   font-size: 0.82rem;
   line-height: 1.35;
   pointer-events: none;
-  transform: translate(-50%, 0);
   opacity: 0;
 }
 .chart-tip.is-shown {
   opacity: 1;
+}
+.chart-tip-head {
+  font-weight: 600;
+}
+.chart-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
 }
 .chart-legend {
   display: flex;
