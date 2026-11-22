@@ -27,6 +27,7 @@ import { docCard, imageCard, kindOf, middle } from "./attach.js";
 import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { renderWidgets, widgetsText } from "./widgets.js";
+import { renderAgents } from "./agents.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1458,7 +1459,8 @@ function fillAssistant(el, turn, isLast) {
   const mode = turn.mode || activeMode();
   const children = [
     byline(entry, turn, mode),
-    renderSteps(turn),
+    renderAgents(turn, handlers),
+    renderSteps(turn.crew ? { ...turn, steps: turn.steps.filter((s) => !s.agent) } : turn), // crew steps sit in their lane
     turn.reasoning &&
       details(
         "reasoning",
@@ -1472,7 +1474,7 @@ function fillAssistant(el, turn, isLast) {
     renderWebImages(turn),
     widgetsFor(turn, entry),
     basedOn(turn),
-    liveLine(turn),
+    (!turn.crew || turn.crew.done || turn.live?.state === "waking") && liveLine(turn),
     renderConfirm(turn),
     renderSources(turn),
     renderFailedFiles(turn),

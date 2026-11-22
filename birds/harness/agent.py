@@ -332,6 +332,7 @@ class Hooks:
     on_step_end: Callable[[int, Step], None] | None = None
     on_status: Callable[[str, dict], None] | None = None  # e.g. ("waking", {"attempt": 2, "retry_in": 5.0})
     cancel: Any = None  # a threading.Event the front end sets on stop: the model call ends at once
+    on_agent: Callable[[dict], None] | None = None  # Mode Agent (crew.py): agent_* events and the crew's tool steps
 
 
 @dataclass

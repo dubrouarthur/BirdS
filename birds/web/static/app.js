@@ -56,6 +56,11 @@ import {
   setViewHooks,
   totals,
 } from "./views.js";
+import { applyAgentEvent } from "./agents.js";
+
+// Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
+const AGENT_MODES = ["auto", "on", "off"];
+state.agent = AGENT_MODES.includes(store.get("bird.agent")) ? store.get("bird.agent") : "auto";
 
 const PASTE_AS_FILE = 3000; // characters: longer pasted text becomes an attached document
 const KEEP_FILE_B64 = 400_000; // larger generated files are not kept in localStorage
@@ -772,6 +777,9 @@ function updateComposer() {
   } else count.hidden = true;
   $("editing").hidden = !state.editing;
   $("btn-thinking").setAttribute("aria-checked", String(state.thinking));
+  $("agent-mode").value = state.agent;
+  $("agent-pill").dataset.state = state.agent;
+  $("agent-pill").title = t("composer.agent.hint");
   updateSlash();
 }
 
@@ -1228,6 +1236,12 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
     case "usage":
       turn.usage = event;
       break;
+    case "agent_start":
+    case "agent_step":
+    case "agent_done":
+      applyAgentEvent(turn, event);
+      if (event.type === "agent_start") announce(t("agent.chip"));
+      break;
     case "error":
       turn.error = {
         code: event.code || "internal",
@@ -1248,6 +1262,8 @@ async function runTurn(turn, extra = {}) {
   const conv = state.conv; // the conversation this answer belongs to, even if the user opens another one
   const controller = new AbortController();
   state.abort = controller;
+  let release;
+  state.runDone = new Promise((resolve) => (release = resolve)); // awaited by « Revenir au mode simple »
   state.busy = true;
   turn.status = "running";
   turn.error = null;
@@ -1270,6 +1286,7 @@ async function runTurn(turn, extra = {}) {
       conversation_id: conv.cid,
       tz: browserTz(),
       thinking: !!turn.thinking,
+      agent: turn.agent || state.agent, // "off" for the resend of « Revenir au mode simple »
       lang: state.prefs.lang,
       attachments: docs.map(({ name, content, encoding, ocr }) => ({
         name,
@@ -1351,6 +1368,8 @@ async function runTurn(turn, extra = {}) {
     }
   } finally {
     window.clearInterval(ticker);
+    if (turn.crew && !turn.crew.done && turn.status !== "confirm")
+      applyAgentEvent(turn, { type: "agent_done", ok: false, stopped: true, caveats: [] });
     state.abort = null;
     state.busy = false;
     if (turn.wakeStart) endWake(turn);
@@ -1387,6 +1406,7 @@ async function runTurn(turn, extra = {}) {
     if (shown) scrollToEnd(false);
     const sheet = document.querySelector("[data-confirm-deny]");
     if (turn.status === "confirm" && sheet) sheet.focus();
+    release();
   }
 }
 
@@ -1637,6 +1657,29 @@ function keepFocus() {
   if (window.matchMedia?.("(pointer: fine)").matches) input().focus({ preventScroll: true });
 }
 
+/** « Revenir au mode simple »: stop the team, then send the same request again with Mode Agent off, for this
+ * request only (the composer setting is unchanged). */
+async function agentOff(turn) {
+  const conv = state.conv;
+  if (conv.turns[conv.turns.length - 1] !== turn) return;
+  const done = state.runDone;
+  stop();
+  await done;
+  if (state.conv !== conv || conv.turns[conv.turns.length - 1] !== turn || state.busy) return;
+  const fresh = newAssistantTurn();
+  fresh.agent = "off";
+  conv.turns[conv.turns.length - 1] = fresh;
+  renderChat();
+  scrollToEnd(true);
+  const user = conv.turns[conv.turns.length - 2];
+  let again = {};
+  if ((user?.images || []).length && lastImages.length) {
+    user.sent = undefined;
+    again = { images: lastImages };
+  } else if (user?.sent) again = { resend: true };
+  runTurn(fresh, again);
+}
+
 function stop() {
   if (!state.abort) return;
   if (document.activeElement?.id === "btn-stop") keepFocus();
@@ -1772,6 +1815,11 @@ function bind() {
   $("btn-stop").addEventListener("click", stop);
   $("btn-thinking").addEventListener("click", () => {
     state.thinking = !state.thinking;
+    updateComposer();
+  });
+  $("agent-mode").addEventListener("change", (e) => {
+    state.agent = AGENT_MODES.includes(e.target.value) ? e.target.value : "auto";
+    store.set("bird.agent", state.agent);
     updateComposer();
   });
   $("editing-cancel").addEventListener("click", () => {
@@ -1959,6 +2007,7 @@ async function init() {
     onChartXlsx: chartXlsx,
     onExport: exportAnswer,
     onLightbox: openLightbox,
+    onAgentOff: agentOff,
   });
   setViewHooks({
     onPrefs: () => {

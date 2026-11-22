@@ -185,3 +185,81 @@ Bilan : barres, courbe, camembert, deux séries et données d'un fichier joint j
 - La ligne d'avertissement placée devant les résultats d'outils n'existe pas dans les données d'entraînement actuelles (`birds/sources/guardrails.py`). Il faut soit l'y ajouter, soit vérifier qu'elle ne dégrade pas les réponses.
 - Le client local (`LocalClient`) et la mesure `nvidia-smi` n'ont pas été exécutés sur GPU.
 - Les serveurs (llama.cpp, vLLM, Ollama) n'ont pas été testés en vrai ; seul le format de la requête l'est.
+
+## 11. Mode Agent : une petite équipe autour d'un livrable
+
+Un modèle de 4 milliards de paramètres fait bien une tâche courte et typée, mal un long plan libre. Le mode Agent
+découpe donc une demande lourde en générations courtes, en parallèle sur le même endpoint (vLLM les regroupe dans un
+même lot), et confie le jugement au code. Modules : `birds/harness/crew.py` (décision, recettes, orchestration),
+`crew_checks.py` (vérifications, sans modèle), `crew_tools.py` (outils virtuels et consignes), `birds/web/crew_web.py`
+(événements SSE, démo), `static/agents.js` et `agents.css` (« l'équipe au travail »).
+
+```
+décision (code) -> brief (0 à 3 spécialistes en parallèle, vérifiés en code) -> 2 versions en parallèle (un seul outil)
+-> vérificateur (code) -> au plus 1 correction ciblée -> l'outil s'exécute une fois via Agent._call -> réponse écrite par le code
+```
+
+**Quand.** Le réglage « Agent » du compositeur (Auto par défaut, Activé, Désactivé, gardé dans le navigateur) part
+dans `ChatRequest.agent`. `crew.decide()` ne regarde que les mots de l'utilisateur (le texte collé compte pour sa
+taille, ses offres et sa liste de présents, jamais pour l'intention) et ne fait aucun appel au modèle.
+
+| Recette           | Signaux                                            | Spécialistes                                   | Auto |
+| ----------------- | -------------------------------------------------- | ---------------------------------------------- | ---- |
+| `deck_research`   | présentation, web, chiffres                        | recherche (0 appel), 2 lecteurs `record_facts` | oui  |
+| `compare_write`   | texte collé, comparer, ≥ 2 offres, mail ou document | lecteur `record_table` + analyste `cost_model` | oui  |
+| `minutes_actions` | texte collé avec présents, compte rendu / actions  | lecteur `record_actions` (+ 1 reprise)         | oui  |
+| `doc_research`    | document, web, chiffres                            | comme `deck_research`                          | non  |
+| `sheet_pasted`    | tableur, texte collé, chiffres                     | lecteur `record_table`, 1 version              | non  |
+
+En Auto, il faut en plus une demande non simple (salutation, question « comment », mail court, retouche d'un fichier
+et image seule sont exclus) et deux signaux de charge parmi : plusieurs étapes, chiffres avec un fichier, au moins 2
+documents, web puis livrable, texte collé long ou structuré (liste de présents). Activé lance la recette même si son
+drapeau Auto est éteint ; sans recette, la recette `generic` (un plan court en JSON, recherches éventuelles, 2
+versions) ; sans livrable, le mode simple répond et la puce dit « Rien à répartir ». Désactivé : `Agent.run`, inchangé.
+
+**Vérifications en code.** Un chiffre d'une version n'est gardé que s'il figure dans la demande, le texte collé, un
+fait vérifié ou un calcul du harnais, ou s'il en est la différence ou le rapport (« 14,8 points » = 19 − 4,2) ; les
+puces qui portent un chiffre sans source sont retirées avant la création du fichier. Un fait relevé sur une page doit
+avoir sa valeur et son année dans l'extrait, et sa citation dedans. Un responsable d'action doit être dans la liste des
+présents ET sur la ligne citée ; une échéance absente de la ligne est vidée, jamais devinée ; le tableau des actions
+du compte rendu est écrit par le code. Les coûts sont calculés par le harnais à partir de la description typée de
+l'analyste (`cost_model`, sans expression libre), puis le verdict (offre conforme la moins chère par an). Note :
+`score = 2 × points couverts + 1,5 × faits obligatoires + structure − 1 par chiffre sans source`, les versions sans
+chiffre inventé passent toujours devant. Ce qui reste douteux est dit dans la réponse (« À vérifier »).
+
+**Limites.** 4 générations en même temps, 7 par demande (5 pour `generic`), 2 versions, 3 pages lues (4 Ko d'extrait
+chacune, 12 Ko au total), fin à t0 + 240 s (brief 90 s, versions avant t0 + 190 s, correction seulement s'il reste
+plus de 45 s, 20 s réservées au fichier). Si le réveil de l'endpoint a pris plus de 120 s : une seule version, pas de
+correction. Les pages sont lues une à une (l'analyse HTML a fait planter le processus en parallèle) ; les recherches
+partent en parallèle.
+
+**Repli.** Aucun fait vérifié, aucune version valide ou une exception : `Agent.run` reprend avec le brief (faits,
+sources, actions) s'il reste du temps, sinon Bird dit honnêtement qu'il ne peut pas plutôt que d'inventer des
+chiffres. « Revenir au mode simple » arrête l'équipe et renvoie la même demande avec `agent: "off"`, pour cette
+demande seulement.
+
+**Confirmation.** Seule l'étape de création peut s'arrêter sur une confirmation (`guard.gate`). Une page signalée
+n'entache la demande que si son texte a été donné à un modèle. Le jeton signé porte `{k: "crew", tool, args, sources,
+caveats, usage, answer_ctx, carry}` (24 Ko au plus) ; à la reprise, rien n'est régénéré.
+
+**Énergie.** Les jetons sont additionnés exactement ; le temps GPU de l'estimation puissance × temps est l'union des
+intervalles des appels (`meter.report(busy_seconds_override=…)`), pas leur somme : des appels en parallèle partagent
+le même lot. L'événement `usage` gagne `agents` (par rôle), `gpu_seconds_union` et `busy_seconds_sum` (borne haute).
+
+**Événements SSE** (en plus des existants) : `agent_start {recipe, reason, mode, forced, lanes[{id, role, label,
+group}], budget}`, `agent_step {id, role, phase, status, label, progress, tokens, seconds, detail, score, chosen}`,
+`agent_done {recipe, ok, chosen, calls, seconds, gpu_seconds_union, caveats, reason, fallback}`. Les étapes d'outil de
+l'équipe portent `agent` (l'identifiant de la voie) et s'affichent dans leur voie.
+
+**Démo.** `scripts/serve.py --demo` joue une équipe scriptée sur « présentation … chiffres … depuis 2019 »,
+étiquetée « scénario de démonstration ». Test navigateur : `node tests/e2e/agent_mode.spec.js` (serveur démo sur
+le port 9071 ; iPhone 14 et 1440 × 900, clair et sombre).
+
+**Essais réels (22/11/2026, 8 générations).** Présentation « télétravail depuis 2019 » : 4 générations, 21,6 s,
+union GPU 19,6 s contre 33,8 s de somme ; 2 faits vérifiés sur 1 page Wikipédia (2 recherches sur 3 en 429). Comparaison
+des 3 offres de maintenance + mail : 4 générations, 26,7 s, verdict juste (InfoServ Rhône, 19 400 € la 1re année, seule
+offre sous 4 h et dans le budget), union 26,6 s contre 51,1 s. Restent à faire : l'évaluation à l'aveugle de la
+section 9 de la spécification (12 tâches, 60 requêtes) qui doit confirmer ou éteindre chaque drapeau Auto ; les
+coûts d'une offre plafonnée (« 16 € par poste au-delà de 90 ») restent mal décrits par l'analyste (15 672 € au lieu
+de 15 480 €), sans changer le verdict ; les touches de cache de préfixe ne sont pas vérifiables (l'endpoint ne
+renvoie pas `cached_tokens`).

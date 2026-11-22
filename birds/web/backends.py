@@ -137,6 +137,7 @@ class ChatRequest:
     conv_lang: str | None = None  # pinned by the client at the first message of the conversation
     conversation_id: str | None = None  # random UUID from the client: cache salt and log id, never shown
     tz: str | None = None  # the browser's time zone (event card); validated, Europe/Paris otherwise
+    agent: str = "auto"  # Mode Agent: "auto" | "on" | "off" (birds.harness.crew.decide)
 
 
 @dataclass
@@ -482,6 +483,10 @@ class DemoBackend:
         if request.images:
             run.scenario_image()
             return
+        from birds.web import crew_web
+
+        if crew_web.demo_match(last, request):
+            return crew_web.demo_crew(run)  # Mode Agent, scripted
         getattr(run, "scenario_" + pick_scenario(last, bool(request.attachments)))()
 
 
@@ -1819,6 +1824,7 @@ class HarnessBackend:
         from birds.harness.agent import PAUSE, Hooks
         from birds.harness.history import memo
         from birds.harness.meter import estimate_power_time
+        from birds.web import crew_web
 
         lang = "en" if request.lang == "en" else "fr"
         ephemeral = self.workspace is None
@@ -1852,6 +1858,7 @@ class HarnessBackend:
                 on_step_end=lambda index, step: ctx.emit(self._step_event(index + offset, step, lang)),
                 on_status=lambda state, info: ctx.emit({"type": "status", "state": state, **(info or {})}),
                 cancel=ctx.cancel,  # stop closes the endpoint stream and ends the wake-up retries
+                on_agent=crew_web.on_agent(ctx, lang, lambda: offset, self._step_event),
             )
             agent = Agent(
                 self.llm,
@@ -1864,15 +1871,18 @@ class HarnessBackend:
             )
             carry = {"seconds": 0.0, "energy_wh": None}
             if request.resume is not None:
-                if request.resume.get("k") != "harness":
+                if request.resume.get("k") not in ("harness", "crew"):
                     raise ValueError("this confirmation does not belong to this backend")
                 carry = request.resume.get("carry") or carry
-                state = _resume_state(request.resume.get("state"), workspace)
-                ui = request.resume.get("state_ui")
-                if isinstance(ui, int) and 0 <= ui < len(state["messages"]):
-                    ctx.emit({"type": "user", "content": state["messages"][ui]["content"]})
-                # lang=None below: the harness answers in the language of the user's message, not of the interface
-                run = agent.run(resume=state, decision=bool(request.decision))
+                if request.resume.get("k") == "crew":
+                    run = crew_web.resume_crew(agent, request, ctx)  # the paused build step only: nothing regenerated
+                else:
+                    state = _resume_state(request.resume.get("state"), workspace)
+                    ui = request.resume.get("state_ui")
+                    if isinstance(ui, int) and 0 <= ui < len(state["messages"]):
+                        ctx.emit({"type": "user", "content": state["messages"][ui]["content"]})
+                    # lang=None below: the harness answers in the language of the user's message, not the interface's
+                    run = agent.run(resume=state, decision=bool(request.decision))
             else:
                 last = request.messages[-1]
                 conv = conv_lang(request)
@@ -1917,6 +1927,11 @@ class HarnessBackend:
                     run = self._ocr_answer(image_texts + docs, image_usage, rl, cfg, time.monotonic() - t0)
                     image_usage = []  # already counted in run.report
                 else:
+                    decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
+                    run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
+                                            system=system, lang=rl, names=names, workspace=workspace,
+                                            history=kept)  # fmt: skip
+                if run is None:
                     run = agent.run(
                         user_sent,
                         history=kept or None,
@@ -1959,7 +1974,7 @@ class HarnessBackend:
             if run.stop_reason == "confirm":
                 token = ctx.sign(
                     {
-                        "k": "harness",
+                        "k": "crew" if (run.state or {}).get("k") == "crew" else "harness",
                         "tool": run.pending["tool"],
                         "arguments": _plain(run.pending["arguments"]),
                         "state": run.state,
@@ -2039,7 +2054,8 @@ class HarnessBackend:
                 }
             )
             ctx.emit(
-                usage_event(
+                crew_web.usage_extra(report)
+                | usage_event(
                     model=self.model,
                     thinking=request.thinking,
                     prompt_tokens=tin,
