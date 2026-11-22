@@ -1,0 +1,358 @@
+/* Mode Agent: the composer control and « l'équipe au travail ». Colours come from app.css tokens (light and dark). */
+
+.agent-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-block-size: 32px;
+  padding-inline: 9px 4px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 550;
+  color: var(--ink-2);
+  flex: none;
+  cursor: pointer;
+}
+.agent-pill .icon {
+  inline-size: 15px;
+  block-size: 15px;
+}
+.agent-pill[data-state="on"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.agent-pill[data-state="off"] {
+  color: var(--muted);
+}
+.agent-pill select {
+  appearance: none;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  padding-block: 4px;
+  padding-inline: 2px 16px;
+  cursor: pointer;
+  background-image:
+    linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 8px) 55%,
+    calc(100% - 4px) 55%;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+}
+.agent-pill:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.agent-pill select:focus {
+  outline: none;
+}
+@media (max-width: 640px) {
+  .agent-pill-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+/* ---------------------------------------------------------------- the team at work */
+
+.crew {
+  margin-block: 4px 12px;
+}
+.crew-chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-block-end: 8px;
+  font-size: 0.86rem;
+  color: var(--ink-2);
+}
+.crew-mark {
+  color: var(--accent);
+  font-weight: 700;
+}
+.crew-title {
+  font-weight: 650;
+  color: var(--ink);
+}
+.crew-why {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.crew-chip.is-note .crew-mark {
+  color: var(--muted);
+}
+.crew-out {
+  margin-inline-start: auto;
+  font-size: 0.8rem;
+}
+.crew-board {
+  display: grid;
+  gap: 8px;
+}
+.crew-phase {
+  display: grid;
+  gap: 4px;
+}
+.crew-phase.is-skipped {
+  opacity: 0.55;
+}
+.crew-phase-name {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.crew-lanes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.crew-lane {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 8px;
+  min-inline-size: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  transition: border-color 0.2s;
+}
+.crew-lane.is-running {
+  border-color: var(--accent);
+}
+.crew-lane.is-chosen {
+  border-color: var(--eco);
+  box-shadow: inset 0 0 0 1px var(--eco);
+}
+.crew-lane.is-skipped,
+.crew-lane.is-queued {
+  color: var(--muted);
+  background: transparent;
+}
+.crew-lane.is-error {
+  border-color: var(--danger-line);
+}
+.crew-ic {
+  display: grid;
+  place-items: center;
+  inline-size: 26px;
+  block-size: 26px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.crew-lane.is-running .crew-ic {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.crew-ic .icon {
+  inline-size: 15px;
+  block-size: 15px;
+}
+.crew-body {
+  min-inline-size: 0;
+}
+.crew-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.crew-lane.is-skipped .crew-label,
+.crew-lane.is-queued .crew-label {
+  color: var(--muted);
+  font-weight: 550;
+}
+.crew-kept {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--eco-soft);
+  color: var(--eco);
+  font-size: 0.7rem;
+  font-weight: 650;
+}
+.crew-detail,
+.crew-tools {
+  margin: 2px 0 0;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.crew-tools {
+  font-size: 0.72rem;
+}
+.crew-bar {
+  display: block;
+  block-size: 3px;
+  margin-block-start: 6px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.crew-bar-fill {
+  display: block;
+  block-size: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: inline-size 0.4s ease-out;
+}
+.crew-state {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.crew-dot {
+  display: grid;
+  place-items: center;
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: 50%;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+}
+.crew-lane.is-queued .crew-dot {
+  border: 1.5px solid var(--line-strong);
+}
+.crew-lane.is-running .crew-dot {
+  inline-size: 10px;
+  block-size: 10px;
+  margin: 3px;
+  background: var(--accent);
+  animation: crew-pulse 1.2s ease-in-out infinite;
+}
+.crew-lane.is-done .crew-dot {
+  background: var(--eco-soft);
+  color: var(--eco);
+}
+.crew-lane.is-error .crew-dot {
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+@keyframes crew-pulse {
+  50% {
+    opacity: 0.35;
+    transform: scale(0.75);
+  }
+}
+.crew-fold > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-block-size: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  font-size: 0.84rem;
+  color: var(--ink-2);
+  cursor: pointer;
+  list-style: none;
+}
+.crew-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.crew-fold > summary::before {
+  content: "";
+  inline-size: 6px;
+  block-size: 6px;
+  border-inline-end: 1.5px solid currentColor;
+  border-block-end: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s;
+}
+[dir="rtl"] .crew-fold > summary::before {
+  transform: rotate(135deg);
+}
+.crew-fold[open] > summary::before {
+  transform: rotate(45deg);
+}
+.crew-fold[open] > summary {
+  margin-block-end: 8px;
+}
+.crew-sum-text {
+  font-weight: 600;
+  color: var(--ink);
+}
+.crew-sum-hint {
+  font-size: 0.74rem;
+  color: var(--muted);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .crew-lane,
+  .crew-bar-fill,
+  .crew-fold > summary::before {
+    transition: none;
+  }
+  .crew-lane.is-running .crew-dot {
+    animation: none;
+  }
+}
+/* phones: the composer row keeps attach, photo, Réflexion, Agent and Send on one line */
+@media (max-width: 420px) {
+  .agent-pill {
+    padding-inline: 6px 0;
+  }
+  .agent-pill .icon {
+    display: none;
+  }
+  .agent-pill select {
+    padding-inline-end: 11px;
+    font-size: 0.78rem;
+  }
+}
+@media (max-width: 360px) {
+  .composer-row .switch-label {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+.crew-lane.is-queued,
+.crew-lane.is-skipped {
+  padding-block: 5px;
+}
+@media (max-width: 420px) {
+  /* with the Agent control, Stop shows its icon only (its label stays for screen readers) */
+  .composer-row .btn-stop {
+    inline-size: 40px;
+    padding: 0;
+    justify-content: center;
+  }
+  .composer-row .btn-stop span {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}

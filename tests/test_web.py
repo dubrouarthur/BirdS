@@ -653,7 +653,8 @@ def test_static_payload_budget():
     # code-block headers, action menu, chart keyboard support, approval and stop states); then raised for the file
     # previews drawn from the written file (slide stage, filmstrip, full screen, A4 page, styled sheet) and for the
     # in-chat charts (chart.js, no library) with web image cards and the chart review fixes
-    assert total < 490_000, f"static payload is {total} bytes"
+    # Mode Agent (agents.js, agents.css, strings): +16 kB
+    assert total < 500_000, f"static payload is {total} bytes"
 
 
 def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
