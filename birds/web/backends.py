@@ -1369,6 +1369,26 @@ def date_line(lang: str, now: datetime) -> str:
     return f"Date du jour : {day} {now.day} {month} {now.year} (Europe/Paris)."
 
 
+def earlier_image_texts(messages: list[dict]) -> list[tuple[str, str]]:
+    """(name, transcription) of the images attached to earlier user messages, as they were sent to the model
+    (« [Image jointe : facture.jpg] », the untrusted-data note, then the text), latest first wins."""
+    from birds.harness import guard
+
+    notes = "|".join(re.escape(n) for n in _IMAGE_NOTE.values())
+    untrusted = "|".join(re.escape(n) for n in guard.UNTRUSTED_NOTE.values())
+    block = re.compile(
+        rf"\[(?:{notes}) : ([^\]\n]+)\]\n(?:(?:{untrusted})\n)?(.*?)(?=\n\n\[|\Z)", re.S
+    )
+    found: dict[str, str] = {}
+    for m in messages:
+        if m.get("role") != "user":
+            continue
+        for name, text in block.findall(str(m.get("content") or "")):
+            if text.strip():
+                found[name.strip()] = text.strip()
+    return list(found.items())
+
+
 def prepare_turn(
     messages: list[dict],
     conv: str,
@@ -1676,6 +1696,12 @@ class HarnessBackend:
                         (workspace / (sanitize_filename(name) + ".txt")).write_text(
                             guard.truncate(text or "", IMAGE_TEXT_CHARS), encoding="utf-8"
                         )
+                # Images from EARLIER messages are not sent again, but what was read in them is in the history:
+                # put it back so read_file("facture.jpg") still works on a follow-up (« reprends les totaux »).
+                for name, text in earlier_image_texts(request.messages[:-1]):
+                    side = workspace / (sanitize_filename(name) + ".txt")
+                    if not side.exists():
+                        side.write_text(guard.truncate(text, IMAGE_TEXT_CHARS), encoding="utf-8")
                 scan_usage = self._read_scanned_pdfs(
                     [(i, workspace / n) for i, n in enumerate(names) if i not in already_read],
                     ctx,

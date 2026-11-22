@@ -767,3 +767,19 @@ def test_wide_docx_table_gets_landscape_pages_and_no_cut_words(tmp_path):
     assert cell.paragraphs[0].style.name == "Bird Table Small" and "noWrap" in cell._tc.xml
     h1 = next(p for p in d.paragraphs if p.text == "Vingt")
     assert h1.style.name == "Heading 1" and "pBdr" not in h1.style.element.xml  # no rule under the page header
+
+
+def test_an_image_from_an_earlier_message_can_be_read_again(tmp_path):
+    """Follow-up turns do not resend images; read_file on the image name returns what was read in it then."""
+    call = "<tool_call>\n<function=read_file>\n<parameter=path>\nfacture.jpg\n</parameter>\n</function>\n</tool_call>"
+    llm = FakeClient(["FACTURE 7\nTotal HT : 1 041,67 €\nTotal TTC : 1 250,00 €", "Voici les lignes.", call, "Total TTC : 1 250,00 €."])
+    app = create_app(Settings(rate_limit=0, demo_delay=0), server_backend=HarnessBackend(llm, _Tok()))
+    with TestClient(app) as c:
+        first = _sse(c.post("/api/chat", json={"messages": [{"role": "user", "content": "Mets la facture en tableau"}],
+                                              "images": [{"name": "facture.jpg", "url": _png(960, 540)}]}))
+        sent = [e for e in first if e["type"] == "user"][0]["content"]
+        history = [{"role": "user", "content": sent}, {"role": "assistant", "content": "Voici les lignes."},
+                   {"role": "user", "content": "Il manque les totaux, reprends l'image"}]
+        events = _sse(c.post("/api/chat", json={"messages": history}))
+    done = [e for e in events if e["type"] == "step" and e["tool"] == "read_file"][-1]
+    assert done["status"] == "done" and "1 250,00" in done["preview"]
