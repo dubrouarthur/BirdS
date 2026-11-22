@@ -1,4 +1,4 @@
-// Frame renderer for promo.html (v3: music + sound effects only, no voice-over).
+// Frame renderer for promo.html (v4: music + sound effects only, no voice-over).
 //   node render.js                 -> all frames at 30 fps + MP4 + contact sheet
 //   node render.js stills 1.2,5,9  -> a few PNG stills (for checking)
 //   node render.js mux             -> rebuild the soundtrack (audio.py) and re-mux it onto the existing frames' video
@@ -10,11 +10,11 @@ const { execFileSync } = require("child_process");
 
 const HERE = __dirname;
 const SCR =
-  "/tmp/claude-0/-home-user-BirdS/27eb98ec-b9ba-5cf1-a125-8008c93c0d55/scratchpad/video2";
+  "/tmp/claude-0/-home-user-BirdS/27eb98ec-b9ba-5cf1-a125-8008c93c0d55/scratchpad/video4";
 const FRAMES = path.join(SCR, "frames");
 const FPS = 30;
-const OUT = path.join(HERE, "bird-promo-v3-9x16.mp4");
-const SHEET = path.join(HERE, "contact-v3.png");
+const OUT = path.join(HERE, "bird-promo-v4-9x16.mp4");
+const SHEET = path.join(HERE, "contact-v4.png");
 const SILENT = path.join(SCR, "video_silent.mp4");
 const CUES = path.join(SCR, "audio_cues.json");
 const WAV = path.join(SCR, "soundtrack.wav");
@@ -99,8 +99,8 @@ function soundtrackAndMux() {
   soundtrackAndMux();
 
   // contact sheet: 8 key frames, 4x2
-  // key moments (s): mission, lockup, mail, deck, invoice, footprint, credo, call to action
-  const picks = [1.9, 3.95, 7.4, 11.4, 14.8, 19.0, 23.1, 26.6].map((x) => Math.min(n - 1, Math.round(x * FPS)));
+  // key moments (T, s): mission, plus petit, mail, deck, invoice, footprint, un seul GPU, call to action
+  const picks = [4.6, 7.5, 10.4, 13.6, 16.3, 20.0, 23.6, 30.2].map((x) => Math.min(n - 1, Math.round(x * FPS)));
   const list = picks.map((p) =>
     path.join(FRAMES, `f${String(p).padStart(5, "0")}.png`),
   );

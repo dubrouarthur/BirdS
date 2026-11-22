@@ -1,12 +1,13 @@
-"""Soundtrack for promo.html (v3): rhythmic synthesized music bed + UI sound effects. No voice.
+"""Soundtrack for promo.html (v4): rhythmic synthesized music bed + UI sound effects. No voice.
 
 Usage: python audio.py cues.json out.wav
   cues.json = window.AUDIO from promo.html (dumped by render.js):
-    {bpm, music:{drop, brk, build, drop2, end}, sfx:[[t, type]], duration}
+    {bpm, music:{drop, brk, build, drop2, end, cuts}, sfx:[[t, type]], duration}
+    cuts = picture cuts inside the groove (each gets a short riser + snare fill)
 
 Everything is synthesized here with numpy (no samples, no third-party audio, no TTS), so the
 track is royalty-free by construction. 120 BPM, A minor (Am - F - C - G), bar downbeats at
-0.5 + 2k s so the picture cuts land on downbeats. Output: 48 kHz stereo 16-bit WAV.
+0.5 + 2k s; every picture cut lands on a beat (0.5 s grid). Output: 48 kHz stereo 16-bit WAV.
 
 Arrangement
   0.0 - drop   intro: word hits, an "inflating" riser, plucks, then a filtered four-on-the-floor
@@ -249,15 +250,17 @@ def music(dur, M):
                     add(sideR, pluck(m, 0.2), t0 + q * 0.125, 0.035 * (1 + pan))
 
     groove(drop, brk)
-    # small fills + risers into each 4-second cut
-    for cut in np.arange(drop + 4.0, brk - 1e-6, 4.0):
+    # small fills + risers into each picture cut
+    cuts = M.get("cuts") or list(np.arange(drop + 4.0, brk - 1e-6, 4.0))
+    for cut in cuts:
         add(free, riser(0.5, 800, 9000, 0.16), cut - 0.5)
         for k, t0 in enumerate(np.arange(cut - 0.25, cut, 0.0625)):
             add(drums, snare(0.12), t0, 0.08 + 0.05 * k)
     add(free, riser(1.0, 300, 9000, 0.3), brk - 1.0)
 
     # --- breakdown under the credo ---
-    for c, t0, d in (("F", brk, 1.0), ("C", brk + 1.0, 1.0), ("G", brk + 2.0, 1.0)):
+    third = (build - brk) / 3
+    for c, t0, d in (("F", brk, third), ("C", brk + third, third), ("G", brk + 2 * third, third)):
         add(sideL, pad(c, d + 0.3, 1.0), t0)
         add(sideR, pad(c, d + 0.3, 1.0), t0 + 0.012)
         add(sideL, bass(ROOTS[c], d), t0, 0.22)
@@ -373,6 +376,13 @@ def sfx(kind):
         return stab("Am", 0.5, 1.0) * 0.6
     if kind == "send":
         return chirp(420, 1500, 0.14, 0.1) * 0.2 + sweep_noise(0.14, 800, 3000, 0.3) * 0.05
+    if kind == "leaf":  # soft two-note "green" chime for every energy figure
+        out = np.zeros(int(0.6 * SR))
+        add(out, bell(1318.5, 0.5, 0.16) * 0.05, 0)
+        add(out, bell(1975.5, 0.5, 0.2) * 0.045, 0.07)
+        return out
+    if kind == "sleep":  # the GPU dozes off: gentle falling tone
+        return chirp(880, 330, 0.45, 0.25) * 0.14
     if kind == "tick":
         return bell(2400, 0.08, 0.02) * 0.14
     if kind == "shimmer":
