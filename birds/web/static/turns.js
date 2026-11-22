@@ -892,20 +892,6 @@ function renderActions(turn, isLast) {
       () => copyText(plainText(turn)),
       { "data-act": "copy" },
     ),
-    button(
-      "btn-quiet btn-icon btn-small",
-      "markdown",
-      t("act.copy.md"),
-      () => copyText(turn.answer.content, t("toast.copied.md")),
-      { "data-act": "copy-md" },
-    ),
-    button("btn-quiet btn-small btn-export", "word", t("act.export.docx"), () => handlers.onExport(turn, "docx"), {
-      "data-act": "export-docx",
-      title: t("act.export.docx.hint"),
-    }),
-    button("btn-quiet btn-icon btn-small", "download", t("act.export.md"), () => handlers.onExport(turn, "md"), {
-      "data-act": "export-md",
-    }),
     isLast &&
       !state.busy &&
       button(
@@ -938,7 +924,78 @@ function renderActions(turn, isLast) {
         title: `${t("act.down")} — ${t("act.feedback.note")}`,
       },
     ),
+    moreMenu([
+      ["markdown", t("act.copy.md"), "copy-md", () => copyText(turn.answer.content, t("toast.copied.md"))],
+      ["word", t("act.export.docx.item"), "export-docx", () => handlers.onExport(turn, "docx")],
+      ["download", t("act.export.md.item"), "export-md", () => handlers.onExport(turn, "md")],
+    ]),
   );
+}
+
+/** "Plus": a menu button (arrow keys, Home/End, Escape back to the button, closes on outside click). */
+function moreMenu(items) {
+  let menu = null;
+  const trigger = button("btn-quiet btn-icon btn-small", "more", t("act.more"), () => (menu.hidden ? openMenu(0) : closeMenu(false)), {
+    "aria-haspopup": "menu",
+    "aria-expanded": "false",
+    "data-act": "more",
+  });
+  const entries = items.map(([ico, label, act, run]) =>
+    h(
+      "button",
+      { class: "menu-item", type: "button", role: "menuitem", tabindex: "-1", "data-act": act, onclick: () => (closeMenu(true), run()) },
+      icon(ico),
+      h("span", { text: label }),
+    ),
+  );
+  const onOutside = (e) => !wrap.contains(e.target) && closeMenu(false);
+  function openMenu(index) {
+    menu.hidden = false;
+    trigger.setAttribute("aria-expanded", "true");
+    // opens upward when the conversation area has no room below the button (the composer sits there)
+    const area = $("scroll").getBoundingClientRect();
+    const below = area.bottom - trigger.getBoundingClientRect().bottom;
+    menu.classList.toggle("menu-up", below < menu.offsetHeight + 8);
+    entries.at(index)?.focus();
+    document.addEventListener("pointerdown", onOutside, true);
+  }
+  function closeMenu(refocus) {
+    if (menu.hidden) return;
+    menu.hidden = true;
+    trigger.setAttribute("aria-expanded", "false");
+    document.removeEventListener("pointerdown", onOutside, true);
+    if (refocus) trigger.focus();
+  }
+  menu = h(
+    "div",
+    {
+      class: "menu",
+      role: "menu",
+      hidden: true,
+      "aria-label": t("act.more"),
+      onkeydown: (e) => {
+        const i = entries.indexOf(document.activeElement);
+        const go = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: entries.length - 1 }[e.key];
+        if (go !== undefined) {
+          e.preventDefault();
+          entries[(go + entries.length) % entries.length].focus();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          closeMenu(true);
+        } else if (e.key === "Tab") closeMenu(false);
+      },
+    },
+    entries,
+  );
+  trigger.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      openMenu(e.key === "ArrowDown" ? 0 : -1);
+    }
+  });
+  const wrap = h("span", { class: "menu-wrap" }, trigger, menu);
+  return wrap;
 }
 
 // codes whose message is already a sentence written for people (by this page, the server or the endpoint check);
