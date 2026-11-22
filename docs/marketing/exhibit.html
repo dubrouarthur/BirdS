@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><title>Bird — Exhibit</title>
+<style>
+  :root { --ink:#0B1B3F; --ink2:#3F4A60; --mute:#7A8396; --rule:#0B1B3F; --hair:#D7DBE3; --blue:#1E5BD8; --grey:#B7BFCD; --bg:#FFFFFF; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { width:1080px; height:1350px; }
+  body { background:var(--bg); color:var(--ink); font-family:"Inter",system-ui,sans-serif; position:relative; }
+  .frame { position:absolute; inset:72px 80px 60px 80px; display:flex; flex-direction:column; }
+  .top { display:flex; justify-content:space-between; align-items:center; padding-bottom:18px; border-bottom:3px solid var(--rule); }
+  .top .kicker { font-size:17px; font-weight:700; letter-spacing:2.2px; text-transform:uppercase; color:var(--blue); }
+  .top .brand { display:flex; align-items:center; gap:10px; font-size:22px; font-weight:800; letter-spacing:-.3px; }
+  .top .brand svg { width:34px; height:30px; }
+  .top .brand span { color:var(--blue); font-weight:800; }
+  h1 { margin-top:46px; font-family:"Bitstream Charter","Charter",Georgia,serif; font-weight:700; font-size:60px; line-height:1.12; letter-spacing:-.6px; }
+  .dek { margin-top:22px; font-size:25px; line-height:1.45; color:var(--ink2); max-width:860px; }
+  .exhibit { margin-top:58px; }
+  .exlabel { font-size:15px; font-weight:700; letter-spacing:1.8px; text-transform:uppercase; color:var(--mute); }
+  .extitle { margin-top:8px; font-size:24px; font-weight:700; }
+  .exsub { margin-top:4px; font-size:18px; color:var(--mute); }
+  .chart { margin-top:34px; border-top:1px solid var(--hair); }
+  .row { display:grid; grid-template-columns:300px 1fr; align-items:center; gap:24px; padding:22px 0; border-bottom:1px solid var(--hair); }
+  .row .name { font-size:21px; font-weight:700; line-height:1.25; }
+  .row .name small { display:block; font-size:16px; font-weight:500; color:var(--mute); margin-top:3px; }
+  .bar { display:flex; align-items:center; gap:14px; }
+  .bar i { display:block; height:30px; background:var(--grey); }
+  .bar b { font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .row.bird .name { color:var(--blue); }
+  .row.bird .bar i { background:var(--blue); }
+  .row.bird .bar b { color:var(--blue); }
+  .call { margin-top:44px; display:grid; grid-template-columns:repeat(3,1fr); gap:34px; }
+  .call div { border-top:3px solid var(--ink); padding-top:16px; }
+  .call strong { display:block; font-family:"Bitstream Charter",Georgia,serif; font-size:44px; font-weight:700; letter-spacing:-.5px; line-height:1; }
+  .call span { display:block; margin-top:10px; font-size:18px; line-height:1.4; color:var(--ink2); }
+  .foot { margin-top:auto; padding-top:18px; border-top:1px solid var(--hair); font-size:13.5px; line-height:1.45; color:var(--mute); }
+  .foot b { color:var(--ink2); font-weight:700; }
+</style></head>
+<body><div class="frame">
+  <div class="top">
+    <div class="kicker">Conçu en France · L'essentiel en un graphique</div>
+    <div class="brand"><svg viewBox="0 0 64 56" aria-hidden="true"><g fill="#0B1B3F"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z"/><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z"/><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z"/></g></svg>Bird <span>S 4B</span></div>
+  </div>
+
+  <h1>Pour écrire « Bien reçu, merci », nul besoin de mobiliser un modèle cent fois plus grand.</h1>
+  <p class="dek">L'essentiel du travail de bureau, un mail, une synthèse, un tableau, ne justifie pas la puissance d'un géant. Bird fait le choix inverse : la plus petite taille qui fait bien le travail.</p>
+
+  <div class="exhibit">
+    <div class="exlabel">Graphique 1</div>
+    <div class="extitle">Calcul nécessaire pour générer un mot</div>
+    <div class="exsub">Milliards d'opérations par token, ≈ 2 × paramètres actifs, à conditions de service égales</div>
+    <div class="chart">
+      <div class="row bird"><div class="name">Bird S 4B<small>4 milliards de paramètres</small></div><div class="bar"><i style="width:4.3px"></i><b>8</b></div></div>
+      <div class="row"><div class="name">Grand modèle à experts<small>~40 milliards de paramètres actifs</small></div><div class="bar"><i style="width:43px"></i><b>80</b></div></div>
+      <div class="row"><div class="name">Grand modèle dense<small>~400 milliards de paramètres</small></div><div class="bar"><i style="width:430px"></i><b>800</b></div></div>
+    </div>
+  </div>
+
+  <div class="call">
+    <div><strong>÷100</strong><span>de calcul par mot face à un modèle dense de 400 milliards de paramètres.</span></div>
+    <div><strong>1 GPU</strong><span>de 24 Go suffit pour servir Bird, mis en veille quand personne ne s'en sert.</span></div>
+    <div><strong>0,36 Wh</strong><span>mesurés sur notre GPU pour 1 000 tokens générés, soit environ 750 mots.</span></div>
+  </div>
+
+  <div class="foot"><b>Méthode.</b> Calcul théorique par token d'un modèle décodeur ≈ 2 × nombre de paramètres actifs ; les deux grands modèles sont des profils types, non des produits nommés. Le calcul ne se traduit pas linéairement en énergie : celle-ci dépend du matériel, du taux d'utilisation et du regroupement des requêtes. Consommation mesurée de Bird : 0,36 Wh pour 1 000 tokens générés (GPU NVIDIA A10G, traitement par lots, GPU seul). Bird fait plus d'erreurs qu'un grand modèle : relisez ce qui compte.</div>
+</div></body></html>
