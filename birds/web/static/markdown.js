@@ -351,6 +351,9 @@ function pairs(lines) {
       return null;
     out.push([m[1].trim(), m[2]]);
   }
+  // a dialogue or a transcript ("Client : …" / "Moi : …") is not a set of fields: labels repeat, values are utterances
+  if (new Set(out.map(([k]) => norm(k))).size < out.length) return null;
+  if (out.some(([, v]) => /[?!]\s*["»”]?$/.test(v.trim()))) return null;
   return out;
 }
 

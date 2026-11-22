@@ -329,3 +329,16 @@ test("Attention, …: a warning, but not inside a letter, and the closing offer 
   assert.match(offer, /md-callout--warn[^]*sauvegardez avant\.<\/p><\/div><\/div>\n<p>Souhaitez-vous la procédure complète \?<\/p>/);
   assert.match(md("**Conseil :** testez d'abord."), /<strong class="md-callout-label">Conseil<\/strong> : testez/);
 });
+
+test("dialogues and transcripts stay text lines, not label/value rows", () => {
+  for (const s of [
+    "Client : Bonjour\nMoi : Bonjour, que puis-je faire ?\nClient : Rien",
+    "Agent : Que puis-je faire pour vous ?\nClient : Je voudrais un devis.",
+    "Marie : On lance quand ?\nPaul : Lundi !",
+  ]) {
+    const out = md(s);
+    assert.doesNotMatch(out, /md-pairs/, s);
+    assert.match(out, /^<p>[^]*<br>/, s);
+  }
+  assert.match(md("Date : 12 mars\nLieu : Paris\nDurée : 2 h"), /md-pairs/);
+});
