@@ -1,13 +1,14 @@
 # /// script
 # requires-python = ">=3.11"
-# dependencies = ["torch", "transformers>=5.2", "peft>=0.17", "accelerate", "safetensors", "huggingface_hub", "flash-linear-attention"]
+# dependencies = ["torch", "transformers>=5.2", "peft>=0.17", "accelerate", "safetensors", "huggingface_hub"]
 # ///
 """Merge the Bird LoRA adapter into Qwen3.5-4B and write a FULL checkpoint with the same layout as the base.
 
 Training loads the text-only causal LM, so the adapter keys follow that class. We merge there, then copy
 every merged language-model tensor into the original multimodal model (vision tower untouched) and save
 it, so the result deploys exactly like Qwen/Qwen3.5-4B (vLLM, Inference Endpoints, GGUF conversion).
-Adapted from the BIRD-M project's merge job. Runs on CPU (32 GB RAM) or GPU.
+Adapted from the BIRD-M project's merge job. Runs on CPU (32 GB RAM): flash-linear-attention is deliberately
+not installed, because its Triton kernels need a GPU driver; transformers falls back to plain PyTorch.
 
   hf jobs uv run --flavor cpu-upgrade --timeout 1h -v hf://buckets/adubrou/birds-runs:/out jobs/merge_job.py \
       --adapter /out/bird-v0/adapter-best --out /out/bird-v0/merged
