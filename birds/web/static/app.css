@@ -4372,3 +4372,42 @@ button.att-card {
     background: none;
   }
 }
+/* ============================================================ touch screens: 44 px targets, 16 px fields
+   One block for the frequent controls (WCAG 2.5.5 / Apple HIG). Pointer: fine (mouse) layouts are untouched; the
+   per-message receipt chip keeps its own size rule above. A 16 px field font stops iOS from zooming on focus. */
+@media (pointer: coarse) {
+  .btn-chip,
+  .btn-small,
+  .btn-jump,
+  .seg,
+  .btn-icon,
+  .btn-nav,
+  .btn-new,
+  .btn-send,
+  .switch,
+  .conv-open {
+    min-block-size: 44px;
+  }
+  .btn-icon,
+  .btn-send,
+  .btn-chip {
+    min-inline-size: 44px;
+  }
+  .att-remove {
+    position: relative;
+  }
+  .att-remove::before {
+    content: "";
+    position: absolute;
+    inset: -9px; /* 26 px button, 44 px hit area */
+  }
+  #send-why,
+  .side-clear,
+  button.link {
+    padding-block: 12px;
+  }
+  .side-search input,
+  .rename {
+    font-size: max(16px, 1rem);
+  }
+}
