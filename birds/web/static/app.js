@@ -384,6 +384,15 @@ function clearAll() {
   toast(t("toast.cleared"), "ok");
 }
 
+const photoItems = () => [...$("photo-menu").querySelectorAll("[role=menuitem]")].filter((b) => !b.hidden);
+/** Open or close the photo sheet and its scrim; `refocus` puts focus back on the button that opened it. */
+function setPhotoMenu(open, refocus = false) {
+  $("photo-menu").hidden = !open;
+  $("photo-scrim").hidden = !open;
+  $("btn-photo").setAttribute("aria-expanded", String(open));
+  if (!open && refocus) $("btn-photo").focus();
+}
+
 const isNarrow = () => window.matchMedia("(max-width: 900px)").matches;
 function setSidebar(open) {
   const side = $("sidebar");
@@ -1477,22 +1486,45 @@ function bind() {
     $(id).addEventListener("change", (e) => {
       onFiles([...e.target.files]);
       e.target.value = "";
-      $("photo-menu").hidden = true;
-      $("btn-photo").setAttribute("aria-expanded", "false");
+      setPhotoMenu(false);
     });
   $("btn-photo").addEventListener("click", () => {
-    const menu = $("photo-menu");
-    menu.hidden = !menu.hidden;
-    $("btn-photo").setAttribute("aria-expanded", String(!menu.hidden));
-    if (!menu.hidden) $("photo-take").focus();
+    const open = $("photo-menu").hidden;
+    setPhotoMenu(open);
+    if (open) photoItems()[0]?.focus();
   });
   $("photo-take").addEventListener("click", () => $("photo-camera").click());
   $("photo-pick").addEventListener("click", () => $("photo-library").click());
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest?.("#photo-menu, #btn-photo")) {
-      $("photo-menu").hidden = true;
-      $("btn-photo").setAttribute("aria-expanded", "false");
+  // the scrim takes the tap that closes the sheet, so it never reaches the example card under it
+  $("photo-scrim").addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setPhotoMenu(false, true);
+  });
+  $("photo-menu").addEventListener("keydown", (e) => {
+    const items = photoItems();
+    const i = items.indexOf(document.activeElement);
+    let next = null;
+    if (e.key === "Escape") {
+      e.stopPropagation(); // never reaches the global Escape, which would stop a streaming answer
+      e.preventDefault();
+      setPhotoMenu(false, true);
+      return;
     }
+    if (e.key === "ArrowDown") next = items[(i + 1) % items.length];
+    else if (e.key === "ArrowUp") next = items[(i - 1 + items.length) % items.length];
+    else if (e.key === "Home") next = items[0];
+    else if (e.key === "End") next = items[items.length - 1];
+    if (next) {
+      e.preventDefault();
+      next.focus();
+    }
+  });
+  $("photo-menu").addEventListener("focusout", (e) => {
+    if (e.relatedTarget && !e.relatedTarget.closest("#photo-menu, #btn-photo")) setPhotoMenu(false);
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest?.("#photo-menu, #btn-photo")) setPhotoMenu(false);
   });
   // drag-and-drop anywhere on the composer
   const zone = $("composer");

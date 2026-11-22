@@ -2959,6 +2959,12 @@ button.att-card {
   box-shadow: 0 -8px 40px rgb(11 27 63 / 0.28);
   animation: rise 0.16s ease-out;
 }
+.photo-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 59; /* just under the sheet: a tap outside closes it and goes nowhere else */
+  background: var(--backdrop);
+}
 .photo-opt {
   display: flex;
   align-items: center;
