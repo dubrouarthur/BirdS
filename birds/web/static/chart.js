@@ -735,6 +735,7 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
     },
     tip,
   );
+  const pctFmt = formatter(lang, "%");
   let active = -1;
   let svg = null;
   let drawn = null;
@@ -742,10 +743,11 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
   const tipText = (i) => {
     const row = spec.rows[i];
     if (type === "pie") {
-      const pct = new Intl.NumberFormat(lang === "en" ? "en-GB" : "fr-FR", {
-        maximumFractionDigits: 1,
-      }).format((row[1] / drawn.total) * 100);
-      return `${row[0]} — ${fmt(row[1])} (${pct} %)`;
+      // the share in the UI language; not repeated when the values already are percentages adding up to ~100
+      const share = (row[1] / drawn.total) * 100;
+      if (spec.unit === "%" && Math.abs(drawn.total - 100) <= 1)
+        return `${row[0]} — ${fmt(row[1])}`;
+      return `${row[0]} — ${fmt(row[1])} (${pctFmt(Math.round(share * 10) / 10)})`;
     }
     if (series.length === 1) return `${row[0]} — ${fmt(row[1])}`;
     return null; // several series: one line each (tipLines)
