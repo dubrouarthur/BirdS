@@ -25,7 +25,8 @@ MEMO_LABELS = {
         "sources": "sources",
         "files": "fichiers créés",
         "draft": "brouillon de mail",
-        "image": "image lue",
+        "results": "résultats de recherche",
+        "notsent": "non envoyé",
     },
     "en": {
         "head": "Memo of this turn",
@@ -33,7 +34,8 @@ MEMO_LABELS = {
         "sources": "sources",
         "files": "files created",
         "draft": "email draft",
-        "image": "image read",
+        "results": "search results",
+        "notsent": "not sent",
     },
 }
 
@@ -48,10 +50,22 @@ def _plain(text: str, limit: int) -> str:
     return s if len(s) <= limit else s[: limit - 1].rstrip() + "…"
 
 
+INTERRUPTED = {"fr": "[réponse interrompue]", "en": "[answer interrupted]"}
+MEMO_CAP = 2400
+SUMMARY_CAP = 2100
+
+
 def memo(
-    lang: str, steps: list[dict], sources: list[dict], files: list[str], draft: dict | None, image: str = ""
+    lang: str,
+    steps: list[dict],
+    sources: list[dict],
+    files: list[str],
+    draft: dict | None,
+    results: list[dict] | None = None,
 ) -> str:
-    """Deterministic, compact record of what the tools did in one turn (never the raw tool outputs)."""
+    """Deterministic, compact record of what the tools did in one turn: tool names and key arguments, search result
+    titles and URLs (so "the second source" can be answered later), pages read, files made, draft subject.
+    Never raw tool output, never excerpts, never an image transcription (it lives in the user turn)."""
     lab = MEMO_LABELS["en" if lang == "en" else "fr"]
     parts = []
     used = []
@@ -61,6 +75,13 @@ def memo(
         used.append(f"{tool} « {_plain(key, 80)} »" if key else tool)
     if used:
         parts.append(f"{lab['tools']} : " + " ; ".join(used))
+    if results:
+        parts.append(
+            f"{lab['results']} : "
+            + " ; ".join(
+                f"{i}. {_plain(r.get('title'), 70)} ({_plain(r.get('url'), 120)})" for i, r in enumerate(results[:5], 1)
+            )
+        )
     if sources:
         parts.append(
             f"{lab['sources']} : "
@@ -71,10 +92,9 @@ def memo(
     if files:
         parts.append(f"{lab['files']} : " + ", ".join(_plain(f, 80) for f in files[:6]))
     if draft:
-        parts.append(f"{lab['draft']} : « {_plain(draft.get('subject'), 120)} » (non envoyé)")
-    if image:
-        parts.append(f"{lab['image']} : {_plain(image, 600)}")
-    return f"[{lab['head']} — " + " | ".join(parts) + "]" if parts else ""
+        parts.append(f"{lab['draft']} : « {_plain(draft.get('subject'), 120)} » ({lab['notsent']})")
+    out = f"[{lab['head']} — " + " | ".join(parts) + "]" if parts else ""
+    return out if len(out) <= MEMO_CAP else out[: MEMO_CAP - 2] + "…]"
 
 
 def _turns(history: list[dict]) -> list[list[dict]]:
@@ -88,11 +108,23 @@ def _turns(history: list[dict]) -> list[list[dict]]:
     return turns
 
 
-def _render(m: dict) -> dict:
+def cap(text: str, cap_chars: int) -> str:
+    """Head 2/3 + tail 1/3 of a long message. Position-independent: the same message renders the same everywhere."""
+    if len(text) <= cap_chars:
+        return text
+    head = (cap_chars * 2) // 3
+    tail = cap_chars - head
+    return text[:head] + "\n[…]\n" + text[-tail:]
+
+
+def _render(m: dict, lang: str, cap_chars: int) -> dict:
     content = str(m.get("content") or "")
-    if m.get("role") == "assistant" and m.get("memo"):
-        content = (content + "\n\n" + _plain(m["memo"], 2400)).strip()
-    return {"role": m["role"], "content": content}
+    if m.get("role") == "assistant":
+        if m.get("memo"):
+            content = (content + "\n\n" + _plain(m["memo"], MEMO_CAP)).strip()
+        if m.get("interrupted"):
+            content += "\n\n" + INTERRUPTED["en" if lang == "en" else "fr"]
+    return {"role": m["role"], "content": cap(content, cap_chars)}
 
 
 def _summary(turns: list[list[dict]], lang: str) -> str:
@@ -104,39 +136,42 @@ def _summary(turns: list[list[dict]], lang: str) -> str:
         for m in t:
             for chunk in re.findall(r"\b(?:fichiers créés|files created|sources) : [^|\]]+", str(m.get("memo") or "")):
                 extra.append(_plain(chunk, 160))
-        lines.append("- " + first + (" → " + " ; ".join(extra) if extra else ""))
-    return NOTE["en" if lang == "en" else "fr"] + "\n" + "\n".join(lines[-12:])
+        lines.append("- " + first + (" → " + " ; ".join(extra)[:160] if extra else ""))
+    out = NOTE["en" if lang == "en" else "fr"] + "\n" + "\n".join(lines[-12:])
+    return out[:SUMMARY_CAP]
 
 
 def window(
-    history: list[dict], budget_tokens: int, *, lang: str = "fr", block: int = 4
+    history: list[dict], budget_tokens: int, *, lang: str = "fr", msg_cap_tokens: int = 3168
 ) -> tuple[list[dict], str, dict]:
     """(messages to send, summary note or "", stats). ``history`` excludes the system and the current user message.
 
-    Keeps the newest turns that fit ``budget_tokens``; when it must drop, it drops the oldest turns in multiples
-    of ``block``, so the cut moves at most once every ``block`` turns. The newest turn is always kept (its
-    assistant text is shortened in the middle if it alone exceeds the budget).
+    Hysteresis cut: the kept history grows until it passes HIGH = budget; then the oldest whole turns are dropped
+    until it is under LOW = HIGH / 2. The cut is replayed over the conversation from its start, so it is a pure
+    function of the history (stateless server) and only moves about once per HIGH/2 tokens of new conversation:
+    between two moves, turn N+1's prompt starts with exactly the bytes of turn N's prompt (vLLM prefix cache).
+    Every message is capped at ``msg_cap_tokens`` (head 2/3 + tail 1/3). The newest turn is always kept.
     """
+    cap_chars = int(msg_cap_tokens * CHARS_PER_TOKEN)
     turns = _turns([m for m in history if m.get("role") in ("user", "assistant")])
-    rendered = [[_render(m) for m in t] for t in turns]
+    rendered = [[_render(m, lang, cap_chars) for m in t] for t in turns]
     sizes = [sum(tokens(m["content"]) for m in t) for t in rendered]
-    total = sum(sizes)
-    drop = 0
-    if total > budget_tokens:
-        while drop < len(turns) - 1 and sum(sizes[drop:]) > budget_tokens:
-            drop += 1
-        drop = min(len(turns) - 1, -(-drop // block) * block)  # round the cut up to a whole block
+    high, low = budget_tokens, budget_tokens // 2
+    drop, running, moved = 0, 0, False
+    for k, size in enumerate(sizes):  # replay: as if each turn were the newest
+        running += size
+        moved = False
+        if running > high:
+            while drop < k and running > low:
+                running -= sizes[drop]
+                drop += 1
+                moved = True
     kept = [m for t in rendered[drop:] for m in t]
-    if kept and sum(tokens(m["content"]) for m in kept) > budget_tokens:
-        last = kept[-1]
-        room = max(400, int((budget_tokens - sum(tokens(m["content"]) for m in kept[:-1])) * CHARS_PER_TOKEN))
-        if len(last["content"]) > room:
-            half = room // 2
-            last["content"] = last["content"][:half] + "\n[…]\n" + last["content"][-half:]
     note = _summary(turns[:drop], lang) if drop else ""
     stats = {
         "turns": len(turns),
         "dropped_turns": drop,
+        "cut_moved": moved,
         "history_tokens_est": sum(tokens(m["content"]) for m in kept),
         "budget": budget_tokens,
     }

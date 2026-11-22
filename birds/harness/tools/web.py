@@ -60,6 +60,11 @@ def web_search(args: dict, ctx) -> str:
     else:
         label = backend.label_for(ctx.lang) if hasattr(backend, "label_for") else getattr(backend, "label", "")
         ctx.step_info = {"backend": getattr(backend, "name", "?"), "label": label}
+    # titles and URLs only (never snippets): the memo of the turn keeps them for follow-ups ("the second source")
+    ctx.step_info["results"] = [
+        {"title": " ".join(str(r.get("title") or "").split())[:150], "url": str(r.get("url") or "")}
+        for r in results[:5]
+    ]
     if not results:
         return "No results."
     lines = []

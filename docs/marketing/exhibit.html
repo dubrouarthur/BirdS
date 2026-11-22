@@ -11,9 +11,9 @@
   .top .brand { display:flex; align-items:center; gap:10px; font-size:22px; font-weight:800; letter-spacing:-.3px; }
   .top .brand svg { width:34px; height:30px; }
   .top .brand span { color:var(--blue); font-weight:800; }
-  h1 { margin-top:46px; font-family:"Bitstream Charter","Charter",Georgia,serif; font-weight:700; font-size:60px; line-height:1.12; letter-spacing:-.6px; }
-  .dek { margin-top:22px; font-size:25px; line-height:1.45; color:var(--ink2); max-width:860px; }
-  .exhibit { margin-top:58px; }
+  h1 { margin-top:38px; font-family:"Bitstream Charter","Charter",Georgia,serif; font-weight:700; font-size:54px; line-height:1.12; letter-spacing:-.6px; }
+  .dek { margin-top:18px; font-size:23px; line-height:1.45; color:var(--ink2); max-width:860px; }
+  .exhibit { margin-top:40px; }
   .exlabel { font-size:15px; font-weight:700; letter-spacing:1.8px; text-transform:uppercase; color:var(--mute); }
   .extitle { margin-top:8px; font-size:24px; font-weight:700; }
   .exsub { margin-top:4px; font-size:18px; color:var(--mute); }
@@ -27,9 +27,21 @@
   .row.bird .name { color:var(--blue); }
   .row.bird .bar i { background:var(--blue); }
   .row.bird .bar b { color:var(--blue); }
-  .call { margin-top:44px; display:grid; grid-template-columns:repeat(3,1fr); gap:34px; }
+  .units { margin-top:30px; display:grid; grid-template-columns:200px 250px 1fr; align-items:end; gap:40px; border-bottom:1px solid var(--hair); padding-bottom:22px; }
+  .dots { display:grid; grid-template-columns:repeat(10, 21px); gap:7px; justify-content:start; align-content:end; min-height:273px; }
+  .dots i { width:21px; height:21px; border-radius:50%; display:block; }
+  .dots i.g { background:var(--grey); }
+  .dots i.b { background:var(--blue); box-shadow:0 0 0 7px rgba(30,91,216,.14); }
+  .unit.bird .dots { grid-template-columns:21px; }
+  .unit:not(.big):not(.bird) .dots { grid-template-columns:repeat(5, 21px); }
+  .lab { margin-top:18px; border-top:1px solid var(--hair); padding-top:12px; }
+  .lab b { display:block; font-size:19px; font-weight:700; }
+  .lab span { display:block; font-size:15px; color:var(--mute); margin-top:2px; }
+  .lab em { display:block; font-style:normal; font-size:15px; font-weight:700; color:var(--ink2); margin-top:6px; }
+  .unit.bird .lab b, .unit.bird .lab em { color:var(--blue); }
+  .call { margin-top:34px; display:grid; grid-template-columns:repeat(3,1fr); gap:34px; }
   .call div { border-top:3px solid var(--ink); padding-top:16px; }
-  .call strong { display:block; font-family:"Bitstream Charter",Georgia,serif; font-size:44px; font-weight:700; letter-spacing:-.5px; line-height:1; }
+  .call strong { display:block; font-family:"Bitstream Charter",Georgia,serif; font-size:40px; font-weight:700; letter-spacing:-.5px; line-height:1; }
   .call span { display:block; margin-top:10px; font-size:18px; line-height:1.4; color:var(--ink2); }
   .foot { margin-top:auto; padding-top:18px; border-top:1px solid var(--hair); font-size:13.5px; line-height:1.45; color:var(--mute); }
   .foot b { color:var(--ink2); font-weight:700; }
@@ -46,18 +58,18 @@
   <div class="exhibit">
     <div class="exlabel">Graphique 1</div>
     <div class="extitle">Calcul nécessaire pour générer un mot</div>
-    <div class="exsub">Milliards d'opérations par token, ≈ 2 × paramètres actifs, à conditions de service égales</div>
-    <div class="chart">
-      <div class="row bird"><div class="name">Bird S 4B<small>4 milliards de paramètres</small></div><div class="bar"><i style="width:4.3px"></i><b>8</b></div></div>
-      <div class="row"><div class="name">Grand modèle à experts<small>~40 milliards de paramètres actifs</small></div><div class="bar"><i style="width:43px"></i><b>80</b></div></div>
-      <div class="row"><div class="name">Grand modèle dense<small>~400 milliards de paramètres</small></div><div class="bar"><i style="width:430px"></i><b>800</b></div></div>
+    <div class="exsub">Chaque point = 8 milliards d'opérations par token (≈ 2 × paramètres actifs), à conditions de service égales</div>
+    <div class="units">
+      <div class="unit bird"><div class="dots"><i class="b"></i></div><div class="lab"><b>Bird S 4B</b><span>4 milliards de paramètres</span><em>1 point</em></div></div>
+      <div class="unit"><div class="dots"><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i></div><div class="lab"><b>Grand modèle à experts</b><span>~40 milliards de paramètres actifs</span><em>10 points</em></div></div>
+      <div class="unit big"><div class="dots"><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i><i class="g"></i></div><div class="lab"><b>Grand modèle dense</b><span>~400 milliards de paramètres</span><em>100 points</em></div></div>
     </div>
   </div>
 
   <div class="call">
     <div><strong>÷100</strong><span>de calcul par mot face à un modèle dense de 400 milliards de paramètres.</span></div>
     <div><strong>1 GPU</strong><span>de 24 Go suffit pour servir Bird, mis en veille quand personne ne s'en sert.</span></div>
-    <div><strong>0,36 Wh</strong><span>mesurés sur notre GPU pour 1 000 tokens générés, soit environ 750 mots.</span></div>
+    <div><strong>0,36 Wh</strong><span>mesurés sur notre GPU pour 1&nbsp;000 tokens générés, soit environ 750&nbsp;mots.</span></div>
   </div>
 
   <div class="foot"><b>Méthode.</b> Calcul théorique par token d'un modèle décodeur ≈ 2 × nombre de paramètres actifs ; les deux grands modèles sont des profils types, non des produits nommés. Le calcul ne se traduit pas linéairement en énergie : celle-ci dépend du matériel, du taux d'utilisation et du regroupement des requêtes. Consommation mesurée de Bird : 0,36 Wh pour 1 000 tokens générés (GPU NVIDIA A10G, traitement par lots, GPU seul). Bird fait plus d'erreurs qu'un grand modèle : relisez ce qui compte.</div>

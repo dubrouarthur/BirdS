@@ -492,6 +492,7 @@ def test_chat_with_a_sleeping_user_endpoint_is_a_calm_status_then_a_retryable_er
             for f in client.post("/api/chat", json=body, headers=HEADERS).text.split("\n\n")
             if f.startswith("data: ")
         ]
+    events = [e for e in events if e["type"] != "user"]  # the exact user text sent to the model comes first
     kinds = [e["type"] for e in events]
     assert kinds[:2] == ["status", "status"] and events[0]["state"] == "waking" and "answer" in kinds
     calls.clear()

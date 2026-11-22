@@ -48,6 +48,7 @@ class Message(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     memo: str | None = Field(default=None, max_length=4000)  # compact record of the tools of that turn
+    interrupted: bool = False  # the answer was stopped or cut by max_tokens: marked as such in the history
 
 
 class ImageIn(BaseModel):
@@ -72,6 +73,10 @@ class ChatBody(BaseModel):
     images: list[ImageIn] = Field(default_factory=list, max_length=3)  # for the last user message only
     approved: list[str] = Field(default_factory=list, max_length=1)  # confirm token the user approved
     denied: list[str] = Field(default_factory=list, max_length=1)  # confirm token the user refused
+    conv_lang: Literal["fr", "en"] | None = None  # pinned at the first message of the conversation
+    conversation_id: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+    )
 
 
 class TestBody(BaseModel):
@@ -162,7 +167,14 @@ def build_server_backend(s: Settings) -> Backend | None:
     """The operator's model: an OpenAI-compatible endpoint, or a model loaded in this process (local use)."""
     if s.local_llm is not None:
         return HarnessBackend(
-            s.local_llm, s.local_tok, kind="local", model=s.model, workspace=s.workspace, config=harness_config(s)
+            s.local_llm,
+            s.local_tok,
+            kind="local",
+            model=s.model,
+            workspace=s.workspace,
+            config=harness_config(s),
+            history_tokens=s.history_tokens,
+            msg_cap_tokens=s.history_msg_tokens,
         )
     if not s.base_url:
         return None
@@ -182,6 +194,8 @@ def build_server_backend(s: Settings) -> Backend | None:
         workspace=s.workspace,
         config=harness_config(s),
         http=fetch_client(s),
+        history_tokens=s.history_tokens,
+        msg_cap_tokens=s.history_msg_tokens,
     )
 
 
@@ -325,7 +339,13 @@ def create_app(
         cfg = harness_config(s)
         cfg.update(wh_per_1k_tokens=None, calibration_source=None, measure_gpu=False)  # not the operator's hardware
         backend = HarnessBackend(
-            llm, kind="completions", model=model, config=cfg, http=fetch_client(s), history_tokens=s.history_tokens
+            llm,
+            kind="completions",
+            model=model,
+            config=cfg,
+            http=fetch_client(s),
+            history_tokens=s.history_tokens,
+            msg_cap_tokens=s.history_msg_tokens,
         )
         return backend, "user:" + tokens.digest([base, model])[:16]
 
@@ -362,6 +382,8 @@ def create_app(
             "images": bool(getattr(shown, "images", False)),
             "image_limits": {"min_pixels": IMAGE_MIN_PIXELS, "min_side": IMAGE_MIN_SIDE, "max_side": 1568, "max": 3},
             "history_tokens": s.history_tokens,
+            "history_msg_tokens": s.history_msg_tokens,
+            "cache_isolation": "salted",
             "endpoint_hosts": ["*." + h for h in s.endpoint_allowed_hosts],
             "signing": s.signing,
             "grid_intensity_g_per_kwh": s.grid_intensity,
@@ -469,7 +491,12 @@ def create_app(
             raise ApiError(422, "invalid_request", "the last message must come from the user")
         if len(body.messages) > s.max_messages:
             raise ApiError(413, "too_many_messages", f"at most {s.max_messages} messages per conversation")
-        if any(len(m.content) > s.max_message_chars for m in body.messages):
+        # earlier user turns come back as the exact text the model received (image transcriptions and attachment
+        # notes included), so they may exceed the raw limit by USER_SENT_EXTRA, derived from the code's own caps
+        extra = user_sent_extra(s)
+        if any(len(m.content) > s.max_message_chars + (extra if m.role == "user" else 0) for m in body.messages):
+            raise ApiError(413, "message_too_long", f"a message is longer than {s.max_message_chars} characters")
+        if (body.images or body.attachments) and len(body.messages[-1].content) > s.max_message_chars:
             raise ApiError(413, "message_too_long", f"a message is longer than {s.max_message_chars} characters")
         if len(body.attachments) > s.max_attachments:
             raise ApiError(413, "too_many_attachments", f"at most {s.max_attachments} attached documents")
@@ -500,8 +527,10 @@ def create_app(
         backend, binding = backend_for(mode, request)
         conv = tokens.digest(
             {
-                "m": [{"role": m["role"], "content": m["content"]} for m in messages],
+                "m": [{k: m.get(k) for k in ("role", "content", "memo", "interrupted")} for m in messages],
                 "a": [[a["name"], tokens.digest(a["content"])] for a in attachments],
+                "cid": body.conversation_id,
+                "lang": body.conv_lang,
             }
         )
         resume, decision = None, None
@@ -513,7 +542,17 @@ def create_app(
             if resume.get("conv") != conv or resume.get("bind") != binding:
                 raise ApiError(400, "confirm_invalid", "this confirmation belongs to another conversation or model")
             decision = bool(body.approved)
-        chat_request = ChatRequest(messages, body.thinking, body.lang, attachments, resume, decision, images)
+        chat_request = ChatRequest(
+            messages,
+            body.thinking,
+            body.lang,
+            attachments,
+            resume,
+            decision,
+            images,
+            conv_lang=body.conv_lang,
+            conversation_id=body.conversation_id,
+        )
 
         loop = asyncio.get_running_loop()
         queue: asyncio.Queue[Event | None] = asyncio.Queue()
@@ -603,6 +642,17 @@ def create_app(
 IMAGE_MIN_PIXELS = 200_000  # below this, the live model hallucinated on a real test (400 x 220): refuse
 IMAGE_MIN_SIDE = 300
 IMAGE_MAX_SIDE = 2048  # the browser downsizes to 1568 px; anything larger did not come from our UI
+
+
+def user_sent_extra(s: Settings) -> int:
+    """Largest growth of a user message between what the user typed and what the model received (3.3.1)."""
+    from birds.harness import guard
+
+    from .backends import _ATTACH_NOTE, _IMAGE_NOTE, ATTACH_DIR, IMAGE_TEXT_CHARS
+
+    note = 2 + max(map(len, _IMAGE_NOTE.values())) + 4 + 160 + 1 + max(map(len, guard.UNTRUSTED_NOTE.values())) + 1
+    attach = 1 + max(map(len, _ATTACH_NOTE.values())) + 4 + len(ATTACH_DIR) + 1 + 160 + 1
+    return 3 * (IMAGE_TEXT_CHARS + note) + s.max_attachments * attach
 
 
 def check_image(url: str) -> str:

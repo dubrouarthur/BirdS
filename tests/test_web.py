@@ -106,7 +106,7 @@ def chat(client, text: str, lang: str = "fr", thinking: bool = False, **extra) -
     return post_chat(client, body)
 
 
-def types(events: list[dict], skip=("delta",)) -> list[str]:
+def types(events: list[dict], skip=("delta", "user")) -> list[str]:
     return [e["type"] for e in events if e["type"] not in skip]
 
 
@@ -369,7 +369,12 @@ def test_request_limits(client):
     msg = {"role": "user", "content": "x"}
     many = [msg, {"role": "assistant", "content": "y"}] * 30 + [msg]
     assert code({"messages": many}) == (413, "too_many_messages")
-    assert code({"messages": [{"role": "user", "content": "x" * 24_001}]}) == (413, "message_too_long")
+    from birds.web.server import user_sent_extra
+
+    extra = user_sent_extra(Settings())  # a user turn may come back with its image/attachment notes (exact text sent)
+    assert code({"messages": [{"role": "user", "content": "x" * (24_001 + extra)}]}) == (413, "message_too_long")
+    big = {"messages": [{"role": "user", "content": "x" * 24_001}], "attachments": [{"name": "a.txt", "content": "x"}]}
+    assert code(big) == (413, "message_too_long")  # raw input with a new attachment: the strict limit
     assert code({"messages": [msg], "attachments": [{"name": f"{i}.txt", "content": "x"} for i in range(5)]}) == (
         413,
         "too_many_attachments",
@@ -770,7 +775,7 @@ def test_harness_streams_the_answer_and_keeps_history():
     assert set(usage) == USAGE_KEYS and usage["tokens_kind"] == "counted" and usage["energy_wh"] is None
     sent = json.loads(llm.prompts[0])
     assert [m["role"] for m in sent["messages"]] == ["system", "user", "assistant", "user"]
-    assert "read_file" not in sent["tools"]  # no attachment, no persistent workspace: nothing to read
+    assert "read_file" in sent["tools"]  # always offered: the tools block is part of the stable prompt prefix
 
 
 def test_harness_never_streams_reasoning_or_tool_markup():

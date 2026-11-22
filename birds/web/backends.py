@@ -55,6 +55,8 @@ class ChatRequest:
     resume: dict | None = None  # verified payload of a confirm token
     decision: bool | None = None  # the user's answer to that confirmation
     images: list[dict] = field(default_factory=list)  # [{"name", "url": data URL}] of the LAST user message only
+    conv_lang: str | None = None  # pinned by the client at the first message of the conversation
+    conversation_id: str | None = None  # random UUID from the client: cache salt and log id, never shown
 
 
 @dataclass
@@ -841,6 +843,78 @@ _SEARCH_CODES = {
 }
 
 
+IMAGE_TEXT_CHARS = 2400  # hard cap of one image transcription, applied before it is used anywhere
+
+
+def conv_lang(request: ChatRequest) -> str:
+    """The conversation's language, pinned by the client at its first message (never detected, never changes):
+    the persona, the summary note and the markers of past turns depend on it, so the prompt prefix stays stable."""
+    pinned = getattr(request, "conv_lang", None)
+    return pinned if pinned in ("fr", "en") else ("en" if request.lang == "en" else "fr")
+
+
+def run_lang(raw_last: str, conv: str) -> str:
+    """Language of THIS request: the conversation's, unless the raw message clearly says otherwise (>= 3 markers
+    and twice as many as the other language). "ok", "oui" or a bare URL keep the conversation's language."""
+    from birds.harness.agent import _EN, _FR
+
+    n_fr, n_en = len(_FR.findall(raw_last or "")), len(_EN.findall(raw_last or ""))
+    if max(n_fr, n_en) >= 3:
+        if n_fr >= 2 * n_en and n_fr > n_en:
+            return "fr"
+        if n_en >= 2 * n_fr and n_en > n_fr:
+            return "en"
+    return conv
+
+
+def cache_salt(cid: str | None) -> str:
+    """vLLM folds cache_salt into the first block hash: different salts never share cached blocks. One salt per
+    conversation (derived from a random client id, deterministic across instances, no secret needed); without an
+    id, a fresh random salt per request (no reuse, no leak)."""
+    import hashlib
+    import secrets
+
+    if cid:
+        return hashlib.sha256(b"bird-cache-salt-v1\0" + cid.encode("ascii")).hexdigest()
+    return secrets.token_hex(16)
+
+
+def log_id(cid: str | None) -> str | None:
+    import hashlib
+
+    return hashlib.sha256(b"bird-log-v1\0" + cid.encode("ascii")).hexdigest()[:16] if cid else None
+
+
+def prepare_turn(
+    messages: list[dict],
+    conv: str,
+    rl: str,
+    attachment_names: list[str],
+    image_texts: list[tuple[str, str]],
+    history_tokens: int,
+    msg_cap_tokens: int,
+):
+    """Pure: (system, kept history, user_sent, stats) for one request. user_sent is EXACTLY the text the model gets
+    as this turn's user message; the client stores it and sends it back as that turn's content afterwards."""
+    from birds.harness import guard
+    from birds.harness.history import window
+    from birds.sources.identity import DEFAULT_SYSTEM
+
+    *history, last = messages
+    user = last["content"]
+    for name, text in image_texts:
+        t = guard.truncate(text or "", IMAGE_TEXT_CHARS)
+        user += f"\n\n[{_IMAGE_NOTE[rl]} : {name}]\n{guard.UNTRUSTED_NOTE[rl]}\n{t or '(illisible)'}"
+    if attachment_names:
+        note = _ATTACH_NOTE[rl]
+        user += "\n\n" + "\n".join(f"[{note} : {n}]" for n in attachment_names)
+    user_sent = guard.defang(user)
+    kept, summary, stats = window(history, history_tokens, lang=conv, msg_cap_tokens=msg_cap_tokens)
+    kept = [{**m, "content": guard.defang(m["content"])} for m in kept]
+    system = DEFAULT_SYSTEM[conv] + ("\n\n" + summary if summary else "")
+    return system, kept, user_sent, stats
+
+
 class HarnessBackend:
     """Adapter over ``birds.harness`` (agent loop, tools, guardrails, meter). Stateless between requests.
 
@@ -866,6 +940,7 @@ class HarnessBackend:
         http=None,
         search=None,
         history_tokens: int = 6000,
+        msg_cap_tokens: int = 3168,
     ) -> None:
         try:
             from birds.harness import Agent, Config
@@ -876,7 +951,7 @@ class HarnessBackend:
         self.kind, self.model, self.http, self.search = kind, model, http, search
         self.workspace = Path(workspace).resolve() if workspace else None
         self.config = dict(config or {})
-        self.history_tokens = history_tokens
+        self.history_tokens, self.msg_cap_tokens = history_tokens, msg_cap_tokens
         probe = Config(workspace=Path(tempfile.gettempdir()), audit_file=None, **self.config)
         agent = Agent(llm, self.tok, probe, http=http, search=search)
         self.tools = [t["function"]["name"] for t in agent.tools]
@@ -897,13 +972,17 @@ class HarnessBackend:
 
         cfg = Config(workspace=workspace, **self.config)
         if self.workspace is None:
-            cfg.audit_file = None  # no durable disk: audit lines go to stdout, where the platform collects logs
-            if not request.attachments:
-                cfg.allowed_tools = tuple(t for t in cfg.allowed_tools if t != "read_file")
+            # no durable disk: audit lines go to stdout, where the platform collects logs. read_file stays offered
+            # even without an attachment (it then answers "file not found"): the tools block is part of the prompt
+            # prefix and must not change from one turn to the next.
+            cfg.audit_file = None
         cfg.timeout_s = max(0.0, min(cfg.timeout_s, ctx.seconds_left()))
+        cfg.cache_salt = cache_salt(getattr(request, "conversation_id", None))
         return cfg
 
-    def _read_images(self, request: ChatRequest, ctx: RunContext, lang: str, first_index: int, question: str):
+    def _read_images(
+        self, request: ChatRequest, ctx: RunContext, lang: str, first_index: int, question: str, salt: str | None = None
+    ):
         """Transcribe each attached image (one chat-completions call per image, no tools). Returns (texts, usages)."""
         texts, usages = [], []
         for k, img in enumerate(request.images):
@@ -931,6 +1010,7 @@ class HarnessBackend:
                 700,
                 on_status=lambda state, info: ctx.emit({"type": "status", "state": state, **(info or {})}),
                 deadline=ctx.deadline - 20,
+                **({"extra": {"cache_salt": salt}} if salt else {}),
             )
             text = (out.get("text") or "").strip()
             usages.append(out)
@@ -949,11 +1029,10 @@ class HarnessBackend:
         return texts, usages
 
     def run(self, request: ChatRequest, ctx: RunContext) -> None:
-        from birds.harness import Agent, guard
-        from birds.harness.agent import PAUSE, Hooks, detect_lang
-        from birds.harness.history import memo, window
+        from birds.harness import Agent
+        from birds.harness.agent import PAUSE, Hooks
+        from birds.harness.history import memo
         from birds.harness.meter import estimate_power_time
-        from birds.sources.identity import DEFAULT_SYSTEM
 
         lang = "en" if request.lang == "en" else "fr"
         ephemeral = self.workspace is None
@@ -999,30 +1078,30 @@ class HarnessBackend:
                 if request.resume.get("k") != "harness":
                     raise ValueError("this confirmation does not belong to this backend")
                 carry = request.resume.get("carry") or carry
+                state = request.resume["state"]
+                ui = request.resume.get("state_ui")
+                if isinstance(ui, int) and 0 <= ui < len(state["messages"]):
+                    ctx.emit({"type": "user", "content": state["messages"][ui]["content"]})
                 # lang=None below: the harness answers in the language of the user's message, not of the interface
-                run = agent.run(resume=request.resume["state"], decision=bool(request.decision))
+                run = agent.run(resume=state, decision=bool(request.decision))
             else:
-                *history, last = request.messages
-                user = last["content"]
+                last = request.messages[-1]
+                conv = conv_lang(request)
+                rl = run_lang(last["content"], conv)
                 if request.images:
                     if not self.images:
                         raise HarnessUnavailable(
                             _t(lang, "ce modèle ne peut pas lire d'images ici", "this model cannot read images here")
                         )
-                    image_texts, image_usage = self._read_images(request, ctx, lang, 0, user)
-                    for name, text in image_texts:
-                        user += f"\n\n[{_IMAGE_NOTE[lang]} : {name}]\n{text or '(illisible)'}"
-                if names:
-                    note = _ATTACH_NOTE[lang]
-                    user += "\n\n" + "\n".join(f"[{note} : {n}]" for n in names)
-                from birds.harness.agent import _EN, _FR
-
-                text = last["content"]
-                user_lang = detect_lang(text) if (_FR.search(text) or _EN.search(text)) else lang
-                kept, summary, hist_stats = window(history, self.history_tokens, lang=user_lang)
-                system = DEFAULT_SYSTEM[user_lang] + ("\n\n" + summary if summary else "")
-                kept = [{**m, "content": guard.defang(m["content"])} for m in kept]
-                run = agent.run(user, history=kept or None, system=system, thinking=request.thinking, lang=user_lang)
+                    image_texts, image_usage = self._read_images(
+                        request, ctx, rl, 0, last["content"], salt=cfg.cache_salt
+                    )
+                system, kept, user_sent, hist_stats = prepare_turn(
+                    request.messages, conv, rl, names, image_texts, self.history_tokens, self.msg_cap_tokens
+                )
+                state_ui = len(kept) + 1  # index of this turn's user message in the agent's messages
+                ctx.emit({"type": "user", "content": user_sent})
+                run = agent.run(user_sent, history=kept or None, system=system, thinking=request.thinking, lang=rl)
             ctx.check()
             report = run.report or {}
             previews = iter(
@@ -1056,6 +1135,7 @@ class HarnessBackend:
                         "tool": run.pending["tool"],
                         "arguments": _plain(run.pending["arguments"]),
                         "state": run.state,
+                        "state_ui": request.resume.get("state_ui") if request.resume is not None else state_ui,
                         "carry": {
                             "seconds": round(seconds, 2),
                             "energy_wh": energy if energy_kind == "measured" else None,
@@ -1092,7 +1172,7 @@ class HarnessBackend:
                 sources,
                 [f["name"] for f in files],
                 draft,
-                " ".join(t for _, t in image_texts),
+                [r for s in run.steps for r in (getattr(s, "info", {}) or {}).get("results", [])],
             )
             ctx.emit(
                 {
