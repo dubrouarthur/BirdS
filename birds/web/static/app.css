@@ -3876,14 +3876,23 @@ button.att-card {
   margin: 0 10px 12px;
 }
 /* a deck gets the room of a real slide: up to 860 px, wider than the text column when the window allows */
+/* ...and no taller than the window: header, stage, controls and filmstrip fit between the top bar and the
+   composer (about 270 px of chrome around the stage, plus the bars of the page) */
+.file-card.file-slides {
+  --deck-w: min(860px, max(20rem, (100dvh - 470px) * 16 / 9));
+}
 @media (min-width: 1180px) {
   .file-card.file-slides {
-    margin-inline: min(0px, calc((100% - 860px) / 2));
+    margin-inline: min(0px, calc((100% - var(--deck-w) - 20px) / 2));
   }
 }
 .deck {
   display: grid;
   gap: 8px;
+}
+.file-card .deck {
+  inline-size: min(100%, var(--deck-w));
+  margin-inline: auto;
 }
 .deck-stage {
   border-radius: 6px;
@@ -3969,7 +3978,7 @@ button.att-card {
 .deck-thumb {
   position: relative;
   display: block;
-  inline-size: 7.5rem;
+  inline-size: 6rem;
   padding: 0;
   border: 0;
   border-radius: 4px;
