@@ -478,6 +478,8 @@ export const STRINGS = {
       "La conversation est trop longue pour ce serveur. Commencez-en une nouvelle.",
     "error.settings": "Ouvrir les réglages",
     "error.internal": "Une erreur interne est survenue.",
+    "error.unavailable":
+      "Le serveur du modèle ne répond pas pour l'instant (il se réveille peut-être). Réessayez dans un instant.",
     "error.details": "Détails techniques",
     "error.steps.one": "1 étape terminée avant l'erreur.",
     "error.steps.many": "{n} étapes terminées avant l'erreur.",
@@ -1081,6 +1083,8 @@ export const STRINGS = {
       "The conversation is too long for this server. Start a new one.",
     "error.settings": "Open settings",
     "error.internal": "Something went wrong on our side.",
+    "error.unavailable":
+      "The model server is not answering right now (it may be waking up). Try again in a moment.",
     "error.details": "Technical details",
     "error.steps.one": "1 step finished before the error.",
     "error.steps.many": "{n} steps finished before the error.",

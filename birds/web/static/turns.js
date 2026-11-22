@@ -1127,7 +1127,12 @@ function renderError(turn, isLast) {
   const code = turn.error.code;
   const calm = code === "waking";
   const friendly = FRIENDLY_ERRORS.has(code) || /^http_\d+$/.test(code);
-  const raw = friendly ? "" : turn.error.detail || turn.error.message;
+  // an HTTP status without a sentence (a gateway page) gets a plain message; its number stays in the details
+  const raw = friendly
+    ? /^http_\d+$/.test(code)
+      ? turn.error.detail || ""
+      : ""
+    : turn.error.detail || turn.error.message;
   const done = turn.steps.filter((s) => s.status === "done").length;
   const before =
     !calm && done

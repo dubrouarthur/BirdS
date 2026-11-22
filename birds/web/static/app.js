@@ -1100,7 +1100,11 @@ function httpMessage(status, detail) {
   if (code === "rate_limited") return t("error.rate");
   if (code === "confirm_invalid") return t("confirm.expired");
   if (status === 413) return t("error.toolong");
-  return detail?.message || `HTTP ${status}`;
+  if (detail?.message) return detail.message;
+  // a gateway or a cold start answers 502/503/504 with an HTML page: say it in words; the status goes in the details
+  if ([502, 503, 504].includes(status)) return t("error.unavailable");
+  if (status >= 500) return t("error.internal");
+  return `HTTP ${status}`;
 }
 
 let painting = false;
@@ -1270,6 +1274,7 @@ async function runTurn(turn, extra = {}) {
       turn.error = {
         code: detail?.code || `http_${response.status}`,
         message: httpMessage(response.status, detail),
+        detail: `HTTP ${response.status}`, // the raw status, folded under "Détails techniques"
       };
       turn.status = "error";
       return;
@@ -1515,7 +1520,15 @@ async function exportAnswer(turn, format) {
       headers: requestHeaders(),
       body: JSON.stringify({ format: "docx", title, content }),
     });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) {
+      let detail = null;
+      try {
+        detail = (await response.json()).detail;
+      } catch {
+        /* not JSON */
+      }
+      throw new Error(httpMessage(response.status, detail));
+    }
     const mime =
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
     download(
