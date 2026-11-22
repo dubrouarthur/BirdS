@@ -323,6 +323,13 @@ def places(text: str, lang: str = "fr") -> Intent | None:
             return Intent("find_places", None, keep_web=True)
         if not _ok(q) or _not_a_place(q):
             return None  # "où est le contrat de Paul Martin", "where is the Q3 report": not a place at all
+        # « les parkings de aix », « pharmacies à Lyon »: a kind of place in a town is a "near" search
+        kn = re.match(r"(?P<kind>.+?)\s+(?:de|du|d'|à|a|au|aux|in|of)\s*(?P<near>[^\s].*)$", q, re.I)
+        if kn and _kind_of(kn.group("kind")) and len(kn.group("near")) >= 3:
+            return Intent(
+                "find_places", {"query": _kind_of(kn.group("kind")), "near": _clean_name(kn.group("near"))},
+                keep_web=False, mode="near",
+            )
         if _placey(q):
             return Intent("find_places", {"query": q}, keep_web=False, mode="where")
         return Intent("find_places", None, keep_web=True)

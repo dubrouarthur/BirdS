@@ -145,7 +145,8 @@ def find_places(args: dict, ctx) -> str:
         title = query
     else:
         if near:
-            hits = g.search(near, limit=1, lang=lang)
+            # « aix »: several towns match; the most important one (a city before villages) is the likely meaning
+            hits = sorted(g.search(near, limit=5, lang=lang), key=lambda h: -(h.importance or 0.0))[:1]
             if not hits:
                 ctx.step_info = {"found": 0}
                 return _none(near, lang)
