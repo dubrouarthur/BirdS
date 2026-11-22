@@ -485,7 +485,7 @@ def create_app(
         from birds.harness.config import Context
         from birds.harness.tools import TOOLS
 
-        from .backends import file_preview, inline_file
+        from .backends import inline_file, written_preview
 
         args, err = guard.validate_args(body.tool, body.arguments, (body.tool,))
         if err:
@@ -498,7 +498,8 @@ def create_app(
             except (guard.ToolError, guard.Blocked) as e:
                 return {"ok": False, "error": str(e)}
             files = [
-                inline_file(tmp / rel, file_preview(body.tool, args), s.max_inline_file_bytes) for rel in ctx.files
+                inline_file(tmp / rel, written_preview(body.tool, args, ctx.step_info), s.max_inline_file_bytes)
+                for rel in ctx.files
             ]
             return {"ok": True, "files": files}
         finally:

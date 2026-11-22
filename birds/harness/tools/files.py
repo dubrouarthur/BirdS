@@ -226,6 +226,11 @@ def _done(ctx, p: Path, summary: str) -> str:
     return f"File created and shown to the user as a download card: {p.name} ({summary}). Do not write its path."
 
 
+def _show(ctx, preview: dict) -> None:
+    """What the file really holds (final slides, blocks, displayed cells), for the chat preview of the download."""
+    ctx.step_info = {**(getattr(ctx, "step_info", None) or {}), "preview": preview}
+
+
 def make_slides(args: dict, ctx) -> str:
     _need("pptx", "python-pptx")
     from birds.harness.office import KEY_FIGURES, build_pptx, figure_bullets, missing_figures, plain
@@ -242,7 +247,9 @@ def make_slides(args: dict, ctx) -> str:
         added = f" A 'key figures' slide was added first with figures from the request that were missing: " \
                 f"{', '.join(missing)}."
     p = _new_path(ctx, args["title"], ".pptx")
-    n = build_pptx(p, args["title"], slides, args.get("subtitle") or "", getattr(ctx, "lang", "fr") or "fr")
+    preview: dict = {}
+    n = build_pptx(p, args["title"], slides, args.get("subtitle") or "", getattr(ctx, "lang", "fr") or "fr", preview)
+    _show(ctx, preview)
     extra = f", {n - 1} after splitting long slides" if n - 1 != len(slides) else ""
     titles = "; ".join(f"{i}. {plain(str(s.get('title') or ''))[:60]}" for i, s in enumerate(slides, 2))
     return _done(ctx, p, f"title slide + {len(slides)} slides{extra}") + (
@@ -255,7 +262,9 @@ def make_document(args: dict, ctx) -> str:
     from birds.harness.office import build_docx
 
     p = _new_path(ctx, args["title"], ".docx")
-    stats = build_docx(p, args["title"], args["sections"], args.get("subtitle") or "")
+    preview: dict = {}
+    stats = build_docx(p, args["title"], args["sections"], args.get("subtitle") or "", preview)
+    _show(ctx, preview)
     tables = f", {stats['tables']} table(s)" if stats["tables"] else ""
     return _done(ctx, p, f"{len(args['sections'])} sections{tables}")
 
@@ -265,7 +274,9 @@ def make_sheet(args: dict, ctx) -> str:
     from birds.harness.office import build_xlsx
 
     p = _new_path(ctx, args["title"], ".xlsx")
-    stats = build_xlsx(p, args["title"], args["columns"], args["rows"])
+    preview: dict = {}
+    stats = build_xlsx(p, args["title"], args["columns"], args["rows"], preview, getattr(ctx, "lang", "fr") or "fr")
+    _show(ctx, preview)
     extra = f", {stats['formulas']} formula(s)" if stats["formulas"] else ""
     if stats["blocked_formulas"]:
         extra += f", {stats['blocked_formulas']} formula(s) reaching outside the file written as text"

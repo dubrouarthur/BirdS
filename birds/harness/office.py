@@ -862,8 +862,11 @@ def _group_context(plan: list[dict], kinds: list[str]) -> list[dict]:
     return ctx
 
 
-def build_pptx(path, title: str, slides: list[dict], subtitle: str = "", lang: str = "fr") -> int:
-    """Write the deck; return the number of slides written (title slide included)."""
+def build_pptx(
+    path, title: str, slides: list[dict], subtitle: str = "", lang: str = "fr", preview: dict | None = None
+) -> int:
+    """Write the deck; return the number of slides written (title slide included). `preview`, if given, is filled
+    with what was drawn (deck_preview), for the chat to show the real slides."""
     from pptx import Presentation
     from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
     from pptx.util import Pt
@@ -967,7 +970,149 @@ def build_pptx(path, title: str, slides: list[dict], subtitle: str = "", lang: s
                 for r in p.runs:
                     r.font.name, r.font.size, r.font.color.rgb = FONT, Pt(12), _rgb(INK)
     prs.save(str(path))
+    if preview is not None:
+        preview.update(deck_preview(prs, title, subtitle, plan, kinds))
     return total
+
+
+# ------------------------------------------------------------------ what the chat shows of a deck
+
+_PX = 9525  # EMU per pixel of a 1280 x 720 canvas (13.333 in at 96 dpi)
+_PREVIEW_SLIDES, _PREVIEW_TEXT = 40, 400
+
+
+def _px(v) -> float:
+    return round(int(v or 0) / _PX, 1)
+
+
+def _scene(slide) -> list[dict]:
+    """The shapes of a slide as drawn, in z-order, on a 1280 x 720 canvas: geometry, fill, and text with its type
+    size (pt), colour, weight, alignment, spacing and bullets. Compact: the chat redraws the slide from it."""
+    from pptx.oxml.ns import qn
+
+    def attr(el, path, name, default=None):
+        node = el.find(path) if el is not None else None
+        return node.get(name, default) if node is not None else default
+
+    out = []
+    for sp in slide.shapes._spTree.iterchildren(qn("p:sp")):
+        sp_pr = sp.find(qn("p:spPr"))
+        off, ext = sp_pr.find(qn("a:xfrm") + "/" + qn("a:off")), sp_pr.find(qn("a:xfrm") + "/" + qn("a:ext"))
+        if off is None or ext is None:
+            continue
+        item: dict = {"x": _px(off.get("x")), "y": _px(off.get("y")), "w": _px(ext.get("cx")), "h": _px(ext.get("cy"))}
+        geom = attr(sp_pr, qn("a:prstGeom"), "prst", "rect")
+        if geom == "ellipse":
+            item["g"] = "o"
+        elif geom == "roundRect":
+            item["g"] = "rr"
+        fill = attr(sp_pr, qn("a:solidFill") + "/" + qn("a:srgbClr"), "val")
+        if fill:
+            item["f"] = fill
+        body = sp.find(qn("p:txBody"))
+        pars = []
+        for p in body.iterchildren(qn("a:p")) if body is not None else []:
+            runs = []
+            for r in p.iterchildren(qn("a:r")):
+                rpr = r.find(qn("a:rPr"))
+                text = r.findtext(qn("a:t")) or ""
+                if not text:
+                    continue
+                runs.append(
+                    {
+                        "t": text[:_PREVIEW_TEXT],
+                        "s": int(attr(r, qn("a:rPr"), "sz", "1800")) / 100,
+                        "c": attr(rpr, qn("a:solidFill") + "/" + qn("a:srgbClr"), "val", INK),
+                        **({"b": 1} if attr(r, qn("a:rPr"), "b") == "1" else {}),
+                        **({"k": int(attr(r, qn("a:rPr"), "spc")) / 100} if attr(r, qn("a:rPr"), "spc") else {}),
+                    }
+                )
+            if not runs:
+                continue
+            ppr = p.find(qn("a:pPr"))
+            par: dict = {"r": runs}
+            if (al := attr(p, qn("a:pPr"), "algn", "l")) != "l":
+                par["al"] = al
+            if ppr is not None:
+                if (ls := attr(ppr, qn("a:lnSpc") + "/" + qn("a:spcPct"), "val")) is not None:
+                    par["ls"] = int(ls) / 100000
+                for key, tag in (("sb", "a:spcBef"), ("sa", "a:spcAft")):
+                    if (v := attr(ppr, qn(tag) + "/" + qn("a:spcPts"), "val")) and int(v):
+                        par[key] = int(v) / 100
+                if (ch := attr(ppr, qn("a:buChar"), "char")) is not None:
+                    par["bu"] = {
+                        "ch": ch,
+                        "c": attr(ppr, qn("a:buClr") + "/" + qn("a:srgbClr"), "val", INK),
+                        "m": _px(ppr.get("marL")),
+                        "i": _px(ppr.get("indent")),
+                    }
+            pars.append(par)
+        if pars:
+            item["a"] = {"ctr": "m", "b": "b"}.get(attr(body, qn("a:bodyPr"), "anchor", "t"), "t")
+            item["p"] = pars
+            if sp.find(qn("p:nvSpPr") + "/" + qn("p:nvPr") + "/" + qn("p:ph")) is not None:
+                item["ti"] = 1  # the slide title (a heading for screen readers)
+        if fill or pars:
+            out.append(item)
+    return out
+
+
+def deck_preview(prs, title: str, subtitle: str, plan: list[dict], kinds: list[str]) -> dict:
+    """The deck as written: every slide (title slide, split parts, the added key-figures slide, closing slide) with
+    its render kind, its content as the reader sees it, and its drawn shapes."""
+    slides = list(prs.slides)
+    total = len(slides)
+
+    def cut(text: str, n: int = 240) -> str:
+        return _cut(plain(str(text or "")), n)
+
+    out = [{"n": 1, "kind": "title", "title": cut(title, 200), "subtitle": cut(subtitle, 180)}]
+    sections, eyebrow = 0, ""
+    for n, item in enumerate(plan, start=2):
+        heading = cut(item.get("base", item["title"]), 160) + item.get("suffix", "")
+        entry: dict = {"n": n, "title": heading}
+        if item["section"] and n == total:
+            entry["kind"] = "closing"
+        elif item["section"]:
+            sections += 1
+            eyebrow = heading
+            entry.update(kind="section", number=f"{sections:02d}")
+        else:
+            kind = kinds[n - 2]
+            entry["kind"] = kind
+            if eyebrow:
+                entry["eyebrow"] = _cut(eyebrow, 60).upper()
+            bullets = item["bullets"]
+            if kind == "kpi":
+                entry["items"] = [
+                    {"value": v, "label": cut(lab, 120), **({"delta": d} if d else {})}
+                    for v, lab, d in map(_kpi_split, bullets)
+                ]
+            elif kind == "steps":
+                entry["items"] = []
+                for j, b in enumerate(bullets):
+                    head, rest = _split_label(_STEP.sub("", plain(b)).strip())
+                    num = re.search(r"\d+", b)
+                    entry["items"].append(
+                        {"n": num.group(0) if num else str(j + 1), "label": cut(head, 120), "text": cut(rest)}
+                    )
+            else:
+                entry["items"] = [
+                    {"text": cut(t), **({"level": lv} if lv else {}), "n": item.get("offset", 0) + j + 1}
+                    for j, (lv, t) in enumerate(map(_level, bullets))
+                ]
+        out.append(entry)
+    for entry, slide in zip(out[:_PREVIEW_SLIDES], slides, strict=False):
+        entry["shapes"] = _scene(slide)
+    return {
+        "kind": "slides",
+        "v": 2,
+        "title": cut(title, 160),
+        "subtitle": cut(subtitle, 160),
+        "total": total,
+        "notes": sum(bool(item["notes"]) for item in plan),
+        "slides": out[:_PREVIEW_SLIDES],
+    }
 # ------------------------------------------------------------------ .docx
 
 # A4 page, 2.4 cm side margins: 16.2 cm of text width (in twips, 567 per cm).
@@ -1546,8 +1691,9 @@ def _cover(doc, title: str, subtitle: str | None) -> None:
         doc.add_paragraph(subtitle, style="Subtitle")
 
 
-def build_docx(path, title: str, sections: list[dict], subtitle: str = "") -> dict:
-    """Write the document; return counts for the summary (sections, tables, list items)."""
+def build_docx(path, title: str, sections: list[dict], subtitle: str = "", preview: dict | None = None) -> dict:
+    """Write the document; return counts for the summary (sections, tables, list items). `preview`, if given, is
+    filled with the blocks as written (doc_preview)."""
     from docx import Document
 
     doc = Document()
@@ -1565,7 +1711,104 @@ def build_docx(path, title: str, sections: list[dict], subtitle: str = "") -> di
         _blocks_to_docx(doc, blocks, base_level=2, context=heading)
     _finish(doc)
     doc.save(str(path))
+    if preview is not None:
+        preview.update(doc_preview(doc, title))
     return stats
+
+
+_PREVIEW_BLOCKS, _PREVIEW_ROWS = 120, 30
+
+
+def doc_preview(doc, title: str) -> dict:
+    """The body of a written document as blocks the chat draws like the page: title, subtitle, headings, paragraphs
+    (runs with bold), list items (bullet or number, level), callouts (decision/action), quotes, code, tables (header,
+    right-aligned figures, totals, zebra). Text and rows are capped."""
+    from docx.oxml.ns import qn
+
+    blocks: list[dict] = []
+    counters: dict = {}
+    names = {st.style_id: st.name for st in doc.styles}
+
+    def runs(p) -> list:
+        out, size = [], 0
+        for r in p.iter(qn("w:r")):
+            text = "".join(t.text or "" for t in r.iter(qn("w:t")))
+            if not text or size >= 600:
+                continue
+            text = text[: 600 - size]
+            size += len(text)
+            rpr = r.find(qn("w:rPr"))
+            bold = rpr is not None and rpr.find(qn("w:b")) is not None
+            fonts = rpr.find(qn("w:rFonts")) if rpr is not None else None
+            mono = fonts is not None and fonts.get(qn("w:ascii")) == "Consolas"
+            out.append([text, 1 if bold else 0] + ([1] if mono else []))
+        return out
+
+    def fill(ppr) -> str:
+        shd = ppr.find(qn("w:shd")) if ppr is not None else None
+        return (shd.get(qn("w:fill")) or "") if shd is not None else ""
+
+    for el in doc.element.body.iterchildren():
+        if len(blocks) >= _PREVIEW_BLOCKS:
+            break
+        if el.tag == qn("w:p"):
+            ppr = el.find(qn("w:pPr"))
+            style_el = ppr.find(qn("w:pStyle")) if ppr is not None else None
+            name = names.get(style_el.get(qn("w:val")), "Normal") if style_el is not None else "Normal"
+            r = runs(el)
+            if not r:
+                if ppr is not None and ppr.find(qn("w:pBdr")) is not None and style_el is None:
+                    blocks.append({"k": "rule"})
+                continue
+            if not name.startswith("List Number"):
+                counters = {} if not name.startswith("List") else counters
+            if name == "Title":
+                blocks.append({"k": "title", "r": r})
+            elif name == "Subtitle":
+                blocks.append({"k": "subtitle", "r": r})
+            elif name.startswith("Heading"):
+                blocks.append({"k": "h", "l": int(name[-1]) if name[-1].isdigit() else 1, "r": r})
+            elif name.startswith("List"):
+                level = int(name[-1]) - 1 if name[-1].isdigit() else 0
+                item: dict = {"k": "li", "r": r}
+                if level:
+                    item["l"] = level
+                if name.startswith("List Number"):
+                    num = ppr.find(qn("w:numPr") + "/" + qn("w:numId")) if ppr is not None else None
+                    key = (num.get(qn("w:val")) if num is not None else name, level)
+                    counters = {k: v for k, v in counters.items() if k[1] <= level}
+                    counters[key] = counters.get(key, 0) + 1
+                    item["n"] = counters[key]
+                blocks.append(item)
+            elif name == "Quote":
+                blocks.append({"k": "quote", "r": r})
+            elif fill(ppr) == _CODE:
+                blocks.append({"k": "code", "t": "".join(x[0] for x in r)})
+            elif fill(ppr) in (_GREEN_T, _TINT):
+                blocks.append({"k": "callout", "c": "decision" if fill(ppr) == _GREEN_T else "action", "r": r})
+            else:
+                blocks.append({"k": "p", "r": r})
+        elif el.tag == qn("w:tbl"):
+            rows = []
+            for i, tr in enumerate(el.iterchildren(qn("w:tr"))):
+                if i > _PREVIEW_ROWS:
+                    break
+                cells = []
+                for tc in tr.iterchildren(qn("w:tc")):
+                    text = "".join(t.text or "" for t in tc.iter(qn("w:t")))[:200]
+                    jc = tc.find(".//" + qn("w:jc"))
+                    cell = [text]
+                    if jc is not None and jc.get(qn("w:val")) in ("right", "end"):
+                        cell.append(1)
+                    cells.append(cell)
+                tc_fill = tr.find(".//" + qn("w:shd"))
+                row = {"c": cells}
+                if tc_fill is not None and tc_fill.get(qn("w:fill")) == SOFT:
+                    row["total"] = 1
+                rows.append(row)
+            total_rows = sum(1 for _ in el.iterchildren(qn("w:tr")))
+            blocks.append({"k": "table", "rows": rows, "more": max(0, total_rows - len(rows))})
+    return {"kind": "document", "v": 2, "title": _cut(plain(title), 160), "blocks": blocks}
 
 
 def docx_from_markdown(path, title: str, markdown: str) -> None:
@@ -1716,7 +1959,7 @@ def _formula_format(formula: str, header: str, col: int, typed: list[list], fmts
     return next((f for f in refs if '"' in f), refs[0] if refs else "#,##0.00")
 
 
-def build_xlsx(path, title: str, columns: list, rows: list[list]) -> dict:
+def build_xlsx(path, title: str, columns: list, rows: list[list], preview: dict | None = None, lang: str = "fr") -> dict:
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
     from openpyxl.utils import get_column_letter
@@ -1878,4 +2121,133 @@ def build_xlsx(path, title: str, columns: list, rows: list[list]) -> dict:
     for part, text in ((ws.oddFooter.left, dt.date.today().strftime("%d/%m/%Y")), (ws.oddFooter.right, "&P / &N")):
         part.text, part.font, part.size, part.color = text, FONT, 9, MUTED
     wb.save(str(path))
+    if preview is not None:
+        preview.update(sheet_preview(ws, title, width, len(typed), totals, grand, kinds, widths, lang))
     return {"formulas": formulas, "blocked_formulas": blocked}
+
+
+_FUNCS = {"SUM": sum, "MIN": min, "MAX": max, "AVERAGE": lambda v: sum(v) / len(v), "COUNT": len}
+_RANGE_REF = re.compile(r"\$?([A-Z]{1,3})\$?(\d{1,7}):\$?([A-Z]{1,3})\$?(\d{1,7})")
+
+
+def _evaluate(ws, formula: str, depth: int = 0):
+    """The value of a simple formula (+ - * / ( ), SUM/MIN/MAX/AVERAGE/COUNT over cells and ranges), for the preview
+    only: what Excel would show once it recalculates. None when the formula is beyond this small reader."""
+    import ast
+    import operator
+
+    from openpyxl.utils import column_index_from_string, get_column_letter
+
+    if depth > 8:
+        return None
+
+    def cell(col: str, row: str):
+        v = ws[f"{col}{row}"].value
+        if isinstance(v, str) and v.startswith("="):
+            v = _evaluate(ws, v, depth + 1)
+        if v in (None, ""):
+            return 0
+        if isinstance(v, bool) or not isinstance(v, int | float):
+            raise ValueError
+        return v
+
+    def rng(m):
+        c1, r1, c2, r2 = m.group(1), int(m.group(2)), m.group(3), int(m.group(4))
+        cols = range(column_index_from_string(c1), column_index_from_string(c2) + 1)
+        vals = [cell(get_column_letter(c), str(r)) for c in cols for r in range(r1, r2 + 1)]
+        return "[" + ",".join(repr(v) for v in vals) + "]"
+
+    expr = formula[1:].upper().replace(";", ",")
+    try:
+        expr = _RANGE_REF.sub(rng, expr)
+        expr = _REF.sub(lambda m: repr(cell(m.group(1), m.group(2))), expr)
+        tree = ast.parse(expr, mode="eval")
+    except (ValueError, SyntaxError, KeyError):
+        return None
+    ops = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv}
+
+    def ev(node):
+        if isinstance(node, ast.Expression):
+            return ev(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, int | float):
+            return node.value
+        if isinstance(node, ast.List):
+            return [ev(e) for e in node.elts]
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub | ast.UAdd):
+            v = ev(node.operand)
+            return -v if isinstance(node.op, ast.USub) else v
+        if isinstance(node, ast.BinOp) and type(node.op) in ops:
+            return ops[type(node.op)](ev(node.left), ev(node.right))
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in _FUNCS:
+            vals = []
+            for a in node.args:
+                v = ev(a)
+                vals.extend(v if isinstance(v, list) else [v])
+            return _FUNCS[node.func.id](vals)
+        raise ValueError
+
+    try:
+        value = ev(tree)
+    except (ValueError, ZeroDivisionError, TypeError, RecursionError):
+        return None
+    return value if isinstance(value, int | float) else None
+
+
+def shown_value(value, fmt: str | None, lang: str = "fr") -> str:
+    """A cell as Excel shows it with its number format, in the reader's language ('1 800,00 €' / '1,800.00 €')."""
+    if value is None:
+        return ""
+    if isinstance(value, dt.datetime | dt.date):
+        return value.strftime("%d/%m/%Y")
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return str(value)
+    fmt = (fmt or "General").replace(_NUM_PAD, "")
+    if "%" in fmt:
+        decimals = 1 if "0.0" in fmt else 0
+        number, suffix = value * 100, "\u202f%" if lang != "en" else "%"
+    else:
+        decimals = 2 if ".00" in fmt else 0 if ("#" in fmt or fmt == "0") else (0 if float(value).is_integer() else 2)
+        number = value
+        sym = re.search(r'"\s*([^"]+)"', fmt)
+        suffix = ("\xa0" + sym.group(1).strip()) if sym else ""
+    grouped = "," in fmt or "#" in fmt
+    text = f"{abs(number):,.{decimals}f}" if grouped else f"{abs(number):.{decimals}f}"
+    if lang != "en":
+        text = text.replace(",", "\u202f").replace(".", ",")
+    return ("−" if number < 0 and round(abs(number), decimals) else "") + text + suffix
+
+
+def sheet_preview(ws, title, width, n_rows, totals, grand, kinds, widths, lang="fr") -> dict:
+    """The first rows of the written sheet as displayed: header, values in their number format (formulas computed
+    when simple), column kinds and widths, total and grand-total rows."""
+    shown_rows = []
+    keep = list(range(min(n_rows, _PREVIEW_ROWS)))
+    keep += [i for i in totals if i not in keep]  # the totals of a long sheet are shown after a gap
+    for i in keep:
+        r = i + 2
+        cells = []
+        for c in range(1, width + 1):
+            cell = ws.cell(row=r, column=c)
+            value = cell.value
+            if isinstance(value, str) and value.startswith("=") and cell.data_type != "s":
+                computed = _evaluate(ws, value)
+                text = shown_value(computed, cell.number_format, lang) if computed is not None else value
+            else:
+                text = shown_value(value, cell.number_format, lang)
+            cells.append(text[:120])
+        row: dict = {"c": cells, "i": i}
+        if i == grand:
+            row["t"] = 2
+        elif i in totals:
+            row["t"] = 1
+        shown_rows.append(row)
+    return {
+        "kind": "sheet",
+        "v": 2,
+        "title": _cut(title, 160),
+        "columns": [str(ws.cell(row=1, column=c).value or "")[:80] for c in range(1, width + 1)],
+        "kinds": kinds,
+        "widths": widths,
+        "rows": shown_rows,
+        "total_rows": n_rows,
+    }

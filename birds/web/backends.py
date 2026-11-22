@@ -215,6 +215,13 @@ def inline_file(path: Path, preview: dict | None, limit: int) -> dict:
     return {**entry, "size": size, "data": base64.b64encode(path.read_bytes()).decode("ascii")}
 
 
+def written_preview(tool: str, args: dict, info: dict | None) -> dict | None:
+    """The preview of the file as written (final slides with their drawn shapes, document blocks, displayed cells),
+    which the tool leaves in its step info; the trimmed arguments (file_preview) when it did not."""
+    preview = (info or {}).get("preview") if isinstance(info, dict) else None
+    return preview if isinstance(preview, dict) and preview.get("kind") else file_preview(tool, args)
+
+
 def file_preview(tool: str, args: dict) -> dict | None:
     """What a make_* call asked for, trimmed, so the UI can show the outline before the download."""
     a = args if isinstance(args, dict) else {}
@@ -452,7 +459,8 @@ class _DemoRun:
         try:
             hctx = Context(config=Config(workspace=tmp, audit_file=None), http=None)
             TOOLS[tool](arguments, hctx)
-            entry = inline_file(tmp / hctx.files[0], file_preview(tool, arguments), self.ctx.max_inline_file_bytes)
+            preview = written_preview(tool, arguments, hctx.step_info)
+            entry = inline_file(tmp / hctx.files[0], preview, self.ctx.max_inline_file_bytes)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
         self.extra_completion += len(json.dumps(arguments, ensure_ascii=False)) // 4
@@ -1503,7 +1511,9 @@ class HarnessBackend:
             ctx.check()
             report = run.report or {}
             previews = iter(
-                file_preview(s.tool, s.arguments) for s in run.steps if s.tool.startswith("make_") and not s.error
+                written_preview(s.tool, s.arguments, getattr(s, "info", None))
+                for s in run.steps
+                if s.tool.startswith("make_") and not s.error
             )
             files = []
             for rel in run.files:
@@ -1623,6 +1633,7 @@ class HarnessBackend:
         decision = str(getattr(step, "decision", "allow"))
         preview, code = "", None
         info = dict(getattr(step, "info", {}) or {})
+        info.pop("preview", None)  # the file preview travels once, with the file (answer event)
         if decision.startswith("denied"):
             status = "denied"
             summary = _t(lang, *_DENIED_SUMMARY.get(decision, _DENIED_SUMMARY["denied_unconfirmed"]))
