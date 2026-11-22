@@ -83,7 +83,7 @@ La vue Empreinte (bouton en haut à droite) cumule la conversation ou tout l'his
 
 ## Graphiques
 
-Quand on demande un graphique (« fais un graphique… », « trace la courbe… », « un camembert de… »), Bird appelle `make_chart` et le graphique s'affiche sous la réponse : barres (horizontales au-delà de 8 libellés ou pour des libellés longs), courbe ou camembert (anneau). Il est dessiné en SVG par le navigateur (`static/chart.js`, sans bibliothèque) ; rien n'est rendu côté serveur.
+Quand on demande un graphique (« fais un graphique… », « trace la courbe… », « un camembert de… »), Bird appelle `make_chart` et le graphique s'affiche sous la réponse : barres (horizontales au-delà de 8 libellés ou pour des libellés longs), courbe ou camembert (anneau). Il est dessiné en SVG par le navigateur (`static/chart.js`, sans bibliothèque) ; rien n'est rendu côté serveur. Il est dessiné à la largeur réelle de la carte (un `ResizeObserver` le redessine quand elle change), donc le texte reste à 12 px sur téléphone comme sur ordinateur ; camembert étroit : pourcentages autour de l'anneau, noms dans la légende.
 
 - **Lire** : survol ou flèches du clavier (le graphique est un seul arrêt de tabulation ; Début/Fin, Échap) ; la bulle est annoncée par les lecteurs d'écran. Légende dès 2 séries (camembert : toujours), et « Voir les données » ouvre le tableau.
 - **Exporter** : « Télécharger PNG » (canevas, 1 280 px de large au moins), « Copier les données (CSV) » (`;` et virgule décimale en français, `,` en anglais, protégé contre l'injection de formules), « Exporter .xlsx » (le générateur `make_sheet` existant, par `POST /api/tool`).

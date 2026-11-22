@@ -4,7 +4,11 @@
 import { button, copyText, download, h, icon, t, toast } from "./core.js";
 
 const NS = "http://www.w3.org/2000/svg";
-let W = 640; // viewBox width: 640, or 420 on a phone so that 12px labels stay readable once scaled down
+// viewBox width = the plot's real width in CSS px, so 12px text is drawn at 12px on every screen (the chart is
+// drawn again when its width changes). Set by renderChart before each draw.
+let W = 640;
+const MIN_W = 260;
+const MAX_W = 900;
 const MAX_SERIES = 6;
 
 function s(tag, attrs, ...children) {
@@ -404,10 +408,12 @@ function drawLine(spec, fmt) {
 }
 
 function drawPie(spec, fmt, lang) {
-  const H = W < 600 ? 230 : 300;
+  // narrow: the outer labels are only the percentage (the names are in the legend), so the ring can stay big
+  const narrow = W < 480;
+  const R = narrow ? Math.max(56, Math.min(90, W / 2 - 48)) : 112;
+  const H = Math.round(2 * R + (narrow ? 56 : 76));
   const cx = W / 2;
   const cy = H / 2;
-  const R = W < 600 ? 78 : 112;
   const r0 = R * 0.55;
   const total = spec.rows.reduce((a, r) => a + (r[1] || 0), 0);
   const g = s("g");
@@ -448,7 +454,7 @@ function drawPie(spec, fmt, lang) {
             y: ly + 4,
             "text-anchor": Math.cos(mid) >= 0 ? "start" : "end",
           },
-          `${cut(row[0], 16)} ${nf.format((v / total) * 100)}${lang === "en" ? "%" : " %"}`,
+          `${narrow ? "" : `${cut(row[0], 16)} `}${nf.format((v / total) * 100)}${lang === "en" ? "%" : " %"}`,
         ),
       );
     }
@@ -584,16 +590,9 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
   )
     return null;
   const uid = `chart-${++seq}`;
-  W = typeof window !== "undefined" && window.innerWidth < 560 ? 420 : 640;
   const fmt = formatter(lang, spec.unit);
   const type = ["bar", "line", "pie"].includes(spec.type) ? spec.type : "bar";
   const series = spec.columns.slice(1, 1 + MAX_SERIES);
-  const drawn =
-    type === "pie"
-      ? drawPie(spec, fmt, lang)
-      : type === "line"
-        ? drawLine(spec, fmt)
-        : drawBars(spec, fmt);
   const n = spec.rows.length;
   const vals = spec.rows
     .map((r, i) => ({ i, v: r[1] }))
@@ -606,17 +605,6 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
         t("chart.min", { label: spec.rows[min.i][0], value: fmt(min.v) }),
       ].join(". ")
     : "";
-  const svg = s(
-    "svg",
-    {
-      viewBox: `0 0 ${W} ${drawn.H}`,
-      role: "img",
-      "aria-labelledby": `${uid}-title ${uid}-sum`,
-      focusable: "false",
-      class: `chart-svg chart-kind-${type}`,
-    },
-    drawn.g,
-  );
   const tip = h("div", {
     class: "chart-tip",
     role: "status",
@@ -637,10 +625,12 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
       }),
       "aria-describedby": `${uid}-sum`,
     },
-    svg,
     tip,
   );
   let active = -1;
+  let svg = null;
+  let drawn = null;
+  let drawnW = 0;
   const tipText = (i) => {
     const row = spec.rows[i];
     if (type === "pie") {
@@ -653,7 +643,7 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
     return `${row[0]} — ${series.map((name, j) => `${name}${lang === "en" ? ":" : " :"} ${fmt(row[j + 1])}`).join(" ; ")}`;
   };
   const show = (i) => {
-    if (i < 0 || i >= n) return;
+    if (i < 0 || i >= n || !drawn) return;
     drawn.marks.forEach((group, k) =>
       group.forEach((m) => m.classList.toggle("is-active", k === i)),
     );
@@ -666,7 +656,7 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
     tip.classList.add("is-shown");
   };
   const hide = () => {
-    drawn.marks.forEach((group) =>
+    drawn?.marks.forEach((group) =>
       group.forEach((m) => m.classList.remove("is-active")),
     );
     plot.classList.remove("has-active");
@@ -674,21 +664,58 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
     tip.textContent = "";
     active = -1;
   };
-  drawn.hits.forEach((hit, i) => {
-    const target =
-      hit.path ||
-      s("rect", {
-        class: "chart-hit",
-        x: hit.x,
-        y: hit.y,
-        width: hit.w,
-        height: hit.h,
-      });
-    if (!hit.path) drawn.g.append(target);
-    target.addEventListener("pointerenter", () => show(i));
-    target.addEventListener("pointerdown", () => show(i));
-  });
-  svg.addEventListener("pointerleave", hide);
+  const draw = (width) => {
+    W = Math.round(Math.max(MIN_W, Math.min(MAX_W, width)));
+    drawnW = W;
+    drawn =
+      type === "pie"
+        ? drawPie(spec, fmt, lang)
+        : type === "line"
+          ? drawLine(spec, fmt)
+          : drawBars(spec, fmt);
+    const next = s(
+      "svg",
+      {
+        viewBox: `0 0 ${W} ${drawn.H}`,
+        role: "img",
+        "aria-labelledby": `${uid}-title ${uid}-sum`,
+        focusable: "false",
+        class: `chart-svg chart-kind-${type}`,
+      },
+      drawn.g,
+    );
+    drawn.hits.forEach((hit, i) => {
+      const target =
+        hit.path ||
+        s("rect", {
+          class: "chart-hit",
+          x: hit.x,
+          y: hit.y,
+          width: hit.w,
+          height: hit.h,
+        });
+      if (!hit.path) drawn.g.append(target);
+      target.addEventListener("pointerenter", () => show(i));
+      target.addEventListener("pointerdown", () => show(i));
+    });
+    next.addEventListener("pointerleave", hide);
+    if (svg) svg.replaceWith(next);
+    else plot.prepend(next);
+    svg = next;
+    if (active >= 0) show(active);
+  };
+  // first draw at the width the card will most likely get; the observer corrects it before the first paint
+  const vw = typeof window !== "undefined" ? window.innerWidth || 640 : 640;
+  draw(Math.min(720, vw - (vw < 560 ? 46 : 120)));
+  if (typeof ResizeObserver !== "undefined") {
+    let pending = 0;
+    new ResizeObserver((entries) => {
+      const w = entries[entries.length - 1].contentRect.width;
+      if (!w || Math.abs(Math.round(w) - drawnW) < 2) return;
+      cancelAnimationFrame(pending);
+      pending = requestAnimationFrame(() => draw(w));
+    }).observe(plot);
+  }
   plot.addEventListener("keydown", (e) => {
     const keys = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
     if (e.key in keys)
