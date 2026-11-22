@@ -314,3 +314,18 @@ test("salutations and closings are never headings", () => {
     assert.doesNotMatch(md(s), /<h4/, s);
   assert.match(md("Sécurité\n- a\n- b"), /<h4 class="md-ph">Sécurité/); // still a heading
 });
+
+test("Attention, …: a warning, but not inside a letter, and the closing offer stays outside the box", () => {
+  const def = md(answer("definition"));
+  assert.match(def, /<\/div><\/div>\n<p>Je peux vous aider à construire un tableau de bord/);
+  assert.doesNotMatch(def, /md-callout-body[^]*Je peux vous aider[^]*<\/div><\/div>/);
+  const mail =
+    "Bonjour M. Dupont,\n\nAttention, nous avons le regret de vous informer que la livraison est reportée au 12 mars.\n\nCordialement,\nPaul";
+  assert.doesNotMatch(md(mail), /md-callout/);
+  assert.doesNotMatch(md("Attention, nous avons le regret de vous informer du report."), /md-callout/);
+  assert.doesNotMatch(md("Bonjour,\n\nAttention : le bureau sera fermé lundi."), /md-callout/);
+  assert.match(md("Attention, vous devez sauvegarder avant la mise à jour."), /md-callout--warn/);
+  const offer = md("Attention : sauvegardez avant. Souhaitez-vous la procédure complète ?");
+  assert.match(offer, /md-callout--warn[^]*sauvegardez avant\.<\/p><\/div><\/div>\n<p>Souhaitez-vous la procédure complète \?<\/p>/);
+  assert.match(md("**Conseil :** testez d'abord."), /<strong class="md-callout-label">Conseil<\/strong> : testez/);
+});

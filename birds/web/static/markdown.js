@@ -301,8 +301,15 @@ const CALLOUTS = [
 const RE_CALLOUT_HEAD =
   /^(\*\*)?([\p{L}. ]{2,20}?)(\s*[:,!])?(\*\*)?(\s*[:,!])?(?=\s|$)/u;
 
+// "Attention, nous avons le regret de…" opens a letter's sentence, not a warning
+const RE_LETTER_TURN = /^[\s,!]*(?:nous|je|j['’]|on)\b|regrett?/i;
+// a closing offer of help never belongs inside a callout: it moves out as its own paragraph
+const RE_OFFER =
+  /(?<=[.!?…]\s+|^)(?=(?:je peux|je reste|souhaitez-vous|voulez-vous|n['’]hésitez pas|si vous (?:le )?souhaitez|dites-moi|i can|let me know|feel free)\b)/iu;
+
 /** [kind, keyword, rest] when a paragraph opens with a callout keyword followed by ":" "," or "!". */
-function calloutHead(text) {
+function calloutHead(text, ctx) {
+  if (ctx.letter) return null; // a drafted letter or email is shown as written
   const m = text.match(RE_CALLOUT_HEAD);
   if (!m || !(m[3] || m[5]) || Boolean(m[1]) !== Boolean(m[4])) return null;
   const word = m[2].trim();
@@ -310,6 +317,7 @@ function calloutHead(text) {
   for (const [kind, re] of CALLOUTS) {
     if (!re.test(word)) continue;
     if (sep !== ":" && kind !== "warn") return null; // "Note, …" is a sentence; "Attention, …" is a warning
+    if (sep !== ":" && RE_LETTER_TURN.test(text.slice(m[0].length))) return null;
     return [
       kind,
       word,
@@ -681,14 +689,27 @@ function paragraph(para, start, lines, i, ctx, depth) {
       );
       return { kind: "pairs", html: lead ? callout(lead[0], dl) : dl };
     }
-    const head = texts.join(" ").length <= 700 ? calloutHead(texts[0]) : null;
+    const head = texts.join(" ").length <= 700 ? calloutHead(texts[0], ctx) : null;
     if (head) {
       const [kind, word, rest] = head;
-      const first = `<strong class="md-callout-label">${inline(word, ctx)}</strong>${inline(rest, ctx)}`;
-      const more = texts.slice(1).map((l) => inline(l, ctx));
+      // the callout keeps the warning itself; a trailing offer ("Je peux vous aider…") follows as plain text
+      let body = [rest, ...texts.slice(1)];
+      let tail = [];
+      for (let k = 0; k < body.length; k++) {
+        const at = body[k].search(RE_OFFER);
+        if (at < 0 || (k === 0 && !/\p{L}/u.test(body[0].slice(0, at)))) continue;
+        tail = [body[k].slice(at).trim(), ...body.slice(k + 1)];
+        body = [...body.slice(0, k), body[k].slice(0, at).trimEnd()].filter((l, j) => j === 0 || l);
+        break;
+      }
+      const first = `<strong class="md-callout-label">${inline(word, ctx)}</strong>${inline(body[0], ctx)}`;
+      const more = body.slice(1).map((l) => inline(l, ctx));
       return {
         kind: "callout",
         html: callout(kind, `<p>${[first, ...more].join("<br>")}</p>`),
+        after: tail.length
+          ? { kind: "p", html: `<p>${tail.map((l) => inline(l, ctx)).join("<br>")}</p>` }
+          : null,
       };
     }
   }
@@ -748,6 +769,7 @@ function blockList(lines, ctx, depth) {
     )
       return;
     out.push(block);
+    if (block.after) out.push(block.after);
   };
   let i = 0;
   while (i < lines.length) {
@@ -893,6 +915,9 @@ function blockList(lines, ctx, depth) {
       ctx.file = named[1];
       continue;
     }
+    // "Bonjour M. Dupont," opens a letter or an email: what follows is shown as written (no callouts)
+    if (ctx.rich && depth === 0 && para[0].trim().length <= 80 && RE_SALUTE.test(para[0].trim()))
+      ctx.letter = true;
     // "Recommandation" alone on the first line of a paragraph of prose: a heading over that paragraph
     const lead =
       ctx.rich && depth === 0 && para.length >= 2 && (start === 0 || !lines[start - 1].trim())
@@ -978,6 +1003,7 @@ function context(options) {
     labels,
     fence: 0,
     file: null,
+    letter: false,
   };
 }
 
