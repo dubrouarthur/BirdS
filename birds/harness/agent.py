@@ -9,6 +9,7 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -85,6 +86,21 @@ def route(user: str, attached: bool = False) -> set[str]:
     if (attached or _FILE_ASK.search(user or "")) and not _NEEDS_WEB.search(user or ""):
         return {"web_search", "read_page"}
     return set()
+
+
+_URL_IN_TEXT = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
+
+
+def _check_untrusted_url(url: object, ctx: Context) -> None:
+    """After a page or a file held an injection, read_page may only open a URL the user gave, a search result or a
+    page already read: a GET to an address the untrusted text chose is how data would leave (``?d=<secret>``)."""
+    url = str(url or "").strip()
+    if len(urlsplit(url).query) > 64:
+        raise guard.Blocked("page suggested by untrusted content (long query string)")
+    own = {u.rstrip(".,;:") for u in _URL_IN_TEXT.findall(ctx.request or "")}
+    known = set(ctx.sources) | set(ctx.found) | own
+    if url not in known and url.rstrip("/") not in {k.rstrip("/") for k in known}:
+        raise guard.Blocked("page suggested by untrusted content")
 
 
 PAUSE = guard.PAUSE  # a confirm callback returns this to end the run with a pending action (see Agent.run)
@@ -280,11 +296,13 @@ class Agent:
                 bytes_fetched=int(st["bytes_fetched"]),
                 lang=st["lang"],
                 request=str(st.get("request", "")),
+                found=[str(u) for u in st.get("found", [])],
             )
             messages, seen, queue = st["messages"], set(st["seen"]), list(st["queue"])
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
             nudged = bool(st.get("nudged", False))
             withdrawn = set(st.get("withdrawn", []))
+            routed = set(st.get("routed", []))
             gen, ok, content = st["gen"], st["ok"], st.get("content", "")
             forced = "confirmed" if decision is True else "denied_unconfirmed"
         else:
@@ -299,7 +317,8 @@ class Agent:
             messages.append({"role": "user", "content": guard.defang(user)})
             seen, queue = set(), []
             budget, side_effects, bad_streak, content = cfg.max_context_chars, 0, 0, ""
-            nudged, withdrawn = False, (route(user if request_text is None else request_text, attached) if cfg.route_tools else set())
+            routed = route(user if request_text is None else request_text, attached) if cfg.route_tools else set()
+            nudged, withdrawn = False, set(routed)
             gen, ok, forced = 0, 0, None
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
 
@@ -416,7 +435,9 @@ class Agent:
             paused = False
             while queue:
                 c = queue[0]
-                step, result = self._call(c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced)
+                step, result = self._call(
+                    c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced, routed
+                )
                 forced = None
                 if step.decision == "pause":
                     paused = True
@@ -446,6 +467,8 @@ class Agent:
                     "bad_streak": bad_streak,
                     "nudged": nudged,
                     "withdrawn": sorted(withdrawn),
+                    "routed": sorted(routed),
+                    "found": ctx.found,
                     "request": ctx.request,
                     "gen": gen,
                     "ok": ok,
@@ -502,7 +525,15 @@ class Agent:
         return run
 
     def _call(
-        self, name: str, raw_args, gen: int, run: Run, ctx: Context, side_effects: int, forced: str | None = None
+        self,
+        name: str,
+        raw_args,
+        gen: int,
+        run: Run,
+        ctx: Context,
+        side_effects: int,
+        forced: str | None = None,
+        routed: set[str] | frozenset[str] = frozenset(),
     ) -> tuple[Step, str]:
         """Validate, gate and execute one tool call. Returns the step record and the text given back to the model.
 
@@ -511,6 +542,8 @@ class Agent:
         t0 = time.monotonic()
         step = Step(generation=gen, tool=name, arguments=raw_args if isinstance(raw_args, dict) else {})
         args, err = guard.validate_args(name, raw_args, self.cfg.allowed_tools, step.repairs)
+        if not err and name in routed:  # not offered for this request (route): calling it anyway is not allowed
+            err = f"unknown tool '{name}': it is not available for this request"
         if self.hooks.on_step_start and forced is None:
             self.hooks.on_step_start(len(run.steps), str(name), step.arguments if err else args)
         if err:
@@ -534,6 +567,8 @@ class Agent:
             else:
                 ctx.step_info = None
                 try:
+                    if name == "read_page" and run.flagged:
+                        _check_untrusted_url(args.get("url"), ctx)
                     result = guard.defang(guard.redact(str(TOOLS[name](args, ctx))))
                     if guard.scan_injection(result):
                         step.flags.append("possible_injection")

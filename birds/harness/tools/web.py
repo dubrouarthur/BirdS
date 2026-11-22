@@ -65,6 +65,10 @@ def web_search(args: dict, ctx) -> str:
         {"title": " ".join(str(r.get("title") or "").split())[:150], "url": str(r.get("url") or "")}
         for r in results[:5]
     ]
+    for r in results:
+        url = str(r.get("url") or "")
+        if url and url not in ctx.found:
+            ctx.found.append(url)
     if not results:
         return "No results."
     lines = []
