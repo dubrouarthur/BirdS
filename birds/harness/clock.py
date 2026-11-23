@@ -449,7 +449,24 @@ _SLOT_ASK = re.compile(
     r"time ?slots?|when (?:to|can we|should we|could we) (?:call|meet|schedule))\b",
     re.I,
 )
-_MEETING = re.compile(r"\b(?:r[ée]union|visio|call|appel|meeting|rendez-vous|rdv|point|r[ée]unir|meet)\b", re.I)
+# no lone « point » (« fais le point », « un point avec Nice entre 10h et 11h ») and no « call » alone in French prose
+_MEETING = re.compile(r"\b(?:r[ée]union|visio|appel|meeting|rendez-vous|rdv|r[ée]unir|meet|call)\b", re.I)
+# « entre Londres et Singapour » / « between London and New York », never « entre 10h et 11h »
+_BETWEEN = re.compile(
+    r"\b(?:entre|between)\s+(?!\d)(?P<a>[^,;?!.]+?)\s+(?:et|and|&)\s+(?!\d)(?P<b>[^,;?!.]+?)(?=$|[,;?!.]|\s+(?:pour|for|"
+    r"sur|on|le|la|ce|cette|demain|lundi|mardi|mercredi|jeudi|vendredi|this|next)\b)",
+    re.I,
+)
+
+
+def _meeting_between(raw: str) -> bool:
+    """A meeting « entre X et Y » where X and Y each name a city or country of the table."""
+    if not _MEETING.search(raw):
+        return False
+    for m in _BETWEEN.finditer(raw):
+        if _names_in(m.group("a")) and _names_in(m.group("b")):
+            return True
+    return False
 _NOT_CLOCK = re.compile(
     r"\b(?:heures? (?:de pointe|sup\w*|suppl[ée]mentaires?|creuses?|pleines?)|rush hour|overtime|"
     r"heures? de vol|flight time|heures? de (?:travail|trajet)|travel time)\b",
@@ -498,7 +515,7 @@ def detect(text: str) -> dict | None:
         mode = "time"
     elif _OFFSET_ASK.search(raw):
         mode = "offset"
-    elif _SLOT_ASK.search(raw) or (_MEETING.search(raw) and re.search(r"\b(?:entre|between)\b", raw, re.I)):
+    elif _SLOT_ASK.search(raw) or _meeting_between(raw):
         mode = "slot"
     else:
         return None

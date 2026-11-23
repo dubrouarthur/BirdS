@@ -174,6 +174,24 @@ def test_the_island_named_as_such_is_found(text):
     assert "Saint-Denis (La Réunion)" in [c["fr"] for c in clock.detect(text)["cities"]]
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        "J'ai un point avec Nice entre 10h et 11h",
+        "Fais le point entre l'équipe de Paris et celle de Lyon sur le projet",
+        "point avec Londres entre 10h et 11h",
+        "call avec Montréal entre 9h et 10h",
+    ],
+)
+def test_a_meeting_between_two_times_or_a_lone_point_is_not_a_slot_ask(text):
+    assert clock.detect(text) is None
+
+
+def test_a_meeting_between_two_named_cities_is_a_slot_ask():
+    found = clock.detect("une visio entre Londres et Singapour demain ?")
+    assert found["mode"] == "slot" and [c["fr"] for c in found["cities"]] == ["Londres", "Singapour"]
+
+
 def test_slot_in_one_zone_is_a_calendar_question():
     found = clock.detect("trouve un créneau pour une réunion entre Lyon et Paris")
     assert clock.card(found, datetime(2026, 11, 23, 9, 0, tzinfo=PARIS)) is None
