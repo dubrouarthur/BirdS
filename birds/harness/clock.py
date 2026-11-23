@@ -29,6 +29,7 @@ DEFAULT_TZ = "Europe/Paris"
 # name FR | name EN | IANA zone | ISO country | other spellings (comma separated). Capitals first in each region.
 _TABLE = """
 Paris|Paris|Europe/Paris|FR|
+Saint-Denis|Saint-Denis|Europe/Paris|FR|st-denis,st denis
 Lyon|Lyon|Europe/Paris|FR|
 Marseille|Marseille|Europe/Paris|FR|
 Toulouse|Toulouse|Europe/Paris|FR|
@@ -481,11 +482,18 @@ _UNKNOWN_AFTER = re.compile(
 # « la réunion » is a meeting: the island only as « île de la Réunion », « à la Réunion », « La Réunion »
 # (capital L and R, so not « pour la Réunion budget ») or « Réunion island »
 _REUNION = re.compile(r"\b(?:[îiÎI]le\s+de\s+la|(?:à|a|À)\s+la|(?<![\w'])La)\s+R[ée]union\b(?!\s+[Ii]sland)")
+# « Saint-Denis » alone is the town of Seine-Saint-Denis (Paris time); the Réunion's capital only when the island
+# is said: « Saint-Denis de la Réunion », « Saint-Denis (La Réunion) », « Saint-Denis, Réunion »
+_SAINT_DENIS_RE = re.compile(
+    r"\bS(?:ain)?t[- ]Denis\s*(?:\(\s*|,\s*|-\s*)?(?:(?:de|à|a|sur\s+l'[îi]le\s+de)\s+)?(?:la\s+|l'[îi]le\s+de\s+la\s+)?"
+    r"R[ée]union\b\)?",
+    re.I,
+)
 
 
 def _names_in(text: str) -> list[City]:
     """Table cities and countries named in ``text``, in the order written (longest name first at a spot)."""
-    f = f" {fold(_REUNION.sub(' Réunion island ', text))} "
+    f = f" {fold(_REUNION.sub(' Réunion island ', _SAINT_DENIS_RE.sub(' Réunion island ', text)))} "
     hits: list[tuple[int, int, City]] = []
     for table in (_ALIAS, COUNTRIES):
         for alias, city in table.items():

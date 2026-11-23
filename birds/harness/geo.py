@@ -325,6 +325,19 @@ def _norm(q: str) -> str:
     return " ".join(unicodedata.normalize("NFC", q or "").lower().split())
 
 
+# names that geocoders resolve to the wrong one for a French user: « Saint-Denis » alone is the town of
+# Seine-Saint-Denis, not the Réunion's capital (which Nominatim ranks first), unless the user says « Réunion »
+_AMBIGUOUS = {"saint-denis": ("Saint-Denis, Seine-Saint-Denis", re.compile(r"r[ée]union", re.I))}
+
+
+def disambiguate(q: str, request: str = "") -> str:
+    key = re.sub(r"[\s-]+", "-", _norm(q).replace("st-", "saint-").replace("st ", "saint "))
+    got = _AMBIGUOUS.get(key)
+    if got is None or got[1].search(request or ""):
+        return q
+    return got[0]
+
+
 class Geocoder:
     """Search places for one run (``ctx``: http client, config, per-run counter, bytes meter)."""
 
@@ -368,7 +381,7 @@ class Geocoder:
     def search(self, q: str, *, near: Place | None = None, limit: int = 3, lang: str = "fr") -> list[Place]:
         """Places for ``q``: BAN for a postal address (score >= 0.6), Nominatim otherwise, Photon as fallback.
         With ``near``: a bounded box of about 500 m around it (x3 when fewer than 3 results), nearest first."""
-        q = " ".join(str(q or "").split())[:160]
+        q = disambiguate(" ".join(str(q or "").split())[:160], str(getattr(self.ctx, "request", "") or ""))
         if not q:
             return []
         if near is None and looks_like_address(q):
