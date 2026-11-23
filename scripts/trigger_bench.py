@@ -10,7 +10,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from birds.harness import crew, intents  # noqa: E402
+from datetime import datetime  # noqa: E402
+from zoneinfo import ZoneInfo  # noqa: E402
+
+from birds.harness import clock, crew, intents  # noqa: E402
 from birds.harness.agent import route  # noqa: E402
 
 CHART_YES = [
@@ -67,6 +70,62 @@ MAP_NO = [
     "ma carte graphique chauffe, que faire ?",
     "où est passé mon fichier ?",
 ]
+WEATHER_YES = [  # (phrase, the place the harness must pre-call get_weather with)
+    ("météo à Lyon demain", "Lyon"),
+    ("il va pleuvoir à Nantes ?", "Nantes"),
+    ("quel temps pour jeudi à Lille", "Lille"),
+    ("weather in London tomorrow", "London"),
+    ("Quel temps fera-t-il à Paris ce week-end ?", "Paris"),
+    ("meteo bordeaux", "bordeaux"),
+    ("prévisions météo pour Strasbourg cette semaine", "Strasbourg"),
+    ("est-ce qu'il pleut à Brest en ce moment", "Brest"),
+    ("va-t-il neiger à Chamonix samedi ?", "Chamonix"),
+    ("il fait beau à Nice ?", "Nice"),
+    ("do I need an umbrella in Paris tomorrow?", "Paris"),
+    ("will it rain in Berlin on Friday?", "Berlin"),
+    ("la météo de Marseille pour demain stp", "Marseille"),
+    ("quelle température à Toulouse demain ?", "Toulouse"),
+    ("réunion jeudi à Lille, il va pleuvoir ?", "Lille"),
+    ("météo à la gare de Lyon ce soir", "gare de Lyon"),
+]
+WEATHER_NO = [
+    "le climat social est tendu, que faire ?",
+    "fais-moi la météo des marchés",
+    "comment réduire le temps de réponse du serveur ?",
+    "il fait beau ce projet",
+    "la météo sociale de l'entreprise",
+    "quel est le temps de trajet entre Lyon et Paris ?",
+    "une pluie de critiques sur le projet",
+    "sales forecast for Q3",
+    "règle la température du modèle à 0,7",
+    "rédige un mail à Paul pour la réunion de lundi",
+    "en même temps, il faut finir le budget",
+]
+CLOCK_YES = [  # (phrase, cities the card must show besides the user's)
+    ("quelle heure est-il à New York", ["New York"]),
+    ("décalage horaire avec Tokyo", ["Tokyo"]),
+    ("trouve un créneau commun Paris Montréal Singapour pour une réunion", ["Paris", "Montréal", "Singapour"]),
+    ("what time is it in Sydney?", ["Sydney"]),
+    ("time difference between Paris and Los Angeles", ["Paris", "Los Angeles"]),
+    ("il est quelle heure à Dubaï ?", ["Dubaï"]),
+    ("quel est le décalage horaire entre Londres et Singapour ?", ["Londres", "Singapour"]),
+    ("quand appeler nos collègues de São Paulo ?", ["São Paulo"]),
+    ("best time for a meeting between London and New York", ["Londres", "New York"]),
+    ("heure locale à Bombay", ["Bombay"]),
+    ("décalage horaire avec les États-Unis", ["Washington"]),
+    ("fuseau horaire de Montréal", ["Montréal"]),
+]
+CLOCK_NO = [
+    "à quelle heure est la réunion ?",
+    "heure de pointe à Paris, quel itinéraire ?",
+    "trouve un créneau commun avec Paul et Marie",
+    "quelle heure pour le déjeuner avec Paul ?",
+    "combien d'heures sup ce mois-ci ?",
+    "mets un rappel à 14h",
+    "time management tips for managers",
+    "trouve un créneau pour une réunion à Lyon",
+    "combien d'heures de vol entre Paris et Tokyo ?",
+]
 AGENT_YES = [
     "Prépare une présentation de 6 slides sur le télétravail en France depuis 2019 avec des chiffres sourcés",
     "Fais une étude comparative des 3 principaux CRM du marché avec un tableau et une recommandation",
@@ -93,6 +152,25 @@ def map_detected(q: str) -> bool:
     return any(i.tool == "find_places" for i in intents.detect(q, False, "fr"))
 
 
+def weather_called(q) -> bool:
+    """YES items: pre-called with the expected place. NO items: no get_weather at all (not even offered)."""
+    text, place = q if isinstance(q, tuple) else (q, None)
+    found = [i for i in intents.detect(text, False, "fr") if i.tool == "get_weather"]
+    if place is None:
+        return bool(found)
+    return bool(found and found[0].args and found[0].args["place"] == place)
+
+
+def clock_shown(q) -> bool:
+    """YES items: a clock card with exactly these cities (in order). NO items: no clock card."""
+    text, cities = q if isinstance(q, tuple) else (q, None)
+    found = clock.detect(text)
+    card = clock.card(found, datetime(2026, 11, 23, 9, 30, tzinfo=ZoneInfo("Europe/Paris")), "fr") if found else None
+    if cities is None:
+        return bool(card)
+    return bool(card) and [c["fr"] for c in found["cities"]] == cities
+
+
 def agent_on(q: str) -> bool:
     return bool(crew.decide(q, mode="auto", lang="fr").recipe)
 
@@ -112,4 +190,6 @@ def bench(name: str, yes: list[str], no: list[str], fn) -> tuple[int, int]:
 if __name__ == "__main__":
     bench("charts", CHART_YES, CHART_NO, chart_offered)
     bench("maps", MAP_YES, MAP_NO, map_detected)
+    bench("weather", WEATHER_YES, WEATHER_NO, weather_called)
+    bench("clock", CLOCK_YES, CLOCK_NO, clock_shown)
     bench("agent", AGENT_YES, AGENT_NO, agent_on)

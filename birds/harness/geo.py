@@ -39,6 +39,7 @@ INTERVALS = {  # seconds between two requests to the same host, process-wide
     "data.geopf.fr": 0.05,
     "api-adresse.data.gouv.fr": 0.05,
     "recherche-entreprises.api.gouv.fr": 0.2,
+    "api.met.no": 0.1,  # MET Norway: well under its limit of 20 requests a second per application
 }
 DEFAULT_INTERVAL = 1.1  # an operator's own instance gets the conservative default unless listed
 
@@ -160,6 +161,9 @@ class Place:
     provider: str = ""
     importance: float = 0.0
     distance_m: int | None = None
+    region: str = ""  # state / région (weather card subtitle)
+    country: str = ""
+    country_code: str = ""  # ISO 3166-1 alpha-2, upper case (weather: the time zone of a single-zone country)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -252,6 +256,9 @@ def from_nominatim(item: dict) -> Place | None:
         source_url=_osm_url(item.get("osm_type", ""), item.get("osm_id", "")),
         provider="nominatim",
         importance=float(item.get("importance") or 0.0),
+        region=_clean(addr.get("state") or addr.get("region"), 80),
+        country=_clean(addr.get("country"), 80),
+        country_code=_clean(addr.get("country_code"), 2).upper(),
     )
 
 
@@ -275,6 +282,9 @@ def from_photon(feature: dict) -> Place | None:
         address=", ".join(x for x in (street, tail) if x),
         source_url=_osm_url(p.get("osm_type", ""), p.get("osm_id", "")),
         provider="photon",
+        region=_clean(p.get("state"), 80),
+        country=_clean(p.get("country"), 80),
+        country_code=_clean(p.get("countrycode"), 2).upper(),
     )
 
 
@@ -298,6 +308,8 @@ def from_ban(feature: dict) -> Place | None:
         + urlencode({"lat": f"{lat:.6f}", "lng": f"{lon:.6f}", "zoom": 18}),
         provider="ban",
         importance=float(p.get("score") or 0.0),
+        country="France",
+        country_code="FR",
     )
 
 

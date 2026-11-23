@@ -1,6 +1,8 @@
 """Scripted demo of the widget tools: the REAL tool functions run on provider answers recorded on 2026-11-22
 (``demo_data/``), so the demo shows exactly what a live run shows, with no network request. Maps are pre-rendered
-images in ``static/demo/`` (made by ``scripts/demo_maps.py`` from OSM tiles, attribution burnt in)."""
+images in ``static/demo/`` (made by ``scripts/demo_maps.py`` from OSM tiles, attribution burnt in). MET Norway
+forecasts (``met_*.json``) were recorded on 2026-11-23 at 07:25 UTC: weather replays run at that instant
+(``MET_RECORDED``), so « demain » is the 24th and the card says which day it shows."""
 
 from __future__ import annotations
 
@@ -10,6 +12,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 DATA = Path(__file__).parent / "demo_data"
+MET_RECORDED = "2026-11-23T07:30:00+00:00"
+_MET = {(45.7578, 4.832): "lyon", (50.6366, 3.0635): "lille", (51.5074, -0.1278): "london", (47.2186, -1.5541): "nantes"}
 STATIC_DEMO = Path(__file__).parent / "static" / "demo"
 
 
@@ -37,10 +41,20 @@ def recorded(url: str):
         if "viewbox" in q and "restaurant" in text:
             return _load("nominatim_restaurants_viewbox.json")
         for key, name in (("gare de lyon", "gare_de_lyon"), ("part-dieu", "lyon_part_dieu"),
-                          ("lille europe", "lille_europe"), ("nantes", "nantes"), ("eiffel", "tour_eiffel")):  # fmt: skip
+                          ("lille europe", "lille_europe"), ("nantes", "nantes"), ("eiffel", "tour_eiffel"),
+                          ("lyon", "lyon"), ("lille", "lille"), ("london", "london"), ("londres", "london")):  # fmt: skip
             if key in text:
                 return _load(f"nominatim_{name}.json")
         return []
+    if host == "api.met.no":
+        try:
+            lat, lon = float(q.get("lat", "")), float(q.get("lon", ""))
+        except ValueError:
+            return {}
+        near = min(_MET, key=lambda k: (k[0] - lat) ** 2 + (k[1] - lon) ** 2)
+        if abs(near[0] - lat) < 0.05 and abs(near[1] - lon) < 0.05:
+            return _load(f"met_{_MET[near]}.json")
+        return {"type": "Feature", "properties": {"timeseries": []}}
     return {}
 
 
@@ -68,5 +82,9 @@ def run_tool(tool: str, args: dict, lang: str):
 
     ctx = Context(config=Config(workspace=Path(tempfile.gettempdir()), audit_file=None), http=None, lang=lang)
     ctx.recorded = recorded
+    if tool == "get_weather":
+        from datetime import datetime
+
+        ctx.now = datetime.fromisoformat(MET_RECORDED)  # the instant the forecasts were recorded
     text = TOOLS[tool](args, ctx)
     return text, dict(ctx.step_info or {}), list(ctx.sources)

@@ -188,6 +188,19 @@ EXTRA_TOOLS: list[dict] = [
         },
         ["from", "to"],
     ),
+    _fn(
+        "get_weather",
+        "Get the weather forecast for a town (MET Norway): temperature, sky, rain and wind, hour by hour and for "
+        "the next days.",
+        {
+            "place": {"type": "string", "description": "Town or place, e.g. Lyon."},
+            "day": {
+                "type": "string",
+                "description": "Optional: the day, e.g. demain, jeudi, 2026-12-03 (default today).",
+            },
+        },
+        ["place"],
+    ),
 ]
 EXTRA_TOOL_NAMES = [t["function"]["name"] for t in EXTRA_TOOLS]
 PRODUCT_TOOLS = BIRD_TOOLS + EXTRA_TOOLS
