@@ -33,7 +33,7 @@
       <button class="icon-btn menu-btn" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 8h16M4 16h16"/></svg></button>
     </div>
     <nav class="nav" id="nav" aria-label="Main navigation">
-      <ul><li><a href="/en/">Home</a></li><li><a href="/en/approach">Our approach</a></li><li><a href="/en/footprint" aria-current="page">Frugality</a></li><li><a href="#contact">Contact</a></li></ul>
+      <ul><li><a href="/en/">Home</a></li><li><a href="/en/training">Train Bird</a></li><li><a href="/en/approach">Our approach</a></li><li><a href="/en/footprint" aria-current="page">Frugality</a></li><li><a href="#contact">Contact</a></li></ul>
     </nav>
   </div>
 </header>
@@ -43,7 +43,7 @@
     <p class="pill"><span class="pill-dot" aria-hidden="true"></span>Frugality</p>
     <h1 class="display" id="page-h">Frugal by <em>design</em>.</h1>
     <p class="lede">Fewer parameters, less compute, less energy. And every answer shows what it cost.</p>
-    <ul class="toc"><li><a href="#requete">One request</a></li><li><a href="#compteur">The meter</a></li><li><a href="#objectifs">Our goals</a></li><li><a href="#methode">Method</a></li></ul>
+    <ul class="toc"><li><a href="#requete">One request</a></li><li><a href="#compteur">The meter</a></li><li><a href="#entrainement">Training</a></li><li><a href="#objectifs">Our goals</a></li><li><a href="#methode">Method</a></li></ul>
   </div>
 </section>
 <section class="section" id="requete" aria-labelledby="cmp-h">
@@ -75,17 +75,20 @@
 <section class="section section-follow" id="defaut" aria-labelledby="d-h">
   <div class="wrap">
     <div class="section-head"><p class="eyebrow">Frugal by default</p><h2 class="h2" id="d-h">Three settings, zero effort.</h2></div>
-    <ul class="whys"><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9.5 9.5h5v5h-5zM9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></g></svg></span><h3 class="why-h">Small by nature</h3><p>4 billion parameters: less compute for every word.</p></li><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span><h3 class="why-h">Sleep mode</h3><p>The server goes to sleep when nobody uses it.</p></li><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke-linejoin="round"/><circle cx="12" cy="12" r="3"/></g></svg></span><h3 class="why-h">Visible meter</h3><p>Tokens, time and energy under every answer.</p></li></ul>
+    <ul class="whys"><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9.5 9.5h5v5h-5zM9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></g></svg></span><h3 class="why-h">Small by nature</h3><p>4 billion parameters: less compute for every word.</p></li><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span><h3 class="why-h">Sleep mode</h3><p>Idle when nobody uses it: no wasted compute.</p></li><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke-linejoin="round"/><circle cx="12" cy="12" r="3"/></g></svg></span><h3 class="why-h">Visible meter</h3><p>Tokens, time and energy under every answer.</p></li></ul>
   </div>
 </section>
-<section class="section section-follow" id="objectifs" aria-labelledby="go-h">
+<section class="section train" id="entrainement" aria-labelledby="tr-h">
+  <div class="wrap train-inner reveal"><p class="eyebrow">Frugal in training</p><h2 class="display train-v" id="tr-h">Trained <em>frugally</em>.</h2><p class="train-p">A small model specialises at a far lower cost. Bird learns your tasks without calling on a giant.</p><p><a class="btn" href="/en/training">Train Bird on your tasks <span aria-hidden="true">→</span></a></p></div>
+</section>
+<section class="section" id="objectifs" aria-labelledby="go-h">
   <div class="wrap">
-    <div class="section-head"><p class="eyebrow eyebrow-leaf">Our goals</p><h2 class="h2" id="go-h">Small today. Renewable tomorrow.</h2><p class="section-sub">Frugality starts with the size of the model. What comes next is the energy that powers it.</p></div>
-    <ol class="goals"><li class="goal reveal"><p class="goal-k">Next step</p><h3 class="h3">Low-carbon data centres.</h3><p>Run Bird in data centres powered by low-carbon electricity.</p></li><li class="goal reveal"><p class="goal-k">2030 goal</p><h3 class="h3">100 % renewable.</h3><p>Bird on our own infrastructure, powered by renewable energy.</p></li><li class="goal reveal"><p class="goal-k">Goal</p><h3 class="h3">Even smaller.</h3><p>Lighter models still, dedicated to simple tasks.</p></li><li class="goal reveal"><p class="goal-k">Goal</p><h3 class="h3">On your machine.</h3><p>A version of Bird that runs locally.</p></li></ol>
+    <div class="section-head"><p class="eyebrow eyebrow-leaf">Our goals</p><h2 class="h2" id="go-h">Small by nature. Renewable tomorrow.</h2><p class="section-sub">Frugality starts with the size of the model. What comes next is the energy that powers it.</p></div>
+    <ol class="goals"><li class="goal reveal"><p class="goal-k">Next step</p><h3 class="h3">Ever lower-carbon energy.</h3><p>Every Bird answer, powered by ever cleaner electricity.</p></li><li class="goal reveal"><p class="goal-k">2030 goal</p><h3 class="h3">100 % renewable.</h3><p>100 % renewable electricity for every answer, by 2030.</p></li><li class="goal reveal"><p class="goal-k">Goal</p><h3 class="h3">Even smaller.</h3><p>Lighter models still, dedicated to simple tasks.</p></li><li class="goal reveal"><p class="goal-k">Goal</p><h3 class="h3">Always with you.</h3><p>A Bird so light it goes everywhere your teams go.</p></li></ol>
   </div>
 </section>
 <section class="notes" id="methode" aria-labelledby="methode-h">
-  <div class="wrap"><h2 class="notes-h" id="methode-h">Method and sources</h2><ul class="notes-list notes-plain"><li><strong>Bird S 4B, electricity.</strong> Upper-bound estimate per short request: 72 W (GPU board power) × up to 5.5 s of compute × PUE 1.15, i.e. at most 0.13 Wh; about 0.04 Wh for the briefest requests. This bound counts the whole duration of the answer and the whole card, although the server handles several requests at once. The in-app meter now estimates each answer from its tokens (0.10 Wh per 1,000 tokens written, 0.006 Wh per 1,000 tokens read, values drawn from published measurements of vLLM servers, whole service): about 0.01 to 0.03 Wh for a short request. The figures on this page remain the former, deliberately cautious upper bound.</li><li><strong>Bird S 4B, water.</strong> 0.13 Wh × 0.15 L/kWh, the water usage effectiveness published by the cloud provider: about 0.02 mL. Estimate.</li><li><strong>ChatGPT.</strong> Average query: about 0.34 Wh and 0.32 mL (Sam Altman, “The Gentle Singularity”, June 2025).</li><li><strong>Gemini.</strong> Median text prompt: 0.24 Wh and 0.26 mL (Google, August 2025, <a href="https://arxiv.org/abs/2508.15734" rel="noopener">arxiv.org/abs/2508.15734</a>).</li><li><strong>Ratios.</strong> 0.34 / 0.13 ≈ 2.6 and 0.34 / 0.04 ≈ 8.5: up to 8 times less electricity than an average ChatGPT query. 0.32 / 0.02 = 16: about 15 times less water. The ratios apply to ChatGPT only; Gemini is shown for reference. These figures come from different methods and scopes.</li><li><strong>Size and compute.</strong> 4 billion parameters against about 400 billion for a large dense model: about 100 times smaller, and up to 100 times less compute per generated word, in theory.</li></ul></div>
+  <div class="wrap"><h2 class="notes-h" id="methode-h">Method and sources</h2><ul class="notes-list notes-plain"><li><strong>Bird S 4B, electricity.</strong> Upper-bound estimate per short request: 72 W (peak compute power) × up to 5.5 s of compute × 1.15 (cooling and power delivery), i.e. at most 0.13 Wh; about 0.04 Wh for the briefest requests. The in-app meter applies the same method to every answer.</li><li><strong>Bird S 4B, water.</strong> 0.13 Wh × 0.15 L/kWh of cooling water: about 0.02 mL. Estimate.</li><li><strong>ChatGPT.</strong> Average query: about 0.34 Wh and 0.32 mL (Sam Altman, “The Gentle Singularity”, June 2025).</li><li><strong>Gemini.</strong> Median text prompt: 0.24 Wh and 0.26 mL (Google, August 2025, <a href="https://arxiv.org/abs/2508.15734" rel="noopener">arxiv.org/abs/2508.15734</a>).</li><li><strong>Ratios.</strong> 0.34 / 0.13 ≈ 2.6 and 0.34 / 0.04 ≈ 8.5: up to 8 times less electricity than an average ChatGPT query. 0.32 / 0.02 = 16: about 15 times less water. The ratios apply to ChatGPT only; Gemini is shown for reference. These figures come from different methods and scopes.</li><li><strong>Size and compute.</strong> 4 billion parameters against about 400 billion for a large dense model: about 100 times smaller, and up to 100 times less compute per generated word, in theory.</li></ul></div>
 </section>
 <section class="section final" id="essayer" aria-labelledby="fc-h">
   <div class="wrap final-inner">
@@ -115,14 +118,14 @@
       </div>
       <nav class="footer-nav" aria-label="The site">
         <p class="footer-k">The site</p>
-        <ul><li><a href="/en/">Home</a></li><li><a href="/en/approach">Our approach</a></li><li><a href="/en/footprint">Frugality</a></li><li><a href="#contact">Contact</a></li></ul>
+        <ul><li><a href="/en/">Home</a></li><li><a href="/en/training">Train Bird</a></li><li><a href="/en/approach">Our approach</a></li><li><a href="/en/footprint">Frugality</a></li><li><a href="#contact">Contact</a></li></ul>
       </nav>
       <div class="footer-nav">
         <p class="footer-k">Bird</p>
         <ul><li><a href="#essayer" data-try>Try Bird</a></li><li><a href="/en/footprint">Our figures</a></li><li><a href="/">Français</a></li></ul>
       </div>
     </div>
-    <div class="weight"><p class="weight-fig"><span class="weight-lead">This page weighs</span> <strong class="weight-num">100&nbsp;KB</strong></p><p class="weight-note">Measured: images included, 7 requests. No trackers, no external fonts, no cookies.</p></div>
+    <div class="weight"><p class="weight-fig"><span class="weight-lead">This page weighs</span> <strong class="weight-num">120&nbsp;KB</strong></p><p class="weight-note">Measured: images included, 7 requests. No trackers, no external fonts, no cookies.</p></div>
   </div>
 </footer>
 </body>

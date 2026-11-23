@@ -8,11 +8,12 @@ Aucune requête externe : polices système, images locales, pas de traceur.
 ```
 site/
 ├── index.html          Accueil (FR)
+├── entrainer.html      Entraîner Bird sur vos tâches (FR, pour les entreprises)
 ├── demarche.html       Notre démarche (FR)
 ├── empreinte.html      Sobriété (FR ; le nom de fichier reste empreinte.html)
-├── en/                 Version anglaise (index, approach, footprint = « Frugality »)
+├── en/                 Version anglaise (index, training, approach, footprint = « Frugality »)
 ├── config.js           URL du bouton « Essayer Bird » et adresse de contact
-├── assets/             site.css, site.js, images WebP, favicon, marque
+├── assets/             site.css, site.js, images WebP (img/app/ : captures de l'application, claire et sombre), favicon, marque
 ├── vercel.json         URL propres + en-têtes de sécurité (CSP stricte)
 ├── .vercelignore       Exclut COPY.md, ce README (et un éventuel screenshots/) du déploiement
 └── COPY.md             Texte de référence (non publié)
@@ -21,10 +22,10 @@ site/
 ## Avant la mise en ligne
 
 1. **Bouton « Essayer Bird »** : dans `config.js`, remplacer `TRY_URL: "#essayer"` par l'URL de l'application.
-2. **Adresse de contact** : dans `config.js`, remplacer `CONTACT_EMAIL` (provisoire : `contact@birdmodels.example`). Le script l'applique aux 6 pages ; pour les visiteurs sans JavaScript, remplacer aussi `contact@birdmodels.example` dans les 6 pages (lien `data-contact`).
+2. **BLOQUANT — adresse de contact** : `contact@birdmodels.example` est un domaine réservé qui ne reçoit rien ; tous les boutons « Nous écrire », « Parler de votre projet » et Contact y mènent. Dans `config.js`, remplacer `CONTACT_EMAIL` par l'adresse réelle avant toute mise en ligne. Le script l'applique aux 8 pages (liens `data-contact`, et `data-contact-href` pour les boutons « Nous écrire ») ; pour les visiteurs sans JavaScript, remplacer aussi `contact@birdmodels.example` dans les 8 pages.
 3. **Poids affiché en pied de page** : chaque page affiche son propre poids. Si une page change, remesurer et mettre à jour son pied de page.
    Méthode : charger la page dans Chromium (1440 px, cache désactivé), faire défiler jusqu'en bas pour charger toutes les images, additionner la taille des fichiers reçus, puis ajouter la favicon (`assets/favicon.svg`, que Chromium sans interface ne demande pas). 1 Ko = 1 000 octets. Le chiffre « compressé » est la même somme avec les fichiers texte (HTML, CSS, JS, SVG) compressés en gzip niveau 9 ; les images WebP sont comptées telles quelles.
-   Valeurs actuelles : accueil FR **162 Ko** (8 requêtes) ; accueil EN 161 KB (8) ; Notre démarche 54 Ko (5) ; Sobriété 99 Ko (7) ; Our approach 53 KB (5) ; Frugality 98 KB (7).
+   Valeurs actuelles (thème clair, 1440 px) : accueil FR **414 Ko** (13 requêtes) ; accueil EN 413 KB (13) ; Entraîner Bird 77 Ko (5) ; Train Bird 76 KB (5) ; Notre démarche 74 Ko (5) ; Sobriété 121 Ko (7) ; Our approach 74 KB (5) ; Frugality 120 KB (7).
 
 ## Déployer sur Vercel
 
@@ -32,7 +33,7 @@ site/
 2. **Root Directory** : cliquer **Edit** et choisir `site`.
 3. **Framework Preset** : `Other`. Laisser **Build Command** et **Install Command** vides (ou cocher « Override » avec une commande vide). **Output Directory** : laisser vide (`.` = le dossier `site`).
 4. Cliquer **Deploy**.
-5. Vérifier : `/`, `/demarche`, `/empreinte`, `/en`, `/en/approach`, `/en/footprint`, et les en-têtes (`curl -I https://<domaine>/` doit montrer `content-security-policy`).
+5. Vérifier : `/`, `/entrainer`, `/en/training`, `/demarche`, `/empreinte`, `/en`, `/en/approach`, `/en/footprint`, et les en-têtes (`curl -I https://<domaine>/` doit montrer `content-security-policy`).
 6. Domaine personnalisé : **Settings → Domains**.
 
 En ligne de commande (équivalent) :
@@ -59,11 +60,26 @@ ou passer par `npx vercel dev`, qui applique `vercel.json`.
 
 Les captures de contrôle ne sont pas rangées dans `site/` : elles alourdiraient le dépôt sans être publiées.
 
+## Captures et scènes
+
+- `assets/img/app/*-light.webp` / `*-dark.webp` : captures réelles de l'application (`scripts/serve.py --demo`, Chromium, échelle 2),
+  recadrées au plus près de la carte riche (graphique, tableur, diapositive, note Word, code, Mode Agent), prises à 390-600 px de large
+  pour s'afficher à leur taille réelle : le texte reste à 11 px ou plus à 1440 px comme sur téléphone. `map-m-*` et `slides-m-*` sont les
+  recadrages téléphone, servis par `<picture>` sous 760 px. Les badges propres au mode démo sont masqués. La version sombre ne se charge qu'en thème sombre (`.th-l` / `.th-d`).
+- Scènes (`[data-scene]` dans le HTML, lecteur dans `site.js`) : un échange rejoué en HTML et CSS, sans vidéo.
+  `data-at` (apparition, en ms), `data-out` (disparition), `data-type` / `data-stream` (texte écrit lettre à lettre / mot à mot pendant `data-dur`).
+  Sans JavaScript ou avec « réduire les animations », l'état final s'affiche ; la lecture ne tourne que quand la scène est visible.
+  Les scènes sont des simulations : elles n'affichent aucun chiffre mesuré.
+
 ## Règles éditoriales
 
 Ton promotionnel, mais chaque affirmation doit être vraie et vérifiable (publicité comparative : comparaisons objectives, sources en notes).
 Chiffres autorisés : 4 Md de paramètres, ≈ 400 Md pour un grand modèle dense (≈ 100× plus petit ; « 100× moins de calcul par mot » seulement avec « en théorie »),
 ≤ 0,13 Wh et ≈ 0,02 mL par requête courte (estimation haute, ≈ 0,04 Wh pour les plus brèves), 0,34 Wh / 0,32 mL (ChatGPT, Altman, juin 2025),
-0,24 Wh / 0,26 mL (Gemini, Google, août 2025), « 3 à 8 fois moins d'électricité », « environ 15 fois moins d'eau », 1,8 kWh d'entraînement (L40S, 5 h 26),
+0,24 Wh / 0,26 mL (Gemini, Google, août 2025), « 3 à 8 fois moins d'électricité », « environ 15 fois moins d'eau »,
 le banc d'essai interne de Notre démarche. Écrire « conçu en France » uniquement : jamais hébergé / entraîné en France, ni renouvelable aujourd'hui,
 ni neutre en carbone, ni « le plus sobre du marché » ; ne pas nommer le modèle de base ni la région du serveur. Les objectifs énergie se lisent comme des objectifs.
+Jamais de nombre de GPU ni de matériel, jamais d'énergie d'entraînement, jamais où ni sur quoi Bird tourne. Vitesse et coût d'entraînement : en qualitatif
+(« répond vite », « pour un coût bien inférieur ») ; aucun chiffre de latence tant qu'il n'est pas mesuré sur le modèle réel.
+Notes de méthode : le facteur 1,15 (refroidissement et alimentation) et 0,15 L/kWh d'eau de refroidissement restent, sans nommer de centre de données,
+car ils fondent les chiffres 0,13 Wh et « environ 15 fois moins d'eau ». À faire valider par le propriétaire : s'il les refuse, retirer aussi ces deux chiffres.

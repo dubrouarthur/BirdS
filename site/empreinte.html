@@ -33,7 +33,7 @@
       <button class="icon-btn menu-btn" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 8h16M4 16h16"/></svg></button>
     </div>
     <nav class="nav" id="nav" aria-label="Navigation principale">
-      <ul><li><a href="/">Accueil</a></li><li><a href="/demarche">Notre démarche</a></li><li><a href="/empreinte" aria-current="page">Sobriété</a></li><li><a href="#contact">Contact</a></li></ul>
+      <ul><li><a href="/">Accueil</a></li><li><a href="/entrainer">Entraîner Bird</a></li><li><a href="/demarche">Notre démarche</a></li><li><a href="/empreinte" aria-current="page">Sobriété</a></li><li><a href="#contact">Contact</a></li></ul>
     </nav>
   </div>
 </header>
@@ -43,7 +43,7 @@
     <p class="pill"><span class="pill-dot" aria-hidden="true"></span>Sobriété</p>
     <h1 class="display" id="page-h">Sobre par <em>conception</em>.</h1>
     <p class="lede">Moins de paramètres, moins de calcul, moins d’énergie. Et chaque réponse affiche ce qu’elle a coûté.</p>
-    <ul class="toc"><li><a href="#requete">Une requête</a></li><li><a href="#compteur">Le compteur</a></li><li><a href="#objectifs">Nos objectifs</a></li><li><a href="#methode">Méthode</a></li></ul>
+    <ul class="toc"><li><a href="#requete">Une requête</a></li><li><a href="#compteur">Le compteur</a></li><li><a href="#entrainement">Entraînement</a></li><li><a href="#objectifs">Nos objectifs</a></li><li><a href="#methode">Méthode</a></li></ul>
   </div>
 </section>
 <section class="section" id="requete" aria-labelledby="cmp-h">
@@ -75,17 +75,20 @@
 <section class="section section-follow" id="defaut" aria-labelledby="d-h">
   <div class="wrap">
     <div class="section-head"><p class="eyebrow">Sobre par défaut</p><h2 class="h2" id="d-h">Trois réglages, zéro effort.</h2></div>
-    <ul class="whys"><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9.5 9.5h5v5h-5zM9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></g></svg></span><h3 class="why-h">Petit par nature</h3><p>4 milliards de paramètres&nbsp;: moins de calcul à chaque mot.</p></li><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span><h3 class="why-h">Mise en veille</h3><p>Le serveur s’endort quand personne ne l’utilise.</p></li><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke-linejoin="round"/><circle cx="12" cy="12" r="3"/></g></svg></span><h3 class="why-h">Compteur visible</h3><p>Tokens, temps et énergie sous chaque réponse.</p></li></ul>
+    <ul class="whys"><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="6" y="6" width="12" height="12" rx="1.5"/><path d="M9.5 9.5h5v5h-5zM9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/></g></svg></span><h3 class="why-h">Petit par nature</h3><p>4 milliards de paramètres&nbsp;: moins de calcul à chaque mot.</p></li><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></span><h3 class="why-h">Mise en veille</h3><p>En veille quand personne ne l’utilise : aucun calcul inutile.</p></li><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke-linejoin="round"/><circle cx="12" cy="12" r="3"/></g></svg></span><h3 class="why-h">Compteur visible</h3><p>Tokens, temps et énergie sous chaque réponse.</p></li></ul>
   </div>
 </section>
-<section class="section section-follow" id="objectifs" aria-labelledby="go-h">
+<section class="section train" id="entrainement" aria-labelledby="tr-h">
+  <div class="wrap train-inner reveal"><p class="eyebrow">Sobre à l’entraînement</p><h2 class="display train-v" id="tr-h">Entraîné <em>sobrement</em>.</h2><p class="train-p">Un petit modèle se spécialise pour un coût bien inférieur. Bird apprend vos tâches sans mobiliser un géant.</p><p><a class="btn" href="/entrainer">Entraîner Bird sur vos tâches <span aria-hidden="true">→</span></a></p></div>
+</section>
+<section class="section" id="objectifs" aria-labelledby="go-h">
   <div class="wrap">
-    <div class="section-head"><p class="eyebrow eyebrow-leaf">Nos objectifs</p><h2 class="h2" id="go-h">Petit aujourd’hui. Renouvelable demain.</h2><p class="section-sub">La sobriété commence par la taille du modèle. La suite se joue sur l’énergie qui l’alimente.</p></div>
-    <ol class="goals"><li class="goal reveal"><p class="goal-k">Prochaine étape</p><h3 class="h3">Des datacenters bas carbone.</h3><p>Faire tourner Bird dans des centres de données alimentés par une électricité bas carbone.</p></li><li class="goal reveal"><p class="goal-k">Objectif 2030</p><h3 class="h3">100 % renouvelable.</h3><p>Bird sur notre propre infrastructure, alimentée par des énergies renouvelables.</p></li><li class="goal reveal"><p class="goal-k">Objectif</p><h3 class="h3">Encore plus petit.</h3><p>Des modèles plus légers encore, dédiés aux tâches simples.</p></li><li class="goal reveal"><p class="goal-k">Objectif</p><h3 class="h3">Chez vous.</h3><p>Une version de Bird qui tourne en local, sur votre machine.</p></li></ol>
+    <div class="section-head"><p class="eyebrow eyebrow-leaf">Nos objectifs</p><h2 class="h2" id="go-h">Petit par nature. Renouvelable demain.</h2><p class="section-sub">La sobriété commence par la taille du modèle. La suite se joue sur l’énergie qui l’alimente.</p></div>
+    <ol class="goals"><li class="goal reveal"><p class="goal-k">Prochaine étape</p><h3 class="h3">Une énergie toujours plus bas carbone.</h3><p>Chaque réponse de Bird, alimentée par une électricité toujours plus propre.</p></li><li class="goal reveal"><p class="goal-k">Objectif 2030</p><h3 class="h3">100 % renouvelable.</h3><p>Une électricité 100 % renouvelable pour chaque réponse, d’ici 2030.</p></li><li class="goal reveal"><p class="goal-k">Objectif</p><h3 class="h3">Encore plus petit.</h3><p>Des modèles plus légers encore, dédiés aux tâches simples.</p></li><li class="goal reveal"><p class="goal-k">Objectif</p><h3 class="h3">Toujours avec vous.</h3><p>Un Bird si léger qu’il accompagne vos équipes partout.</p></li></ol>
   </div>
 </section>
 <section class="notes" id="methode" aria-labelledby="methode-h">
-  <div class="wrap"><h2 class="notes-h" id="methode-h">Méthode et sources</h2><ul class="notes-list notes-plain"><li><strong>Bird S 4B, électricité.</strong> Estimation haute par requête courte : 72 W (puissance de la carte GPU) × jusqu’à 5,5 s de calcul × PUE 1,15, soit au plus 0,13 Wh ; environ 0,04 Wh pour les requêtes les plus brèves. Cette borne compte toute la durée de la réponse et toute la carte, alors que le serveur traite plusieurs requêtes à la fois. Le compteur du produit estime désormais chaque réponse d’après ses tokens (0,10 Wh pour 1 000 tokens écrits, 0,006 Wh pour 1 000 tokens lus, valeurs tirées de mesures publiées de serveurs vLLM, service complet) : environ 0,01 à 0,03 Wh pour une requête courte. Les chiffres de cette page restent l’ancienne borne haute, volontairement prudente.</li><li><strong>Bird S 4B, eau.</strong> 0,13 Wh × 0,15 L/kWh, l’efficacité d’usage de l’eau publiée par le fournisseur cloud : environ 0,02 mL. Estimation.</li><li><strong>ChatGPT.</strong> Requête moyenne : environ 0,34 Wh et 0,32 mL (Sam Altman, « The Gentle Singularity », juin 2025).</li><li><strong>Gemini.</strong> Requête texte médiane : 0,24 Wh et 0,26 mL (Google, août 2025, <a href="https://arxiv.org/abs/2508.15734" rel="noopener">arxiv.org/abs/2508.15734</a>).</li><li><strong>Ratios.</strong> 0,34 / 0,13 ≈ 2,6 et 0,34 / 0,04 ≈ 8,5 : jusqu’à 8 fois moins d’électricité qu’une requête ChatGPT moyenne. 0,32 / 0,02 = 16 : environ 15 fois moins d’eau. Les ratios ne portent que sur ChatGPT ; Gemini est donné pour référence. Ces chiffres proviennent de méthodes et de périmètres différents.</li><li><strong>Taille et calcul.</strong> 4 milliards de paramètres contre environ 400 milliards pour un grand modèle dense : environ 100 fois plus petit, et jusqu’à 100 fois moins de calcul par mot généré, en théorie.</li></ul></div>
+  <div class="wrap"><h2 class="notes-h" id="methode-h">Méthode et sources</h2><ul class="notes-list notes-plain"><li><strong>Bird S 4B, électricité.</strong> Estimation haute par requête courte : 72 W (puissance de calcul maximale) × jusqu’à 5,5 s de calcul × 1,15 (refroidissement et alimentation), soit au plus 0,13 Wh ; environ 0,04 Wh pour les requêtes les plus brèves. Le compteur du produit applique la même méthode à chaque réponse.</li><li><strong>Bird S 4B, eau.</strong> 0,13 Wh × 0,15 L/kWh d’eau de refroidissement : environ 0,02 mL. Estimation.</li><li><strong>ChatGPT.</strong> Requête moyenne : environ 0,34 Wh et 0,32 mL (Sam Altman, « The Gentle Singularity », juin 2025).</li><li><strong>Gemini.</strong> Requête texte médiane : 0,24 Wh et 0,26 mL (Google, août 2025, <a href="https://arxiv.org/abs/2508.15734" rel="noopener">arxiv.org/abs/2508.15734</a>).</li><li><strong>Ratios.</strong> 0,34 / 0,13 ≈ 2,6 et 0,34 / 0,04 ≈ 8,5 : jusqu’à 8 fois moins d’électricité qu’une requête ChatGPT moyenne. 0,32 / 0,02 = 16 : environ 15 fois moins d’eau. Les ratios ne portent que sur ChatGPT ; Gemini est donné pour référence. Ces chiffres proviennent de méthodes et de périmètres différents.</li><li><strong>Taille et calcul.</strong> 4 milliards de paramètres contre environ 400 milliards pour un grand modèle dense : environ 100 fois plus petit, et jusqu’à 100 fois moins de calcul par mot généré, en théorie.</li></ul></div>
 </section>
 <section class="section final" id="essayer" aria-labelledby="fc-h">
   <div class="wrap final-inner">
@@ -115,14 +118,14 @@
       </div>
       <nav class="footer-nav" aria-label="Le site">
         <p class="footer-k">Le site</p>
-        <ul><li><a href="/">Accueil</a></li><li><a href="/demarche">Notre démarche</a></li><li><a href="/empreinte">Sobriété</a></li><li><a href="#contact">Contact</a></li></ul>
+        <ul><li><a href="/">Accueil</a></li><li><a href="/entrainer">Entraîner Bird</a></li><li><a href="/demarche">Notre démarche</a></li><li><a href="/empreinte">Sobriété</a></li><li><a href="#contact">Contact</a></li></ul>
       </nav>
       <div class="footer-nav">
         <p class="footer-k">Bird</p>
         <ul><li><a href="#essayer" data-try>Essayer Bird</a></li><li><a href="/empreinte">Nos chiffres</a></li><li><a href="/en/">English</a></li></ul>
       </div>
     </div>
-    <div class="weight"><p class="weight-fig"><span class="weight-lead">Cette page pèse</span> <strong class="weight-num">101&nbsp;Ko</strong></p><p class="weight-note">Mesuré : images comprises, 7 requêtes. Aucun traceur, aucune police externe, aucun cookie.</p></div>
+    <div class="weight"><p class="weight-fig"><span class="weight-lead">Cette page pèse</span> <strong class="weight-num">121&nbsp;Ko</strong></p><p class="weight-note">Mesuré : images comprises, 7 requêtes. Aucun traceur, aucune police externe, aucun cookie.</p></div>
   </div>
 </footer>
 </body>

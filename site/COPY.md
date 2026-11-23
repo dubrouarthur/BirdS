@@ -149,7 +149,7 @@ Alors relisez ce qui compte. C'est vrai pour tout assistant. Chez nous, c'est é
 ## Ce que coûte une réponse.
 
 Pour une réponse courte, notre estimation haute : **0,04 à 0,13 Wh**.
-*Méthode : 72 W (puissance de la carte GPU) × 1,7 à 5,5 s de calcul × PUE 1,15.*
+*Méthode : 72 W (puissance de la carte GPU) × 1,7 à 5,5 s de calcul × 1,15 (refroidissement et alimentation).*
 
 En génération, sur notre banc de mesure : **0,36 Wh pour 1 000 tokens générés**.
 *GPU seul, NVIDIA A10G, requêtes groupées.*
@@ -292,7 +292,7 @@ Cette estimation part des **tokens** : 0,10 Wh pour 1 000 tokens écrits et 0,00
 |---|---|---|
 | Entraînement de la version actuelle | **1,8 kWh** | Mesuré sur le GPU. 1 × NVIDIA L40S, 5 h 26. |
 | Génération | **0,36 Wh / 1 000 tokens** | Notre banc de mesure. GPU seul, NVIDIA A10G, requêtes groupées. |
-| Une réponse courte | **0,04 à 0,13 Wh** | Estimation haute : 72 W × 1,7 à 5,5 s × PUE 1,15. |
+| Une réponse courte | **0,04 à 0,13 Wh** | Estimation haute : 72 W × 1,7 à 5,5 s × 1,15 (refroidissement et alimentation). |
 
 ### Le calcul par token
 
@@ -473,7 +473,7 @@ So check what matters. That's true of any assistant. We just write it down.
 ## What an answer costs.
 
 For a short answer, our upper-bound estimate: **0.04 to 0.13 Wh**.
-*Method: 72 W (GPU board power) × 1.7 to 5.5 s of compute × PUE 1.15.*
+*Method: 72 W (GPU board power) × 1.7 to 5.5 s of compute × 1.15 (cooling and power delivery).*
 
 For generation, on our benchmark: **0.36 Wh per 1,000 generated tokens**.
 *GPU only, NVIDIA A10G, batched requests.*
@@ -616,7 +616,7 @@ That estimate starts from **tokens**: 0.10 Wh per 1,000 tokens written and 0.006
 |---|---|---|
 | Training the current version | **1.8 kWh** | Measured on the GPU. 1 × NVIDIA L40S, 5 h 26 min. |
 | Generation | **0.36 Wh / 1,000 tokens** | Our benchmark. GPU only, NVIDIA A10G, batched. |
-| One short answer | **0.04 to 0.13 Wh** | Upper bound: 72 W × 1.7–5.5 s × PUE 1.15. |
+| One short answer | **0.04 to 0.13 Wh** | Upper bound: 72 W × 1.7–5.5 s × 1.15 (cooling and power delivery). |
 
 ### Compute per token
 

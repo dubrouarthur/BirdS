@@ -901,7 +901,7 @@ def create_app(
         site_root = SITE_DIR.resolve()
         # the site is written for its own domain (links like "/demarche", "/assets/site.css"): under /a-propos/
         # those root-relative links are rewritten on the fly, and clean URLs map to their .html file
-        root_link = _re.compile(r'((?:href|src|action|content)=")/(?!/)')
+        root_link = _re.compile(r'((?:href|src|srcset|action|content)=")/(?!/)')
         # only what a page needs: README.md, COPY.md, vercel.json and other internal files stay private
         site_types = {".html", ".css", ".js", ".webp", ".png", ".svg", ".ico", ".woff2"}
 
