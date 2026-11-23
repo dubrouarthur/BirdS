@@ -2650,3 +2650,99 @@ thead .score {
     color: #000;
   }
 }
+
+/* Galerie : recadrages serrés sur la carte riche, affichés à leur taille réelle (jamais agrandis) */
+.bt-img.bt-crop {
+  aspect-ratio: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 0.75rem 0.75rem 0;
+  height: 28rem;
+}
+.bt-img.bt-crop img {
+  width: 100%;
+  height: auto;
+  max-width: var(--cw, 358px);
+  object-fit: initial;
+  border-radius: 14px 14px 0 0;
+}
+.bt-crop picture {
+  width: 100%;
+  max-width: var(--cw, 358px);
+}
+.bt-crop picture img {
+  max-width: none;
+}
+.bt-img.bt-crop-excel {
+  --cw: 398px;
+  align-items: center;
+}
+.bt-crop-excel img {
+  border-radius: 14px;
+}
+.b-3 .bt-img.bt-crop {
+  height: 33rem;
+}
+.bt-crop-slides {
+  --cw: 553px;
+}
+@media (max-width: 759px) {
+  .bt-img.bt-crop {
+    height: auto;
+    max-height: 30rem;
+  }
+  .bt-crop-excel {
+    padding-bottom: 0.75rem;
+  }
+  .b-4 .bt-img {
+    aspect-ratio: 3 / 4;
+  }
+}
+.bt-crop-agent {
+  --cw: 382px;
+}
+.bento > .bt:first-child + .bt .bt-img.bt-crop {
+  height: auto;
+  flex: 1;
+  max-height: 29rem;
+}
+.bento > .bt:first-child + .bt {
+  display: flex;
+}
+@media (max-width: 399px) {
+  .bt-img.bt-crop {
+    padding: 0.375rem 0.375rem 0;
+  }
+}
+
+/* Héros sur téléphone : la scène seule, sans maquette par-dessus, tient dans l'écran */
+@media (max-width: 599px) {
+  .hero-visual .hero-phone.hero-phone-r {
+    display: none;
+  }
+  .hero-visual.has-scene {
+    padding: 0;
+  }
+  .hero-scene .sc-composer {
+    margin-top: 0.25rem;
+  }
+  .speed-scene .sc-body {
+    min-height: 0;
+  }
+}
+@media (max-width: 399px) {
+  .hero-scene .sc-card-f {
+    display: none;
+  }
+}
+
+/* La maquette de téléphone ne masque pas le bouton d'envoi */
+@media (min-width: 600px) {
+  .hero-scene .sc-composer {
+    margin-right: calc(var(--sc-pad) + 4.5rem);
+  }
+}
+.bt-crop-excel::after {
+  display: none;
+}
