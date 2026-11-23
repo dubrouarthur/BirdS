@@ -16,7 +16,7 @@ Bird Models est une jeune entreprise française d'intelligence artificielle. Not
 
 Notre premier modèle, Bird S 4B, compte 4 milliards de paramètres, environ 100 fois moins qu'un grand modèle. Il est taillé pour le travail de bureau : il rédige vos mails, prépare de vrais fichiers PowerPoint, Word et Excel, lit vos documents et vos photos, et cherche sur le web en citant ses sources, en français comme en anglais.
 
-Sobre par conception, Bird consomme jusqu'à 8 fois moins d'électricité et environ 15 fois moins d'eau qu'une requête moyenne sur un grand assistant, pour une requête courte. Chaque réponse affiche ce qu'elle a coûté.
+Sobre par conception, Bird consomme plus de 4 fois moins d'électricité et environ 30 fois moins d'eau qu'une requête moyenne sur un grand assistant, pour une requête courte. Chaque réponse affiche ce qu'elle a coûté.
 
 Nos prochains objectifs : faire tourner Bird dans des datacenters décarbonés, puis à 100 % sur des énergies renouvelables d'ici 2030.
 
@@ -41,7 +41,7 @@ Bird Models, équipe française, a fait le choix inverse : concevoir les plus pe
 - les conversations restent dans votre navigateur.
 
 **La sobriété, mesurée et affichée**
-Pour une requête courte, Bird consomme jusqu'à 8 fois moins d'électricité et environ 15 fois moins d'eau qu'une requête moyenne sur un grand assistant (sources et méthode publiées sur notre site). Le serveur se met en veille quand personne ne l'utilise, et chaque réponse affiche son énergie estimée.
+Pour une requête courte, Bird consomme plus de 4 fois moins d'électricité et environ 30 fois moins d'eau qu'une requête moyenne sur un grand assistant (sources et méthode publiées sur notre site). Bird se met en veille quand personne ne l'utilise, et chaque réponse affiche son énergie estimée.
 
 **Nos objectifs**
 Des datacenters décarbonés pour la prochaine étape, puis 100 % d'énergies renouvelables d'ici 2030. Des modèles encore plus petits pour les tâches simples, et une version capable de tourner en local.
@@ -56,7 +56,7 @@ Bird Models · Conçu en France.
 
 Our first model, Bird S 4B, has 4 billion parameters, about 100 times fewer than a large model. It is cut out for office work: it drafts your emails, builds real PowerPoint, Word and Excel files, reads your documents and photos, and searches the web with cited sources, in French and English.
 
-Frugal by design, a short Bird request uses up to 8 times less electricity and about 15 times less water than an average request on a large assistant. Every answer shows what it cost.
+Frugal by design, a short Bird request uses over 4 times less electricity and about 30 times less water than an average request on a large assistant. Every answer shows what it cost.
 
 Our next goals: run Bird in low-carbon data centres, then on 100% renewable energy by 2030.
 
