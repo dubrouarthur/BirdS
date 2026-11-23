@@ -208,11 +208,15 @@ def demo_crew(run) -> None:
     step("verificateur", "verificateur", "check", "running")
     run.pause(0.5)
     a = {"points": 1.0, "must": 1.0, "unsupported": 0, "structure": 1.0}
-    b = {"points": 0.83, "must": 0.75, "unsupported": 1, "structure": 1.0}
+    b = {"points": 0.83, "must": 0.75, "unsupported": 0, "structure": 1.0}
     step("redacteur_a", "redacteur", "check", "scored", score=a, chosen=True)
     step("redacteur_b", "redacteur", "check", "scored", score=b, chosen=False)
     step("verificateur", "verificateur", "check", "done", chosen="redacteur_a", score=a,
          detail=t("Version A : 100 % des points, 0 chiffre non sourcé ✓ retenue", "Version A: 100% of points, 0 unsourced figure ✓ kept"))  # fmt: skip
+    # both versions clean: the kept one takes a slide of the other that carries a fact it missed
+    step("verificateur", "verificateur", "check", "done", chosen="redacteur_a", score=a, merged="redacteur_b",
+         detail=t("Version A : 100 % des points, 0 chiffre non sourcé ✓ retenue · complétée par 1 partie(s) de Version B",
+                  "Version A: 100% of points, 0 unsourced figure ✓ kept · completed with 1 part(s) of Version B"))  # fmt: skip
     step("correcteur", "correcteur", "fix", "skipped", detail=t("rien à corriger", "nothing to fix"))
     step("assembleur", "assembleur", "build", "running")
     facts = _FACTS[lang]
@@ -272,10 +276,20 @@ def demo_crew(run) -> None:
             "**Scénario de démonstration** (aucun modèle ne tourne ici) : voici ce que fait le mode Agent.\n\n"
             "La présentation « Le télétravail en France depuis 2019 » est prête : 6 diapositives et une diapositive "
             "Sources. Deux versions ont été rédigées en parallèle ; la vérification a retenu la version A, dont chaque "
-            "chiffre se retrouve dans une page lue.",
+            "chiffre se retrouve dans une page lue.\n\n"
+            "**Ce que l'équipe a fait** :\n"
+            "- Recherche : 1 recherche(s), 2 page(s) lue(s), 2 source(s) retenue(s) (example.org)\n"
+            "- Lecture : 5 chiffre(s) vérifié(s) dans leur page\n"
+            "- Rédaction : 2 version(s) en parallèle, Version A retenue, complétée par 1 partie(s) de Version B\n"
+            "- Vérification : chiffres contrôlés contre le texte et les sources",
             "**Demo scenario** (no model runs here): this is what Agent mode does.\n\n"
             "The deck “Remote work in France since 2019” is ready: 6 slides and a Sources slide. Two versions were "
-            "written in parallel; the check kept version A, whose every figure is found in a page that was read.",
+            "written in parallel; the check kept version A, whose every figure is found in a page that was read.\n\n"
+            "**What the team did**:\n"
+            "- Research: 1 search(es), 2 page(s) read, 2 source(s) kept (example.org)\n"
+            "- Reading: 5 figure(s) checked in their page\n"
+            "- Writing: 2 version(s) in parallel, Version A kept, completed with 1 part(s) of Version B\n"
+            "- Check: figures checked against the text and sources",
         ),
         files=[entry],
         sources=[

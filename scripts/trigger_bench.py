@@ -501,6 +501,43 @@ OFFICE_AGENT_NO = [
     "Rédige un mail à Sophie pour lui envoyer le compte rendu\nPrésents : Marie Dupont, Julien Martin",
     "Traduis ce texte en anglais\nDevis 1 – Alpha : 12 000 €\nDevis 2 – Beta : 10 500 €",
 ]
+# Studies named as a deliverable (étude comparative, dossier de veille, benchmark, note de synthèse sourcée): a
+# "yes" routes to the researched document (Activé, or Auto once its flag is on); a "no" never does, even with the
+# flag on (an office request with a study word that is not a study of what is out there).
+STUDY_YES = [
+    "Fais une étude comparative des 3 principaux CRM du marché avec un tableau et une recommandation",
+    "Rédige un rapport sur la transition énergétique des PME françaises avec des chiffres récents et des sources",
+    "Fais un dossier de veille sur l'IA générative en entreprise en 2026 : tendances, chiffres, risques",
+    "Fais un benchmark des outils de visioconférence du marché pour une PME de 50 personnes",
+    "Prépare une note de synthèse sur la réforme de la facturation électronique 2026 avec les sources officielles",
+    "Rédige une étude de marché sur les box de repas livrées en France avec des chiffres",
+    "Fais une veille concurrentielle sur les logiciels de paie pour PME",
+    "Write a comparative study of the main project management tools on the market",
+    "j'ai besoin d'un benchmark des solutions de signature électronique du marché",
+    "peux-tu me faire un dossier de veille sur la cybersécurité des PME en 2026 ?",
+]
+STUDY_NO = [
+    "Rédige une note de synthèse sur la réunion d'hier",
+    "Fais un rapport d'activité du mois de novembre",
+    "Rédige un rapport d'incident pour la panne de ce matin",
+    "Fais un benchmark de nos fournisseurs actuels",
+    "Rédige une note de synthèse sur les principaux points du contrat",
+    "Fais une note de synthèse sur les tendances de nos ventes",
+    "Le bureau d'études doit me rendre le plan, rédige un mail de relance",
+    "Range ce dossier de veille dans le drive",
+    "Qu'est-ce qu'un benchmark ?",
+    "Comment faire une veille efficace ?",
+    "Écris un rapport sur nos résultats 2025 : CA 3,2 M€, marge 12 %",
+    "Rédige une note de veille pour l'équipe à partir de ces liens que je t'envoie demain",
+    "Fais un mail pour présenter le benchmark à l'équipe",
+    "Rédige un mail court au client pour lui envoyer le livre blanc",
+    "c'est quoi le meilleur CRM du marché ?",
+    "Quels sont les principaux concurrents de Salesforce ?",
+    "Rédige un rapport de stage sur mon alternance",
+    "Fais un rapport sur l'avancement du projet ERP",
+    "Rédige le rapport annuel de l'association",
+    "fais une synthèse de ce document",
+]
 NOW = datetime(2026, 11, 23, 10, 0, tzinfo=ZoneInfo("Europe/Paris"))
 
 
@@ -578,6 +615,16 @@ def agent_on(q: str) -> bool:
     return bool(crew.decide(q, mode="auto", lang="fr").recipe)
 
 
+def study_routed(q: str) -> bool:
+    flipped = {**crew.RECIPES, "doc_research": {**crew.RECIPES["doc_research"], "auto": True}}
+    return crew.decide(q, mode="on").recipe == "doc_research" and crew.decide(q, recipes=flipped).recipe == "doc_research"
+
+
+def study_touched(q: str) -> bool:
+    flipped = {**crew.RECIPES, "doc_research": {**crew.RECIPES["doc_research"], "auto": True}}
+    return crew.decide(q, mode="on").recipe == "doc_research" or bool(crew.decide(q, recipes=flipped).recipe)
+
+
 def bench(name: str, yes: list[str], no: list[str], fn, touched=None) -> tuple[int, int]:
     miss = [q for q in yes if not fn(q)]
     false = [q for q in no if (touched or fn)(q)]
@@ -603,6 +650,7 @@ if __name__ == "__main__":
         ("company_fx", COMPANY_FX_YES, COMPANY_FX_NO, company_fx_started, company_fx_touched),
         ("events", EVENT_YES, EVENT_NO, event_card),
         ("office_agent", OFFICE_AGENT_YES, OFFICE_AGENT_NO, agent_on),
+        ("agent_study", STUDY_YES, STUDY_NO, study_routed, study_touched),
     ):
         ok, n = bench(*args)
         total[0] += ok

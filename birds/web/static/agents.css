@@ -262,6 +262,10 @@
   font-size: 0.7rem;
   font-weight: 650;
 }
+.crew-kept.is-part {
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--eco);
+}
 .crew-detail,
 .crew-tools {
   margin: 2px 0 0;
