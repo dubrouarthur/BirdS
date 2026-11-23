@@ -413,6 +413,7 @@ class Run:
     lang: str = "en"
     steps: list[Step] = field(default_factory=list)
     sources: list[str] = field(default_factory=list)
+    source_titles: dict[str, str] = field(default_factory=dict)  # url -> title, when known without the steps (crew)
     drafts: list[dict] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
     charts: list[dict] = field(default_factory=list)  # make_chart specs, drawn by the browser

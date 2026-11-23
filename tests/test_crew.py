@@ -1015,6 +1015,83 @@ def test_web_crew_confirm_token_resumes_without_generating(tmp_path, monkeypatch
     assert answer["files"] and empty.prompts == [] and any(e["type"] == "agent_done" for e in events)
 
 
+def _confirm_then(tmp_path, monkeypatch, decision: bool):
+    """The deck request on a page with an injected instruction pauses at the build step; then the user answers."""
+    from fastapi.testclient import TestClient
+
+    from birds.web.backends import HarnessBackend
+    from birds.web.server import create_app
+    from birds.web.settings import Settings
+
+    monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
+    s = Settings(demo_delay=0.0, signing_secret=b"x" * 32, signing="configured", rate_limit=0)
+    first = create_app(s, server_backend=HarnessBackend(Script(deck_script()), Tok(), model="m", http=web(INJECTION), search=SEARCH))  # fmt: skip
+    body = {"messages": [{"role": "user", "content": ASK_DECK}]}
+    with TestClient(first) as client:
+        paused = _sse(client, body)
+    confirm = next(e for e in paused if e["type"] == "confirm")
+    empty = Script(lambda *a: AssertionError("no generation"))
+    second = create_app(s, server_backend=HarnessBackend(empty, Tok(), model="m", http=web(), search=SEARCH))
+    with TestClient(second) as client:
+        resumed = _sse(client, {**body, ("approved" if decision else "denied"): [confirm["token"]]})
+    return paused, resumed, empty
+
+
+def test_web_crew_resume_continues_the_paused_run(tmp_path, monkeypatch):
+    paused, resumed, empty = _confirm_then(tmp_path, monkeypatch, True)
+    assert empty.prompts == []
+    starts = [e for e in paused if e["type"] == "step" and e.get("status") == "running"]
+    build = next(e for e in starts if e["tool"] == "make_slides")
+    before = {e["index"] for e in paused if e["type"] == "step"}
+    # the resumed build updates the paused step (same index), never step 0 (the first web_search)
+    again = [e for e in resumed if e["type"] == "step"]
+    assert again and {e["index"] for e in again} == {build["index"]}
+    assert all(e["tool"] == "make_slides" for e in again)
+    usage = next(e for e in resumed if e["type"] == "usage")
+    assert usage["tool_calls"] == len(before) and usage["bytes_fetched"] > 0
+    answer = next(e for e in resumed if e["type"] == "answer")
+    assert answer["sources"][0]["title"] == "Le télétravail en chiffres"
+    assert "web_search" in answer["memo"] or "read_page" in answer["memo"]
+    # the folded line: the whole team's time and calls, and the version kept
+    done = next(e for e in resumed if e["type"] == "agent_done")
+    first_start = next(e for e in paused if e["type"] == "agent_start")
+    assert done["ok"] and done["chosen"] and done["chosen"].startswith("redacteur_")
+    assert done["calls"] > 0  # the team's generations happened in the first request (0 before)
+    assert done["agents"] == sum(1 for ln in first_start["lanes"] if ln["role"] != "verificateur")
+
+
+def test_web_crew_resume_carries_time_and_calls(monkeypatch, tmp_path):
+    agent = make_agent(tmp_path, Script(lambda *a: AssertionError("no generation")))
+    usage = [{"role": "redacteur_a", "prompt_tokens": 10, "completion_tokens": 5, "seconds": 1.0},
+             {"role": "redacteur_b", "prompt_tokens": 10, "completion_tokens": 5, "seconds": 1.0}]  # fmt: skip
+    state = {"k": "crew", "v": 1, "recipe": "deck_research", "tool": "make_slides", "lang": "fr",
+             "args": {"title": "Télétravail", "slides": [{"title": "2019", "bullets": ["4 % [1]"]}]},
+             "sources": [{"n": 1, "url": "https://news.test/tt1", "title": "Le télétravail en chiffres"}],
+             "caveats": [], "usage": usage, "index": 6, "bytes": 731,
+             "answer_ctx": {"tool": "make_slides", "title": "Télétravail", "titles": ["2019"], "n_sources": 1},
+             "chosen": "redacteur_b", "agents": 5, "carry": {"seconds": 12.5, "gpu_union": 2.0},
+             "steps": [{"index": 0, "tool": "web_search", "arguments": {"query": "télétravail"}, "result": "1 résultat",
+                        "seconds": 0.2, "decision": "allow", "error": None}]}  # fmt: skip
+    events = []
+    agent.hooks = Hooks(on_agent=events.append)
+    for decision in (True, False):
+        events.clear()
+        run = Crew.resume(agent, state, decision)
+        done = next(e for e in events if e.get("type") == "agent_done")
+        assert done["seconds"] >= state["carry"]["seconds"] and done["calls"] == len(usage)
+        assert done["chosen"] == "redacteur_b" and done["agents"] == 5
+        assert [e["index"] for e in events if e.get("kind") in ("tool_start", "tool_end")] == [6, 6]
+        assert [s.tool for s in run.steps] == ["web_search", "make_slides"]
+        assert run.report["tool_calls"] == 2 and run.report["bytes_fetched"] == 731
+        assert run.source_titles == {"https://news.test/tt1": "Le télétravail en chiffres"}
+        build = [e for e in events if e.get("type") == "agent_step" and e["id"] == "assembleur"][-1]
+        if decision:
+            assert build["status"] == "done" and not done.get("denied")
+        else:
+            # the user refused: a neutral « refusé », not a red failure
+            assert build["status"] == "skipped" and build["detail"] == "refusé" and done["denied"]
+
+
 def test_demo_scripted_team(monkeypatch):
     from fastapi.testclient import TestClient
 

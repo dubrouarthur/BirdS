@@ -1999,11 +1999,11 @@ class HarnessBackend:
                 return
             if request.thinking and run.reasoning:
                 ctx.emit({"type": "reasoning", "content": str(run.reasoning)})
-            titles = {}
+            titles = {str(u): str(t) for u, t in (run.source_titles or {}).items() if t}
             for s in run.steps:
                 m = re.search(r"URL: (\S+)\nTitle: ([^\n]+)", s.result or "")
                 if m:
-                    titles[m.group(1)] = m.group(2).strip()
+                    titles.setdefault(m.group(1), m.group(2).strip())
             draft = run.drafts[-1] if run.drafts else None
             sources = [
                 {"n": n, "title": titles.get(str(url)) or _source_title(url), "url": str(url)}
