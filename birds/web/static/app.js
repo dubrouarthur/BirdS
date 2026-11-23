@@ -60,6 +60,8 @@ import { applyAgentEvent } from "./agents.js";
 
 // Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
 const AGENT_MODES = ["auto", "on", "off"];
+// No byte (data or heartbeat) for this long: the stream is dead. Just over 3x the server's heartbeat (10 s).
+const STALL_MS = 35000;
 state.agent = AGENT_MODES.includes(store.get("bird.agent")) ? store.get("bird.agent") : "auto";
 
 const PASTE_AS_FILE = 3000; // characters: longer pasted text becomes an attached document
@@ -778,6 +780,7 @@ function updateComposer() {
   $("editing").hidden = !state.editing;
   $("btn-thinking").setAttribute("aria-checked", String(state.thinking));
   $("agent-mode").value = state.agent;
+  $("agent-pill-value").textContent = t(`composer.agent.${state.agent}.short`); // phones: the select is see-through
   $("agent-pill").dataset.state = state.agent;
   $("agent-pill").title = t("composer.agent.hint");
   updateSlash();
@@ -1238,10 +1241,13 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
       break;
     case "agent_start":
     case "agent_step":
-    case "agent_done":
-      applyAgentEvent(turn, event);
+    case "agent_done": {
+      // the board itself is not a live region (it is redrawn on every event): only the transitions are read out
+      const said = applyAgentEvent(turn, event);
       if (event.type === "agent_start") announce(t("agent.chip"));
+      else if (said) announce(said);
       break;
+    }
     case "error":
       turn.error = {
         code: event.code || "internal",
@@ -1273,6 +1279,14 @@ async function runTurn(turn, extra = {}) {
   let finished = false;
   turn.started = Date.now();
   const ticker = window.setInterval(tick, 1000);
+  // a stream that goes silent (tunnel, Wi-Fi to 4G handover, NAT timeout) never ends on its own: the server sends
+  // a heartbeat every 10 s, so no byte for STALL_MS means the connection is gone
+  let stalled = false;
+  let lastByte = Date.now();
+  let watchdog = 0;
+  const onVisible = () => {
+    if (!document.hidden) lastByte = Date.now(); // a background tab's reads were paused, not lost
+  };
   try {
     const { resend, ...rest } = extra;
     extra = rest;
@@ -1320,8 +1334,17 @@ async function runTurn(turn, extra = {}) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    lastByte = Date.now();
+    document.addEventListener("visibilitychange", onVisible);
+    watchdog = window.setInterval(() => {
+      if (!document.hidden && Date.now() - lastByte > STALL_MS) {
+        stalled = true;
+        controller.abort();
+      }
+    }, 5000);
     for (;;) {
       const { value, done } = await reader.read();
+      lastByte = Date.now(); // heartbeats included
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       let cut;
@@ -1352,7 +1375,10 @@ async function runTurn(turn, extra = {}) {
     if (turn.status === "error" && !turn.error)
       turn.error = { code: "dropped", message: t("error.dropped") };
   } catch (error) {
-    if (controller.signal.aborted) turn.status = "stopped";
+    if (stalled) {
+      turn.status = "error"; // not the user's Stop: the « Réessayer » card
+      turn.error = { code: "dropped", message: t("error.dropped") };
+    } else if (controller.signal.aborted) turn.status = "stopped";
     else {
       turn.status = "error";
       turn.error = {
@@ -1368,8 +1394,18 @@ async function runTurn(turn, extra = {}) {
     }
   } finally {
     window.clearInterval(ticker);
+    window.clearInterval(watchdog);
+    document.removeEventListener("visibilitychange", onVisible);
+    // the team did not report its end: the user stopped it, the server failed, or the connection was lost
     if (turn.crew && !turn.crew.done && turn.status !== "confirm")
-      applyAgentEvent(turn, { type: "agent_done", ok: false, stopped: true, caveats: [] });
+      applyAgentEvent(turn, {
+        type: "agent_done",
+        ok: false,
+        stopped: turn.status === "stopped",
+        error: turn.status !== "stopped",
+        dropped: turn.status === "error" && ["dropped", "network", "offline"].includes(turn.error?.code),
+        caveats: [],
+      });
     state.abort = null;
     state.busy = false;
     if (turn.wakeStart) endWake(turn);
@@ -1670,6 +1706,7 @@ async function agentOff(turn) {
   fresh.agent = "off";
   conv.turns[conv.turns.length - 1] = fresh;
   renderChat();
+  keepFocus(); // the button pressed is gone with the team: the keyboard user lands in the composer, not on <body>
   scrollToEnd(true);
   const user = conv.turns[conv.turns.length - 2];
   let again = {};

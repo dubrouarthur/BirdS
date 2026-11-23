@@ -877,6 +877,20 @@ def test_rich_renderer_node_unit_tests():
     assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-1000:]
 
 
+def test_agent_state_node_unit_tests():
+    """tests/js/agents.test.mjs: Mode Agent lane states at the end of a run, the folded line, the announcements."""
+    if shutil.which("node") is None:
+        pytest.skip("Node not installed")
+    result = subprocess.run(
+        ["node", "--test", str(Path(__file__).parent / "js" / "agents.test.mjs")],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={**os.environ, "CI": "1"},
+    )
+    assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-1000:]
+
+
 # ------------------------------------------------------------------ HarnessBackend (scripted model, no network)
 
 

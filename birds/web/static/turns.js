@@ -6,6 +6,7 @@ import {
   button,
   copyText,
   download,
+  elapsed,
   fmtBytes,
   fmtCo2,
   fmtEnergy,
@@ -132,10 +133,7 @@ function autoSub(started, first) {
   return t(s < 20 ? "live.slow" : "live.slower");
 }
 
-const elapsed = (since) => {
-  const s = Math.max(0, Math.round((Date.now() - Number(since)) / 1000));
-  return s < 1 ? "" : s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")}`;
-};
+
 /** Called every second while a request runs: only the small timers change, nothing else is redrawn. */
 export function tick() {
   for (const el of document.querySelectorAll("[data-since]")) el.textContent = elapsed(el.dataset.since);
@@ -1448,7 +1446,31 @@ function widgetsFor(turn, entry) {
   return entry.widgets;
 }
 
+/** The focused control of a turn, as a selector and its rank among the matches, so a redraw can give it back. */
+function focusKey(el) {
+  const a = document.activeElement;
+  if (!a || a === el || !el.contains(a)) return null;
+  const sel = a.hasAttribute("data-crew-summary")
+    ? "[data-crew-summary]"
+    : a.dataset.act
+      ? `[data-act="${CSS.escape(a.dataset.act)}"]`
+      : null;
+  if (!sel) return null;
+  return { sel, rank: [...el.querySelectorAll(sel)].indexOf(a), crew: !!a.closest(".crew") };
+}
+
+function restoreFocus(el, key) {
+  if (!key || el.contains(document.activeElement)) return;
+  const all = el.querySelectorAll(key.sel);
+  // the way out of a team that just finished is gone: its folded line takes the focus, never <body>
+  const next = all[key.rank] || all[0] || (key.crew && el.querySelector("[data-crew-summary]"));
+  next?.focus({ preventScroll: true });
+}
+
 function fillAssistant(el, turn, isLast) {
+  // the turn is redrawn on every event (each agent_step of a team): the focused control keeps the focus, or a
+  // keyboard user is sent back to the top of the page and Escape on <body> would stop the answer
+  const focus = focusKey(el);
   let entry = cache.get(turn.id);
   if (!entry) {
     entry = { md: h("div", { class: "md" }), blocks: [] };
@@ -1513,6 +1535,7 @@ function fillAssistant(el, turn, isLast) {
   } else {
     el.replaceChildren(...kids);
   }
+  restoreFocus(el, focus);
   el.setAttribute("aria-busy", String(turn.status === "running"));
 }
 
