@@ -187,7 +187,7 @@ export function openEditor(file, { onDone } = {}) {
             }),
             title,
             button("btn-icon btn-ghost editor-up", "chevron", t("editor.up"), () => move(-1)),
-            button("btn-icon btn-ghost", "down", t("editor.down"), () =>
+            button("btn-icon btn-ghost editor-down", "chevron", t("editor.down"), () =>
               move(1),
             ),
             button("btn-icon btn-ghost", "trash", t("editor.remove"), () => {
