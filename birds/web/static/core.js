@@ -202,7 +202,16 @@ export function fmtBytes(bytes) {
 }
 
 export const hasEnergy = (u) => !!u && typeof u.energy_wh === "number" && (u.energy_kind === "measured" || u.energy_kind === "estimated");
-export const fmtEnergy = (wh, kind) => `${kind === "estimated" ? "≈ " : ""}${fmtSig(wh)} Wh`;
+// readable at every size, never "0 Wh": 1,3 Wh · 0,25 Wh · 0,012 Wh · 0,4 mWh · < 0,01 mWh
+export function fmtEnergy(wh, kind) {
+  const pre = kind === "estimated" ? "≈ " : "";
+  const v = Math.max(0, Number(wh) || 0);
+  const two = nf({ maximumSignificantDigits: 2 });
+  if (v >= 1) return `${pre}${fmtSig(v)} Wh`;
+  if (v >= 0.001) return `${pre}${two.format(v)} Wh`;
+  if (v >= 0.00001) return `${pre}${two.format(v * 1000)} mWh`;
+  return `< ${nf({ maximumFractionDigits: 2 }).format(0.01)} mWh`;
+}
 export const fmtCo2 = (g) => `≈ ${fmtSig(g)} g CO₂e`;
 export const toolLabel = (tool) => {
   const key = `tool.${tool}`;

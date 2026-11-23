@@ -1289,7 +1289,13 @@ def test_energy_wording_states_its_scope():
     text = (STATIC_DIR / "i18n.js").read_text(encoding="utf-8")
     assert "pas de GPU allumé pour rien" not in text and "no GPU running for nothing" not in text
     less = re.findall(r'"save\.energy\.less":\s*"([^"]+)"', text)
-    assert len(less) == 2 and all(re.search(r"génération|generation", s) for s in less)
+    assert len(less) == 2 and all(re.search(r"note|estimation|estimate", s) for s in less)
+    # the token estimate states its boundary (whole service, like the reference), its range and its sources
+    scope = re.findall(r'"save\.energy\.scope\.tokens":\s*"([^"]+)"', text)
+    assert len(scope) == 2 and all(re.search(r"tout le service|whole service", s) and "{k}" in s for s in scope)
+    why = re.findall(r'"why\.energy\.tokens":\s*"([^"]+)"', text)
+    assert len(why) == 2 and all("{range}" in s and "{scope}" in s and "{cached}" in s for s in why)
+    assert "72 W" not in "".join(why + scope)
     upper = re.findall(r'"meter\.energy\.upper":\s*"([^"]+)"', text)
     assert len(upper) == 2 and all(re.search(r"génération|generating", s) for s in upper)
 

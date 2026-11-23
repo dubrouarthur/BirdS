@@ -255,7 +255,8 @@ export function renderAgents(turn, handlers) {
       "summary",
       { "data-crew-summary": "" },
       h("span", { class: "crew-sum-text", text: summary(turn, crew) }),
-      turn.usage?.busy_seconds_sum > 0 &&
+      turn.usage?.energy_method === "power_time" &&
+        turn.usage?.busy_seconds_sum > 0 &&
         h("span", {
           class: "crew-sum-hint",
           title: t("agent.energy.hint", {
