@@ -101,6 +101,10 @@ MESSAGES = {
         "Le modèle se réveille (serveur en veille ou en cours de démarrage). Cela peut prendre quelques minutes : réessayez dans un instant.",
         "The model is waking up (server scaled to zero or still starting). This can take a few minutes: try again shortly.",
     ),
+    "endpoint_down": (
+        "Le serveur du modèle est en erreur et ne peut pas démarrer pour le moment. Son administrateur doit le relancer depuis la console Hugging Face (Inference Endpoints).",
+        "The model server is in error and cannot start right now. Its administrator must restart it from the Hugging Face console (Inference Endpoints).",
+    ),
     "unknown_model": (
         "Le serveur du modèle répond, mais ne connaît pas ce nom de modèle. Mettez dans « Nom du modèle » (ou BIRD_MODEL) le nom indiqué par le serveur du modèle après « Valid aliases ».",
         'The model server answers but does not know this model name. Set the model name (or BIRD_MODEL) to the name the model server lists after "Valid aliases".',

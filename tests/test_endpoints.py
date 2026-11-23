@@ -601,3 +601,14 @@ def test_agent_passes_the_stop_signal_to_the_model_call(tmp_path):
 
     Agent(Spy(["Bonjour."]), TemplateTokenizer(), Config(workspace=tmp_path), hooks=hooks).run("Salut")
     assert seen["cancel"] is cancel
+
+
+def test_an_endpoint_in_error_is_said_plainly_not_as_a_wrong_model_name():
+    from birds.harness.llm import _http_error
+    from birds.web.endpoint import explain
+
+    e = _http_error(400, '{"error":"Bad Request: Your endpoint is in error, check its status on endpoints.huggingface.co"}')
+    assert e.kind == "endpoint_down"
+    assert "en erreur" in explain(e.kind, "fr") and "nom du modèle" not in explain(e.kind, "fr")
+    assert _http_error(400, "Bad Request: Your endpoint is paused").kind == "endpoint_down"
+    assert _http_error(400, "invalid stop sequence").kind == "bad_request"

@@ -40,7 +40,7 @@ def accepts(fn, name: str) -> bool:
 class EndpointError(Exception):
     """The model endpoint could not serve the request. ``kind`` is stable; the message never contains credentials.
 
-    kinds: unauthorized, waking (scaled to zero / still loading), unknown_model, wrong_route, bad_request, server, unreachable,
+    kinds: unauthorized, waking (scaled to zero / still loading), endpoint_down (in error / paused), unknown_model, wrong_route, bad_request, server, unreachable,
     timeout, blocked (egress policy).
     """
 
@@ -517,6 +517,10 @@ def _http_error(status: int, detail: str) -> EndpointError:
         return EndpointError("unknown_model", f"the endpoint does not serve this model name: {detail}", status)
     if status in (404, 405) or 300 <= status < 400:
         return EndpointError("wrong_route", f"no /v1/completions route at this address (HTTP {status})", status)
+    if re.search(r"endpoint (?:is|has) (?:in )?(?:error|failed)|endpoint is paused", detail, re.I):
+        # Hugging Face Inference Endpoints: « Your endpoint is in error » (HTTP 400) while the replica cannot
+        # start; nothing on our side can fix it, and it is not a wrong model name
+        return EndpointError("endpoint_down", f"the endpoint is in error or paused (HTTP {status}): {detail}", status)
     if status in (400, 422):
         return EndpointError("bad_request", f"the endpoint rejected the request (HTTP {status}): {detail}", status)
     if status == 429:
