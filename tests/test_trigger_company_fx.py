@@ -109,3 +109,25 @@ def test_no_company_call_for_ordinary_words(text):
 @pytest.mark.parametrize("text", ["explique ce qu'est un numéro SIREN", "comment trouver le siret d'une entreprise ?"])
 def test_a_question_about_the_register_offers_nothing(text):
     assert intents.company(text) is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "combien de salariés à Paris ?",
+        "effectifs de Lyon pour 2025",
+        "chiffre d'affaires du Nord en octobre",
+        "quel est le CA de Marc ce mois-ci ?",
+        "qui dirige Marketing ?",
+        "qui dirige Projet Atlas ?",
+    ],
+)
+def test_internal_kpi_and_org_questions_are_not_register_lookups(text):
+    assert not any(i.tool == "find_company" and i.args for i in intents.detect(text))
+
+
+@pytest.mark.parametrize(
+    "text,name", [("CA de Decathlon cette année", "Decathlon"), ("qui dirige Louis Vuitton ?", "Louis Vuitton")]
+)
+def test_a_company_name_is_cut_at_time_words(text, name):
+    assert intents.company(text).args == {"name": name}

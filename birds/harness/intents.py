@@ -545,8 +545,28 @@ _DEFINE = re.compile(
 
 def _company_name(name: str) -> str:
     return re.split(
-        r"[?!.,;:]|\s+(?:et|and|pour|for|à|a|en|in|stp|svp|depuis|since|chez|sur|on)\b", name, maxsplit=1, flags=re.I
+        r"[?!.,;:]|\s+(?:et|and|pour|for|à|a|en|in|stp|svp|depuis|since|chez|sur|on|ce|cette|cet|ces|this|last|"
+        r"l'an|l'ann[ée]e|le mois|la semaine|aujourd'hui|today|hier|demain|janvier|f[ée]vrier|mars|avril|mai|juin|"
+        r"juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre|(?:19|20)\d\d)\b",
+        name,
+        maxsplit=1,
+        flags=re.I,
     )[0].strip(" '")
+
+
+# « effectifs de Lyon », « CA du Nord », « CA de Marc », « qui dirige Marketing / Projet Atlas »: a place, a person,
+# a team or a project is an internal question, never a register lookup
+_NOT_A_COMPANY = re.compile(
+    r"^(?:nord|sud|est|ouest|north|south|east|west|centre|r[ée]gion|zone|secteur|marketing|rh|hr|ventes?|sales|"
+    r"finances?|it|dsi|daf|informatique|direction|juridique|legal|compta\w*|achats?|communication|commercial|support|"
+    r"logistique|production|qualit[ée]|sav|r&d|ressources humaines|engineering|produit|product|ops|op[ée]rations|"
+    r"(?:projet|project|[ée]quipe|team|service|d[ée]partement|department|p[ôo]le|agence|site|magasin|boutique)\b.*)$",
+    re.I,
+)
+
+
+def _internal_name(name: str) -> bool:
+    return bool(_NOT_A_COMPANY.match(name) or known_place(name) or name.lower() in FIRST_NAMES)
 
 
 def company_id(text: str) -> str:
@@ -575,6 +595,8 @@ def company(text: str, lang: str = "fr") -> Intent | None:
         m = rx.search(raw)
         if m:
             name = _company_name(m.groupdict().get("name") or m.group("lname") or "")
+            if m.groupdict().get("name") and _internal_name(name):
+                break  # an internal KPI or org question: no register lookup
             if 2 <= len(name) <= 60:
                 return Intent("find_company", {"name": name})
     if _COMPANY_HINT.search(raw) and not _DEFINE.search(raw):
