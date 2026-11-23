@@ -89,10 +89,12 @@ def memo(
     draft: dict | None,
     results: list[dict] | None = None,
     charts: list[dict] | None = None,
+    context: dict | None = None,
 ) -> str:
     """Deterministic, compact record of what the tools did in one turn: tool names and key arguments, search result
     titles and URLs (so "the second source" can be answered later), pages read, files made, draft subject, the data
-    of the charts shown (so "refais-le en courbe" can chart it again).
+    of the charts shown (so "refais-le en courbe" can chart it again), and the arguments of the rich result shown (so « et
+    à Lyon ? » can ask it again, see followup.py).
     Never raw tool output, never excerpts, never an image transcription (it lives in the user turn)."""
     lab = MEMO_LABELS["en" if lang == "en" else "fr"]
     parts = []
@@ -121,6 +123,12 @@ def memo(
         parts.append(f"{lab['files']} : " + ", ".join(_plain(f, 80) for f in files[:6]))
     if draft:
         parts.append(f"{lab['draft']} : « {_plain(draft.get('subject'), 120)} » ({lab['notsent']})")
+    if context:
+        from birds.harness.followup import memo_part
+
+        part = memo_part(context, lang)
+        if part:
+            parts.append(part)
     for c in (charts or [])[:3]:
         parts.append(chart_line(c, lab))
     out = f"[{lab['head']} — " + " | ".join(parts) + "]" if parts else ""

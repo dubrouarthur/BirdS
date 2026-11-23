@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from birds.harness import guard, intents, meter
+from birds.harness import followup, guard, intents, meter
 from birds.harness.config import Config, Context
 from birds.harness.llm import STOP, EndpointError, accepts
 from birds.harness.tools import TOOLS, make_search
@@ -254,6 +254,15 @@ CLOCK_NOTE = {
     "with these exact times; compute no other and do not search the web.)",
 }
 
+IMAGES_NOTE = {
+    "fr": "\n\n(Note de Bird : la recherche d'images sur « {subject} » est faite. Les images qui correspondent, s'il y "
+    "en a, sont affichées sous ta réponse avec leur source. Décris brièvement {subject} d'après les résultats ; "
+    "n'écris aucun lien d'image et ne dis pas que tu ne peux pas montrer d'images.)",
+    "en": "\n\n(Bird's note: the image search for '{subject}' is done. Matching images, if any, are shown under your "
+    "answer with their source. Briefly describe {subject} from the results; write no image link and do not say you "
+    "cannot show images.)",
+}
+
 EVENT_NOTE = {
     # the resolved day is written out: live model, given only "le 25 décembre", wrote "dimanche 25 décembre" (a Friday)
     "fr": "\n\n(Note de Bird : une fiche d'agenda pour le {slot} avec un bouton « Ajouter au calendrier » est affichée "
@@ -445,6 +454,7 @@ _NEW_SUBJECT = re.compile(
     r"graphiques?|histogrammes?|diagrammes?|lignes?|charts?|graphs?|pie|bars?|lines?|forme)\b)[^\W\d_]{3,}",
     re.I,
 )
+_CHART_MEMO = re.compile(r"(?:graphique affiché|chart shown) : ")
 _MEMO_ROWS = re.compile(r"(?:graphique affiché|chart shown) : .*? — (?P<rows>[^\n]+)")
 
 
@@ -463,7 +473,9 @@ def _previous_answer(history: list[dict]) -> str:
     text = str(last.get("content") or "") if last else ""
     memo = _MEMO_ROWS.search(text)
     if memo:
-        return text[: memo.start()] + "\n" + "\n".join(r.strip() for r in memo.group("rows").split(" ; "))
+        # the memo ends with « ] » and may go on with another part (« | … »): neither belongs to the last row
+        rows = memo.group("rows").split(" | ", 1)[0].rstrip().removesuffix("]")
+        return text[: memo.start()] + "\n" + "\n".join(r.strip() for r in rows.split(" ; "))
     return text
 
 
@@ -794,13 +806,22 @@ class Agent:
             # widget tools (find_places, find_company, convert_currency) are offered only when the user's own words
             # ask for them: an ordinary turn keeps the trained tool block byte for byte (see intents.py)
             found = intents.detect(req, attached, run.lang) if getattr(cfg, "widgets", True) else []
+            # « et à Lyon ? », « et en livres ? »: a short follow-up re-asks the previous turn's rich result, read from
+            # the memo the server wrote after it (never from the model's text, see followup.py)
+            prev = followup.previous(history) if history and getattr(cfg, "widgets", True) and not attached else None
+            again = None if any(i.args for i in found) else followup.resolve(req, prev, run.lang)
+            clock_words = req
+            if again is not None and again.tool == "clock":
+                clock_words = again.args["text"]
+            elif again is not None:
+                found = [again]
             routed |= set(EXTRA_TOOL_NAMES) - {"make_chart"} - {i.tool for i in found}
             prefill = next((i for i in found if i.args), None)
             # « météo aujourd'hui », « taux du jour »: words that usually call for the web, but the tool has the answer
             own_answer = prefill and prefill.tool in ("convert_currency", "get_weather")
             if prefill and not prefill.keep_web and (own_answer or not _NEEDS_WEB.search(req)):
                 routed |= {"web_search", "read_page"}
-            facts = "" if prefill or not getattr(cfg, "widgets", True) else self._clock(req, run.lang, tz, ctx)
+            facts = "" if prefill or not getattr(cfg, "widgets", True) else self._clock(clock_words, run.lang, tz, ctx)
             if facts:
                 # « décalage horaire avec Tokyo »: the harness computes the times and the slot itself (no tool, no
                 # network); the model only puts them in a sentence
@@ -812,13 +833,31 @@ class Agent:
                 # words; live model, offered the web, searched "restaurants ouverts le 25 décembre" and refused
                 routed |= {"web_search", "read_page"}
                 messages[-1]["content"] += EVENT_NOTE["en" if run.lang == "en" else "fr"].format(slot=slot)
+            pictures = None if prefill or facts or slot or attached else intents.images(req, run.lang)
+            if pictures is not None and self.search:
+                # « montre-moi une photo de la tour Eiffel »: the harness searches the subject itself; the images
+                # shown are the ones whose page title names it (birds.web.backends.pick_web_images)
+                prefill = pictures
+                routed -= {"web_search", "read_page"}
+                messages[-1]["content"] += IMAGES_NOTE["en" if run.lang == "en" else "fr"].format(
+                    subject=pictures.args["query"]
+                )
             nudged, withdrawn, file_nudged = False, set(routed), False
             promise_nudged = False
             gen, ok, forced = 0, 0, None
             auto_calls = 0
-            chartable = "make_chart" not in routed and (chart_ask(req) or trend_ask(req))
+            # « en camembert plutôt » right after a chart: only a type, the data is the chart just shown
+            last = next((m for m in reversed(history or []) if m.get("role") in ("user", "assistant")), None) or {}
+            retype = (
+                last.get("role") == "assistant"
+                and bool(_CHART_MEMO.search(str(last.get("content") or "") + str(last.get("memo") or "")))
+                and followup.chart_retype(req)
+            )
+            if retype:
+                routed.discard("make_chart")
+            chartable = "make_chart" not in routed and (chart_ask(req) or trend_ask(req) or retype)
             mine = figures_in(req) if chartable and not prefill else None
-            if chartable and not prefill and mine is None and history and _followup(req):
+            if chartable and not prefill and mine is None and history and (_followup(req) or retype):
                 # « mets ça en graphique », « refais-le en courbe »: the figures are in the previous answer (its
                 # table, or the memo of the chart it showed); the harness draws them, with the type now asked
                 mine = figures_in(_previous_answer(history))
