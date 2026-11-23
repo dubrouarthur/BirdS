@@ -148,6 +148,32 @@ def test_clock_look_alikes(text):
     assert not found or clock.card(found, datetime(2026, 11, 23, 9, 0, tzinfo=PARIS)) is None
 
 
+@pytest.mark.parametrize(
+    "text,cities",
+    [
+        ("Trouve un créneau avec Lyon pour la réunion budget", ["Lyon"]),
+        ("quel créneau pour la réunion avec Tokyo ?", ["Tokyo"]),
+        ("décalage horaire avec New York pour la réunion de lundi", ["New York"]),
+        ("Trouve un créneau avec Tokyo pour la Réunion budget", ["Tokyo"]),
+    ],
+)
+def test_a_meeting_is_never_the_island_of_la_reunion(text, cities):
+    assert [c["fr"] for c in clock.detect(text)["cities"]] == cities
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "quelle heure est-il à la Réunion ?",
+        "décalage horaire entre Paris et l'île de la Réunion",
+        "La Réunion : quel décalage horaire ?",
+        "time difference with Reunion Island",
+    ],
+)
+def test_the_island_named_as_such_is_found(text):
+    assert "Saint-Denis (La Réunion)" in [c["fr"] for c in clock.detect(text)["cities"]]
+
+
 def test_slot_in_one_zone_is_a_calendar_question():
     found = clock.detect("trouve un créneau pour une réunion entre Lyon et Paris")
     assert clock.card(found, datetime(2026, 11, 23, 9, 0, tzinfo=PARIS)) is None

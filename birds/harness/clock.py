@@ -253,7 +253,7 @@ Asuncion|Asunción|America/Asuncion|PY|asunción
 Brasilia|Brasília|America/Sao_Paulo|BR|brasília
 São Paulo|São Paulo|America/Sao_Paulo|BR|sao paulo,sao-paulo
 Rio de Janeiro|Rio de Janeiro|America/Sao_Paulo|BR|rio
-Saint-Denis (La Réunion)|Saint-Denis (Réunion)|Indian/Reunion|RE|la réunion,la reunion,réunion island
+Saint-Denis (La Réunion)|Saint-Denis (Réunion)|Indian/Reunion|RE|réunion island
 Mayotte|Mayotte|Indian/Mayotte|YT|mamoudzou
 """
 
@@ -461,9 +461,14 @@ _UNKNOWN_AFTER = re.compile(
 )
 
 
+# « la réunion » is a meeting: the island only as « île de la Réunion », « à la Réunion », « La Réunion »
+# (capital L and R, so not « pour la Réunion budget ») or « Réunion island »
+_REUNION = re.compile(r"\b(?:[îiÎI]le\s+de\s+la|(?:à|a|À)\s+la|(?<![\w'])La)\s+R[ée]union\b(?!\s+[Ii]sland)")
+
+
 def _names_in(text: str) -> list[City]:
     """Table cities and countries named in ``text``, in the order written (longest name first at a spot)."""
-    f = f" {fold(text)} "
+    f = f" {fold(_REUNION.sub(' Réunion island ', text))} "
     hits: list[tuple[int, int, City]] = []
     for table in (_ALIAS, COUNTRIES):
         for alias, city in table.items():

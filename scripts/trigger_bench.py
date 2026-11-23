@@ -126,6 +126,9 @@ CLOCK_YES = [  # (phrase, cities the card must show besides the user's)
     ("heure locale à Bombay", ["Bombay"]),
     ("décalage horaire avec les États-Unis", ["Washington"]),
     ("fuseau horaire de Montréal", ["Montréal"]),
+    ("quel créneau pour la réunion avec Tokyo ?", ["Tokyo"]),  # « la réunion » is a meeting, not the island
+    ("décalage horaire avec New York pour la réunion de lundi", ["New York"]),
+    ("quelle heure est-il à la Réunion ?", ["Saint-Denis (La Réunion)"]),
 ]
 CLOCK_NO = [
     "à quelle heure est la réunion ?",
@@ -137,6 +140,7 @@ CLOCK_NO = [
     "time management tips for managers",
     "trouve un créneau pour une réunion à Lyon",
     "combien d'heures de vol entre Paris et Tokyo ?",
+    "Trouve un créneau avec Lyon pour la réunion budget",
 ]
 AGENT_YES = [
     "Prépare une présentation de 6 slides sur le télétravail en France depuis 2019 avec des chiffres sourcés",
