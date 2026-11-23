@@ -88,7 +88,7 @@ On commence par le plus petit modèle qui fait le travail.
 
 **2. Chaque réponse a un prix, et on l'affiche.**
 Pas de dépense invisible.
-*Preuve : sous chaque réponse, Bird montre les tokens, le temps de calcul et une estimation d'énergie, présentée comme une borne haute.*
+*Preuve : sous chaque réponse, Bird montre les tokens, le temps de calcul et une estimation d'énergie d'après les tokens, avec sa fourchette et ses sources.*
 
 **3. Rien de superflu par défaut.**
 Le mode « Réflexion » existe, mais il est coupé tant que vous ne l'activez pas : il coûte plus.
@@ -210,7 +210,7 @@ Un modèle plus petit demande moins de calcul à chaque mot écrit. C'est un lev
 
 - **Entraînement** : la version actuelle a consommé 1,8 kWh, mesurés sur le GPU (1 × NVIDIA L40S, 5 h 26).
 - **Génération** : 0,36 Wh pour 1 000 tokens générés sur notre banc (GPU seul, NVIDIA A10G, requêtes groupées).
-- **Dans le produit** : chaque réponse affiche ses tokens, son temps et une estimation d'énergie en borne haute.
+- **Dans le produit** : chaque réponse affiche ses tokens, son temps et une estimation d'énergie d'après ses tokens.
 
 Nous testons aussi la qualité. Notre banc d'essai interne compte 1 369 cas automatiques, notés de 0 à 1 :
 
@@ -278,7 +278,7 @@ Nos chiffres, comment on les obtient, et ce qu'ils ne disent pas.
 
 **Dans le produit.** Chaque réponse affiche trois choses : les tokens lus et écrits, le temps de calcul, et une estimation d'énergie.
 
-Cette estimation est une **borne haute**. On multiplie la puissance de la carte GPU par le temps où elle travaille, puis par un PUE de 1,15 pour tenir compte du centre de données. La carte consomme souvent moins que sa puissance nominale : le vrai chiffre est en dessous.
+Cette estimation part des **tokens** : 0,10 Wh pour 1 000 tokens écrits et 0,006 Wh pour 1 000 tokens lus, valeurs tirées de mesures publiées de serveurs vLLM, ramenées à Bird S 4B sur une NVIDIA L4 et comptées pour tout le service (GPU × 1,72). Le détail de la réponse donne la fourchette et les sources. Les chiffres « 0,04 à 0,13 Wh » de cette page sont l'ancienne borne haute (72 W × durée × PUE), volontairement prudente : environ 0,01 à 0,03 Wh d'après les tokens.
 
 **Ce qu'on ne compte pas.** La fabrication du matériel, le réseau, votre appareil. Nous ne publions pas de chiffre d'eau. Nous ne convertissons pas en CO₂ quand l'intensité carbone du réseau n'est pas déclarée.
 
@@ -412,7 +412,7 @@ We start with the smallest model that does the job.
 
 **2. Every answer has a cost, and we show it.**
 No hidden spend.
-*Proof: under every answer, Bird shows tokens, compute time and an energy estimate, labelled as an upper bound.*
+*Proof: under every answer, Bird shows tokens, compute time and an energy estimate from tokens, with its range and sources.*
 
 **3. Nothing extra by default.**
 Reasoning mode exists, but it stays off until you turn it on: it costs more.
@@ -534,7 +534,7 @@ A smaller model needs less compute for every word it writes. It is a direct leve
 
 - **Training**: the current version used 1.8 kWh, measured on the GPU (1 × NVIDIA L40S, 5 h 26 min).
 - **Generation**: 0.36 Wh per 1,000 generated tokens on our benchmark (GPU only, NVIDIA A10G, batched).
-- **In the product**: every answer shows its tokens, its time and an upper-bound energy estimate.
+- **In the product**: every answer shows its tokens, its time and an energy estimate from its tokens.
 
 We test quality too. Our internal benchmark has 1,369 automatic cases, scored 0 to 1:
 
@@ -602,7 +602,7 @@ Our numbers, how we get them, and what they don't say.
 
 **In the product.** Every answer shows three things: tokens read and written, compute time, and an energy estimate.
 
-That estimate is an **upper bound**. We multiply the GPU board power by the time it is busy, then by a PUE of 1.15 for the data centre. The board often draws less than its rated power: the real figure is lower.
+That estimate starts from **tokens**: 0.10 Wh per 1,000 tokens written and 0.006 Wh per 1,000 tokens read, values drawn from published measurements of vLLM servers, scaled to Bird S 4B on an NVIDIA L4 and counted for the whole service (GPU × 1.72). The answer's detail gives the range and the sources. The "0.04 to 0.13 Wh" figures on this page are the former upper bound (72 W × duration × PUE), deliberately cautious: about 0.01 to 0.03 Wh from tokens.
 
 **What we don't count.** Hardware manufacturing, the network, your device. We don't publish a water figure. We don't convert to CO₂ when the grid's carbon intensity isn't declared.
 

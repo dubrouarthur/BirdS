@@ -524,15 +524,21 @@ function savings(usages, s, scripted = false) {
   const avg = withE.length
     ? withE.reduce((a, u) => a + u.energy_wh, 0) / withE.length
     : null;
-  // the label says what the entries are: all measured, all an upper bound (power x time), else an estimate
+  // the label says what the entries are: all measured, all an upper bound (power x time), all estimated from
+  // tokens (whole-service boundary, like the reference), else an estimate
   const allPower =
     withE.length > 0 && withE.every((u) => u.energy_method === "power_time");
+  const allTokens =
+    withE.length > 0 && withE.every((u) => u.energy_method === "tokens");
+  const overhead = withE.find((u) => u.energy_basis?.serving_overhead)?.energy_basis?.serving_overhead;
   const energyKind =
     withE.length && withE.every((u) => u.energy_kind === "measured")
       ? "measured"
       : allPower
         ? "upper"
-        : "estimated";
+        : allTokens
+          ? "tokens"
+          : "estimated";
   const birdLabel = t("save.energy.bird", {
     kind: t(`save.energy.kind.${energyKind}`),
     k: fmtInt(withE.length),
@@ -551,7 +557,7 @@ function savings(usages, s, scripted = false) {
                   birdLabel,
                   avg,
                   Math.max(avg, ref.wh),
-                  `${energyKind === "measured" ? "" : "≈ "}${fmtSig(avg)} Wh`,
+                  fmtEnergy(avg, energyKind === "measured" ? "measured" : "estimated"),
                   "sbar-bird",
                 ),
                 bar(
@@ -571,7 +577,9 @@ function savings(usages, s, scripted = false) {
           h(
             "p",
             { class: "hint" },
-            t(allPower ? "save.energy.scope.max" : "save.energy.scope"),
+            allTokens && overhead
+              ? t("save.energy.scope.tokens", { k: fmtSig(overhead) })
+              : t(allPower ? "save.energy.scope.max" : "save.energy.scope"),
             " ",
             h("a", {
               href: ref.source,

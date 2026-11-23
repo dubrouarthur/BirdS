@@ -27,7 +27,7 @@ from . import endpoint as ep
 from . import tokens
 from . import widgets as widgets_mod
 from .backends import Backend, Cancelled, ChatRequest, DemoBackend, Event, HarnessBackend, RunContext, sanitize_filename
-from .settings import Settings
+from .settings import ENERGY_SOURCES, Settings
 
 STATIC_DIR = Path(__file__).parent / "static"
 SITE_DIR = Path(__file__).resolve().parents[2] / "site"  # corporate site, served under /a-propos/
@@ -160,6 +160,7 @@ def harness_config(s: Settings) -> dict:
         "search_default": s.search_default,
         "search_contact": s.search_contact,
         "pin_dns": s.pin_dns,
+        **s.energy_config,
         "gpu_watts": s.gpu_watts,
         "gpu_label": s.gpu_label,
         "pue": s.pue,
@@ -505,6 +506,15 @@ def create_app(
             "tools": list(shown.tools),
             "tools_info": tools_info(s, shown),
             "energy": {
+                "method": s.energy_method,
+                "tokens": {
+                    "wh_per_1k_out": s.wh_per_1k_out,
+                    "wh_per_1k_in": s.wh_per_1k_in,
+                    "wh_per_1k_out_range": s.energy_config["wh_per_1k_out_range"],
+                    "wh_per_1k_in_range": s.energy_config["wh_per_1k_in_range"],
+                    "serving_overhead": s.energy_config["serving_overhead"],
+                    "sources": [dict(x) for x in ENERGY_SOURCES],
+                },
                 "gpu_watts": s.gpu_watts,
                 "gpu_label": s.gpu_label,
                 "gpu_source": s.gpu_source,

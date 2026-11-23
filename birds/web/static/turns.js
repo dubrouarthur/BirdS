@@ -835,14 +835,7 @@ export function meterRows(usage) {
           "row.energy",
           fmtEnergy(usage.energy_wh, usage.energy_kind),
           usage.energy_kind,
-          usage.energy_method === "power_time" ? "why.energy.power" : `why.energy.${usage.energy_kind}`,
-          usage.energy_method === "power_time"
-            ? {
-                gpu: usage.energy_basis?.gpu || "GPU",
-                s: fmtSig(usage.energy_basis?.busy_seconds || 0),
-                pue: fmtSig(usage.energy_basis?.pue || 1),
-              }
-            : { source: usage.energy_source || "?" },
+          ...energyWhy(usage),
         ]
       : [
           "row.energy",
@@ -874,6 +867,39 @@ export function meterRows(usage) {
   ];
 }
 
+/** The explanation of the energy row: [i18n key, vars, links]. */
+function energyWhy(usage) {
+  const b = usage.energy_basis || {};
+  if (usage.energy_method === "power_time")
+    return [
+      "why.energy.power",
+      { gpu: b.gpu || "GPU", s: fmtSig(b.busy_seconds || 0), pue: fmtSig(b.pue || 1) },
+    ];
+  if (usage.energy_method === "tokens") {
+    const range =
+      typeof b.low_wh === "number" && typeof b.high_wh === "number"
+        ? t("why.energy.tokens.range", { low: fmtEnergy(b.low_wh), high: fmtEnergy(b.high_wh) })
+        : "";
+    const scope = b.serving_overhead
+      ? t("why.energy.tokens.scope", { k: fmtSig(b.serving_overhead) })
+      : "";
+    return [
+      "why.energy.tokens",
+      {
+        out: fmtInt(b.output_tokens ?? usage.completion_tokens),
+        in: fmtInt((b.input_tokens ?? usage.prompt_tokens) - (b.cached_tokens || 0)),
+        whout: fmtSig(b.wh_per_1k_out ?? 0),
+        whin: fmtSig(b.wh_per_1k_in ?? 0),
+        cached: b.cached_tokens > 0 ? t("why.energy.tokens.cached", { n: fmtInt(b.cached_tokens) }) : "",
+        scope,
+        range,
+      },
+      (state.health?.energy?.tokens?.sources || []).filter((s) => safeUrl(s.url)),
+    ];
+  }
+  return [`why.energy.${usage.energy_kind}`, { source: usage.energy_source || "?" }];
+}
+
 export function meterTable(usage) {
   return h(
     "table",
@@ -881,7 +907,7 @@ export function meterTable(usage) {
     h(
       "tbody",
       null,
-      meterRows(usage).filter(Boolean).map(([label, value, kind, why, vars]) =>
+      meterRows(usage).filter(Boolean).map(([label, value, kind, why, vars, links]) =>
         h(
           "tr",
           { class: `kind-${kind}` },
@@ -892,7 +918,21 @@ export function meterTable(usage) {
             h("span", { class: "num", text: value }),
             h("span", { class: `tag tag-${kind}`, text: t(`kind.${kind}`) }),
           ),
-          h("td", { class: "meter-why", text: t(why, vars) }),
+          h(
+            "td",
+            { class: "meter-why" },
+            t(why, vars),
+            links?.length
+              ? [
+                  ` ${t("why.energy.sources")} `,
+                  links.map((s, i) => [
+                    i ? ", " : "",
+                    h("a", { href: s.url, target: "_blank", rel: "noopener noreferrer", text: s.label }),
+                  ]),
+                  ".",
+                ]
+              : null,
+          ),
         ),
       ),
     ),
@@ -971,7 +1011,11 @@ function fullReceipt(turn) {
           ? figure(
               fmtEnergy(u.energy_wh, u.energy_kind),
               t("meter.energy"),
-              u.energy_method === "power_time" ? t("meter.energy.upper") : t(`kind.${u.energy_kind}`),
+              u.energy_method === "power_time"
+                ? t("meter.energy.upper")
+                : u.energy_method === "tokens"
+                  ? t("meter.energy.tokens")
+                  : t(`kind.${u.energy_kind}`),
               "fig-energy",
             )
           : figure(t("meter.energy.none"), t("meter.energy"), null, "fig-none"),

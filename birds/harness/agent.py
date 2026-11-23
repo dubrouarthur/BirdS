@@ -959,11 +959,7 @@ class Agent:
             tool_calls=len(run.steps),
             bytes_fetched=ctx.bytes_fetched,
             measured_wh=gpu.wh,
-            wh_per_1k_tokens=cfg.wh_per_1k_tokens,
-            calibration_source=cfg.calibration_source,
-            gpu_watts=cfg.gpu_watts,
-            gpu_label=cfg.gpu_label,
-            pue=cfg.pue,
+            **meter.energy_options(cfg),
         )
         self.audit.log(
             "run",

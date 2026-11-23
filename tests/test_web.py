@@ -55,6 +55,7 @@ USAGE_KEYS = {
     "busy_seconds",
     "first_token_seconds",
     "history",
+    "cached_tokens",
 }
 STEP_KEYS = {
     "type",
@@ -1068,6 +1069,21 @@ def test_harness_energy_estimate_is_labelled_and_co2_needs_grid():
     assert usage["co2_g"] == pytest.approx(usage["energy_wh"] / 1000 * 100, abs=1e-4)
 
 
+def test_harness_default_energy_is_the_token_estimate_with_its_range():
+    from birds.web.server import harness_config
+
+    s = settings()
+    backend = HarnessBackend(FakeClient(["ok"]), _Tok(), model="m", config=harness_config(s))
+    with TestClient(create_app(s, server_backend=backend)) as client:
+        usage = one(chat(client, "hello"), "usage")
+    tin, tout = usage["prompt_tokens"], usage["completion_tokens"]
+    assert usage["energy_kind"] == "estimated" and usage["energy_method"] == "tokens"
+    assert usage["energy_wh"] == pytest.approx(tin / 1000 * 0.006 + tout / 1000 * 0.1, abs=1e-6)
+    basis = usage["energy_basis"]
+    assert basis["low_wh"] < usage["energy_wh"] < basis["high_wh"] and basis["serving_overhead"] == 1.72
+    assert "tokens" in usage["energy_source"] and "upper bound" not in usage["energy_source"]
+
+
 def test_harness_tokens_are_labelled_estimated_when_the_server_reports_none():
     class NoUsage(FakeClient):
         def generate(self, prompt, max_tokens, stop, **kw):
@@ -1273,7 +1289,13 @@ def test_energy_wording_states_its_scope():
     text = (STATIC_DIR / "i18n.js").read_text(encoding="utf-8")
     assert "pas de GPU allumé pour rien" not in text and "no GPU running for nothing" not in text
     less = re.findall(r'"save\.energy\.less":\s*"([^"]+)"', text)
-    assert len(less) == 2 and all(re.search(r"génération|generation", s) for s in less)
+    assert len(less) == 2 and all(re.search(r"note|estimation|estimate", s) for s in less)
+    # the token estimate states its boundary (whole service, like the reference), its range and its sources
+    scope = re.findall(r'"save\.energy\.scope\.tokens":\s*"([^"]+)"', text)
+    assert len(scope) == 2 and all(re.search(r"tout le service|whole service", s) and "{k}" in s for s in scope)
+    why = re.findall(r'"why\.energy\.tokens":\s*"([^"]+)"', text)
+    assert len(why) == 2 and all("{range}" in s and "{scope}" in s and "{cached}" in s for s in why)
+    assert "72 W" not in "".join(why + scope)
     upper = re.findall(r'"meter\.energy\.upper":\s*"([^"]+)"', text)
     assert len(upper) == 2 and all(re.search(r"génération|generating", s) for s in upper)
 

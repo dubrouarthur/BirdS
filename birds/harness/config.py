@@ -49,6 +49,15 @@ class Config:
     )
     wh_per_1k_tokens: float | None = None  # explicit calibration; reported as "estimated"
     calibration_source: str | None = None
+    # estimate when nothing is measured or calibrated: "tokens" (Wh per 1 000 input / output tokens, off while both
+    # values are None), "power_time" (rated power x generation time, an upper bound, opt-in) or "off"
+    energy_method: str = "tokens"
+    wh_per_1k_out: float | None = None  # birds.web.settings.WH_PER_1K_OUT for Bird S 4B on an L4
+    wh_per_1k_in: float | None = None
+    wh_per_1k_out_range: tuple | None = None  # (low, high), shown with the estimate
+    wh_per_1k_in_range: tuple | None = None
+    cached_input_share: float = 0.0  # prefix-cached prompt tokens skip prefill
+    serving_overhead: float | None = None  # already inside wh_per_1k_*: whole service / GPU alone
     # power x time estimate for a remote GPU we cannot read (None: off). Reported as "estimated", upper bound.
     gpu_watts: float | None = None
     gpu_label: str | None = None  # e.g. "NVIDIA L4, 72 W TDP"

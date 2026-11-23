@@ -430,8 +430,11 @@ def test_xlsx_design_formats_totals_and_print(tmp_path):
 
 
 def test_power_time_estimate_rules():
-    base = {"wall_seconds": 5, "tool_calls": 0, "bytes_fetched": 0, "measured_wh": None}
+    base = {"wall_seconds": 5, "tool_calls": 0, "bytes_fetched": 0, "measured_wh": None, "energy_method": "power_time"}
     u = [{"prompt_tokens": 100, "completion_tokens": 50, "seconds": 9, "busy_seconds": 5.0}]
+    # opt-in only: with the default method the rated power is not used
+    default = {k: v for k, v in base.items() if k != "energy_method"}
+    assert meter.report(u, gpu_watts=72, **default)["energy_wh"] is None
     est = meter.report(u, gpu_watts=72, gpu_label="NVIDIA L4 (72 W TDP)", **base)
     assert (est["energy_wh"], est["energy_kind"], est["energy_method"]) == (0.1, "estimated", "power_time")
     assert est["energy_basis"] == {"watts": 72.0, "busy_seconds": 5.0, "pue": 1.0, "gpu": "NVIDIA L4 (72 W TDP)"}
@@ -443,6 +446,50 @@ def test_power_time_estimate_rules():
     assert calib["energy_method"] == "calibration" and calib["energy_wh"] == 0.054  # explicit calibration wins
     measured = dict(base, measured_wh=0.02)
     assert meter.report(u, gpu_watts=72, **measured)["energy_kind"] == "measured"
+
+
+def test_token_estimate_rules():
+    from birds.web.server import harness_config
+
+    base = {"wall_seconds": 30, "tool_calls": 0, "bytes_fetched": 0, "measured_wh": None}
+    opts = meter.energy_options(Config(workspace=".", **harness_config(Settings())))
+    u = [{"prompt_tokens": 1500, "completion_tokens": 500, "busy_seconds": 20.0}]
+    est = meter.report(u, **base, **opts)
+    # 500 x 0.1 / 1000 + 1500 x 0.006 / 1000, whatever the stream's wall time
+    assert (est["energy_wh"], est["energy_kind"], est["energy_method"]) == (0.059, "estimated", "tokens")
+    old = meter.report(u, **base, **dict(opts, energy_method="power_time"))
+    assert old["energy_wh"] == 0.4 and old["energy_wh"] / est["energy_wh"] > 5  # the former figure: far too high under batching
+    b = est["energy_basis"]
+    assert (b["low_wh"], b["high_wh"]) == (0.024, 0.71145) and b["boundary"] == "serving"
+    # prefix-cached prompt tokens skip prefill: not counted
+    cached = meter.report([dict(u[0], cached_tokens=1000)], **base, **opts)
+    assert (
+        cached["energy_wh"] == 0.053 and cached["cached_tokens"] == 1000 and "prefix cache" in cached["energy_source"]
+    )
+    # a cached count larger than the prompt is clamped
+    assert meter.report([dict(u[0], cached_tokens=10**6)], **base, **opts)["energy_wh"] == 0.05
+    # Mode Agent: the calls' tokens add up, the GPU-time union is irrelevant here
+    two = meter.report(u + u, **base, **opts, busy_seconds_override=5.0)
+    assert two["energy_wh"] == 0.118
+    # a tiny answer still gets a figure (never rounded to 0)
+    assert meter.report([{"prompt_tokens": 3, "completion_tokens": 1}], **base, **opts)["energy_wh"] > 0
+    # measured, then an explicit calibration, keep priority
+    calib = meter.report(u, **base, **dict(opts, wh_per_1k_tokens=0.2, calibration_source="bench"))
+    assert calib["energy_method"] == "calibration" and calib["energy_wh"] == 0.4
+    assert meter.report(u, **dict(base, measured_wh=0.03), **opts)["energy_method"] == "nvidia_smi"
+    assert meter.report(u, **base, **dict(opts, energy_method="off"))["energy_wh"] is None
+    assert meter.report(u, **base)["energy_wh"] is None  # the bare harness invents nothing
+
+
+def test_settings_token_estimate_env():
+    s = Settings.from_env({})
+    assert (s.energy_method, s.wh_per_1k_out, s.wh_per_1k_in) == ("tokens", 0.1, 0.006)
+    s = Settings.from_env(
+        {"BIRD_WH_PER_1K_OUT": "0.2", "BIRD_WH_PER_1K_IN": "0.01", "BIRD_ENERGY_METHOD": "Power_Time"}
+    )
+    assert (s.energy_method, s.wh_per_1k_out, s.wh_per_1k_in) == ("power_time", 0.2, 0.01)
+    assert s.energy_config["wh_per_1k_out_range"] == (0.072, 2.76)  # the range follows the configured value
+    assert Settings.from_env({"BIRD_ENERGY_METHOD": "bogus"}).energy_method == "tokens"
 
 
 def test_settings_energy_and_reference_env():
@@ -629,6 +676,8 @@ def test_health_lists_tools_with_reasons():
     assert rows["web_search"]["state"] == "on" and rows["web_search"]["fr"] == "Recherche : Wikipédia"
     assert rows["run_python"]["state"] == "off" and rows["read_file"]["state"] == "attach"
     assert h["images"] is True and h["energy"]["gpu_watts"] == 72.0 and h["compare"]["reference"]["wh"] == 0.24
+    assert h["energy"]["method"] == "tokens" and h["energy"]["tokens"]["wh_per_1k_out"] == 0.1
+    assert all(x["url"].startswith("https://") for x in h["energy"]["tokens"]["sources"])
 
 
 def test_memo_echo_is_stripped_and_image_is_readable_by_read_file(tmp_path):
@@ -687,6 +736,21 @@ def test_ocr_request_answers_with_the_transcription_in_one_call(tmp_path):
     usage = [e for e in events if e["type"] == "usage"][0]
     assert usage["prompt_tokens"] > 0 and usage["completion_tokens"] > 0
     assert [s["tool"] for s in events if s["type"] == "step"] == ["read_image", "read_image"]
+
+
+@pytest.mark.parametrize("ask", ["Fais l'OCR de cette image.", "Total ?"])
+def test_image_reading_tokens_count_in_the_token_estimate(ask):
+    from birds.web.server import harness_config
+
+    s = Settings(rate_limit=0, demo_delay=0)
+    llm = FakeClient(["FACTURE n° 7\nTotal TTC : 1 250,00 €", "Le total est de 1 250,00 €."])
+    app = create_app(s, server_backend=HarnessBackend(llm, _Tok(), config=harness_config(s)))
+    body = {"messages": [{"role": "user", "content": ask}], "images": [{"name": "f.png", "url": _png(960, 540)}]}
+    with TestClient(app) as c:
+        usage = [e for e in _sse(c.post("/api/chat", json=body)) if e["type"] == "usage"][0]
+    tin, tout = usage["prompt_tokens"], usage["completion_tokens"]
+    assert usage["energy_method"] == "tokens" and usage["energy_basis"]["input_tokens"] == tin
+    assert usage["energy_wh"] == pytest.approx(tin * 0.006 / 1000 + tout * 0.1 / 1000, abs=1e-6)
 
 
 def test_attachment_requests_get_no_web_tools_unless_asked(tmp_path):

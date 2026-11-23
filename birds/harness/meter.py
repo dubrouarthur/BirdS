@@ -3,9 +3,11 @@
 Energy, in order of preference:
 1. measured: GPU power read with nvidia-smi on this machine, integrated over the generations;
 2. estimated from an explicit calibration (Wh per 1 000 tokens, with its source);
-3. estimated from power x time: rated board power of the remote GPU x the time our generations kept it busy x PUE.
-   An UPPER bound: the card rarely draws its full rated power, and a batching server shares it between requests.
-Nothing is shown when none of these applies (no measure, no calibration, no timing).
+3. estimated from tokens (default): input and output tokens x Wh per 1 000 tokens drawn from published measurements
+   of vLLM serving (output tokens cost ~17 x more than input tokens; prefix-cached prompt tokens skip prefill);
+4. opt-in only: power x time, rated board power x the time our HTTP streams lasted x PUE. A loose UPPER bound (the
+   card rarely draws its rated power, network time counts, and a batching server shares the card between requests).
+Nothing is shown when none of these applies.
 """
 
 from __future__ import annotations
@@ -84,6 +86,27 @@ def _tokens(u: dict, side: str) -> int:
     return -(-int(u.get(f"{side}_chars") or 0) // CHARS_PER_TOKEN)
 
 
+def _cached(u: dict) -> int:
+    """Prompt tokens of one generation served from the prefix cache, never more than its prompt."""
+    try:
+        n = int(u.get("cached_tokens") or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, min(n, _tokens(u, "prompt")))
+
+
+def energy_options(cfg) -> dict:
+    """The energy arguments of ``report`` taken from a harness Config (or anything with the same attributes)."""
+    keys = ("wh_per_1k_tokens", "calibration_source", "energy_method", "wh_per_1k_out", "wh_per_1k_in",
+            "wh_per_1k_out_range", "wh_per_1k_in_range", "cached_input_share", "serving_overhead",
+            "gpu_watts", "gpu_label", "pue")  # fmt: skip
+    opts = {k: getattr(cfg, k, None) for k in keys}
+    opts["energy_method"] = opts["energy_method"] or "tokens"
+    opts["cached_input_share"] = opts["cached_input_share"] or 0.0
+    opts["pue"] = opts["pue"] or 1.0
+    return opts
+
+
 def report(
     usage: list[dict],
     *,
@@ -93,14 +116,24 @@ def report(
     measured_wh: float | None,
     wh_per_1k_tokens: float | None = None,
     calibration_source: str | None = None,
+    energy_method: str = "tokens",
+    wh_per_1k_out: float | None = None,
+    wh_per_1k_in: float | None = None,
+    wh_per_1k_out_range: tuple | None = None,
+    wh_per_1k_in_range: tuple | None = None,
+    cached_input_share: float = 0.0,
+    serving_overhead: float | None = None,
     gpu_watts: float | None = None,
     gpu_label: str | None = None,
     pue: float = 1.0,
     busy_seconds_override: float | None = None,
 ) -> dict:
-    """Resource report for the UI. `energy_wh` is None unless it was measured or an explicit calibration is set.
-    ``busy_seconds_override``: GPU time measured another way (Mode Agent: the union of parallel call intervals,
-    which share one GPU batch, instead of their sum)."""
+    """Resource report for the UI. ``energy_wh`` is None unless it was measured, calibrated or estimated.
+
+    Energy, first that applies: measured (nvidia-smi) > explicit calibration > ``energy_method``: "tokens" (default,
+    Wh per 1 000 input / output tokens; off while both values are None), "power_time" (opt-in upper bound: rated
+    power x busy time) or "off". ``busy_seconds_override``: GPU time measured another way (Mode Agent: the union of
+    parallel call intervals, which share one GPU batch); only "power_time" uses it, tokens are simply summed."""
     # Token counts come from the model server. When it reports none, fall back to characters / 4 and say so.
     busy = round(sum(float(u.get("busy_seconds") or 0) for u in usage), 3)
     if busy_seconds_override is not None:
@@ -108,9 +141,11 @@ def report(
     exact = all(u.get("prompt_tokens") is not None and u.get("completion_tokens") is not None for u in usage)
     tin = sum(_tokens(u, "prompt") for u in usage)
     tout = sum(_tokens(u, "completion") for u in usage)
+    cached = sum(_cached(u) for u in usage)
     out = {
         "prompt_tokens": tin,
         "completion_tokens": tout,
+        "cached_tokens": cached,
         "generations": len(usage),
         "tokens_exact": exact,
         "tokens_source": "model server" if exact else "estimated: characters / 4",
@@ -135,18 +170,99 @@ def report(
         )
     elif wh_per_1k_tokens is not None:
         out.update(
-            energy_wh=round((tin + tout) / 1000 * wh_per_1k_tokens, 4),
+            energy_wh=round((tin + tout) / 1000 * wh_per_1k_tokens, 6),
             energy_kind="estimated",
             energy_method="calibration",
             energy_source=calibration_source or f"configured calibration: {wh_per_1k_tokens} Wh per 1k tokens",
         )
-    elif gpu_watts and busy > 0:
-        out.update(estimate_power_time(gpu_watts, busy, pue=pue, label=gpu_label))
+    elif energy_method == "power_time":
+        if gpu_watts and busy > 0:
+            out.update(estimate_power_time(gpu_watts, busy, pue=pue, label=gpu_label))
+    elif energy_method == "tokens" and (wh_per_1k_out is not None or wh_per_1k_in is not None) and tin + tout > 0:
+        out.update(
+            estimate_tokens(
+                tin,
+                tout,
+                cached=cached,
+                wh_per_1k_in=wh_per_1k_in or 0.0,
+                wh_per_1k_out=wh_per_1k_out or 0.0,
+                in_range=wh_per_1k_in_range,
+                out_range=wh_per_1k_out_range,
+                cached_share=cached_input_share,
+                serving_overhead=serving_overhead,
+                exact=exact,
+            )  # fmt: skip
+        )
     return out
 
 
+def _wh(n_in: float, n_out: float, wh_in: float, wh_out: float) -> float:
+    return n_in / 1000 * wh_in + n_out / 1000 * wh_out
+
+
+def estimate_tokens(
+    prompt_tokens: int,
+    completion_tokens: int,
+    *,
+    cached: int = 0,
+    wh_per_1k_in: float,
+    wh_per_1k_out: float,
+    in_range: tuple | None = None,
+    out_range: tuple | None = None,
+    cached_share: float = 0.0,
+    serving_overhead: float | None = None,
+    exact: bool = True,
+) -> dict:
+    """Energy from token counts. Output tokens (decode) cost far more than input tokens (prefill), and prompt tokens
+    served from the prefix cache skip prefill (each counts ``cached_share`` of an input token). The per-token values
+    come from published measurements of vLLM serving (see birds/web/settings.py). Always labelled "estimated"."""
+    cached = max(0, min(int(cached or 0), int(prompt_tokens)))
+    share = max(0.0, min(1.0, float(cached_share or 0.0)))
+    billed_in = int(prompt_tokens) - cached + cached * share
+    tout = int(completion_tokens)
+    wh = _wh(billed_in, tout, wh_per_1k_in, wh_per_1k_out)
+    basis = {
+        "input_tokens": int(prompt_tokens),
+        "cached_tokens": cached,
+        "output_tokens": tout,
+        "wh_per_1k_in": float(wh_per_1k_in),
+        "wh_per_1k_out": float(wh_per_1k_out),
+        "cached_share": share,
+        "low_wh": None,
+        "high_wh": None,
+        "serving_overhead": serving_overhead,
+        "boundary": "serving" if serving_overhead else "unspecified",
+    }
+    if in_range and out_range:
+        basis["low_wh"] = round(_wh(billed_in, tout, in_range[0], out_range[0]), 6)
+        basis["high_wh"] = round(_wh(billed_in, tout, in_range[1], out_range[1]), 6)
+    scope = f"whole service, GPU x {serving_overhead:g}" if serving_overhead else "boundary not stated"
+    if cached and share == 0:
+        cache_note = f"; {cached} prompt tokens from the prefix cache not counted"
+    elif cached:
+        cache_note = f"; {cached} prompt tokens from the prefix cache at {share:g} x"
+    else:
+        cache_note = ""
+    source = (
+        f"estimated from tokens: {tout} output x {wh_per_1k_out:g} Wh/1k + {round(billed_in)} input x "
+        f"{wh_per_1k_in:g} Wh/1k{cache_note} (published vLLM measurements, {scope})"
+        + ("" if exact else "; token counts themselves estimated (characters / 4)")
+    )
+    return {
+        "energy_wh": round(wh, 6),
+        "energy_kind": "estimated",
+        "energy_method": "tokens",
+        "energy_source": source,
+        "energy_basis": basis,
+    }
+
+
 def estimate_power_time(watts: float, busy_seconds: float, *, pue: float = 1.0, label: str | None = None) -> dict:
-    """Upper-bound energy of a remote GPU: rated power x busy time x PUE. Always labelled "estimated"."""
+    """Upper-bound energy of a remote GPU: rated power x busy time x PUE. Always labelled "estimated".
+
+    Opt-in only (energy_method="power_time"): the busy time is the HTTP stream's wall time (network and queueing
+    included) and the whole card is charged to one request although vLLM batches requests: up to 5-15 x high under
+    batching; about 1.5 x when the card serves one request (it draws less than its TDP, first token ~0.6 s of ~10 s)."""
     pue = pue if pue and pue >= 1.0 else 1.0
     wh = float(watts) * float(busy_seconds) * pue / 3600.0
     scope = "GPU only" if pue == 1.0 else f"PUE {pue:g}"
