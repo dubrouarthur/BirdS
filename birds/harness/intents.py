@@ -461,6 +461,36 @@ _COMPANY_HINT = re.compile(  # register cues only: "un fournisseur", "le restaur
 )
 
 
+# « qui dirige Michelin ? », « chiffre d'affaires de Leroy Merlin », « combien de salariés chez Doctolib »: a register
+# question about a named company (capitalised, never a month, a quarter or a company form), or after a company noun
+_COMPANY_ASK2 = re.compile(
+    r"(?i:qui dirige|dirigeants?\s+(?:de|d'|du|chez)|chiffres? d'affaires\s+(?:de|d'|du)|\bCA\s+(?:de|d'|du)|"
+    r"effectifs?\s+(?:de|d'|du|chez)|combien de salari[ée]s\s+(?:chez|[àa]|dans)|"
+    r"(?:siren|siret|kbis|n° tva|num[ée]ro de tva)\s+(?:de|d'|du|chez)|who runs|who owns|revenue of)\s*"
+    r"(?:(?i:la soci[ée]t[ée]|l'entreprise|la bo[iî]te|le groupe|the company)\s+(?P<lname>[\w&'.\- ]{2,60})|"
+    r"(?!(?i:janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre|"
+    r"january|february|march|april|june|july|august|september|october|november|december|Q[1-4]|T[1-4])\b)"
+    r"(?!(?:PME|TPE|ETI|SARL|SAS|SA|SCI|SASU|EURL)\b)(?P<name>[A-ZÀ-Ý][\w&'.\- ]{1,60}))"
+)
+# « fiche entreprise doctolib »: a lowercase name only after an explicit company noun
+_COMPANY_ASK_LOW = re.compile(
+    r"(?i:\b(?:fiche|infos?|informations|renseignements)\s+(?:de\s+|sur\s+|du\s+)?"
+    r"(?:la soci[ée]t[ée]|l'entreprise|entreprise|soci[ée]t[ée])\s+(?P<lname>[a-z0-9à-ÿ][\w&'.\- ]{1,60}))"
+)
+# « explique ce qu'est un numéro SIREN », « comment trouver le siret d'une entreprise ? »: about the register
+_DEFINE = re.compile(
+    r"\b(?:explique\w*|qu'est-ce qu|c'est quoi une?|comment (?:trouver|obtenir|lire|v[ée]rifier)|what is an?|"
+    r"how (?:do i |to )?(?:find|get))\b",
+    re.I,
+)
+
+
+def _company_name(name: str) -> str:
+    return re.split(
+        r"[?!.,;:]|\s+(?:et|and|pour|for|à|a|en|in|stp|svp|depuis|since|chez|sur|on)\b", name, maxsplit=1, flags=re.I
+    )[0].strip(" '")
+
+
 def company_id(text: str) -> str:
     """A Luhn-valid SIRET (14 digits) or SIREN (9 digits) written in ``text``, digits only, or ''."""
     for rx in (_SIRET, _SIREN):
@@ -483,7 +513,13 @@ def company(text: str, lang: str = "fr") -> Intent | None:
         name = re.split(r"[?!.,;:]|\s+(?:et|and|pour|for|à|a|en|in)\s+", m.group("name"), maxsplit=1)[0].strip(" '")
         if 2 <= len(name) <= 60:
             return Intent("find_company", {"name": name})
-    if _COMPANY_HINT.search(raw):
+    for rx in (_COMPANY_ASK2, _COMPANY_ASK_LOW):
+        m = rx.search(raw)
+        if m:
+            name = _company_name(m.groupdict().get("name") or m.group("lname") or "")
+            if 2 <= len(name) <= 60:
+                return Intent("find_company", {"name": name})
+    if _COMPANY_HINT.search(raw) and not _DEFINE.search(raw):
         return Intent("find_company", None)
     return None
 
@@ -513,7 +549,16 @@ _CUR_WORDS: list[tuple[str, str]] = [
     (r"forints?|huf", "HUF"),
     (r"livres?\s+turques?|turkish\s+liras?|lires?\s+turques?|try", "TRY"),
 ]
-_CUR = "(?:" + "|".join(w for w, _ in _CUR_WORDS) + "|" + "|".join(CURRENCIES) + ")"
+_GENERIC = ("USD", "GBP")  # « dollars », « livres »: tried after « dollars canadiens », « livres turques »
+_CUR = (
+    "(?:"
+    + "|".join(w for w, c in _CUR_WORDS if c not in _GENERIC)
+    + "|"
+    + "|".join(w for w, c in _CUR_WORDS if c in _GENERIC)
+    + "|"
+    + "|".join(CURRENCIES)
+    + ")"
+)
 _AMT = r"(?P<amt>\d[\d   .,]*(?:\s*(?:k|m|md|mds|million|millions|milliard|milliards|billion))?)"
 _RX_FX = [
     re.compile(_AMT + r"\s*(?P<from>" + _CUR + r")\s+(?:en|in|to|into|vers|→|->)\s+(?P<to>" + _CUR + r")\b", re.I),
@@ -538,7 +583,37 @@ _RX_FX = [
         re.I,
     ),
     re.compile(r"\b(?P<from>[A-Z]{3})\s*/\s*(?P<to>[A-Z]{3})\b"),
+    # « 500 yens ça fait combien en euros ? », « une facture de 3 400 USD, ça fait combien en euros ? »
+    re.compile(
+        _AMT + r"\s*(?P<from>" + _CUR + r")(?!\w)[^?!.]{0,40}?\bcombien\s+(?:en|in)\s+(?P<to>" + _CUR + r")\b", re.I
+    ),
+    # « le taux euro/livre »
+    re.compile(
+        r"\b(?:taux|cours|rate)\s+(?:de l'|du |de la |de |the )?(?P<from>" + _CUR + r")\s*/\s*(?P<to>" + _CUR + r")\b",
+        re.I,
+    ),
 ]
+# only a source currency: the target is the euro (« combien vaut 1 000 CHF », « le cours du dollar aujourd'hui »);
+# the end is anchored so « le cours du dollar depuis 2020 » (a trend) and « combien vaut 100 € en 2026 » stay out
+_RX_FX_TO_EUR = [
+    re.compile(
+        r"(?:combien (?:vaut|valent|font|fait)|how much is|[çc]a fait combien)\s+" + _AMT + r"\s*(?P<from>" + _CUR
+        + r")(?!\w)\s*(?:[?!.]|$)",
+        re.I,
+    ),
+    re.compile(
+        r"\b(?:cours|taux)\s+(?:actuel\s+)?(?:du|de l'|de la)\s*(?P<from>" + _CUR
+        + r")(?!\w)\s*(?:aujourd'hui|du jour|actuel)?\s*(?:[?!.]|$)",
+        re.I,
+    ),
+]
+# money in the words: an offer of convert_currency needs it (« convertis ce fichier en PDF » is not money). ISO codes
+# are case-sensitive: the English word « try » is not TRY.
+_CUR_ANY = re.compile(
+    r"[€$£¥]|\b(?i:euros?|dollars?|livres? sterling|francs? suisses?|yens?|devises?|currenc(?:y|ies))\b|\b(?:"
+    + "|".join(CURRENCIES)
+    + r")\b"
+)
 _FX_HINT = re.compile(r"\b(?:taux de change|exchange rate|convertis|convert)\b", re.I)
 _FX_KEEP_WEB = re.compile(
     r"\b(?:historique|[ée]volution|depuis|pr[ée]vision|forecast|history|trend|news|actualit)", re.I
@@ -596,7 +671,19 @@ def fx(text: str, lang: str = "fr") -> Intent | None:
         if amt is not None:
             args["amount"] = amt
         return Intent("convert_currency", args, keep_web=keep)
-    if _FX_HINT.search(raw):
+    for rx in _RX_FX_TO_EUR:
+        m = rx.search(raw)
+        if not m:
+            continue
+        a = currency_code(m.group("from"))
+        if not a or a == "EUR":
+            continue
+        args = {"from": a, "to": "EUR"}
+        amt = parse_amount(m.groupdict().get("amt") or "") if m.groupdict().get("amt") else None
+        if amt is not None:
+            args["amount"] = amt
+        return Intent("convert_currency", args, keep_web=keep)
+    if _FX_HINT.search(raw) and _CUR_ANY.search(raw):
         return Intent("convert_currency", None)
     return None
 
