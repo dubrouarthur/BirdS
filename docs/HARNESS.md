@@ -212,7 +212,7 @@ taille, ses offres et sa liste de présents, jamais pour l'intention) et ne fait
 | `deck_research`   | présentation, web, chiffres                        | recherche (0 appel), 2 lecteurs `record_facts` | oui  |
 | `compare_write`   | texte collé, comparer, ≥ 2 offres, mail ou document | lecteur `record_table` + analyste `cost_model` | oui  |
 | `minutes_actions` | texte collé avec présents, compte rendu / actions  | lecteur `record_actions` (+ 1 reprise)         | oui  |
-| `doc_research`    | document, web, chiffres                            | comme `deck_research`                          | non  |
+| `doc_research`    | document, web, chiffres ou étude du marché         | comme `deck_research`, extraits aux rédacteurs | non  |
 | `sheet_pasted`    | tableur, texte collé, chiffres                     | lecteur `record_table`, 1 version              | non  |
 
 En Auto, il faut en plus une demande non simple (salutation, question « comment », mail court, retouche d'un fichier
@@ -230,6 +230,29 @@ du compte rendu est écrit par le code. Les coûts sont calculés par le harnais
 l'analyste (`cost_model`, sans expression libre), puis le verdict (offre conforme la moins chère par an). Note :
 `score = 2 × points couverts + 1,5 × faits obligatoires + structure − 1 par chiffre sans source`, les versions sans
 chiffre inventé passent toujours devant. Ce qui reste douteux est dit dans la réponse (« À vérifier »).
+
+**Études, veille, benchmark (`doc_research`).** « étude comparative », « étude de marché », « dossier / note de
+veille », « veille concurrentielle », « benchmark », « livre blanc » sont des livrables document (jamais « étude » ou
+« dossier » seuls). Une étude *du marché* (« du marché », « concurrents », « comparatif », « état de l'art », « avec
+des sources »…) demande le web, sauf si l'objet est à l'utilisateur (« benchmark de nos fournisseurs », « à partir de
+ces liens ») ou si rien n'est demandé (« range ce dossier de veille », « qu'est-ce qu'un benchmark ? »). Banc :
+famille `agent_study` de `scripts/trigger_bench.py` (10 oui, 20 demandes de bureau avec un mot d'étude qui ne
+déclenchent rien, même drapeau Auto allumé).
+
+**Qualité de l'équipe.** La recherche prend le premier résultat de chaque requête à tour de rôle et lit une page par
+site d'abord (2 à 3 sources distinctes, pas trois pages d'un même site) ; si moins de 2 pages donnent un extrait et
+qu'il reste du temps, elle lit jusqu'à 2 pages d'autres sites (0 génération, lecture une à une). Pour un document,
+les rédacteurs reçoivent aussi les extraits des pages (1,5 Ko chacun) ; une page sans chiffre vérifié n'est une
+source que si elle dit assez (300 caractères). Chaque phrase qui cite [n] est vérifiée contre la page n : un chiffre
+qui n'y est pas mais figure dans une autre page lue reçoit le bon numéro (« citation corrigée »), une phrase dont la
+plupart des mots manquent à la page citée est dite dans « À vérifier » (pénalité 0,25, au plus 1), et le document
+doit citer chaque chiffre et chaque source. Quand les deux versions sont propres, la version retenue est complétée
+par les sections (ou diapositives) de l'autre qui portent un fait vérifié ou un point manquant, ou le tableau
+comparatif absent ; la fusion n'est gardée que si sa note est au moins égale, sans chiffre non sourcé de plus. La
+voie de l'autre version affiche « reprise en partie ». La réponse se termine par « Ce que l'équipe a fait »
+(recherches, pages lues et sites retenus, chiffres vérifiés et écartés, versions, fusion, corrections), écrit par le
+code à partir de compteurs, jamais par le modèle. Aucun appel de plus : 7 générations au plus, fin à t0 + 240 s
+(fonction Vercel : 300 s).
 
 **Limites.** 4 générations en même temps, 7 par demande (5 pour `generic`), 2 versions, 3 pages lues (4 Ko d'extrait
 chacune, 12 Ko au total), fin à t0 + 240 s (brief 90 s, versions avant t0 + 190 s, correction seulement s'il reste

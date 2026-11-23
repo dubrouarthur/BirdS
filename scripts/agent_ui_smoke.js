@@ -472,6 +472,10 @@ async function phone(browsers, key, scheme = "light") {
   }
   await page.click(".crew-fold > summary");
   await page.waitForTimeout(200);
+  check(
+    (await page.$$eval(".crew-kept.is-part", (els) => els.length)) === 1,
+    `${key}: the version the checker borrowed from says « reprise en partie »`,
+  );
   await page.screenshot({
     path: path.join(out, "2-done-open.png"),
     fullPage: true,
