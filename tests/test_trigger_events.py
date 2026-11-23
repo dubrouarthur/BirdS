@@ -40,6 +40,10 @@ def test_pour_before_a_day_is_not_a_duration(text, start, end):
         ("crée un événement dans mon agenda pour jeudi 14h", "fr"),
         ("cree un evenement dans mon agenda vendredi 9h reunion equipe", "fr"),
         ("add the meeting with Paul on Friday at 2pm to my calendar", "en"),
+        ("crée une réunion avec Paul jeudi 14h", "fr"),
+        ("ajoute une réunion avec Paul jeudi 14h", "fr"),
+        ("crée un événement avec l'équipe vendredi 16h", "fr"),
+        ("crée un rendez-vous avec le notaire lundi 11h", "fr"),
     ],
 )
 def test_these_asks_get_an_event_card(text, lang):
@@ -56,6 +60,8 @@ def test_these_asks_get_an_event_card(text, lang):
         "mets à jour l'agenda de la réunion",
         "quel événement a lieu à Paris ce week-end ?",
         "crée un événement jeudi",  # a weak word with no time
+        "crée le compte rendu de la réunion de jeudi 14h",
+        "crée une présentation pour la réunion de jeudi 14h",
     ],
 )
 def test_no_card_for_these(text):

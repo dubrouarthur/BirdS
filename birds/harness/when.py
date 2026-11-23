@@ -261,6 +261,10 @@ _SCHEDULE = re.compile(
     # « peux-tu mettre une réunion avec la direction le 1er décembre à 10h dans mon agenda ? », « ajoute au calendrier »
     r"(?:ajout\w*|rajout\w*|met(?:s|tre|tez)?|not(?:e|er|ez)|inscri\w*|cr[ée]+(?:r|z)?)\b[^.?!\n]{0,80}?"
     r"\b(?:dans|à|a|au|sur|en)\s+(?:l'|mon\s+|ma\s+|notre\s+|le\s+|mes\s+)?(?:agenda|calendrier|outlook)|"
+    # « crée une réunion avec Paul jeudi 14h », « ajoute un rendez-vous lundi 11h »: the verb right before the event
+    r"(?:cr[ée]+(?:r|z)?|ajout(?:e|er|ez|ons)?|rajout(?:e|er|ez)?)(?:-(?:moi|nous))?\s+(?:(?:une?|le|la|l'|"
+    r"nouvel(?:le)?|petite?)\s*){0,2}(?:r[ée]union|rendez-vous|rdv|[ée]v[ée]nement|[ée]v[èe]nement|visio|call|point|"
+    r"meeting|entretien|d[ée]jeuner|d[îi]ner|atelier|webinaire)|"
     # an explicit ask for the calendar file: « génère un fichier ics », « fais-moi un .ics »
     r"(?:fichier|invitation|invit\w*)\s+(?:\.?ics|agenda|calendrier|outlook)|\bics|"
     r"schedul\w*|set\s+up|book\w*|arrange\w*|"
