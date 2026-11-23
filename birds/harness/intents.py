@@ -159,6 +159,11 @@ _APPS = re.compile(  # office software and tools: « où est Teams ? » asks for
     r"intranet|extranet|notion|jira|confluence|zoom|gmail|sap|salesforce|trello|asana|dropbox|onenote|"
     r"windows|chrome|firefox|safari|edge|acrobat|photoshop|canva|figma|github|gitlab)"
 )
+_Q2_NOT_PLACE = re.compile(
+    r"\b(?:mets?|mettre|ajoute\w*|place[rz]?|positionne\w*|affiche\w*|montre\w*|pointe\w*|marque\w*|"
+    r"ça|ca|cela|ce|cet|cette|ces|les|le|la|tout|tous|put|add|show|this|that|these|them|it)\b",
+    re.I,
+)
 _NOT_TARGET = re.compile(  # « c'est où que je change… », « où est passée ma commande », « c'est où demain ? »
     r"^(?:qu|pass[ée]e?s?\b|demain\b|aujourd'hui\b|hier\b|maintenant\b|ce soir\b|tomorrow\b|today\b|now\b|"
     r"ensuite\b|apr[èe]s\b|maman\b|papa\b|mamie\b|papi\b|papy\b|mom\b|mum\b|dad\b)",
@@ -459,6 +464,11 @@ def places(text: str, lang: str = "fr") -> Intent | None:
         g = "q" if m.groupdict().get("q") else "q2"
         q = _clean_name(m.group(g))
         if re.fullmatch(r"(?:il|elle|ça|ca|it|they|là|la)", q, re.I):
+            return Intent("find_places", None, keep_web=True)
+        # « mets ça sur la carte », « ajoute ce point sur la carte »: a verb and a pointer, the place is elsewhere
+        if g == "q2":  # « mets Lyon sur la carte »: the verb is not part of the place
+            q = re.sub(r"^(?:mets?|ajoute|place|positionne|affiche|montre|marque|put|add|show)\s+", "", q, flags=re.I)
+        if g == "q2" and (_Q2_NOT_PLACE.search(q) or not (_placey(q) or known_place(q))):
             return Intent("find_places", None, keep_web=True)
         if not _ok(q) or _not_a_place(q) or _NOT_TARGET.match(q):
             return None  # "où est le contrat de Paul Martin", "where is the Q3 report": not a place at all

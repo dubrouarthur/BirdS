@@ -201,3 +201,13 @@ def test_a_customer_journey_is_not_a_route(text):
 )
 def test_an_arrow_joins_two_stops(text, args):
     assert _call(text) == (args, "route")
+
+
+@pytest.mark.parametrize("text", ["mets ça sur la carte", "ajoute ce point sur la carte", "mets les sur la carte"])
+def test_a_pointer_put_on_the_map_is_only_offered(text):
+    got = intents.places(text)
+    assert got is not None and got.args is None
+
+
+def test_a_verb_before_a_town_on_the_map_is_dropped():
+    assert _call("Mets Lyon sur la carte") == ({"query": "Lyon"}, "where")
