@@ -614,7 +614,8 @@ def actions_table(actions: list[dict], lang: str = "fr") -> str:
 
 # « 1) Konica Minolta », « 2. Nexa IT », « Devis 1 – Sauvegardia (Nantes) », « Offre B : Orka », « Fournisseur n° 2 - X »
 _OFFER_HEAD = re.compile(
-    r"^\s*(?:\d{1,2}\s*[.)]\s+|(?i:offre|fournisseur|option|devis|proposition|prestataire|candidat)\s*"
+    r"^\s*(?:\d{1,2}\s*[.)]\s+|(?i:offre|fournisseur|option|devis|proposition|prestataire|candidat|offer|quote|"
+    r"supplier|vendor)\s*"
     r"(?:(?i:n)[°o]\s*)?[A-Z\d]{0,2}\s*[:–—-]\s*)"
     r"([A-ZÀ-Ý][\w&' .-]{1,60})",
     re.M,
@@ -638,6 +639,7 @@ def offer_blocks(text: str) -> list[tuple[str, str]]:
     heads = []
     for m in _OFFER_HEAD.finditer(text):
         name = re.split(r"\s+[–—(-]\s*|\s*\(|\s*:", m.group(1).strip())[0].strip(" .")
+        name = re.sub(r"\s+\d[\d \u00a0\u202f.,]*$", "", name)  # « 1) Alpha 12 000 € HT »: the name stops at its price
         if name and not _NOT_OFFER.match(name):
             heads.append((m.start(), name))
     out = []
