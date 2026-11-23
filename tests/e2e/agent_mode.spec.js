@@ -103,11 +103,14 @@ async function run(cfg) {
       .map((e) => e.getBoundingClientRect())
       .map((r) => ({ x: r.x, y: r.y, w: r.width })),
   );
+  // side by side on a wide screen; stacked on a phone (two 180 px lanes broke their lines word by word)
+  const phone = await page.evaluate(() => innerWidth <= 480);
   check(
     boxes.length === 2 &&
-      Math.abs(boxes[0].y - boxes[1].y) < 2 &&
-      boxes[0].x !== boxes[1].x,
-    "two draft lanes side by side",
+      (phone
+        ? boxes[0].x === boxes[1].x && boxes[1].y > boxes[0].y
+        : Math.abs(boxes[0].y - boxes[1].y) < 2 && boxes[0].x !== boxes[1].x),
+    phone ? "two draft lanes stacked on a phone" : "two draft lanes side by side",
   );
   await page.screenshot({
     path: path.join(SHOTS, `${name}-1-running.png`),

@@ -1,6 +1,6 @@
 // Mode Agent: « l'équipe au travail ». Parallel lanes per phase, live states, the version kept, then one line.
 // Every text comes from the server's events or the i18n table and is set as text, never as HTML.
-import { h, fmtSeconds, fmtSig, t, toolLabel } from "./core.js";
+import { h, elapsed, fmtSeconds, fmtSig, t, toolLabel } from "./core.js";
 
 // Role icons: constants, 20x20, stroke only (same style as core.js icons).
 const ROLE = {
@@ -25,7 +25,8 @@ const svg = (paths, cls = "") => {
   return wrap.firstChild;
 };
 
-/** Fold one agent_* event into the turn (state only; the caller redraws). */
+/** Fold one agent_* event into the turn (state only; the caller redraws). Returns the sentence a screen reader
+ * should hear for this event (a lane finishing or failing, the version kept, the team's summary), or "". */
 export function applyAgentEvent(turn, ev) {
   if (ev.type === "agent_start") {
     turn.crew = {
@@ -36,34 +37,36 @@ export function applyAgentEvent(turn, ev) {
       lanes: (ev.lanes || []).map((l) => ({ ...l, status: "queued" })),
       done: null,
     };
-    return;
+    return "";
   }
   const crew = turn.crew;
   if (ev.type === "agent_done") {
     if (!crew) {
       if (ev.reason === "no_deliverable")
         turn.crewNote = String(ev.message || t("agent.nothing"));
-      return;
+      return "";
     }
     crew.done = ev;
     for (const lane of crew.lanes) {
-      if (lane.status === "queued") lane.status = "skipped";
+      // a lane still waiting when the team ends badly was needed but never ran: « non lancé », not « non nécessaire »
+      if (lane.status === "queued") lane.status = ev.ok ? "skipped" : "cancelled";
       // the user stopped the team: a neutral « arrêté », not a red failure
       if (lane.status === "running")
         lane.status = ev.ok ? "done" : ev.stopped ? "stopped" : "error";
     }
-    return;
+    return summary(turn, crew);
   }
-  if (ev.type !== "agent_step" || !crew) return;
+  if (ev.type !== "agent_step" || !crew) return "";
   const lane = crew.lanes.find((l) => l.id === ev.id);
-  if (!lane) return;
+  if (!lane) return "";
   if (ev.status === "scored") {
     lane.score = ev.score;
     lane.chosen = !!ev.chosen;
-    return;
+    return lane.chosen ? t("agent.say.kept", { label: lane.label }) : "";
   }
   if (ev.status === "running" && lane.status !== "running")
     lane.since = Date.now();
+  const was = lane.status;
   lane.status = ev.status;
   for (const k of ["progress", "tokens", "seconds", "score"])
     if (ev[k] !== undefined) lane[k] = ev[k];
@@ -71,6 +74,10 @@ export function applyAgentEvent(turn, ev) {
   if (typeof ev.chosen === "boolean") lane.chosen = ev.chosen;
   if (ev.status !== "running" && lane.since && !lane.seconds)
     lane.seconds = (Date.now() - lane.since) / 1000;
+  if (was === ev.status) return "";
+  if (ev.status === "done") return t("agent.say.done", { label: lane.label });
+  if (ev.status === "error") return t("agent.say.error", { label: lane.label });
+  return "";
 }
 
 // set through CSSOM: the CSP forbids style attributes
@@ -96,6 +103,7 @@ function detailOf(lane) {
       : t("agent.skipped");
   if (lane.status === "error") return t("agent.error");
   if (lane.status === "stopped") return t("agent.status.stopped");
+  if (lane.status === "cancelled") return t("agent.status.cancelled");
   return lane.info || lane.detail || "";
 }
 
@@ -106,9 +114,15 @@ function laneCard(turn, lane) {
     counts.set(toolLabel(s.tool), (counts.get(toolLabel(s.tool)) || 0) + 1);
   const running = lane.status === "running";
   const state =
-    { done: "✓", error: "✕", skipped: "–", stopped: "■", queued: "", running: "" }[
-      lane.status
-    ] ?? "";
+    {
+      done: "✓",
+      error: "✕",
+      skipped: "–",
+      cancelled: "–",
+      stopped: "■",
+      queued: "",
+      running: "",
+    }[lane.status] ?? "";
   return h(
     "li",
     {
@@ -146,14 +160,19 @@ function laneCard(turn, lane) {
       { class: "crew-state" },
       h("span", { class: "crew-dot", "aria-hidden": "true", text: state }),
       h("span", { class: "sr-only", text: t(`agent.status.${lane.status}`) }),
+      // filled at once (the board is redrawn faster than the 1 s ticker), and hidden from screen readers: the
+      // sr-only status above carries the state, a timer read out every second would be noise
       running && lane.since
         ? h("span", {
             class: "num crew-time",
             "data-since": String(lane.since),
+            "aria-hidden": "true",
+            text: elapsed(lane.since),
           })
-        : lane.seconds > 0 && lane.status !== "skipped"
+        : lane.seconds > 0 && !["skipped", "cancelled"].includes(lane.status)
           ? h("span", {
               class: "num crew-time",
+              "aria-hidden": "true",
               text: fmtSeconds(lane.seconds),
             })
           : null,
@@ -175,7 +194,7 @@ function board(turn, crew) {
       h(
         "div",
         {
-          class: `crew-phase${g.lanes.every((l) => l.status === "skipped") ? " is-skipped" : ""}`,
+          class: `crew-phase${g.lanes.every((l) => ["skipped", "cancelled"].includes(l.status)) ? " is-skipped" : ""}`,
           "data-phase": g.id,
         },
         h("p", { class: "crew-phase-name", text: t(`agent.phase.${g.id}`) }),
@@ -196,9 +215,14 @@ function summary(turn, crew) {
   const d = crew.done;
   if (d.stopped) return t("agent.stopped");
   if (d.fallback === "single") return t("agent.fallback");
+  if (d.dropped) return t("agent.dropped");
+  // a refused confirmation is the user's choice, not a failure: the plain summary
+  if (!d.ok && !d.denied) return t("agent.failed");
   const n =
     crew.lanes.filter(
-      (l) => l.status !== "skipped" && !["verificateur", "assembleur"].includes(l.role), // the checker and the builder are code
+      (l) =>
+        !["skipped", "cancelled"].includes(l.status) &&
+        !["verificateur", "assembleur"].includes(l.role), // the checker and the builder are code
     ).length;
   const parts = [t("agent.summary", { n })];
   if (d.seconds) parts.push(fmtSeconds(d.seconds));
@@ -243,11 +267,12 @@ export function renderAgents(turn, handlers) {
   if (!crew.done)
     return h(
       "section",
-      { class: "crew", "aria-label": t("agent.title"), "aria-live": "polite" },
+      { class: "crew", "aria-label": t("agent.title") },
       chip,
       board(turn, crew),
     );
   const caveats = (crew.done.caveats || []).length;
+  const failed = crew.lanes.filter((l) => l.status === "error").length;
   const box = h(
     "details",
     { class: "crew-fold", open: !!turn.ui?.crewOpen },
@@ -269,6 +294,14 @@ export function renderAgents(turn, handlers) {
         h("span", {
           class: "badge badge-warn",
           text: t("agent.caveats", { n: caveats }),
+        }),
+      // seen while the board is folded: one specialist failed even if the team delivered
+      failed > 0 &&
+        crew.done.ok &&
+        h("span", {
+          class: "badge badge-warn",
+          "data-lane-failed": String(failed),
+          text: t(failed === 1 ? "agent.lane.failed.one" : "agent.lane.failed", { n: failed }),
         }),
     ),
     board(turn, crew),

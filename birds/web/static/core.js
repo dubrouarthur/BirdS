@@ -244,6 +244,11 @@ export const fmtInt = (n) => nf({ maximumFractionDigits: 0 }).format(n || 0);
 export const fmtSeconds = (s) =>
   `${nf({ minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(s || 0)} ${t("unit.s")}`;
 export const fmtSig = (v) => nf({ maximumSignificantDigits: 3 }).format(v);
+/** A running timer's text (« 4 s », « 1 min 05 »), blank in its first second; turns.js tick() refreshes it. */
+export const elapsed = (since) => {
+  const s = Math.max(0, Math.round((Date.now() - Number(since)) / 1000));
+  return s < 1 ? "" : s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")}`;
+};
 
 export function fmtBytes(bytes) {
   if (!bytes) return `0 ${t("unit.kb")}`;
@@ -283,10 +288,24 @@ export function fmtDate(ts) {
 
 // ------------------------------------------------------------------ feedback to the user
 
+// Texts announced within the same 30 ms (a lane finishing, the version kept, the checker done: one SSE chunk) are
+// read as one sentence: the last one no longer wipes the others before the screen reader reads them.
+let said = "";
+let sayTimer = 0;
 export function announce(text) {
   const live = $("live");
+  text = String(text || "").trim();
+  if (!text) return;
+  if (sayTimer) {
+    said = /[.…!?:]$/.test(said) ? `${said} ${text}` : `${said}. ${text}`;
+    return;
+  }
+  said = text;
   live.textContent = "";
-  window.setTimeout(() => (live.textContent = text), 30);
+  sayTimer = window.setTimeout(() => {
+    live.textContent = said;
+    sayTimer = 0;
+  }, 30);
 }
 
 /** A short message. `action` ({label, run}) adds one button (e.g. "Annuler"); `ms` overrides how long it stays. */

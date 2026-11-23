@@ -379,6 +379,29 @@ class Draft:
     score: dict = field(default_factory=dict)
 
 
+def _compact_step(index: int, step: Step) -> dict:
+    """A tool step as the confirmation state keeps it (signed, size-capped): enough for the memo and the titles."""
+    return {"index": index, "tool": step.tool, "arguments": step.arguments, "result": (step.result or "")[:200],
+            "seconds": round(float(step.seconds or 0.0), 2), "decision": step.decision, "error": step.error}  # fmt: skip
+
+
+def _restore_step(s: dict) -> tuple[int, Step]:
+    err = s.get("error")
+    step = Step(generation=0, tool=str(s.get("tool") or ""),
+                arguments=s.get("arguments") if isinstance(s.get("arguments"), dict) else {},
+                result=str(s.get("result") or "")[:200], seconds=float(s.get("seconds") or 0.0),
+                error=str(err) if err else None, decision=str(s.get("decision") or "allow"))  # fmt: skip
+    step.chars = len(step.result)
+    return _int(s.get("index"), 0), step
+
+
+def _int(v, default: int) -> int:
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
 class Crew:
     """One Mode Agent run. ``agent`` lends its model client, tokenizer, config, guard and tools (``Agent._call``);
     ``agent.hooks.on_agent`` receives the agent_* events and the crew's tool steps (``{"kind": "tool_start"|...}``)."""
@@ -412,6 +435,10 @@ class Crew:
         self.own = self.message = self.instr = self.pasted = self.history = ""
         self.docs: list[tuple[str, str]] = []
         self._last_progress: dict[str, float] = {}
+        # a run resumed after a confirmation (Crew.resume): what the first request did, for the done event
+        self.usage_carried: list[dict] = []
+        self.carried_seconds = 0.0
+        self.carried_agents: int | None = None
 
     # -------------------------------------------------------------- events
     def _emit(self, ev: dict) -> None:
@@ -1501,11 +1528,20 @@ class Crew:
         run = Run(lang=self.lang, flagged=self.flagged)
         run.usage = list(self.usage)
         run.sources = [s["url"] for s in sources]
+        run.source_titles = {s["url"]: str(s.get("title") or "") for s in sources if s.get("title")}
         run.images = list(self.images)
         if step.decision == "pause":
+            # everything the resumed request needs to look like an uninterrupted run: the build step's own index
+            # (its resumed tool_start/tool_end update that step, never step 0), the earlier tool steps (the memo,
+            # the sources' titles, tool_calls), the bytes read, the version kept and the team's size
             state = {"k": "crew", "v": 1, "recipe": self.d.recipe, "tool": tool, "args": args, "sources": sources,
                      "caveats": caveats, "usage": run.usage, "answer_ctx": actx, "lang": self.lang,
+                     "index": index, "bytes": self.bytes, "chosen": chosen,
+                     "agents": self.carried_agents if self.carried_agents is not None else self._agents(),
+                     "steps": [_compact_step(i, s) for i, s in sorted(self.steps, key=lambda x: x[0])],
                      "carry": {"seconds": round(time.monotonic() - self.t0, 2), "gpu_union": self._union()}}  # fmt: skip
+            if len(json.dumps(state, ensure_ascii=False, default=str)) > STATE_CAP:
+                state["steps"] = [{**s, "arguments": {}, "result": ""} for s in state["steps"]]
             if len(json.dumps(state, ensure_ascii=False, default=str)) <= STATE_CAP:
                 self._emit(
                     {"kind": "tool_start", "index": index, "tool": tool, "arguments": args, "agent": "assembleur"}
@@ -1517,8 +1553,13 @@ class Crew:
                 return run
             index, step, result, ctx = self._tool("assembleur", tool, args, forced="denied_unconfirmed")
         ok = not step.error and not step.decision.startswith("denied")
-        self._step("assembleur", "done" if ok else "error", "build", seconds=step.seconds,
-                   detail=(ctx.files[0].rsplit("/", 1)[-1] if ctx.files else (step.error or "")[:80]))  # fmt: skip
+        # the user refused the confirmation (Crew.resume): their choice, a neutral « refusé », not a red failure
+        refused = forced == "denied_unconfirmed" and step.decision.startswith("denied")
+        if refused:
+            self._step("assembleur", "skipped", "build", detail="refusé" if self.lang == "fr" else "declined")
+        else:
+            self._step("assembleur", "done" if ok else "error", "build", seconds=step.seconds,
+                       detail=(ctx.files[0].rsplit("/", 1)[-1] if ctx.files else (step.error or "")[:80]))  # fmt: skip
         run.answer = self._answer(actx, step, caveats)
         self._stream(run.answer)
         run.stop_reason = "answer"
@@ -1526,8 +1567,14 @@ class Crew:
         run.files, run.drafts = list(ctx.files), list(ctx.drafts)
         run.messages = [{"role": "assistant", "content": run.answer}]
         run.report = self._report(carry)
-        self._emit(self._done_event(ok, chosen, run.report, caveats, fixed=fixed))
+        done = self._done_event(ok, chosen, run.report, caveats, fixed=fixed)
+        if refused:
+            done["denied"] = True
+        self._emit(done)
         return run
+
+    def _agents(self) -> int:
+        return sum(1 for ln in self.lanes if ln["role"] != "verificateur")
 
     # -------------------------------------------------------------- accounting
     def _union(self, extra: float = 0.0) -> float:
@@ -1564,11 +1611,14 @@ class Crew:
         return rep
 
     def _done_event(self, ok: bool, chosen, report: dict, caveats, *, reason=None, fallback=None, fixed=False) -> dict:
-        ev = {"type": "agent_done", "recipe": self.d.recipe, "ok": ok, "chosen": chosen, "calls": len(self.usage),
-              "seconds": round(time.monotonic() - self.t0, 1), "gpu_seconds_union": report.get("gpu_seconds_union"),
+        # after a confirmation the figures cover both requests: the team's calls and time before the pause count
+        ev = {"type": "agent_done", "recipe": self.d.recipe, "ok": ok, "chosen": chosen,
+              "calls": len(self.usage) + len(self.usage_carried),
+              "seconds": round(time.monotonic() - self.t0 + self.carried_seconds, 1),
+              "gpu_seconds_union": report.get("gpu_seconds_union"),
               "energy_wh": report.get("energy_wh"), "energy_kind": report.get("energy_kind"),
               "caveats": list(caveats)[:6], "fixed": fixed,
-              "agents": sum(1 for ln in self.lanes if ln["role"] != "verificateur")}  # fmt: skip
+              "agents": self.carried_agents if self.carried_agents is not None else self._agents()}  # fmt: skip
         if reason:
             ev["reason"] = reason
         if fallback:
@@ -1646,7 +1696,15 @@ class Crew:
         # the stored usage already counts in the carried GPU union: only new generations (none) would add to it
         crew.usage_carried = crew.usage
         crew.usage = []
-        run = crew._build(state["tool"], state["args"], actx, caveats, sources,
+        # the paused run's steps, bytes and build index: the build reuses its own step index, and run.steps, the
+        # memo, the sources' titles and the usage figures match a run that was never interrupted
+        crew.steps = [_restore_step(s) for s in state.get("steps") or [] if isinstance(s, dict)]
+        crew.index = _int(state.get("index"), max((i for i, _ in crew.steps), default=-1) + 1)
+        crew.bytes = _int(state.get("bytes"), 0)
+        crew.carried_seconds = float(carry.get("seconds") or 0.0)
+        crew.carried_agents = _int(state.get("agents"), 0) if "agents" in state else None
+        chosen = state.get("chosen") if isinstance(state.get("chosen"), str) else None
+        run = crew._build(state["tool"], state["args"], actx, caveats, sources, chosen=chosen,
                           forced="confirmed" if decision else "denied_unconfirmed", carry=carry)  # fmt: skip
         run.usage = crew.usage_carried + run.usage
         run.report = crew._report(carry, extra_usage=crew.usage_carried)
