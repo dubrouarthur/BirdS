@@ -50,13 +50,14 @@ KINDS: list[tuple[str, str]] = [
     (r"caf[ée]s?|coffee shops?", "cafe"),
     (r"bars?|pubs?", "bar"),
     (r"h[ôo]tels?", "hotel"),
-    (r"boulangeries?|bakery|bakeries", "bakery"),
     (r"pharmacies?|pharmacy", "pharmacy"),
     (r"parkings?|car parks?", "parking"),
     (r"banques?|banks?", "bank"),
     (r"distributeurs?(?: de billets)?|dab|atms?|cash machines?", "atm"),
     (r"supermarch[ée]s?|supermarkets?", "supermarket"),
     (r"stations?[- ]service|gas stations?|petrol stations?", "fuel"),
+    (r"garages?(?: auto(?:mobiles?)?)?|m[ée]caniciens?|car repairs?|garagistes?", "car_repair"),
+    (r"boulangeries?|bakery|bakeries", "bakery"),
     (r"bornes? de recharge|charging stations?", "charging station"),
     (r"coworkings?|espaces? de coworking", "coworking"),
     (r"salles? de r[ée]union|meeting rooms?", "conference centre"),
@@ -84,13 +85,15 @@ _NEAR_WORDS = (
     r"(?:près\s+d(?:e\s+|u\s+|es\s+|')|pres\s+d(?:e\s+|u\s+|es\s+|')|à\s+côté\s+d(?:e\s+|u\s+|es\s+|')|"
     r"a\s+cote\s+d(?:e\s+|u\s+|')|autour\s+d(?:e\s+|u\s+|es\s+|')|proches?\s+d(?:e\s+|u\s+|es\s+|')|"
     r"aux\s+alentours\s+d(?:e\s+|u\s+|es\s+|')|dans\s+le\s+quartier\s+d(?:e\s+|u\s+|es\s+|')|vers\s+|"
-    r"near\s+|around\s+|close\s+to\s+|next\s+to\s+|by\s+)"
+    r"near\s+|around\s+|close\s+to\s+|next\s+to\s+|by\s+|"
+    # « une pharmacie à Nantes », « un garage dans Versailles »: a kind in a town (letters after it, never « à 100 € »)
+    r"(?:à|a|dans|sur|in)\s+(?=[^\W\d_]))"
 )
 _ART = r"(?:la\s+|le\s+|l'|les\s+|the\s+)?"
 _RX_NEAR = re.compile(
     r"(?:^|\b)(?:des\s+|les\s+|un\s+|une\s+|quelques\s+|bons?\s+|meilleurs?\s+|good\s+|some\s+|a\s+|the\s+)?"
     + _KIND
-    + r"(?:\s+\w+){0,2}?\s+"
+    + r"(?:\s+[\w-]+){0,4}?\s+"  # « hôtels y a-t-il autour de… »
     + _NEAR_WORDS
     + _ART
     + _NAME.format("near"),
@@ -145,7 +148,8 @@ _NEVER = re.compile(
     r"erreurs?|code|fonction|variable|cellule|colonne|e-?mails?|mail|courriel|adresse (?:ip|mac|e-?mail|mail|url|web)|"
     r"urls?|liens?|site web|website|pages?|slides?|diapos?|en est|on en est|files?|folders?|buttons?|settings?|projects?|"
     r"spreadsheet|ip address|email address|"
-    r"carte (?:graphique|de visite|bancaire|bleue|cadeau|son|m[èe]re|sim|vitale|grise|de fidélité)|"
+    r"carte (?:graphique|de visite|bancaire|bleue|cadeau|son|m[èe]re|sim|vitale|grise|de fidélité|mentale|heuristique)|"
+    r"mind ?map|"
     r"plan (?:d'action|de formation|de charge|comptable|marketing|projet|de financement|social|de table|"
     r"de travail|de communication|de continuit[ée])|business plan|action plan|graphics card|credit card)\b",
     re.I,
@@ -283,6 +287,9 @@ def places(text: str, lang: str = "fr") -> Intent | None:
         if 2 <= len(items) <= 5:
             return Intent("find_places", {"query": " ; ".join(items)}, keep_web=True, mode="list")
     m = _RX_NEAR.search(t)
+    if m and re.search(r"itin[ée]raire|trajet|comment (?:aller|se rendre)|directions?|how (?:do i |to )?get", t, re.I) \
+            and not re.search(r"pr[eè]s d|autour d|[àa] c[ôo]t[ée] d|proches? d|alentours|near|around|close to", t, re.I):
+        m = None  # « itinéraire de la gare de Lyon à la tour Eiffel »: a route, the « à » is its destination
     if m:
         near = _clean_name(m.group("near"))
         kind = _kind_of(m.group("kind"))

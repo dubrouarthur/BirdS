@@ -74,7 +74,8 @@ _NOT_CHART = re.compile(
 # « barres » alone are not chart nouns (« les secteurs qui recrutent », « barres de céréales »).
 _CHART_ASK = re.compile(
     r"\b(?:graphiques?|graphes?|graphs?|courbes?|diagrammes?|camemberts?|histogrammes?|histograms?|charts?|plots?|"
-    r"plotting|visualis\w*|visualiz\w*|repr[ée]sent\w* graphiquement)\b",
+    r"plotting|visualis\w*|visualiz\w*|repr[ée]sent\w* graphiquement|en barres|sous forme de (?:barres|b[âa]tons|"
+    r"camembert|courbe|graphique)|bar charts?|line charts?|pie charts?)\b",
     re.I,
 )
 # A clear request for one: an action verb shortly before a chart noun (« fais un graphique », « trace la courbe »,
@@ -263,6 +264,74 @@ def route(user: str, attached: bool = False) -> set[str]:
     if asks and not _NEEDS_WEB.search(user or ""):
         out |= {"web_search", "read_page"}
     return out
+
+
+# ---------------------------------------------------------------- charts drawn by the harness from figures it can see
+_PAIR = re.compile(
+    r"(?P<label>(?:19|20)\d\d|[^\W\d_][\w'’ .-]{0,30}?)\s*(?:[:=]|\s)\s*"
+    r"(?P<num>[-+]?\d[\d  .,]*\d|\d)\s*(?P<unit>%|k€|K€|M€|Md€|€|\$|h|ans?)?(?=\s*(?:[,;\n)]|\bet\b|\band\b|$))",
+    re.I,
+)
+_LIST_ROW = re.compile(
+    r"^\s*(?:[-*•]|\d+[.)])?\s*\**(?P<label>[^:\n|*]{1,40}?)\**\s*[:–—]\s*\**"
+    r"(?P<num>[-+]?\d[\d  .,]*\d|\d)\s*(?P<unit>%|k€|K€|M€|Md€|€|\$|h|ans?)?\**\s*(?:\(.*\))?\s*$",
+    re.M | re.I,
+)
+_PIE = re.compile(r"camembert|r[ée]partition|\bparts?\b|share|pie", re.I)
+_TIME_LABEL = re.compile(
+    r"^(?:(?:19|20)\d\d|t[1-4]|q[1-4]|janv|f[ée]vr|mars|avr|mai|juin|juil|ao[uû]|sept|oct|nov|d[ée]c|jan|feb|mar|apr|"
+    r"may|jun|jul|aug|sep|dec|lundi|mardi|mercredi|jeudi|vendredi|semaine|mois|week|month)",
+    re.I,
+)
+
+
+def _rows_of(pairs: list[tuple[str, str, str]]) -> tuple[list[str], list[list[str]], str] | None:
+    rows, units = [], set()
+    for label, num, unit in pairs:
+        label = label.strip(" .-*").strip()
+        if label and len(label) <= 40:
+            rows.append([label, num.replace(" ", "").replace("\u202f", "").replace("\xa0", "")])
+            units.add(unit or "")
+    if len(rows) < 3 or len({r[0].lower() for r in rows}) < len(rows):
+        return None
+    return ["Libellé", "Valeur"], rows, next(iter(units)) if len(units) == 1 else ""
+
+
+def figures_in(text: str) -> tuple[list[str], list[list[str]], str] | None:
+    """Label/number pairs a chart can be drawn from: a Markdown table with a numeric column, « label : 12 % » lines,
+    or « janvier 120, février 135, mars 160 ». None when there are fewer than 3 or labels repeat."""
+    text = text or ""
+    lines = [ln for ln in text.splitlines() if ln.strip().startswith("|")]
+    if len(lines) >= 4:  # header, rule, 2+ rows
+        cells = [[c.strip(" *") for c in ln.strip().strip("|").split("|")] for ln in lines]
+        head, body = cells[0], [c for c in cells[2:] if len(c) >= 2]
+        for j in range(1, len(head)):
+            pairs = []
+            for c in body:
+                m = re.fullmatch(r"([-+]?\d[\d  .,]*\d|\d)\s*(%|k€|K€|M€|Md€|€|\$|h)?", c[j] if j < len(c) else "")
+                if m:
+                    pairs.append((c[0], m.group(1), m.group(2) or ""))
+            if len(pairs) >= 3 and len(pairs) >= 0.7 * len(body):
+                got = _rows_of(pairs)
+                if got:
+                    return [head[0] or "Libellé", head[j] or "Valeur"], got[1], got[2]
+    for rx in (_LIST_ROW, _PAIR):
+        got = _rows_of([(m.group("label"), m.group("num"), m.group("unit") or "") for m in rx.finditer(text)])
+        if got:
+            return got
+    return None
+
+
+def chart_call(request: str, data, lang: str) -> dict:
+    """The make_chart arguments for figures found by the harness (type from the ask and the labels)."""
+    columns, rows, unit = data
+    kind = "pie" if _PIE.search(request) else "line" if (_TREND_ASK.search(request) or all(
+        _TIME_LABEL.match(r[0]) for r in rows)) else "bar"  # fmt: skip
+    title = ("Vos chiffres" if lang != "en" else "Your figures") if columns[1] in ("Valeur", "Value") else columns[1]
+    args = {"title": title, "type": kind, "columns": columns, "rows": rows}
+    if unit:
+        args["unit"] = unit
+    return args
 
 
 def chart_ask(text: str) -> bool:
@@ -534,6 +603,7 @@ class Agent:
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
             nudged = bool(st.get("nudged", False))
             promise_nudged = True  # a resumed run never re-nudges
+            chartable = False
             file_nudged = bool(st.get("file_nudged", False))
             withdrawn = set(st.get("withdrawn", []))
             routed = set(st.get("routed", []))
@@ -576,6 +646,12 @@ class Agent:
             promise_nudged = False
             gen, ok, forced = 0, 0, None
             auto_calls = 0
+            chartable = "make_chart" not in routed and (chart_ask(req) or bool(_TREND_ASK.search(req)))
+            mine = figures_in(req) if chartable and not prefill else None
+            if mine:
+                # « graphique des ventes : janvier 120, février 135, mars 160 »: the figures are the user's own, so
+                # the harness draws the chart itself instead of hoping the small model calls make_chart
+                prefill = intents.Intent("make_chart", chart_call(req, mine, run.lang), keep_web=True)
             if prefill and prefill.tool in self._allowed():
                 # "prefill": the harness makes the call the parser is sure of, before the first generation, on the
                 # same path as a model call (validation, gate, injection scan); the step is tagged auto for the UI
@@ -843,6 +919,16 @@ class Agent:
                 run.stop_reason = "invalid_tool_calls"  # one retry after a malformed step, not more
                 break
 
+        if run.stop_reason == "answer" and chartable and not ctx.charts and "make_chart" in self._allowed():
+            # a chart was asked and the model answered with a table or a list of figures instead of drawing it:
+            # the harness draws that table (make_chart checks where the numbers come from and tags them)
+            found = figures_in(content)
+            if found:
+                step, _ = self._call("make_chart", chart_call(ctx.request, found, run.lang), gen, run, ctx, 0, None)
+                step.info = {**(step.info or {}), "auto": True}
+                run.steps.append(step)
+                if hooks.on_step_end:
+                    hooks.on_step_end(len(run.steps) - 1, step)
         salvage = run.stop_reason in _SALVAGE and not (content or "").strip() and deadline - time.monotonic() > 8
         if salvage:
             # The loop ended without a usable answer (tool calls that kept failing, the step budget, an empty or
