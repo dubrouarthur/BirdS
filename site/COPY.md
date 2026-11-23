@@ -280,7 +280,7 @@ Nos chiffres, comment on les obtient, et ce qu'ils ne disent pas.
 
 Cette estimation part des **tokens** : 0,10 Wh pour 1 000 tokens écrits et 0,006 Wh pour 1 000 tokens lus, valeurs tirées de mesures publiées de serveurs vLLM, ramenées à Bird S 4B sur une NVIDIA L4 et comptées pour tout le service (GPU × 1,72). Le détail de la réponse donne la fourchette et les sources.
 
-**Ce qu'on ne compte pas.** La fabrication du matériel, le réseau, votre appareil. L'eau est estimée à partir de la même énergie : 0,15 L d'eau de refroidissement par kWh, soit ≈ 0,01 mL par requête courte. Nous ne convertissons pas en CO₂ quand l'intensité carbone du réseau n'est pas déclarée.
+**Ce qu'on ne compte pas.** La fabrication du matériel, le réseau, votre appareil. L'eau est estimée à partir de la même énergie : 0,15 L d'eau de refroidissement par kWh, soit ≈ 0,011 mL par requête courte (0,0105 arrondi au-dessus). Nous ne convertissons pas en CO₂ quand l'intensité carbone du réseau n'est pas déclarée.
 
 **Où ça tourne.** Le modèle est servi depuis AWS, région us-east-1. Conçu en France, oui ; hébergé en France, non. Vos conversations, elles, restent dans votre navigateur.
 
@@ -312,7 +312,7 @@ En pratique, l'énergie ne suit pas un pour un : le matériel, le taux d'occupat
 |---|---|---|---|
 | OpenAI — requête ChatGPT moyenne | ≈ 0,34 Wh | ≈ 0,32 mL | Sam Altman, « The Gentle Singularity », juin 2025. Méthode non publiée. |
 | Google — requête texte médiane de Gemini | 0,24 Wh | 0,26 mL | Août 2025. arxiv.org/abs/2508.15734 |
-| Bird S 4B — requête courte | ≈ 0,07 Wh | ≈ 0,01 mL | 2 000 tokens lus, 500 écrits. Service complet (× 1,72), comme Google. Eau : 0,15 L/kWh. |
+| Bird S 4B — requête courte | ≈ 0,07 Wh | ≈ 0,011 mL | 2 000 tokens lus, 500 écrits. Service complet (× 1,72), périmètre comparable à Google. Eau : 0,15 L/kWh (WUE 2024 publiée par l'hébergeur, AWS Sustainability Report 2024 ; ne pas nommer sur le site). |
 
 ### Les précautions
 
@@ -604,7 +604,7 @@ Our numbers, how we get them, and what they don't say.
 
 That estimate starts from **tokens**: 0.10 Wh per 1,000 tokens written and 0.006 Wh per 1,000 tokens read, values drawn from published measurements of vLLM servers, scaled to Bird S 4B on an NVIDIA L4 and counted for the whole service (GPU × 1.72). The answer's detail gives the range and the sources.
 
-**What we don't count.** Hardware manufacturing, the network, your device. Water is estimated from the same energy: 0.15 L of cooling water per kWh, i.e. ≈ 0.01 mL per short request. We don't convert to CO₂ when the grid's carbon intensity isn't declared.
+**What we don't count.** Hardware manufacturing, the network, your device. Water is estimated from the same energy: 0.15 L of cooling water per kWh, i.e. ≈ 0.011 mL per short request (0.0105 rounded up). We don't convert to CO₂ when the grid's carbon intensity isn't declared.
 
 **Where it runs.** The model is served from AWS, us-east-1 region. Designed in France, yes; hosted in France, no. Your conversations stay in your browser.
 
@@ -636,7 +636,7 @@ In practice, energy doesn't follow one-to-one: hardware, utilisation, answer len
 |---|---|---|---|
 | OpenAI — average ChatGPT query | ≈ 0.34 Wh | ≈ 0.32 mL | Sam Altman, "The Gentle Singularity", June 2025. Method not published. |
 | Google — median Gemini text prompt | 0.24 Wh | 0.26 mL | August 2025. arxiv.org/abs/2508.15734 |
-| Bird S 4B — short request | ≈ 0.07 Wh | ≈ 0.01 mL | 2,000 tokens read, 500 written. Whole service (× 1.72), like Google. Water: 0.15 L/kWh. |
+| Bird S 4B — short request | ≈ 0.07 Wh | ≈ 0.011 mL | 2,000 tokens read, 500 written. Whole service (× 1.72), comparable scope to Google. Water: 0.15 L/kWh (host's published 2024 WUE, AWS Sustainability Report 2024; do not name on the site). |
 
 ### Caveats
 
