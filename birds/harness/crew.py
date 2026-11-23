@@ -133,12 +133,25 @@ class Decision:
     no_deliverable: bool = False  # Activé with nothing to split up: single agent, and the chip says so
 
 
+# « … : Devis 1 – Alpha 12 000 €, Devis 2 – Beta 10 500 € »: offers written on one line, one per line once split
+_INLINE_ITEM = re.compile(
+    r"[,;]\s+(?=(?i:devis|offre|offer|option|proposition|quote)\s+(?:(?i:n)[°o]\s*)?[A-Z\d]{1,2}\s*[:–—-])"
+)
+
+
 def split_request(own: str) -> tuple[str, str]:
-    """(instruction, pasted text): the first paragraph is the request when more than 600 characters follow it."""
+    """(instruction, pasted text): the first paragraph is the request when more than 600 characters follow it, or
+    the first line (or what comes before its first colon) when what follows is material of its own: two offers with
+    a price, or an attendee list (« Compare ces devis et rédige un mail :\nDevis 1 – Alpha : 12 000 €\n… »)."""
     own = (own or "").strip()
     head, _, rest = own.partition("\n\n")
     if len(rest.strip()) > 600:
         return head.strip(), rest.strip()
+    cut = min((i for i in (own.find("\n"), own.find(":")) if i > 0), default=-1)
+    if cut > 0:
+        head, rest = own[:cut].strip(), _INLINE_ITEM.sub("\n", own[cut + 1 :]).strip()
+        if head and rest and (len(cc.offer_names(rest)) >= 2 or cc.roster(rest)):
+            return head, rest
     return own, ""
 
 
@@ -161,9 +174,21 @@ def _kinds(words: str) -> set[str]:
     return out
 
 
+# a deck or a document « sur le marché du vélo électrique en France avec des chiffres »: public figures, researched
+_PUBLIC = re.compile(
+    r"\b(?:march[ée]s?|markets?|secteurs?|industrie|chiffres? cl[ée]s|key figures|e-commerce|"
+    r"en (?:France|Europe)|in (?:France|Europe))\b",
+    re.I,
+)
+# the user's own figures (« avec ces chiffres : CA 2023 1,2 M€ », « nos chiffres 2025 »): nothing to research
+_OWN_FIGURES = re.compile(
+    r"\b(?:ces|nos|mes|notre|these|our|my)\s+(?:chiffres|donn[ée]es|r[ée]sultats|figures|data|results|numbers)\b", re.I
+)
+
+
 def signals(instr: str, pasted: str, attachments: int = 0) -> dict:
     deliverable = deliverable_kind(instr)
-    is_pasted = bool(attachments) or len(pasted) > 600
+    is_pasted = bool(attachments) or bool(pasted)
     offers = cc.offer_names(pasted)
     names = cc.roster(pasted)
     kinds = _kinds(instr)
@@ -174,7 +199,9 @@ def signals(instr: str, pasted: str, attachments: int = 0) -> dict:
     )
     return {
         "deliverable": deliverable,
-        "web": bool(_NEEDS_WEB.search(instr)) and not is_pasted,
+        "web": bool(_NEEDS_WEB.search(instr) or (_PUBLIC.search(instr) and _FIGURES.search(instr)))
+        and not is_pasted
+        and not _OWN_FIGURES.search(instr),
         "figures": bool(_FIGURES.search(instr)),
         "pasted": is_pasted,
         "pasted_chars": len(pasted),

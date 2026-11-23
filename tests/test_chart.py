@@ -352,13 +352,16 @@ def test_route_chart_without_figures_keeps_the_web(text):
         "Des barres de céréales",
         "Quels sont les secteurs qui recrutent le plus ?",
         "Peux-tu m'expliquer la courbe en J du private equity ?",
+        "Explique ce qu'est un histogramme",  # a question about charts: make_chart is not offered
+        "comment faire un graphique dans Excel ?",
+        "fais un diagramme de Gantt du projet",  # a diagram with no figures
     ],
 )
 def test_route_not_chart_words(text):
     assert "make_chart" in route(text)
 
 
-@pytest.mark.parametrize("text", ["Un camembert normand", "Explique ce qu'est un histogramme"])
+@pytest.mark.parametrize("text", ["Un camembert normand"])
 def test_route_known_false_positives_are_accepted(text):
     assert "make_chart" not in route(text)  # only an extra tool is offered
 

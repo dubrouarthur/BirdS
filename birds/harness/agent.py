@@ -67,7 +67,11 @@ NO_CHART_NUDGE = (
 _NOT_CHART = re.compile(
     r"\b(?:chartes?|identit[ée]s?|lignes?|cr[ée]ations?|conceptions?|design|arts?|interfaces?|univers|rep[èe]res?|"
     r"cartes?|signal[ée]tiques?|moteurs?|logiciels?|suites?|cartes?)\s+graphiques?\b|"
-    r"\bcourbes?\s+(?:en\s+[a-z]\b|d['’]apprentissage|de\s+gauss|de\s+niveau|de\s+bézier|de\s+bezier)",
+    r"\bcourbes?\s+(?:en\s+[a-z]\b|d['’]apprentissage|de\s+gauss|de\s+niveau|de\s+bézier|de\s+bezier)|"
+    # diagrams with no figures: a Gantt, a flowchart, UML, Venn or PERT is written in text, never by make_chart
+    r"\bdiagrammes?\s+(?:de\s+|d['’]\s*)?(?:gantt|flux|s[ée]quence|classes?|uml|pert|ishikawa|cas d['’]utilisation|"
+    r"activit[ée]s?|architecture|venn|d[ée]ploiement|[ée]tats?)\b|"
+    r"\b(?:gantt|flow|org|organi[sz]ation(?:al)?|sequence)\s*(?:charts?|diagrams?)\b",
     re.I,
 )
 # A chart noun in the user's own words: make_chart is offered (an extra tool, nothing else). « secteurs » and
@@ -81,12 +85,13 @@ _CHART_ASK = re.compile(
 # A clear request for one: an action verb shortly before a chart noun (« fais un graphique », « trace la courbe »,
 # « refais-le en courbe », « make a bar chart »), or a bare verb « plot / visualise »; or figures in the message.
 _CHART_VERB = re.compile(
-    r"\b(?:re)?(?:fai[st]e?s?|faites|faire|fasse|trac\w*|montr\w*|cr[ée]\w*|g[ée]n[èée]r\w*|dessin\w*|affich\w*|produi\w*|"
+    r"\b(?:re)?(?:mett\w*|met|pass\w*|fai[st]e?s?|faites|faire|fasse|trac\w*|montr\w*|cr[ée]\w*|g[ée]n[èée]r\w*|dessin\w*|affich\w*|produi\w*|"
     r"pr[ée]par\w*|sort\w*|mets|mettez|transform\w*|convert\w*|make|draw|show|create|generate|build|render|"
     r"turn|redo|do|give|want|veux|voudrais|aimerais)\b[^.?!\n]{0,40}?\b(?:en\s+|in\s+|as\s+(?:an?\s+)?)?"
     r"(?:graphiques?|graphes?|graphs?|courbes?|diagrammes?|camemberts?|histogrammes?|histograms?|charts?|plots?|"
     r"barres|b[âa]tons|secteurs|lines?|bars?|pies?)\b|"
-    r"(?:^|[.!?\n]\s*)(?:plot|chart|graph|visualis\w*|visualiz\w*|repr[ée]sente\w*)\b",
+    r"(?:^|[.!?\n]\s*)(?:plot|chart|graph|visualis\w*|visualiz\w*|repr[ée]sente\w*)\b|"
+    r"\b(?:you|tu|vous)\s+(?:please\s+)?(?:graph|plot|chart|visuali[sz]e)\b",  # « can you graph this for me »
     re.I,
 )
 _NUMBER = re.compile(r"(?<![\w])\d+(?:[.,]\d+)?")
@@ -199,10 +204,47 @@ _NEEDS_WEB = re.compile(
 )
 
 
-_TREND_ASK = re.compile(
-    r"\b(?:depuis|since|entre|between)\s+(?:l.an\s+)?(?:19|20)\d\d|\b[ée]volu\w*|\btendance|\btrend|\bover the (?:years|decade)",
+# A trend question: a span of years or a word of change, about a measurable quantity. « depuis 2019 » alone is not
+# one (« je suis dans l'entreprise depuis 2019, aide-moi à rédiger… »), nor « la tendance mode de cet hiver ».
+_SPAN = re.compile(
+    r"\b(?:depuis|since|entre|between)\s+(?:l.an\s+)?(?:19|20)\d\d|\bde\s+(?:19|20)\d\d\s+[àa]\s+(?:19|20)\d\d|"
+    r"\bfrom\s+(?:19|20)\d\d\s+to\b|\b(?:ces|les|sur les|des)\s+\d+\s+derni[èe]res\s+ann[ée]es|"
+    r"\bdepuis\s+\d+\s+ans\b|\bsur\s+\d+\s+ans\b|\b(?:over|in)\s+the\s+(?:last|past)\s+\d+\s+years|"
+    r"\bover the (?:years|decade)",
     re.I,
 )
+_MOVE = re.compile(r"\b(?:[ée]volu\w*|tendances?|trends?|progression|historique|changed|evolved)\b", re.I)
+_QTY = re.compile(
+    r"\b(?:population|co[uû]ts?|costs?|chiffres? d.affaires|ca|revenues?|ventes?|sales|"
+    r"ch[ôo]mage|unemployment|taux|rates?|effectifs?|inflation|cours|pib|gdp|salaires?|wages?|smic|"
+    r"abonn[ée]s|subscribers|clients|customers|budget|d[ée]penses|immobilier|loyers?|rents?|"
+    r"bourse|cac|emplois?|jobs|production|consommation|consumption|trafic|traffic|visites|visits|habitants)\b",
+    re.I,
+)
+
+
+# vague quantities: a trend only over a span of years (« le prix du gaz entre 2020 et 2024 ») or a named series,
+# never with a change word alone (« nos prix évoluent au 1er janvier », « la tendance du marché est bonne »)
+_QTY_WEAK = re.compile(r"\b(?:prix|prices?|nombre|number|march[ée]|markets?)\b", re.I)
+# a series is named: « historique du prix du baril », « l'évolution des prix »
+_SERIES = re.compile(r"\b(?:historique|history|[ée]volution|evolution)\s+(?:des?|du|of|d['’])", re.I)
+# a piece of writing is asked: its figures are context, not a series to draw
+_WRITE_ASK = re.compile(
+    r"\b(?:r[ée]dig\w*|[ée]cri(?:s|re|vez|t)\b|mail|e-mail|courriel|lettre|mot pour|un mot|demande d'|traduis\w*|"
+    r"traduire|reformule\w*|draft|write|compose|annonce)\b",
+    re.I,
+)
+
+
+def trend_ask(text: str) -> bool:
+    """« la population de Lyon ces 10 dernières années », « historique du prix du baril »: a span of years or a
+    word of change about a quantity, where a line chart is the natural answer. Never a writing ask with no chart
+    noun (« depuis 2019 mon salaire n'a pas évolué, rédige une demande d'augmentation »)."""
+    text = text or ""
+    if _WRITE_ASK.search(text) and not _CHART_ASK.search(_chart_words(text)):
+        return False
+    span = _SPAN.search(text) or _SERIES.search(text)
+    return bool((span or _MOVE.search(text)) and (_QTY.search(text) or (span and _QTY_WEAK.search(text))))
 
 
 CLOCK_NOTE = {
@@ -263,7 +305,8 @@ def route(user: str, attached: bool = False) -> set[str]:
     words = _chart_words(user)
     # untrained tool: only when a chart is asked, or the question is about a trend over time (« la population de
     # Paris évolue comment depuis 2012 ») where a line chart is the natural answer
-    out = set() if _CHART_ASK.search(words) or _TREND_ASK.search(user or "") else {"make_chart"}
+    about = _HOWTO.search(words) or _ABOUT_CHARTS.search(words)  # « comment faire un graphique dans Excel ? »
+    out = set() if (_CHART_ASK.search(words) and not about) or trend_ask(user) else {"make_chart"}
     # A chart of public facts (« la population des 5 plus grandes villes ») is researched first, as ChatGPT does:
     # the web tools are withheld only when the message itself carries the figures (or a document does).
     figures = chart_ask(user) and len(_NUMBER.findall(words)) >= 2
@@ -274,17 +317,43 @@ def route(user: str, attached: bool = False) -> set[str]:
 
 
 # ---------------------------------------------------------------- charts drawn by the harness from figures it can see
+# One whole number: « 1,9 », « 12 500 », « 2 240 621 ». A space group is a thousands separator only as
+# \d{1,3}( \d{3})+ with no digit before it, so « 2021 100 » is the label 2021 and the value 100; and a number is never
+# split (« 1,9 M€. » was read as 1 because a full stop was not accepted after the value).
+_NUM = r"[-+]?(?<![\d.,])(?:\d{1,3}(?:[   ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(?!\d|[.,]\d)"
+# never backtrack into a decimal: « 2,1 millions » is 2,1 (the (?![.,]\d) above), and the magnitude word is kept
+_UNIT = (
+    r"(?P<unit>%|k€|K€|M€|Md€|€|\$|h|ans?|k)?"
+    r"(?:\s*(?P<mag>millions?|milliards?|mds?|md|mns?|bn|m)\b(?:\s*(?:d['’]\s*)?(?P<cur>euros?|€|\$))?)?"
+)
+_MAG = {"million": "M", "millions": "M", "m": "M", "mn": "M", "mns": "M", "milliard": "Md", "milliards": "Md",
+        "md": "Md", "mds": "Md", "bn": "bn"}  # fmt: skip
+# where a pair ends: a separator, a full stop (not a decimal point), a dash, « et / and / vs », or the end
+_END = r"(?=\s*(?:[,;\n)/!?—–]|\.(?!\d)|\s-\s|\bet\b|\band\b|\bvs\b|$)|\s+(?:19|20)\d\d\s*[:=]?\s*\d)"
+# « CA 2022 : 1,2 M€, 2023 : 1,5 M€ »: the first label is the year, like the others
+_YEAR_END = re.compile(r"^.*?\s((?:19|20)\d\d)$")
 _PAIR = re.compile(
-    r"(?P<label>(?:19|20)\d\d|[^\W\d_][\w'’ .-]{0,30}?)\s*(?:[:=]|\s)\s*"
-    r"(?P<num>[-+]?\d[\d  .,]*\d|\d)\s*(?P<unit>%|k€|K€|M€|Md€|€|\$|h|ans?)?(?=\s*(?:[,;\n)]|\bet\b|\band\b|$))",
+    r"(?P<label>(?:19|20)\d\d|[^\W\d_][\w'’ .-]{0,30}?)\s*(?:[:=]|\s)\s*(?P<num>" + _NUM + r")\s*" + _UNIT + _END,
+    re.I,
+)
+# number first: « 45 % CDI, 30 % CDD, 25 % intérim », « 120 en janvier, 135 en février »
+_PAIR_REV = re.compile(
+    r"(?P<num>" + _NUM + r")\s*" + _UNIT + r"\s+(?:en\s+|de\s+|d['’]\s*|pour\s+(?:les?\s+|la\s+)?)?"
+    r"(?P<label>[^\W\d_][\w'’ -]{0,30}?)" + _END,
     re.I,
 )
 _LIST_ROW = re.compile(
     r"^\s*(?:[-*•]|\d+[.)])?\s*\**(?P<label>[^:\n|*]{1,40}?)\**\s*[:–—]\s*\**"
-    r"(?P<num>[-+]?\d[\d  .,]*\d|\d)\s*(?P<unit>%|k€|K€|M€|Md€|€|\$|h|ans?)?\**\s*(?:\(.*\))?\s*$",
+    r"(?P<num>" + _NUM + r")\s*" + _UNIT + r"\**\s*(?:\(.*\))?\s*$",
     re.M | re.I,
 )
 _PIE = re.compile(r"camembert|r[ée]partition|\bparts?\b|share|pie", re.I)
+# the type the user names wins over any guess: « sous forme de courbe », « graphique en barres », « histogramme »
+_KIND_ASKED = (
+    ("line", re.compile(r"\b(?:courbes?|line\s+(?:charts?|graphs?)|en\s+lignes?|as\s+a\s+line)\b", re.I)),
+    ("pie", re.compile(r"\b(?:camemberts?|pie(?:\s+charts?)?|donuts?|doughnuts?|secteurs)\b", re.I)),
+    ("bar", re.compile(r"\b(?:barres?|b[âa]tons|histogrammes?|histograms?|bar\s+charts?|bars?)\b", re.I)),
+)
 _TIME_LABEL = re.compile(
     r"^(?:(?:19|20)\d\d|t[1-4]|q[1-4]|janv|f[ée]vr|mars|avr|mai|juin|juil|ao[uû]|sept|oct|nov|d[ée]c|jan|feb|mar|apr|"
     r"may|jun|jul|aug|sep|dec|lundi|mardi|mercredi|jeudi|vendredi|semaine|mois|week|month)",
@@ -292,15 +361,30 @@ _TIME_LABEL = re.compile(
 )
 
 
+def _unit_of(m: re.Match) -> str:
+    """« % », « M€ », or a magnitude word as a unit: « 2,1 millions » → M, « 1,2 Md € » → Md€."""
+    if m.group("unit") or not m.group("mag"):
+        return m.group("unit") or ""
+    return _MAG[m.group("mag").lower()] + ("€" if (m.group("cur") or "").lower().startswith(("€", "euro")) else "")
+
+
+# a label of several words that ends on a link word is a sentence, not a row: « le budget est de 1,5 million »
+_LINK_END = re.compile(
+    r"\b(?:de|du|des|d['’]|à|a|est|sont|était|soit|environ|par|pour|en|le|la|les|of|is|are|was|at|about|to)$", re.I
+)
+
+
 def _rows_of(pairs: list[tuple[str, str, str]]) -> tuple[list[str], list[list[str]], str] | None:
     rows, units = [], set()
     for label, num, unit in pairs:
         label = label.strip(" .-*").strip()
-        if label and len(label) <= 40:
+        if label and len(label) <= 40 and not (" " in label and _LINK_END.search(label)):  # « Est » is a label
             rows.append([label, num.replace(" ", "").replace("\u202f", "").replace("\xa0", "")])
             units.add(unit or "")
     if len(rows) < 3 or len({r[0].lower() for r in rows}) < len(rows):
         return None
+    if sum(bool(re.fullmatch(r"(?:19|20)\d\d", r[0])) for r in rows) >= len(rows) - 1:
+        rows = [[_YEAR_END.sub(r"\1", r[0]), *r[1:]] for r in rows]
     return ["Libellé", "Valeur"], rows, next(iter(units)) if len(units) == 1 else ""
 
 
@@ -322,8 +406,8 @@ def figures_in(text: str) -> tuple[list[str], list[list[str]], str] | None:
                 got = _rows_of(pairs)
                 if got:
                     return [head[0] or "Libellé", head[j] or "Valeur"], got[1], got[2]
-    for rx in (_LIST_ROW, _PAIR):
-        got = _rows_of([(m.group("label"), m.group("num"), m.group("unit") or "") for m in rx.finditer(text)])
+    for rx in (_LIST_ROW, _PAIR, _PAIR_REV):
+        got = _rows_of([(m.group("label"), m.group("num"), _unit_of(m)) for m in rx.finditer(text)])
         if got:
             return got
     return None
@@ -332,13 +416,55 @@ def figures_in(text: str) -> tuple[list[str], list[list[str]], str] | None:
 def chart_call(request: str, data, lang: str) -> dict:
     """The make_chart arguments for figures found by the harness (type from the ask and the labels)."""
     columns, rows, unit = data
-    kind = "pie" if _PIE.search(request) else "line" if (_TREND_ASK.search(request) or all(
-        _TIME_LABEL.match(r[0]) for r in rows)) else "bar"  # fmt: skip
+    kind = next((k for k, rx in _KIND_ASKED if rx.search(_chart_words(request))), None)
+    if kind is None:
+        kind = "pie" if _PIE.search(request) else "line" if (trend_ask(request) or all(
+            _TIME_LABEL.match(r[0]) for r in rows)) else "bar"  # fmt: skip
     title = ("Vos chiffres" if lang != "en" else "Your figures") if columns[1] in ("Valeur", "Value") else columns[1]
     args = {"title": title, "type": kind, "columns": columns, "rows": rows}
     if unit:
         args["unit"] = unit
     return args
+
+
+# a follow-up that points at the previous answer: « mets ça en graphique », « fais-en un camembert », « chart this »
+_FOLLOWUP = re.compile(
+    r"\b(?:ça|ca|cela|ce tableau|ces (?:chiffres|données|donnees|résultats|resultats|valeurs)|fais-en|"
+    r"(?:le|la|les|l')\s*(?:mettre|mets|refaire|refais|passer|transformer|représenter|representer)|"
+    r"(?:refais|remets|mets|passe|transforme|fais)\s+(?:le|la|les)\b|"
+    r"(?:chart|graph|plot|make|turn|put|draw|show)\s+(?:it|this|that|these|them)\b|"
+    r"(?:this|that|the) (?:table|data|figures|numbers)|(?:of|from) (?:it|this|that|these|them)\s*[.!?]*\s*"
+    r"(?:please)?\s*[.!?]*$)|"
+    r"-(?:le|la|les|en)\b",
+    re.I,
+)
+# « fais un camembert du budget marketing », « a chart of revenue by region »: a new subject, not the last answer
+_NEW_SUBJECT = re.compile(
+    r"\b(?:de|du|des|d'|of|about|on)\s+(?:la\s+|le\s+|les\s+|l'|the\s+|our\s+|nos\s+|notre\s+)?"
+    r"(?!(?:ça|ca|cela|ce|ces|cette|it|this|that|these|them|courbes?|barres?|b[âa]tons|camemberts?|secteurs|"
+    r"graphiques?|histogrammes?|diagrammes?|lignes?|charts?|graphs?|pie|bars?|lines?|forme)\b)[^\W\d_]{3,}",
+    re.I,
+)
+_MEMO_ROWS = re.compile(r"(?:graphique affiché|chart shown) : .*? — (?P<rows>[^\n]+)")
+
+
+def _followup(request: str) -> bool:
+    """The request points at the previous answer (« mets ça en graphique ») and names no subject of its own; or it
+    is a bare type (« en camembert ? »)."""
+    req = request or ""
+    if _NEW_SUBJECT.search(req):
+        return False
+    return bool(_FOLLOWUP.search(req)) or len(req.split()) <= 3
+
+
+def _previous_answer(history: list[dict]) -> str:
+    """The last assistant answer in ``history``, its chart memo (« … — T1 120 ; T2 135 ») as one row per line."""
+    last = next((m for m in reversed(history or []) if m.get("role") == "assistant" and m.get("content")), None)
+    text = str(last.get("content") or "") if last else ""
+    memo = _MEMO_ROWS.search(text)
+    if memo:
+        return text[: memo.start()] + "\n" + "\n".join(r.strip() for r in memo.group("rows").split(" ; "))
+    return text
 
 
 def chart_ask(text: str) -> bool:
@@ -690,8 +816,12 @@ class Agent:
             promise_nudged = False
             gen, ok, forced = 0, 0, None
             auto_calls = 0
-            chartable = "make_chart" not in routed and (chart_ask(req) or bool(_TREND_ASK.search(req)))
+            chartable = "make_chart" not in routed and (chart_ask(req) or trend_ask(req))
             mine = figures_in(req) if chartable and not prefill else None
+            if chartable and not prefill and mine is None and history and _followup(req):
+                # « mets ça en graphique », « refais-le en courbe »: the figures are in the previous answer (its
+                # table, or the memo of the chart it showed); the harness draws them, with the type now asked
+                mine = figures_in(_previous_answer(history))
             if mine:
                 # « graphique des ventes : janvier 120, février 135, mars 160 »: the figures are the user's own, so
                 # the harness draws the chart itself instead of hoping the small model calls make_chart
