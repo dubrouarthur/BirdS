@@ -1,6 +1,7 @@
-"""Rich result widgets of an answer: ``build_widgets`` (places, company, fx, event) and ``enrich_sources`` (link
-previews). Widget data come from tool results (``Step.info["widget"]``) or from the user's own words, never from the
-model's text: a hallucination cannot become a map pin, a SIREN or a rate.
+"""Rich result widgets of an answer: ``build_widgets`` (places, company, fx, weather, world clock, event) and
+``enrich_sources`` (link previews). Widget data come from tool results (``Step.info["widget"]``), from the harness
+(the world clock) or from the user's own words, never from the model's text: a hallucination cannot become a map
+pin, a SIREN, a rate, a temperature or a time.
 """
 
 from __future__ import annotations
@@ -128,13 +129,28 @@ def event_widget(text: str, now: datetime, lang: str, *, draft: dict | None = No
     }
 
 
+def weather_hint(widgets: list[dict], ev: dict) -> dict | None:
+    """One line for the event card when a forecast of the same day is on the answer: {place, icon, label, min,
+    max, rain}. Only MET's figures for that very day; nothing otherwise."""
+    day = str(ev.get("start", ""))[:10]
+    for w in widgets:
+        if w.get("type") != "weather":
+            continue
+        t = next((t for t in w.get("days", []) if t.get("d") == day), None)
+        if t:
+            return {"place": w["place"]["name"], "icon": t.get("icon", ""), "label": t.get("label", ""),
+                    "min": t.get("min"), "max": t.get("max"), "rain": t.get("rain")}  # fmt: skip
+    return None
+
+
 def _map_for(points: list[tuple[float, float]], secret: bytes, single_kind: str = "", layer: str = "osm") -> dict:
     center, z = geo.fit(points, w=mapimg.MAP_W, h=mapimg.MAP_H, single=geo.single_zoom(single_kind))
     return mapimg.map_src(secret, center, z, layer)
 
 
 def build_widgets(steps, request_text: str, lang: str, now: datetime, secret: bytes, *, draft: dict | None = None,
-                  holidays=None, layer: str = "osm", geo_on: bool = True) -> list[dict]:  # fmt: skip
+                  holidays=None, layer: str = "osm", geo_on: bool = True, extra=None) -> list[dict]:  # fmt: skip
+    """``extra``: cards the harness computed itself without a tool (the world clock), kept as they are."""
     out: list[dict] = []
     for s in steps:
         info = getattr(s, "info", None) or {}
@@ -152,12 +168,18 @@ def build_widgets(steps, request_text: str, lang: str, now: datetime, secret: by
         elif w.get("type") == "company":
             ok = geo_on and w.get("lat") is not None and not w.get("natural_person")
             w["map"] = _map_for([(w["lat"], w["lon"])], secret, "", layer) if ok else None
-        elif w.get("type") != "fx":
+        elif w.get("type") not in ("fx", "weather"):
             continue
         out.append(w)
+    for w in extra or []:
+        if isinstance(w, dict) and w.get("type") == "clock":
+            out.append(json.loads(json.dumps(w)))
     place = next((p for w in out if w["type"] == "places" for p in w.get("places", [])[:1]), None)
     ev = event_widget(request_text, now, lang, draft=draft, place=place, holidays=holidays)
     if ev:
+        hint = weather_hint(out, ev)
+        if hint:
+            ev["weather"] = hint
         out.append(ev)
     kept, total = [], 0
     for w in out:  # caps of the history: each widget <= 8 KB, all <= 24 KB

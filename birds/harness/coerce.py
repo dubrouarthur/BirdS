@@ -365,6 +365,10 @@ _FLAT_ALIASES = {  # routed widget tools: flat arguments a small model names dif
         "to": ["to_currency", "target", "quote", "currency_to", "en", "vers"],
         "amount": ["value", "montant", "somme", "quantity"],
     },
+    "get_weather": {
+        "place": ["city", "ville", "location", "lieu", "town", "query", "q", "where"],
+        "day": ["date", "when", "jour", "quand"],
+    },
 }
 
 

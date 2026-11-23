@@ -1,7 +1,16 @@
-// Rich result cards under an answer: places + static map, company, currency, event (.ics).
+// Rich result cards under an answer: places + static map, company, currency, weather, world clock, event (.ics).
 // Data come from the server's `widgets` list (tool results and the user's own words, never model text).
 // Built with h() only (text nodes, no innerHTML with data); positions set through CSSOM (CSP: no style attribute).
-import { button, copyText, download, h, icon, state, t, toast } from "./core.js";
+import {
+  button,
+  copyText,
+  download,
+  h,
+  icon,
+  state,
+  t,
+  toast,
+} from "./core.js";
 import { safeUrl } from "./markdown.js";
 import { buildIcs, icsName } from "./ics.js";
 
@@ -61,7 +70,10 @@ const KIND_ALIAS = {
   "subway station": "subway_entrance",
 };
 const kindKey = (kind) =>
-  KIND_ALIAS[kind] || String(kind || "").trim().replace(/\s+/g, "_");
+  KIND_ALIAS[kind] ||
+  String(kind || "")
+    .trim()
+    .replace(/\s+/g, "_");
 
 function kindLabel(kind) {
   const key = `place.kind.${kindKey(kind)}`;
@@ -112,11 +124,21 @@ export function fmtHours(raw, day = (new Date().getDay() + 6) % 7) {
     return m ? `${h} h ${String(m).padStart(2, "0")}` : `${h} h`;
   };
   const SPAN = /^([01]?\d|2[0-4]):([0-5]\d)\+?-([01]?\d|2[0-4]):([0-5]\d)\+?$/;
-  if (text === "24/7") return { today: t("hours.always"), rules: [[t("hours.everyDay"), t("hours.always")]] };
+  if (text === "24/7")
+    return {
+      today: t("hours.always"),
+      rules: [[t("hours.everyDay"), t("hours.always")]],
+    };
   const rules = [];
   const byDay = new Array(7).fill(null);
-  for (const part of text.split(";").map((x) => x.trim()).filter(Boolean)) {
-    const m = /^((?:(?:Mo|Tu|We|Th|Fr|Sa|Su|PH)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)(?:,(?:Mo|Tu|We|Th|Fr|Sa|Su|PH)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)*)?\s*(.*)$/.exec(part);
+  for (const part of text
+    .split(";")
+    .map((x) => x.trim())
+    .filter(Boolean)) {
+    const m =
+      /^((?:(?:Mo|Tu|We|Th|Fr|Sa|Su|PH)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)(?:,(?:Mo|Tu|We|Th|Fr|Sa|Su|PH)(?:-(?:Mo|Tu|We|Th|Fr|Sa|Su))?)*)?\s*(.*)$/.exec(
+        part,
+      );
     if (!m) return null;
     const daysSpec = m[1] || "Mo-Su";
     const rest = m[2].trim();
@@ -145,7 +167,8 @@ export function fmtHours(raw, day = (new Date().getDay() + 6) % 7) {
         if (i === end) break;
       }
       if (a === 0 && end === 6) labels.push(t("hours.everyDay"));
-      else labels.push(b === undefined ? names[a] : `${names[a]}–${names[end]}`);
+      else
+        labels.push(b === undefined ? names[a] : `${names[a]}–${names[end]}`);
     }
     rules.push([labels.join(", "), hours]);
   }
@@ -223,8 +246,10 @@ export function declutter(pts, size = PIN, gap = 3) {
       [k * step, k * step * 0.5], [-k * step, k * step * 0.5],
     ); // prettier-ignore
   const boxes = [];
-  const hit = (cx, cy) => boxes.some(([bx, by, r]) => Math.abs(bx - cx) < r && Math.abs(by - cy) < r);
-  for (const q of pts) if (q.ring) boxes.push([q.x, q.y, (size + 16) / 2 + gap]);
+  const hit = (cx, cy) =>
+    boxes.some(([bx, by, r]) => Math.abs(bx - cx) < r && Math.abs(by - cy) < r);
+  for (const q of pts)
+    if (q.ring) boxes.push([q.x, q.y, (size + 16) / 2 + gap]);
   return pts.map((q) => {
     if (q.ring) return [0, 0];
     const cy0 = q.y - TAIL - size / 2;
@@ -305,7 +330,14 @@ function mapFrame(w, places, center, opts = {}) {
         leader.style.setProperty("--y", `${y.toFixed(2)}%`);
       }
       pin.hidden = x < 1 || x > 99 || y < 2 || y > 98;
-      if (!pin.hidden) pts.push({ x: (x / 100) * W, y: (y / 100) * H, pin, leader, ring: !leader });
+      if (!pin.hidden)
+        pts.push({
+          x: (x / 100) * W,
+          y: (y / 100) * H,
+          pin,
+          leader,
+          ring: !leader,
+        });
     }
     // overlapping pins are fanned out (in CSS px, once the frame has a size), each with a leader to its point
     const moves = W ? declutter(pts) : pts.map(() => [0, 0]);
@@ -321,13 +353,20 @@ function mapFrame(w, places, center, opts = {}) {
         // from the point to the bottom of the moved label (TAIL above the point, plus the move)
         const lx = dx;
         const ly = dy - TAIL;
-        q.leader.style.setProperty("--len", `${Math.hypot(lx, ly).toFixed(1)}px`);
-        q.leader.style.setProperty("--angle", `${Math.atan2(ly, lx).toFixed(4)}rad`);
+        q.leader.style.setProperty(
+          "--len",
+          `${Math.hypot(lx, ly).toFixed(1)}px`,
+        );
+        q.leader.style.setProperty(
+          "--angle",
+          `${Math.atan2(ly, lx).toFixed(4)}rad`,
+        );
       }
     });
   };
   place();
-  if (typeof ResizeObserver === "function") new ResizeObserver(place).observe(frame);
+  if (typeof ResizeObserver === "function")
+    new ResizeObserver(place).observe(frame);
   // zoom: the new image is loaded first, then swapped with the pins in one go (they never sit on the old image)
   let pending = null;
   const zoom = (step) => () => {
@@ -578,7 +617,8 @@ function renderPlaces(w, turn) {
 /** "383 474 814" (SIREN), "383 474 814 00100" (SIRET): the groups used by the register. */
 export function fmtSiren(v) {
   const d = String(v || "");
-  if (/^\d{9}$/.test(d)) return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
+  if (/^\d{9}$/.test(d))
+    return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
   if (/^\d{14}$/.test(d))
     return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6, 9)} ${d.slice(9)}`;
   return d;
@@ -695,7 +735,9 @@ function renderCompany(w) {
     h(
       "dl",
       { class: "kv company-kv" },
-      rows.map(([k, v]) => h("div", null, h("dt", { text: t(k) }), h("dd", null, v))),
+      rows.map(([k, v]) =>
+        h("div", null, h("dt", { text: t(k) }), h("dd", null, v)),
+      ),
     ),
     tiles,
     frame,
@@ -835,7 +877,9 @@ export function eventChips(f, holidays = {}, warnings = []) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(f.date || ""));
   if (m) {
     const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
-    const known = warnings.find((x) => x.kind === "holiday" && x.date === f.date);
+    const known = warnings.find(
+      (x) => x.kind === "holiday" && x.date === f.date,
+    );
     const name = holidays[f.date] || known?.label;
     if (name) out.push(["warn", t("event.holiday", { name })]);
     const wd = d.getUTCDay();
@@ -851,7 +895,8 @@ export function eventChips(f, holidays = {}, warnings = []) {
       ]);
   }
   if (!f.start) out.push(["info", t("event.allDay")]);
-  else if (f.assumedEnd || !f.end) out.push(["info", t("event.defaultDuration")]);
+  else if (f.assumedEnd || !f.end)
+    out.push(["info", t("event.defaultDuration")]);
   return out;
 }
 
@@ -1005,6 +1050,22 @@ function renderEvent(w) {
       ),
     ),
     chipBox,
+    w.weather &&
+      h(
+        "p",
+        { class: "ev-weather" },
+        wxIcon(w.weather.icon, 22),
+        h("span", {
+          text: t("event.weather", {
+            place: w.weather.place,
+            sky: String(w.weather.label || "").toLowerCase(),
+            min: deg(w.weather.min),
+            max: deg(w.weather.max),
+          }),
+        }),
+        w.weather.rain > 0 &&
+          h("span", { class: "muted", text: ` · ${mm(w.weather.rain)}` }),
+      ),
     w.matched &&
       h("p", {
         class: "muted ev-matched",
@@ -1036,12 +1097,790 @@ function renderEvent(w) {
   );
 }
 
+// ------------------------------------------------------------------ weather (MET Norway forecast, drawn here)
+
+const SVGNS = "http://www.w3.org/2000/svg";
+function sv(tag, attrs, ...children) {
+  const el = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs || {}))
+    if (v !== null && v !== undefined && v !== false)
+      el.setAttribute(k, String(v));
+  for (const c of children.flat())
+    if (c) el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return el;
+}
+
+// weather glyphs on a 32 x 32 grid: unions of plain shapes, coloured by class (tokens in app.css, light and dark)
+const rays = (cx, cy, r1, r2, cls = "wx-ray") =>
+  [0, 45, 90, 135, 180, 225, 270, 315].map((a) => {
+    const c = Math.cos((a * Math.PI) / 180);
+    const s = Math.sin((a * Math.PI) / 180);
+    return sv("line", {
+      class: cls,
+      x1: (cx + r1 * c).toFixed(2),
+      y1: (cy + r1 * s).toFixed(2),
+      x2: (cx + r2 * c).toFixed(2),
+      y2: (cy + r2 * s).toFixed(2),
+    });
+  });
+const sun = (cx, cy, r) => [
+  ...rays(cx, cy, r + 2.6, r + 5.2),
+  sv("circle", { class: "wx-sun", cx, cy, r }),
+];
+const moon = (tf = null) =>
+  sv("path", {
+    class: "wx-moon",
+    d: "M13.1 8.23A8 8 0 1 0 22.77 17.9A7 7 0 0 1 13.1 8.23z",
+    transform: tf,
+  });
+// a cloud: three discs and a base; ``high`` leaves room below for rain or snow
+function cloud(high, cls = "wx-cloud", dx = 0, dy = 0) {
+  const y = (high ? 0 : 4) + dy;
+  return sv(
+    "g",
+    { class: cls },
+    sv("circle", { cx: 11 + dx, cy: 15 + y, r: 5 }),
+    sv("circle", { cx: 17.5 + dx, cy: 11.5 + y, r: 6.5 }),
+    sv("circle", { cx: 23 + dx, cy: 15.5 + y, r: 4.5 }),
+    sv("rect", { x: 11 + dx, y: 14.5 + y, width: 12, height: 5.5, rx: 1 }),
+  );
+}
+const drops = (xs, len = 4) =>
+  xs.map((x) =>
+    sv("line", { class: "wx-drop", x1: x, y1: 23, x2: x - 1.4, y2: 23 + len }),
+  );
+const flakes = (pts) =>
+  pts.map(([x, y]) =>
+    sv("circle", { class: "wx-flake", cx: x, cy: y, r: 1.6 }),
+  );
+
+const GLYPHS = {
+  sun: () => sun(16, 16, 6),
+  moon: () => [moon()],
+  partly_day: () => [...sun(11.5, 11.5, 4.4), cloud(false, "wx-cloud", 2, 1)],
+  partly_night: () => [
+    moon("translate(-2.5 -3.5) scale(0.78)"),
+    cloud(false, "wx-cloud", 2, 1),
+  ],
+  cloud: () => [cloud(false)],
+  fog: () => [
+    cloud(true, "wx-cloud wx-cloud-fog", 0, -2),
+    ...[20, 24, 28].map((y, i) =>
+      sv("line", {
+        class: "wx-fog",
+        x1: 6 + (i % 2) * 3,
+        y1: y,
+        x2: 26 - (i % 2) * 2,
+        y2: y,
+      }),
+    ),
+  ],
+  drizzle: () => [
+    cloud(true, "wx-cloud wx-cloud-rain"),
+    ...drops([13, 20], 3.2),
+  ],
+  rain: () => [
+    cloud(true, "wx-cloud wx-cloud-rain"),
+    ...drops([11, 16.5, 22], 5),
+  ],
+  showers: () => [
+    ...sun(10.5, 9.5, 3.8),
+    cloud(true, "wx-cloud wx-cloud-rain", 2, 0),
+    ...drops([15, 21], 4.2),
+  ],
+  sleet: () => [
+    cloud(true, "wx-cloud wx-cloud-rain"),
+    ...drops([12], 4.5),
+    ...flakes([[19.5, 25.5]]),
+  ],
+  snow: () => [
+    cloud(true, "wx-cloud"),
+    ...flakes([
+      [11, 24.5],
+      [16.5, 28],
+      [22, 24.5],
+    ]),
+  ],
+  // no symbol from MET, or one we do not know: a dashed ring, never a cloud that would say « cloudy »
+  unknown: () => [
+    sv("circle", { class: "wx-unknown", cx: 16, cy: 16, r: 9 }),
+    sv("line", { class: "wx-unknown", x1: 12, y1: 16, x2: 20, y2: 16 }),
+  ],
+  thunder: () => [
+    cloud(true, "wx-cloud wx-cloud-rain"),
+    sv("polygon", {
+      class: "wx-bolt",
+      points: "17.5,19 12.5,25.5 16,25.5 14,31 21,23.5 17.4,23.5 19.6,19",
+    }),
+  ],
+};
+
+/** An inline SVG weather icon (decorative: the label is written next to it). */
+export function wxIcon(name, size = 32, label = "") {
+  const draw = GLYPHS[name] || GLYPHS.unknown;
+  return sv(
+    "svg",
+    {
+      class: `wx-icon wx-${GLYPHS[name] ? name : "unknown"}`,
+      viewBox: "0 0 32 32",
+      width: size,
+      height: size,
+      role: label ? "img" : null,
+      "aria-label": label || null,
+      "aria-hidden": label ? null : "true",
+      focusable: "false",
+    },
+    label ? sv("title", null, label) : null,
+    draw(),
+  );
+}
+
+const deg = (v) =>
+  v === null || v === undefined
+    ? "–"
+    : `${nf({ maximumFractionDigits: 0 }).format(Math.round(v) || 0).replace(/^-/, "−")}°`;
+const mm = (v) => `${nf({ maximumFractionDigits: 1 }).format(v)} mm`;
+
+function wxDate(iso, opts) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  return m
+    ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)).toLocaleDateString(
+        locale(),
+        {
+          timeZone: "UTC",
+          ...opts,
+        },
+      )
+    : "";
+}
+
+/** The hourly strip: temperature line with labels, rain bars, hours. Redrawn at the real width (text at 12 px). */
+export function hourlyStrip(hours, width) {
+  const pts = (hours || []).filter(
+    (p) => /T\d{2}:\d{2}$/.test(p.t) && Number.isFinite(p.temp),
+  );
+  const W = Math.max(260, Math.round(width || 640));
+  const H = 148;
+  const padX = 14;
+  if (pts.length < 2) return null;
+  const tOf = (p) => {
+    const [d, hm] = p.t.split("T");
+    const [y, mo, da] = d.split("-").map(Number);
+    const [hh, mi] = hm.split(":").map(Number);
+    return Date.UTC(y, mo - 1, da, hh, mi) / 3600000;
+  };
+  const t0 = tOf(pts[0]);
+  const last = pts[pts.length - 1];
+  const t1 = Math.max(tOf(last) + (last.step || 1), t0 + 6);
+  const x = (t) => padX + ((t - t0) / (t1 - t0)) * (W - 2 * padX);
+  const temps = pts.map((p) => p.temp);
+  let lo = Math.min(...temps);
+  let hi = Math.max(...temps);
+  if (hi - lo < 4) {
+    const mid = (hi + lo) / 2;
+    lo = mid - 2;
+    hi = mid + 2;
+  }
+  const yT = (v) => 44 + (1 - (v - lo) / (hi - lo)) * 42; // line between y 44 and 86
+  const rains = pts.map((p) => (p.rain || 0) / (p.step || 1));
+  const rMax = Math.max(1, ...rains);
+  const base = 122;
+  const g = [];
+  // light grid: the bar baseline
+  g.push(
+    sv("line", {
+      class: "wx-axis",
+      x1: padX,
+      y1: base + 0.5,
+      x2: W - padX,
+      y2: base + 0.5,
+    }),
+  );
+  const hourW = (W - 2 * padX) / (t1 - t0);
+  for (const p of pts) {
+    const r = p.rain || 0;
+    if (r <= 0) continue;
+    const step = p.step || 1;
+    const bh = Math.max(2, (r / step / rMax) * 30);
+    g.push(
+      sv("rect", {
+        class: "wx-bar",
+        x: (x(tOf(p)) + 1).toFixed(1),
+        y: (base - bh).toFixed(1),
+        width: Math.max(2, hourW * step - 2).toFixed(1),
+        height: bh.toFixed(1),
+        rx: 1.5,
+      }),
+    );
+  }
+  const line = pts
+    .map(
+      (p, i) =>
+        `${i ? "L" : "M"}${x(tOf(p)).toFixed(1)} ${yT(p.temp).toFixed(1)}`,
+    )
+    .join(" ");
+  const area = `${line} L${x(tOf(last)).toFixed(1)} 92 L${x(t0).toFixed(1)} 92 Z`;
+  g.push(sv("path", { class: "wx-area", d: area }));
+  g.push(sv("path", { class: "wx-line", d: line }));
+  // labels: every 3 h on wide screens, every 4 or 6 h on narrow ones, always on 6-hour points
+  const every = W < 340 ? 4 : W < 480 ? 3 : 2;
+  const hiIdx = temps.indexOf(Math.max(...temps));
+  const loIdx = temps.indexOf(Math.min(...temps));
+  let lastX = -99;
+  pts.forEach((p, i) => {
+    const hh = Number(p.t.slice(11, 13));
+    const xi = x(tOf(p));
+    const keyPoint = i === 0 || i === hiIdx || i === loIdx;
+    const regular = (p.step || 1) >= 6 || hh % every === 0;
+    if (!(regular || keyPoint) || xi - lastX < 34) return;
+    lastX = xi;
+    g.push(
+      sv("circle", {
+        class: "wx-dot",
+        cx: xi.toFixed(1),
+        cy: yT(p.temp).toFixed(1),
+        r: 2.6,
+      }),
+    );
+    g.push(
+      sv(
+        "text",
+        {
+          class: "wx-t",
+          x: xi.toFixed(1),
+          y: (yT(p.temp) - 8).toFixed(1),
+          "text-anchor": "middle",
+        },
+        deg(p.temp),
+      ),
+    );
+    if (p.icon) {
+      const ic = wxIcon(p.icon, 18);
+      ic.setAttribute("x", (xi - 9).toFixed(1));
+      ic.setAttribute("y", "2");
+      g.push(ic);
+    }
+    g.push(
+      sv(
+        "text",
+        {
+          class: "wx-h",
+          x: xi.toFixed(1),
+          y: H - 6,
+          "text-anchor": i === 0 ? "start" : xi > W - 30 ? "end" : "middle",
+        },
+        i === 0 && hours.now ? t("weather.nowShort") : `${hh}h`,
+      ),
+    );
+  });
+  // rain amounts above the wettest bar only (the rest is in the tooltip-free table below for screen readers)
+  const wet = rains.indexOf(Math.max(...rains));
+  if (rains[wet] > 0) {
+    const p = pts[wet];
+    g.push(
+      sv(
+        "text",
+        {
+          class: "wx-r",
+          x: (x(tOf(p)) + (hourW * (p.step || 1)) / 2).toFixed(1),
+          y: (base - Math.max(2, (rains[wet] / rMax) * 30) - 4).toFixed(1),
+          "text-anchor": "middle",
+        },
+        mm(p.rain),
+      ),
+    );
+  }
+  return sv(
+    "svg",
+    {
+      class: "wx-strip",
+      viewBox: `0 0 ${W} ${H}`,
+      width: W,
+      height: H,
+      role: "img",
+      "aria-label": t("weather.stripAlt"),
+    },
+    g,
+  );
+}
+
+function renderWeather(w) {
+  const s = w.summary || {};
+  const place = w.place || {};
+  const day = String(w.day || "");
+  const dayName =
+    w.day_kind === "today"
+      ? t("weather.today")
+      : w.day_kind === "tomorrow"
+        ? t("weather.tomorrow")
+        : wxDate(day, { weekday: "long" });
+  const dayFull = wxDate(day, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const label = String(s.label || "");
+  const big = h(
+    "div",
+    { class: "wx-now" },
+    wxIcon(s.icon, 64),
+    h(
+      "div",
+      { class: "wx-now-text" },
+      h("span", { class: "wx-temp num", text: deg(s.temp) }),
+      h("span", { class: "wx-sky", text: label }),
+      h("span", {
+        class: "wx-when muted",
+        text:
+          s.kind === "now"
+            ? t("weather.nowAt", { time: String(s.at || "").slice(11, 16) })
+            : t("weather.dayMax"),
+      }),
+    ),
+  );
+  const head = h(
+    "div",
+    { class: "wx-head" },
+    h(
+      "div",
+      { class: "wx-place" },
+      h("strong", { class: "wx-name", text: place.name || "" }),
+      place.region &&
+        h("span", { class: "muted wx-region", text: place.region }),
+      h(
+        "span",
+        { class: "wx-day" },
+        w.day_kind !== "date" && h("span", { class: "pill wx-pill", text: dayName }),
+        h("span", { class: w.day_kind === "date" ? "wx-date" : "muted", text: dayFull }),
+      ),
+    ),
+    big,
+  );
+  const facts = [
+    s.min != null &&
+      s.max != null && [t("weather.minmax"), `${deg(s.min)} / ${deg(s.max)}`],
+    s.rain_mm != null && [
+      t("weather.rain"),
+      mm(s.rain_mm) +
+        (s.rain_prob != null
+          ? ` · ${nf({ maximumFractionDigits: 0 }).format(s.rain_prob)} %`
+          : ""),
+    ],
+    s.wind_kmh != null && [t("weather.wind"), `${s.wind_kmh} km/h`],
+  ].filter(Boolean);
+  const kv = h(
+    "dl",
+    { class: "wx-facts" },
+    facts.map(([k, v]) =>
+      h(
+        "div",
+        { class: "wx-fact" },
+        h("dt", { text: k }),
+        h("dd", { class: "num", text: v }),
+      ),
+    ),
+  );
+  // the hourly strip, redrawn at the width it really has
+  const hours = (w.hours || []).slice(0, 30);
+  hours.now = s.kind === "now";
+  const six = hours.some((p) => (p.step || 1) >= 6);
+  const stripBox = h("div", { class: "wx-strip-box" });
+  const draw = () => {
+    const width = stripBox.clientWidth || 640;
+    if (Math.abs((stripBox._w || 0) - width) < 2 && stripBox.firstChild) return;
+    stripBox._w = width;
+    const svg = hourlyStrip(hours, width);
+    stripBox.replaceChildren(...(svg ? [svg] : []));
+  };
+  draw();
+  if (typeof ResizeObserver !== "undefined")
+    new ResizeObserver(draw).observe(stripBox);
+  const hourly =
+    hours.length > 1 &&
+    h(
+      "div",
+      { class: "wx-block" },
+      h(
+        "p",
+        { class: "wx-block-title" },
+        h("span", { text: six ? t("weather.hourly6") : t("weather.hourly") }),
+        h(
+          "span",
+          { class: "wx-legend muted" },
+          h("span", { class: "wx-key wx-key-line", "aria-hidden": "true" }),
+          t("weather.temp"),
+          h("span", { class: "wx-key wx-key-bar", "aria-hidden": "true" }),
+          t("weather.rainMm"),
+        ),
+      ),
+      stripBox,
+    );
+  const tiles = (w.days || []).slice(0, 7);
+  const week =
+    tiles.length > 1 &&
+    h(
+      "div",
+      { class: "wx-block" },
+      h(
+        "p",
+        { class: "wx-block-title" },
+        h("span", { text: t("weather.days", { n: tiles.length }) }),
+      ),
+      h(
+        "ol",
+        { class: "wx-days" },
+        tiles.map((d) =>
+          h(
+            "li",
+            {
+              class: `wx-tile${d.d === day ? " is-current" : ""}`,
+              "aria-current": d.d === day ? "date" : null,
+              title: d.label || null,
+            },
+            h("span", {
+              class: "wx-dow",
+              text: wxDate(d.d, { weekday: "short" }),
+            }),
+            wxIcon(d.icon, 26, d.label || ""),
+            h("span", { class: "wx-hi num", text: deg(d.max) }),
+            h("span", { class: "wx-lo num", text: deg(d.min) }),
+            h("span", {
+              class: `wx-mm num${d.rain > 0 ? "" : " is-dry"}`,
+              // null: MET gave no precipitation for that day, which is not « 0 »
+              text:
+                d.rain == null
+                  ? "–"
+                  : d.rain > 0
+                    ? nf({ maximumFractionDigits: 1 }).format(d.rain)
+                    : "0",
+              "aria-label":
+                d.rain == null
+                  ? t("weather.rainUnknown")
+                  : d.rain > 0
+                    ? mm(d.rain)
+                    : t("weather.noRain"),
+            }),
+          ),
+        ),
+      ),
+      h("p", { class: "wx-unit muted", text: t("weather.tileUnit") }),
+    );
+  const upd = /T(\d{2}:\d{2})/.exec(String(w.updated || ""));
+  const tz = String(w.tz || "UTC");
+  return section(
+    "weather",
+    t("weather.title"),
+    head,
+    facts.length && kv,
+    hourly,
+    week,
+    footer(
+      h("span", { text: `${t("weather.forecast")} · ` }),
+      ext(safeUrl(w.source?.url || ""), t("weather.data")),
+      " · ",
+      ext(safeUrl(w.license?.url || ""), `${t("weather.license")} ${w.license?.label || "CC BY 4.0"}`),
+      upd &&
+        h("span", {
+          text: ` · ${t("weather.updated", { time: `${upd[1]} UTC` })}`,
+        }),
+      h("span", {
+        class: "muted",
+        text: ` · ${tz === "UTC" ? t("weather.tzUtc") : t("weather.tz", { tz: tz.split("/").pop().replace(/_/g, " ") })}`,
+      }),
+    ),
+  );
+}
+
+// ------------------------------------------------------------------ world clock + common slot
+
+const hhmm = (zone, at = new Date()) => {
+  try {
+    return new Intl.DateTimeFormat(locale(), {
+      timeZone: zone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(at);
+  } catch {
+    return "";
+  }
+};
+const dayIn = (zone, at = new Date()) => {
+  try {
+    return new Intl.DateTimeFormat(locale(), {
+      timeZone: zone,
+      weekday: "short",
+    }).format(at);
+  } catch {
+    return "";
+  }
+};
+
+/** "+6 h", "−4 h 30" (minutes of difference with the user's zone). */
+export function fmtDiff(min) {
+  if (!min) return t("clock.same");
+  const a = Math.abs(min);
+  const hh = Math.floor(a / 60);
+  const mi = a % 60;
+  const span = mi ? `${hh} h ${String(mi).padStart(2, "0")}` : `${hh} h`;
+  return `${min > 0 ? "+" : "−"}${span}`;
+}
+
+/** The text copied by « Copier le créneau ». */
+export function slotText(w, slot, wide = false) {
+  const rows = w.cities || [];
+  const day = wxDate(w.timeline?.date, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const parts = rows.map(
+    (r, i) => `${slot.local[i][0]}–${slot.local[i][1]} ${r.name}`,
+  );
+  return `${t(wide ? "clock.wideShort" : "clock.common")} (${day}) : ${parts.join(" · ")}`;
+}
+
+function renderClock(w) {
+  const rows = w.cities || [];
+  if (!rows.length) return null;
+  const timeEls = [];
+  const list = h(
+    "ul",
+    { class: "ck-list" },
+    rows.map((r) => {
+      const time = h("span", {
+        class: "ck-time num",
+        text: hhmm(r.zone) || String(r.local || "").slice(11, 16),
+      });
+      const dayEl = h("span", { class: "ck-dow", text: dayIn(r.zone) });
+      timeEls.push([time, dayEl, r.zone]);
+      return h(
+        "li",
+        { class: `ck-row${r.user ? " is-user" : ""}` },
+        h(
+          "span",
+          { class: "ck-city" },
+          h("strong", { text: r.name }),
+          r.user && h("span", { class: "pill ck-you", text: t("clock.you") }),
+          h(
+            "span",
+            { class: "muted ck-meta" },
+            [
+              r.offset,
+              !r.user ? fmtDiff(r.diff_min) : "",
+              r.multi ? t("clock.multi") : "",
+            ]
+              .filter(Boolean)
+              .join(" · "),
+          ),
+        ),
+        h("span", { class: "ck-clock" }, dayEl, time),
+      );
+    }),
+  );
+  // live: the times follow the browser's clock (the zone database is the browser's own: no request)
+  const timer = window.setInterval(() => {
+    if (!list.isConnected) {
+      if (list._seen) window.clearInterval(timer); // the turn was removed: stop
+      return;
+    }
+    list._seen = true;
+    for (const [el, d, zone] of timeEls) {
+      el.textContent = hhmm(zone) || el.textContent;
+      d.textContent = dayIn(zone) || d.textContent;
+    }
+  }, 15000);
+  const tl = w.timeline;
+  let board = null;
+  let actions = null;
+  let note = null;
+  if (tl && Array.isArray(tl.rows) && tl.rows.length === rows.length) {
+    const cols = 24;
+    const grid = h("div", {
+      class: "ck-grid",
+      role: "img",
+      "aria-label": t("clock.gridAlt"),
+    });
+    const place = (el, c1, c2, r1, r2) => {
+      el.style.gridColumn = `${c1} / ${c2}`;
+      el.style.gridRow = `${r1} / ${r2}`;
+      return el;
+    };
+    // hours of the user's day, every 3 h
+    tl.user_hours.forEach((hh, i) => {
+      if (i % 3 === 0)
+        grid.append(
+          place(
+            h("span", { class: "ck-hour", text: `${hh}h` }),
+            i + 2,
+            i + 5,
+            1,
+            2,
+          ),
+        );
+    });
+    rows.forEach((r, ri) => {
+      grid.append(
+        place(
+          h("span", {
+            class: `ck-label${r.user ? " is-user" : ""}`,
+            text: r.name,
+          }),
+          1,
+          2,
+          ri + 2,
+          ri + 3,
+        ),
+      );
+      const row = tl.rows[ri];
+      for (let i = 0; i < cols; i++) {
+        const q = row.office[i] || 0; // quarters of this hour within office hours
+        const lh = Math.floor(row.hours[i]);
+        const night = lh < 7 || lh >= 21;
+        const cell = h("span", {
+          class: `ck-cell${q === 4 ? " is-office" : q > 0 ? " is-part" : night ? " is-night" : ""}`,
+        });
+        if (i % 3 === 0) cell.dataset.h = String(lh);
+        if (i % 6 === 0) cell.classList.add("is-major");
+        grid.append(place(cell, i + 2, i + 3, ri + 2, ri + 3));
+      }
+    });
+    const slots = (w.common || []).length ? w.common : w.wide || [];
+    const wide = !(w.common || []).length && slots.length > 0;
+    const uz = w.user_tz;
+    // columns from the board's first hour (the user's local midnight, an UTC instant computed by the server)
+    const t0 = Date.parse(String(tl.start || "").replace(/Z$/, ":00Z"));
+    const startCol = (iso) =>
+      (Date.parse(String(iso).replace(/Z$/, ":00Z")) - t0) / 3600000;
+    for (const sl of slots) {
+      const a = startCol(sl.start);
+      const b = startCol(sl.end);
+      const c1 = Math.max(0, Math.floor(a));
+      const c2 = Math.min(24, Math.ceil(b));
+      if (c2 <= c1) continue;
+      grid.append(
+        place(
+          h("span", {
+            class: `ck-band${wide ? " is-wide" : ""}`,
+            "aria-hidden": "true",
+          }),
+          c1 + 2,
+          c2 + 2,
+          2,
+          rows.length + 2,
+        ),
+      );
+    }
+    // now, when the board shows today
+    const now = new Date();
+    const todayHere = new Intl.DateTimeFormat("en-CA", { timeZone: uz }).format(
+      now,
+    );
+    if (todayHere === tl.date) {
+      const [hh, mi] = (hhmm(uz, now) || "0:0").split(":").map(Number);
+      const nowEl = h("span", { class: "ck-now", "aria-hidden": "true" });
+      nowEl.style.setProperty("--at", String((hh + mi / 60) / 24));
+      grid.append(place(nowEl, 2, 26, 2, rows.length + 2));
+    }
+    const me = Math.max(
+      0,
+      rows.findIndex((r) => r.user),
+    );
+    const dayLabel = wxDate(tl.date, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+    note = slots.length
+      ? h(
+          "div",
+          { class: `ck-slot${wide ? " is-wide" : ""}` },
+          h("span", {
+            class: "ck-slot-title",
+            text: wide ? t("clock.none") : t("clock.common"),
+          }),
+          wide && h("span", { class: "muted", text: t("clock.wide") }),
+          h(
+            "ul",
+            { class: "ck-slot-list" },
+            slots.slice(0, 3).map((sl) =>
+              h(
+                "li",
+                null,
+                h("strong", {
+                  class: "num",
+                  text: `${sl.local[me][0]}–${sl.local[me][1]}`,
+                }),
+                h("span", {
+                  class: "muted",
+                  text: ` ${t("clock.yourTime", { city: rows[me].name })}`,
+                }),
+                h(
+                  "span",
+                  { class: "ck-slot-others" },
+                  rows
+                    .map((r, i) =>
+                      i === me
+                        ? ""
+                        : `${r.name} ${sl.local[i][0]}–${sl.local[i][1]}`,
+                    )
+                    .filter(Boolean)
+                    .join(" · "),
+                ),
+              ),
+            ),
+          ),
+        )
+      : h("p", { class: "widget-note", text: t("clock.noneAtAll") });
+    board = h(
+      "div",
+      { class: "ck-board" },
+      h(
+        "p",
+        { class: "wx-block-title" },
+        h("span", { text: t("clock.board", { day: dayLabel }) }),
+        h(
+          "span",
+          { class: "wx-legend muted" },
+          h("span", { class: "ck-key is-office", "aria-hidden": "true" }),
+          t("clock.office"),
+        ),
+      ),
+      grid,
+    );
+    if (slots.length)
+      actions = h(
+        "p",
+        { class: "place-actions" },
+        button(
+          "btn-outline btn-small",
+          "copy",
+          t("clock.copy"),
+          () => copyText(slotText(w, slots[0], wide)),
+          {
+            "data-act": "copy-slot",
+          },
+        ),
+      );
+  }
+  return section(
+    "clock",
+    t("clock.title"),
+    list,
+    board,
+    note,
+    actions,
+    footer(h("span", { text: t("clock.foot") })),
+  );
+}
 // ------------------------------------------------------------------ registry
 
 const RENDER = {
   places: renderPlaces,
   company: renderCompany,
   fx: renderFx,
+  weather: renderWeather,
+  clock: renderClock,
   event: renderEvent,
 };
 
@@ -1079,6 +1918,22 @@ export function widgetsText(turn, markdown = false) {
       out.push(
         `${w.amount} ${w.from} = ${w.result} ${w.to} (${t("fx.short", { date: w.date })})`,
       );
+    } else if (w.type === "weather") {
+      const s = w.summary || {};
+      out.push(
+        `${w.place?.name || ""}, ${w.day} — ${s.label || ""}${s.min != null ? ` ${s.min}…${s.max} °C` : ""}${s.rain_mm ? ` — ${s.rain_mm} mm` : ""}${s.wind_kmh != null ? ` — ${s.wind_kmh} km/h` : ""} (${t("weather.forecast")}, ${t("weather.data")} CC BY 4.0)`,
+      );
+    } else if (w.type === "clock") {
+      out.push(
+        (w.cities || [])
+          .map(
+            (r) =>
+              `${r.name} ${String(r.local || "").slice(11, 16)} (${r.offset})`,
+          )
+          .join(" · "),
+      );
+      const sl = (w.common || [])[0] || (w.wide || [])[0];
+      if (sl) out.push(slotText(w, sl, !(w.common || []).length));
     } else if (w.type === "event") {
       out.push(
         `${w.title} — ${String(w.start).slice(0, 16).replace("T", " ")}${w.all_day ? "" : `–${String(w.end).slice(11, 16)}`}${w.location ? ` — ${w.location}` : ""}`,

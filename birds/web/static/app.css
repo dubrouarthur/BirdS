@@ -45,6 +45,20 @@
   --series-6: #6250d6;
   --series-7: #8a8f9c;
   --series-8: #b9bcc4;
+  /* weather glyphs and strip (widgets.js wxIcon, hourlyStrip) */
+  --wx-sun: #e29a00;
+  --wx-moon: #8d97ab;
+  --wx-cloud: #c3c9d4;
+  --wx-cloud-rain: #9aa4b5;
+  --wx-rain: #1e5bd8;
+  --wx-bar: #9fbbf0;
+  --wx-snow: #5c9be0;
+  --wx-line: #eb6834;
+  --wx-area: rgb(235 104 52 / 0.1);
+  --ck-office: #cfe0d4;
+  --ck-part: #e6efe8;
+  --ck-night: #e3e3ea;
+  --ck-band: #12764a;
   --shadow: 0 1px 2px rgb(18 26 46 / 0.05), 0 8px 24px -12px rgb(18 26 46 / 0.18);
   --shadow-lg: 0 2px 6px rgb(18 26 46 / 0.06), 0 24px 48px -20px rgb(18 26 46 / 0.3);
   --backdrop: rgb(11 27 63 / 0.4);
@@ -111,6 +125,19 @@
     --series-6: #9085e9;
     --series-7: #7b8496;
     --series-8: #555e70;
+    --wx-sun: #f0b43c;
+    --wx-moon: #cfd3dc;
+    --wx-cloud: #7b8598;
+    --wx-cloud-rain: #5e687b;
+    --wx-rain: #79a3ff;
+    --wx-bar: #34528f;
+    --wx-snow: #a8cbf5;
+    --wx-line: #f08a5d;
+    --wx-area: rgb(240 138 93 / 0.12);
+    --ck-office: #1f4a38;
+    --ck-part: #193628;
+    --ck-night: #141c2e;
+    --ck-band: #5fd3a0;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 28px -12px rgb(0 0 0 / 0.6);
     --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.4), 0 28px 56px -20px rgb(0 0 0 / 0.8);
     --backdrop: rgb(0 0 0 / 0.6);
@@ -158,6 +185,19 @@
   --series-6: #9085e9;
   --series-7: #7b8496;
   --series-8: #555e70;
+  --wx-sun: #f0b43c;
+  --wx-moon: #cfd3dc;
+  --wx-cloud: #7b8598;
+  --wx-cloud-rain: #5e687b;
+  --wx-rain: #79a3ff;
+  --wx-bar: #34528f;
+  --wx-snow: #a8cbf5;
+  --wx-line: #f08a5d;
+  --wx-area: rgb(240 138 93 / 0.12);
+  --ck-office: #1f4a38;
+  --ck-part: #193628;
+  --ck-night: #141c2e;
+  --ck-band: #5fd3a0;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 28px -12px rgb(0 0 0 / 0.6);
   --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.4), 0 28px 56px -20px rgb(0 0 0 / 0.8);
   --backdrop: rgb(0 0 0 / 0.6);
@@ -6473,7 +6513,7 @@ ol.a4-list > li::before {
     display: none;
   }
 }
-/* widgets (birds/web/static/widgets.js): places + map, company, currency, event */
+/* widgets (birds/web/static/widgets.js): places + map, company, currency, weather, world clock, event */
 .widgets {
   display: grid;
   gap: 14px;
@@ -6967,6 +7007,469 @@ ol.a4-list > li::before {
   }
 }
 
+/* weather (MET Norway): head, facts, hourly strip (inline SVG), 7-day tiles */
+.wx-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 18px;
+}
+.wx-place {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+.wx-name {
+  font-size: 1.1rem;
+}
+.wx-region {
+  font-size: 0.84rem;
+}
+.wx-day {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-block-start: 4px;
+  font-size: 0.84rem;
+}
+.wx-day .muted::first-letter,
+.wx-dow::first-letter,
+.ck-dow::first-letter {
+  text-transform: uppercase;
+}
+.wx-pill,
+.ck-you {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.wx-now {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wx-now-text {
+  display: grid;
+  gap: 1px;
+}
+.wx-temp {
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.wx-sky {
+  font-weight: 600;
+}
+.wx-when {
+  font-size: 0.78rem;
+}
+.wx-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+.wx-fact {
+  display: grid;
+  align-content: start;
+  gap: 1px;
+  padding: 7px 10px;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+}
+.wx-fact dt {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.wx-fact dd {
+  margin: 0;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.wx-date {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.wx-block,
+.ck-board {
+  display: grid;
+  gap: 6px;
+  min-inline-size: 0;
+}
+.wx-block-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px 12px;
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.wx-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  font-weight: 400;
+}
+.wx-key,
+.ck-key {
+  display: inline-block;
+  border-radius: 2px;
+}
+.wx-key-line {
+  inline-size: 14px;
+  block-size: 3px;
+  background: var(--wx-line);
+}
+.wx-key-bar {
+  inline-size: 8px;
+  block-size: 10px;
+  margin-inline-start: 6px;
+  background: var(--wx-bar);
+}
+.wx-strip-box {
+  inline-size: 100%;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+.wx-strip {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+}
+.wx-strip .wx-t {
+  font: 600 12px/1 var(--sans);
+  fill: var(--ink);
+}
+.wx-strip .wx-h {
+  font: 11px/1 var(--sans);
+  fill: var(--muted);
+}
+.wx-strip .wx-r {
+  font: 600 11px/1 var(--sans);
+  fill: var(--wx-rain);
+}
+.wx-line {
+  fill: none;
+  stroke: var(--wx-line);
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.wx-area {
+  fill: var(--wx-area);
+}
+.wx-dot {
+  fill: var(--surface);
+  stroke: var(--wx-line);
+  stroke-width: 2;
+}
+.wx-bar {
+  fill: var(--wx-bar);
+}
+.wx-axis {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+.wx-icon {
+  flex: none;
+  overflow: visible;
+}
+.wx-sun,
+.wx-bolt {
+  fill: var(--wx-sun);
+}
+.wx-ray {
+  stroke: var(--wx-sun);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.wx-moon {
+  fill: var(--wx-moon);
+}
+.wx-cloud {
+  fill: var(--wx-cloud);
+}
+.wx-cloud.wx-cloud-rain {
+  fill: var(--wx-cloud-rain);
+}
+.wx-drop {
+  stroke: var(--wx-rain);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.wx-flake {
+  fill: var(--wx-snow);
+}
+.wx-unknown {
+  fill: none;
+  stroke: var(--wx-cloud-rain);
+  stroke-width: 2;
+  stroke-dasharray: 3 2.5;
+  stroke-linecap: round;
+}
+.wx-fog {
+  stroke: var(--wx-cloud-rain);
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+.wx-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wx-tile {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 8px 2px 7px;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  font-size: 0.8rem;
+  line-height: 1.15;
+}
+.wx-tile.is-current {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.wx-dow {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.wx-hi {
+  font-weight: 700;
+}
+.wx-lo {
+  color: var(--muted);
+}
+.wx-mm {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--wx-rain);
+}
+.wx-mm.is-dry {
+  font-weight: 400;
+  color: var(--muted);
+}
+.wx-unit {
+  margin: 0;
+  font-size: 0.74rem;
+  text-align: end;
+}
+.ev-weather {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--ink-2);
+}
+
+/* world clock: live local times, 24-hour board of office hours, common slot */
+.ck-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ck-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 9px;
+  border-block-end: 1px solid var(--line);
+}
+.ck-row:first-child {
+  padding-block-start: 0;
+}
+.ck-row:last-child {
+  border-block-end: 0;
+}
+.ck-city {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-inline-size: 0;
+}
+.ck-you {
+  padding: 1px 8px;
+  font-size: 0.72rem;
+}
+.ck-meta {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+}
+.ck-clock {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: none;
+}
+.ck-time {
+  font-size: 1.65rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.ck-dow {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.ck-key {
+  inline-size: 12px;
+  block-size: 10px;
+  background: var(--ck-office);
+}
+.ck-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 7.5rem) repeat(24, minmax(0, 1fr));
+  align-items: center;
+  column-gap: 1px;
+  row-gap: 5px;
+}
+.ck-hour {
+  justify-self: start;
+  font-size: 0.7rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ck-label {
+  overflow: hidden;
+  padding-inline-end: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ck-label.is-user {
+  color: var(--accent-strong);
+}
+.ck-cell {
+  position: relative;
+  block-size: 24px;
+  border-radius: 2px;
+  background: var(--surface-2);
+}
+.ck-cell.is-night {
+  background: var(--ck-night);
+}
+.ck-cell.is-part {
+  background: var(--ck-part);
+}
+.ck-cell.is-office {
+  background: var(--ck-office);
+}
+.ck-cell[data-h]::after {
+  content: attr(data-h);
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 1; /* above the next cells: a two-digit hour is wider than a cell on a phone */
+  display: grid;
+  place-items: center start;
+  padding-inline-start: 2px;
+  white-space: nowrap;
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+.ck-band {
+  z-index: 1;
+  align-self: stretch;
+  margin-block: -3px;
+  border: 2px solid var(--ck-band);
+  border-radius: 6px;
+  pointer-events: none;
+}
+.ck-band.is-wide {
+  border-style: dashed;
+  border-color: var(--warn-ink);
+}
+.ck-now {
+  z-index: 2;
+  justify-self: start;
+  align-self: stretch;
+  inline-size: 2px;
+  margin-block: -6px;
+  margin-inline-start: calc(var(--at, 0) * 100%);
+  border-radius: 1px;
+  background: var(--danger-ink);
+}
+.ck-slot {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-inline-start: 3px solid var(--ck-band);
+  border-radius: var(--radius-s);
+  background: var(--eco-soft);
+}
+.ck-slot.is-wide {
+  border-color: var(--warn-line);
+  background: var(--warn-bg);
+}
+.ck-slot-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+.ck-slot.is-wide .ck-slot-title {
+  color: var(--warn-ink);
+}
+.ck-slot .muted {
+  font-size: 0.82rem;
+}
+.ck-slot-list {
+  display: grid;
+  gap: 4px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ck-slot-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+}
+.ck-slot-list strong {
+  font-size: 1.1rem;
+}
+.ck-slot-others {
+  flex-basis: 100%;
+  font-size: 0.82rem;
+  color: var(--ink-2);
+}
+@media (max-width: 480px) {
+  .wx-temp {
+    font-size: 2.1rem;
+  }
+  .wx-tile {
+    padding-inline: 0;
+    font-size: 0.74rem;
+  }
+  .ck-time {
+    font-size: 1.4rem;
+  }
+  .ck-grid {
+    grid-template-columns: minmax(3.6rem, 4.8rem) repeat(24, minmax(0, 1fr));
+  }
+  .ck-cell[data-h]::after {
+    font-size: 0.6rem;
+  }
+  .ck-cell[data-h]:not(.is-major)::after {
+    display: none; /* every 6 h on a phone: no hour runs into the next one */
+  }
+}
 /* event */
 .ev-grid {
   display: grid;

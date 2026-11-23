@@ -172,7 +172,6 @@ class Backend(Protocol):
     def run(self, request: ChatRequest, ctx: RunContext) -> None: ...
 
 
-
 def step_event(
     index: int,
     tool: str,
@@ -390,14 +389,19 @@ _DEMO_MARKERS = {
 
 
 def widget_scenario(text: str) -> str:
-    """The widget demo for a request the harness would prefill (places, company, fx) or an event ask."""
+    """The widget demo for a request the harness would prefill (places, company, fx, weather), a world clock ask or
+    an event ask."""
     from datetime import datetime
 
-    from birds.harness import intents
+    from birds.harness import clock, intents
 
     found = [i for i in intents.detect(text) if i.args]
     if found:
-        return {"find_places": "places", "find_company": "company", "convert_currency": "fx"}[found[0].tool]
+        return {"find_places": "places", "find_company": "company", "convert_currency": "fx",
+                "get_weather": "weather"}[found[0].tool]  # fmt: skip
+    ck = clock.detect(text)
+    if ck and ck["cities"]:
+        return "clock"
     from .widgets import event_widget, tz_or_default
 
     if event_widget(text, datetime.now(tz_or_default(None)), "fr") or event_widget(
@@ -472,6 +476,7 @@ class DemoBackend:
             "find_places",
             "find_company",
             "convert_currency",
+            "get_weather",
         ]
     )
 
@@ -749,7 +754,7 @@ class _DemoRun:
     def _last(self) -> str:
         return next((m["content"] for m in reversed(self.req.messages) if m["role"] == "user"), "")
 
-    def _widget_step(self, tool: str, args: dict):
+    def _widget_step(self, tool: str, args: dict, words: str = "", now=None):
         from types import SimpleNamespace
 
         from birds.harness import guard
@@ -777,7 +782,7 @@ class _DemoRun:
         )  # fmt: skip
         step = SimpleNamespace(tool=tool, info=info, error=error)
         widgets = localise_maps(
-            build_widgets([step], "", self.lang, _now(None), self.ctx.secret or b"demo", geo_on=True)
+            build_widgets([step], words, self.lang, now or _now(None), self.ctx.secret or b"demo", geo_on=True)
         )
         return widgets, sources, info
 
@@ -868,6 +873,95 @@ class _DemoRun:
         )
         self.finish(text, sources=self._sources(urls, {urls[0]: self.t("BCE — taux de référence",
                                                                         "ECB — reference rates")}), widgets=widgets)  # fmt: skip
+
+    def scenario_weather(self) -> None:
+        from birds.harness import intents
+
+        from .demo_widgets import MET_RECORDED
+
+        intent = next(i for i in intents.detect(self._last()) if i.args)
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        recorded = datetime.fromisoformat(MET_RECORDED).astimezone(ZoneInfo("Europe/Paris"))  # the forecast's instant
+        widgets, urls, _ = self._widget_step("get_weather", intent.args, self._last(), recorded)
+        w = next((x for x in widgets if x["type"] == "weather"), None)
+        if not w:
+            return self.finish(self.t(
+                f"Je n'ai pas de prévision enregistrée pour « {intent.args['place']} » en mode démo (seulement Lyon, "
+                "Lille, Nantes et Londres, enregistrées le 23 novembre 2026). Je n'invente pas de météo.",
+                f"I have no recorded forecast for '{intent.args['place']}' in demo mode (only Lyon, Lille, Nantes and "
+                "London, recorded on 23 November 2026). I do not invent weather.",
+            ))  # fmt: skip
+        s, p = w["summary"], w["place"]
+        from datetime import date
+
+        d = date.fromisoformat(w["day"])
+        day = (["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"][d.weekday()] + f" {d.day}"
+               if self.lang == "fr" else d.strftime("%A %-d"))  # fmt: skip
+        rain = s.get("rain_mm") or 0
+        fr_rain = "sans pluie prévue" if not rain else f"avec {str(rain).replace('.', ',')} mm de pluie prévus"
+        en_rain = "with no rain expected" if not rain else f"with {rain} mm of rain expected"
+        text = self.t(
+            f"À {p['name']}, {day} : **{s['label'].lower()}**, de {s['min']} à {s['max']} °C, {fr_rain} "
+            f"et un vent jusqu'à {s['wind_kmh']} km/h [1]. Le détail heure par heure et les 7 prochains jours sont "
+            "sur la carte ci-dessous ; ce sont des prévisions de MET Norway.",
+            f"In {p['name']}, {day}: **{s['label'].lower()}**, {s['min']} to {s['max']} °C, {en_rain} and wind up "
+            f"to {s['wind_kmh']} km/h [1]. The hourly detail and the next 7 days are on the card below; these are "
+            "MET Norway forecasts.",
+        )
+        text += self.t(
+            f"\n\n*Démo : prévision enregistrée le {MET_RECORDED[8:10]}/{MET_RECORDED[5:7]}/{MET_RECORDED[:4]}.*",
+            f"\n\n*Demo: forecast recorded on {MET_RECORDED[:10]}.*",
+        )
+        self.finish(text, sources=self._sources(urls, {urls[0]: "MET Norway — Locationforecast"} if urls else {}),
+                    widgets=widgets)  # fmt: skip
+
+    def scenario_clock(self) -> None:
+        from birds.harness import clock
+
+        from .widgets import tz_or_default
+
+        found = clock.detect(self._last())
+        zone = str(tz_or_default(self.req.tz))
+        w = clock.card(found, _now(self.req.tz), self.lang, zone) if found else None
+        if not w:
+            return self.finish(self.t("Je ne connais pas cette ville.", "I do not know this city."))
+        self.think(
+            "Les heures se calculent sans outil : fuseaux de la table, heures de bureau 9 h–18 h.",
+            "The times are computed without a tool: zones from the table, office hours 9am-6pm.",
+        )
+        rows = w["cities"]
+        me = next((r for r in rows if r["user"]), rows[0])
+        others = [r for r in rows if r is not me]
+        if w.get("common"):
+            i = rows.index(me)
+            s = w["common"][0]
+            text = self.t(
+                f"Créneau commun : **{s['local'][i][0]}–{s['local'][i][1]}** heure de {me['name']}, soit "
+                + ", ".join(f"{s['local'][rows.index(r)][0]}–{s['local'][rows.index(r)][1]} à {r['name']}"
+                            for r in others) + ".",
+                f"Common slot: **{s['local'][i][0]}–{s['local'][i][1]}** {me['name']} time, i.e. "
+                + ", ".join(f"{s['local'][rows.index(r)][0]}–{s['local'][rows.index(r)][1]} in {r['name']}"
+                            for r in others) + ".",
+            )  # fmt: skip
+        elif w.get("wide") and w.get("mode") == "slot":
+            i = rows.index(me)
+            s = w["wide"][0]
+            text = self.t(
+                "Aucun créneau commun aux heures de bureau. Le meilleur compromis : "
+                f"**{s['local'][i][0]}–{s['local'][i][1]}** heure de {me['name']}, soit "
+                + ", ".join(f"{s['local'][rows.index(r)][0]} à {r['name']}" for r in others) + ".",
+                "No common office-hours slot. The best compromise: "
+                f"**{s['local'][i][0]}–{s['local'][i][1]}** {me['name']} time, i.e. "
+                + ", ".join(f"{s['local'][rows.index(r)][0]} in {r['name']}" for r in others) + ".",
+            )  # fmt: skip
+        else:
+            text = self.t(
+                "Il est " + ", ".join(f"**{r['local'][11:]}** à {r['name']}" for r in others or rows) + ".",
+                "It is " + ", ".join(f"**{r['local'][11:]}** in {r['name']}" for r in others or rows) + ".",
+            )
+        self.finish(text, widgets=[w])
 
     def scenario_event(self) -> None:
         from .demo_widgets import recorded
@@ -1580,9 +1674,7 @@ def earlier_image_texts(messages: list[dict]) -> list[tuple[str, str]]:
 
     notes = "|".join(re.escape(n) for n in _IMAGE_NOTE.values())
     untrusted = "|".join(re.escape(n) for n in guard.UNTRUSTED_NOTE.values())
-    block = re.compile(
-        rf"\[(?:{notes}) : ([^\]\n]+)\]\n(?:(?:{untrusted})\n)?(.*?)(?=\n\n\[|\Z)", re.S
-    )
+    block = re.compile(rf"\[(?:{notes}) : ([^\]\n]+)\]\n(?:(?:{untrusted})\n)?(.*?)(?=\n\n\[|\Z)", re.S)
     found: dict[str, str] = {}
     for m in messages:
         if m.get("role") != "user":
@@ -1941,6 +2033,7 @@ class HarnessBackend:
                         lang=rl,
                         request_text=words,
                         attached=bool(names or image_texts),
+                        tz=request.tz,
                     )
             ctx.check()
             report = run.report or {}
@@ -2120,6 +2213,7 @@ class HarnessBackend:
             return build_widgets(
                 run.steps, "" if request.attachments and not words else words, lang, _now(request.tz),
                 ctx.secret or b"x", draft=draft, holidays=holidays, layer=opts.get("layer", "osm"),
+                extra=getattr(run, "widgets", None),
             )  # fmt: skip
         except Exception:  # noqa: BLE001 - a widget bug must never lose the answer
             return []

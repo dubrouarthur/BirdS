@@ -7,6 +7,7 @@ from birds.harness.tools.company import find_company
 from birds.harness.tools.files import make_document, make_sheet, make_slides, read_file
 from birds.harness.tools.fx import convert_currency
 from birds.harness.tools.places import find_places
+from birds.harness.tools.weather import get_weather
 from birds.harness.tools.web import (
     BraveBackend,
     SearxngBackend,
@@ -31,6 +32,7 @@ TOOLS = {
     "find_places": find_places,
     "find_company": find_company,
     "convert_currency": convert_currency,
+    "get_weather": get_weather,
 }
 
 __all__ = [

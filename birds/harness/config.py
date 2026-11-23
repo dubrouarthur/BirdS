@@ -71,6 +71,9 @@ class Config:
     ban_url: str = "https://data.geopf.fr/geocodage/search"
     company_url: str = "https://recherche-entreprises.api.gouv.fr/search"
     fx_url: str = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+    met_url: str = "https://api.met.no/weatherapi/locationforecast/2.0/compact"
+    # MET Norway's terms: identify the application and a contact site (never a person's name or e-mail)
+    met_user_agent: str = "BirdHarness/0.1 (+https://bird-s.vercel.app)"
     geo_cache_dir: str | None = None  # optional disk cache (file names are hashes, never the query)
 
 
@@ -99,6 +102,7 @@ class Context:
     attached: bool = False  # the request comes with a document or an image (find_places: the user's words only)
     geo_calls: int = 0  # upstream geocoder requests of this run (cap: geo.MAX_LOOKUPS_PER_RUN)
     place_calls: int = 0  # successful find_places calls of this run
+    widgets: list[dict] = field(default_factory=list)  # cards the harness computed itself, no tool (world clock)
 
     @property
     def workspace(self) -> Path:

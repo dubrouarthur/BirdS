@@ -287,8 +287,11 @@ def places(text: str, lang: str = "fr") -> Intent | None:
         if 2 <= len(items) <= 5:
             return Intent("find_places", {"query": " ; ".join(items)}, keep_web=True, mode="list")
     m = _RX_NEAR.search(t)
-    if m and re.search(r"itin[ée]raire|trajet|comment (?:aller|se rendre)|directions?|how (?:do i |to )?get", t, re.I) \
-            and not re.search(r"pr[eè]s d|autour d|[àa] c[ôo]t[ée] d|proches? d|alentours|near|around|close to", t, re.I):
+    if (
+        m
+        and re.search(r"itin[ée]raire|trajet|comment (?:aller|se rendre)|directions?|how (?:do i |to )?get", t, re.I)
+        and not re.search(r"pr[eè]s d|autour d|[àa] c[ôo]t[ée] d|proches? d|alentours|near|around|close to", t, re.I)
+    ):
         m = None  # « itinéraire de la gare de Lyon à la tour Eiffel »: a route, the « à » is its destination
     if m:
         near = _clean_name(m.group("near"))
@@ -334,8 +337,10 @@ def places(text: str, lang: str = "fr") -> Intent | None:
         kn = re.match(r"(?P<kind>.+?)\s+(?:de|du|d'|à|a|au|aux|in|of)\s*(?P<near>[^\s].*)$", q, re.I)
         if kn and _kind_of(kn.group("kind")) and len(kn.group("near")) >= 3:
             return Intent(
-                "find_places", {"query": _kind_of(kn.group("kind")), "near": _clean_name(kn.group("near"))},
-                keep_web=False, mode="near",
+                "find_places",
+                {"query": _kind_of(kn.group("kind")), "near": _clean_name(kn.group("near"))},
+                keep_web=False,
+                mode="near",
             )
         if _placey(q):
             return Intent("find_places", {"query": q}, keep_web=False, mode="where")
@@ -528,6 +533,154 @@ def fx(text: str, lang: str = "fr") -> Intent | None:
     return None
 
 
+# ---------------------------------------------------------------- weather
+
+_WX_NEVER = re.compile(
+    r"\b(?:climat\w*|m[ée]t[ée]o\s+(?:des?\s+march[ée]s|sociale|boursi[èe]re|financi[èe]re|[ée]conomique|du moral|"
+    r"interne|des ventes|des projets|de l'[ée]quipe|d'[ée]quipe|politique|des affaires|du business|des prix|du "
+    r"recrutement|RH)|barom[èe]tre|temps\s+(?:de\s+r[ée]ponse|de\s+trajet|de\s+chargement|de\s+travail|de\s+calcul|"
+    r"de\s+parole|partiel|plein|libre|r[ée]el|fort|mort|d'arr[êe]t|de\s+cycle|d'attente|de\s+lecture)|"
+    r"pluie\s+de\s+(?:critiques|r[ée]clamations|commentaires|messages|mails|e-mails|notifications)|"
+    r"under the weather|weather the|weather (?:a|this|the) (?:storm|crisis)|sales forecast|forecast(?:ing)? (?:of|for) "
+    r"(?:sales|revenue|demand|the budget)|business climate|temp[ée]rature\s+(?:du|de la|des|of the)\s+(?:serveur|"
+    r"server|cpu|processeur|gpu|moteur|machine|four|frigo|eau|mod[èe]le|model|sampling|[ée]chantillonnage)|"
+    r"temperature (?:parameter|setting|of \d))\b",
+    re.I,
+)
+_WX_ASK = re.compile(
+    r"\b(?:m[ée]t[ée]o|pr[ée]visions?\s+m[ée]t[ée]o|weather|quel\s+temps|(?:le\s+)?temps\s+qu'il\s+(?:fait|fera|va\s+faire)|"
+    r"il\s+fait\s+quel\s+temps|(?:va[- ]t[- ]il|il\s+va|est-ce\s+qu'il\s+va)\s+(?:pleuvoir|neiger|geler|faire\s+"
+    r"(?:beau|froid|chaud|moche|doux))|pleut[- ]il|il\s+pleut|neige[- ]t[- ]il|il\s+neige|"
+    r"fera[- ]t[- ]il\s+(?:beau|froid|chaud|doux)|il\s+fera\s+(?:beau|froid|chaud|doux)|fait[- ]il\s+(?:beau|froid|chaud|"
+    r"doux)|temp[ée]ratures?|parapluie|umbrella|risque\s+de\s+(?:pluie|neige|gel|orage)|"
+    r"(?:will|is)\s+it\s+(?:going\s+to\s+)?(?:rain|snow|be\s+(?:sunny|cold|hot|warm|nice))\w*|is\s+it\s+(?:raining|"
+    r"snowing)|chances?\s+of\s+(?:rain|snow)|how\s+(?:cold|hot|warm)\s+(?:is|will)\s+it)\b",
+    re.I,
+)
+# « il fait beau à Nice » is weather, « il fait beau ce projet » is not: the bare form needs a place after it
+_WX_BARE = re.compile(r"\bil\s+fait\s+(?:beau|froid|chaud|doux)\s+(?:à|a|au|en|sur)\s+(?=\S)", re.I)
+_WX_DAY = re.compile(
+    r"\b(?:(?:ce|cette|this)\s+)?(?:week-?end|weekend)\b|\b(?:après-demain|apres-demain|aujourd'hui|demain|"
+    r"the day after tomorrow|tomorrow|today|tonight|ce soir|ce matin|cet après-midi|cet apres-midi|ce midi|"
+    r"cette nuit|this (?:morning|afternoon|evening))\b|"
+    r"\b(?:(?:ce|this|next|on)\s+)?(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|monday|tuesday|wednesday|"
+    r"thursday|friday|saturday|sunday)(?:\s+prochain|\s+matin|\s+soir|\s+apr[èe]s-midi|\s+morning|\s+afternoon)?\b|"
+    r"\b(?:le\s+|on\s+)?\d{1,2}(?:er)?\s+(?:janvier|f[ée]vrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|"
+    r"novembre|d[ée]cembre|january|february|march|april|may|june|july|august|september|october|november|december)\b|"
+    r"\b(?:le\s+)?\d{1,2}/\d{1,2}\b|\b20\d\d-\d\d-\d\d\b",
+    re.I,
+)
+_WX_STOP = frozenset(
+    """il elle on ce cet cette ces le la les l un une moi me nous vous toi it the an us this that
+    temps beau froid chaud doux moche pluie neige vent soleil orage gel météo meteo weather forecast prévision
+    prévisions prevision previsions semaine week mois month matin soir nuit midi journée journee heure heures
+    prochain prochaine prochains next coming demain aujourd hui today tomorrow quoi quel quelle what how faire fera
+    va pleuvoir neiger there here là ici y chez maison home bureau office notre nos votre vos mon ma mes my our your
+    température températures temperature temperatures parapluie umbrella risque chance chances région region coin
+    rain snow sunny cold hot warm raining snowing moment instant""".split()
+)
+_WX_CUT = frozenset(
+    "et and ou or avec with pour for à a au in si if quand when est-ce va-t-il stp svp est sont is are depuis since"
+    .split()  # fmt: skip
+)
+# asks that are office talk, not weather: « quel temps de livraison », « quel temps faut-il pour traiter »,
+# « il pleut des bugs », « le parapluie de garantie », « le projet Météo », « the weather station »
+_WX_FALSE_ASK = re.compile(
+    r"\bquel\s+temps\s+(?:de\s+(?!chien\b|cochon\b)|d'|du\s+|des\s+|faut|fau(?:dra|t)|met|prend|pour\s+(?:faire|traiter|"
+    r"livrer|pr[ée]parer|valider|recevoir|obtenir)\b)|"
+    r"\bil\s+(?:pleut|neige)\b(?!\s+(?:(?:aujourd'hui|demain|encore|toujours|beaucoup|fort|ce\s+\w+)\s+)?"
+    r"(?:à|a|au|aux|en|sur)\s)|"
+    r"\bparapluies?\b(?:\s+(?:de\s+(?!pluie)|publicitaires?|personnalis|logot|brand|juridique|fiscal|assuranc|"
+    r"d'assurance|contractuel|social|financier|of\s))|"
+    r"(?:\b(?:projets?|programmes?|produits?|stations?|applis?|applications?|app|logiciels?|modules?|dossiers?|"
+    r"[ée]quipes?|clients?|offres?|op[ée]rations?|project|product|team)\s+m[ée]t[ée]o\b|\bm[ée]t[ée]o(?=\s+"
+    r"(?:station|app|product|project|data|api|stations?|projet)\b)|(?-i:(?<=[a-zà-ÿ,] )M[ée]t[ée]o)\b)|"
+    r"\bm[ée]t[ée]o\s+(?:du|des|de\s+la|de\s+l'|of)\s+(?:chiffre|ca\b|ventes?|budget|tr[ée]sorerie|march[ée]s?|stocks?|"
+    r"bourse|cours|r[ée]sultats?|commandes?|recrutements?|carnet|sales|revenue)|"
+    r"\bweather\s+(?:stations?|app|product|project|data|api|widget|service|team|startup|company)\b",
+    re.I,
+)
+# a preposition (or « météo ») then, in a lookahead so that « pour à Lille » still sees « à Lille », the place
+_WX_PLACE = re.compile(
+    r"(?:\b(?:à|a|au|aux|en|sur|pour|vers|près\s+de|pres\s+de|in|at|for|near|around|de|du)\s+|\bd'|"
+    r"\b(?:m[ée]t[ée]o|weather|forecast)\s+)"
+    r"(?=(?:la\s+|le\s+|l'|les\s+|the\s+)?(?P<p>[\wÀ-ÿ'-]+(?:\s+[\wÀ-ÿ'-]+){0,4}))",
+    re.I,
+)
+
+
+def _wx_place(t: str) -> str:
+    """The first plausible place in ``t`` (the day words already removed), or ''."""
+    for m in _WX_PLACE.finditer(t):
+        words: list[str] = []
+        for w in m.group("p").split():
+            lw = w.lower().strip("'")
+            if lw in _WX_STOP or (lw in _WX_CUT and (words or lw not in ("a",))):
+                break
+            words.append(w)
+        while words and words[-1].lower() in ("de", "du", "des", "la", "le", "les", "d'", "sur", "en", "of"):
+            words.pop()
+        while words and words[0].lower() in ("de", "du", "des", "la", "le", "les", "sur", "en", "of", "pour", "à", "a", "au"):
+            words.pop(0)  # « météo de Marseille »
+        name = " ".join(words).strip(" '-")
+        if len(name) < 2 or name.lower() in _WX_STOP or name.isdigit() or not _ok(name) or _not_a_place(name):
+            continue
+        return name
+    return ""
+
+
+def _wx_false(raw: str, m: re.Match) -> bool:
+    """The ask word at ``m`` is part of office talk (``_WX_FALSE_ASK`` overlaps it): it does not count."""
+    for f in _WX_FALSE_ASK.finditer(raw):
+        if f.start() < m.end() and m.start() < f.end():
+            return True
+    return False
+
+
+def _wx_named(place: str) -> bool:
+    """A pre-call needs a real name: a capitalised word, a landmark of a named place (« gare de Lyon »), or a
+    city or country of the clock table (« lyon »). « le salon de Lyon », « livraison »: offered only."""
+    from birds.harness import clock
+
+    if place[:1].isupper():
+        return True
+    if _LANDMARK.match(place) and re.search(r"\s[A-ZÀ-Ý]", place):
+        return True
+    f = clock.fold(place)
+    return f in clock._ALIAS or f in clock.COUNTRIES
+
+
+def weather(text: str, lang: str = "fr") -> Intent | None:
+    raw = " ".join(_URL.sub(" ", (text or "").replace("’", "'")).split())
+    if not raw or _WX_NEVER.search(raw) or _HOWTO.search(raw):
+        return None
+    asks = [m for m in _WX_ASK.finditer(raw) if not _wx_false(raw, m)]
+    if not (asks or _WX_BARE.search(raw)):
+        return None
+    if (
+        re.search(r"\btemp[ée]ratures?\b", raw, re.I)
+        and not re.search(
+            r"\b(?:m[ée]t[ée]o|weather|fera|fait|demain|tomorrow|aujourd'hui|today|ext[ée]rieure?|outside|degr[ée]s?|"
+            r"froid|chaud|cold|hot|ce\s+week-?end|(?:lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche))\b",
+            raw,
+            re.I,
+        )
+        and not re.search(r"\btemp[ée]ratures?\s+(?:à|a|in|at)\s+[A-ZÀ-Ý]", raw)
+    ):
+        return None  # « la température idéale d'un bureau » is not a forecast ask
+    day_m = _WX_DAY.search(raw)
+    day = " ".join(day_m.group(0).split()) if day_m else ""
+    rest = _WX_DAY.sub(" ", raw) if day_m else raw
+    rest = re.sub(r"\btemps\s+de\s+(?:chien|cochon)\b", "temps", rest, flags=re.I)  # an idiom, not a place
+    place = _wx_place(normalise(rest))
+    if not place or not _wx_named(place):
+        return Intent("get_weather", None, keep_web=True)  # « le salon de Lyon »: offered, never pre-called
+    args = {"place": place}
+    if day and not re.fullmatch(r"(?:aujourd'hui|today)", day, re.I):
+        args["day"] = day
+    return Intent("get_weather", args, keep_web=False)
+
+
 # ---------------------------------------------------------------- all together
 
 
@@ -537,6 +690,7 @@ def detect(text: str, attached: bool = False, lang: str = "fr") -> list[Intent]:
     c = company(text, lang)
     p = places(text, lang)
     f = fx(text, lang)
+    w = weather(text, lang)
     if attached and p:  # never an automatic lookup next to a document; find_places then only accepts the user's
         p = Intent("find_places", None)  # own words as query (tools/places.py), never an address read in the file
     if c and c.args:  # the register's address is authoritative: company wins the prefill, places is offered
@@ -545,10 +699,12 @@ def detect(text: str, attached: bool = False, lang: str = "fr") -> list[Intent]:
             out.append(Intent("find_places", None, keep_web=True))
     elif f and f.args:
         out.append(f)
+    elif w and w.args:  # « météo à la gare de Lyon »: the forecast, not a map
+        out.append(w)
     elif p and p.args:
         out.append(p)
-        if c:
-            out.append(c)
+        if c or w:
+            out.append(c or w)
     else:
-        out += [i for i in (p, c, f) if i]
+        out += [i for i in (w, p, c, f) if i]
     return out[:2]

@@ -176,7 +176,7 @@ def harness_config(s: Settings) -> dict:
         "geo_cache_dir": s.geo_cache_dir,
         **{
             k: getattr(s, k)
-            for k in ("nominatim_url", "photon_url", "ban_url", "company_url", "fx_url")
+            for k in ("nominatim_url", "photon_url", "ban_url", "company_url", "fx_url", "met_url")
             if getattr(s, k, None)
         },
     }
@@ -342,6 +342,7 @@ TOOL_TEXT = {  # why a tool is on or off on this deployment, for the "available 
     "find_places": ("Cherche des lieux et adresses (OpenStreetMap)", "Finds places and addresses (OpenStreetMap)"),
     "find_company": ("Consulte l'annuaire officiel des entreprises", "Looks up the official French company register"),
     "convert_currency": ("Convertit une somme au taux BCE du jour", "Converts an amount at the ECB rate of the day"),
+    "get_weather": ("Prévisions météo (MET Norway)", "Weather forecast (MET Norway)"),
     "run_python": (
         "Désactivé : exécuter du code demande un vrai bac à sable, absent de ce déploiement",
         "Off: running code needs a real sandbox, which this deployment does not have",
