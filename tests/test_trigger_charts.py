@@ -227,3 +227,25 @@ def test_mettre_and_you_graph_are_chart_verbs(text):
 @pytest.mark.parametrize("text", ["mets à jour le tableau des congés", "passe-moi le mail de Paul"])
 def test_mettre_and_passer_alone_are_not_chart_asks(text):
     assert not chart_ask(text)
+
+
+HEADCOUNT = "Effectifs :\n\n| Site | Salariés |\n|---|---|\n| Paris | 120 |\n| Lyon | 45 |\n| Lille | 30 |"
+
+
+@pytest.mark.parametrize(
+    "ask",
+    ["fais un camembert du budget marketing", "make a chart of this year revenue by region in Europe please"],
+)
+def test_a_new_chart_subject_never_reuses_the_previous_figures(tmp_path, ask):
+    history = [{"role": "user", "content": "les effectifs par site"}, {"role": "assistant", "content": HEADCOUNT}]
+    llm = FakeClient(["Quels sont les montants du budget marketing ?"])
+    run = Agent(llm, Tok(), Config(workspace=tmp_path)).run(ask, lang="fr", history=history)
+    assert not any(c["rows"] and c["rows"][0][0] == "Paris" for c in run.charts)
+    assert not (run.steps and run.steps[0].tool == "make_chart")
+
+
+@pytest.mark.parametrize("ask", ["chart this please", "make a chart of this", "mets ça sous forme de courbe"])
+def test_a_pointer_after_the_verb_is_a_follow_up(tmp_path, ask):
+    history = [{"role": "user", "content": "les effectifs par site"}, {"role": "assistant", "content": HEADCOUNT}]
+    run = Agent(FakeClient(["Voici."]), Tok(), Config(workspace=tmp_path)).run(ask, lang="fr", history=history)
+    assert run.charts and [r[0] for r in run.charts[0]["rows"]] == ["Paris", "Lyon", "Lille"]

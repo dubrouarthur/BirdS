@@ -403,18 +403,34 @@ def chart_call(request: str, data, lang: str) -> dict:
     return args
 
 
-# a follow-up that points at the previous answer: « mets ça en graphique », « fais-en un camembert »
+# a follow-up that points at the previous answer: « mets ça en graphique », « fais-en un camembert », « chart this »
 _FOLLOWUP = re.compile(
-    r"\b(?:ça|ca|cela|ce tableau|ces (?:chiffres|données|donnees|résultats|resultats)|fais-en|"
-    r"(?:le|la|les|l')\s*(?:mettre|mets|refaire|refais|passer|transformer)|this|that|it|these)\b|"
+    r"\b(?:ça|ca|cela|ce tableau|ces (?:chiffres|données|donnees|résultats|resultats|valeurs)|fais-en|"
+    r"(?:le|la|les|l')\s*(?:mettre|mets|refaire|refais|passer|transformer|représenter|representer)|"
+    r"(?:refais|remets|mets|passe|transforme|fais)\s+(?:le|la|les)\b|"
+    r"(?:chart|graph|plot|make|turn|put|draw|show)\s+(?:it|this|that|these|them)\b|"
+    r"(?:this|that|the) (?:table|data|figures|numbers)|(?:of|from) (?:it|this|that|these|them)\s*[.!?]*\s*"
+    r"(?:please)?\s*[.!?]*$)|"
     r"-(?:le|la|les|en)\b",
+    re.I,
+)
+# « fais un camembert du budget marketing », « a chart of revenue by region »: a new subject, not the last answer
+_NEW_SUBJECT = re.compile(
+    r"\b(?:de|du|des|d'|of|about|on)\s+(?:la\s+|le\s+|les\s+|l'|the\s+|our\s+|nos\s+|notre\s+)?"
+    r"(?!(?:ça|ca|cela|ce|ces|cette|it|this|that|these|them|courbes?|barres?|b[âa]tons|camemberts?|secteurs|"
+    r"graphiques?|histogrammes?|diagrammes?|lignes?|charts?|graphs?|pie|bars?|lines?|forme)\b)[^\W\d_]{3,}",
     re.I,
 )
 _MEMO_ROWS = re.compile(r"(?:graphique affiché|chart shown) : .*? — (?P<rows>[^\n]+)")
 
 
 def _followup(request: str) -> bool:
-    return bool(_FOLLOWUP.search(request or "")) or len((request or "").split()) <= 6
+    """The request points at the previous answer (« mets ça en graphique ») and names no subject of its own; or it
+    is a bare type (« en camembert ? »)."""
+    req = request or ""
+    if _NEW_SUBJECT.search(req):
+        return False
+    return bool(_FOLLOWUP.search(req)) or len(req.split()) <= 3
 
 
 def _previous_answer(history: list[dict]) -> str:
