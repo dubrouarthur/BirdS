@@ -13,8 +13,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from datetime import datetime  # noqa: E402
 from zoneinfo import ZoneInfo  # noqa: E402
 
-from birds.harness import clock, crew, intents, when  # noqa: E402
-from birds.harness.agent import chart_ask, chart_call, detect_lang, figures_in, route  # noqa: E402
+from birds.harness import clock, crew, followup, intents, when  # noqa: E402
+from birds.harness.agent import (  # noqa: E402
+    _previous_answer,
+    chart_ask,
+    chart_call,
+    detect_lang,
+    figures_in,
+    route,
+)
 from birds.web.widgets import event_widget  # noqa: E402
 
 CHART_YES = [
@@ -501,6 +508,176 @@ OFFICE_AGENT_NO = [
     "Rédige un mail à Sophie pour lui envoyer le compte rendu\nPrésents : Marie Dupont, Julien Martin",
     "Traduis ce texte en anglais\nDevis 1 – Alpha : 12 000 €\nDevis 2 – Beta : 10 500 €",
 ]
+# ---------------------------------------------------------------- follow-ups, pictures, and realistic phrasings
+# a short follow-up re-asks the previous turn's rich result (its context comes from the server memo, followup.py)
+_W = {"tool": "get_weather", "args": {"place": "Lyon", "day": "demain"}}
+_P = {"tool": "find_places", "args": {"query": "restaurant", "near": "gare de Lyon"}}
+_PW = {"tool": "find_places", "args": {"query": "tour Eiffel"}}
+_F = {"tool": "convert_currency", "args": {"from": "EUR", "to": "USD", "amount": 100}}
+_C = {"tool": "clock", "args": {"cities": ["Tokyo"], "mode": "time"}}
+_CO = {"tool": "find_company", "args": {"name": "Michelin"}}
+_CHART = "chart"  # the previous answer showed a chart
+FOLLOWUP_YES = [  # (previous context, follow-up, the call it must start)
+    (_W, "et à Paris ?", ("get_weather", {"place": "Paris", "day": "demain"})),
+    (_W, "et Tokyo ?", ("get_weather", {"place": "Tokyo", "day": "demain"})),
+    (_W, "et après-demain ?", ("get_weather", {"place": "Lyon", "day": "après-demain"})),
+    (_W, "et samedi à Nice ?", ("get_weather", {"place": "Nice", "day": "samedi"})),
+    (_W, "pareil pour Bordeaux", ("get_weather", {"place": "Bordeaux", "day": "demain"})),
+    (_W, "what about tomorrow?", ("get_weather", {"place": "Lyon", "day": "tomorrow"})),
+    (_W, "et des restaurants autour ?", ("find_places", {"query": "restaurant", "near": "Lyon"})),
+    (_P, "et à Lyon ?", ("find_places", {"query": "restaurant", "near": "Lyon"})),
+    (_P, "et des hôtels ?", ("find_places", {"query": "hotel", "near": "gare de Lyon"})),
+    (_PW, "et des restaurants autour ?", ("find_places", {"query": "restaurant", "near": "tour Eiffel"})),
+    (_PW, "et le Louvre ?", ("find_places", {"query": "Louvre"})),
+    (_PW, "et la météo là-bas ?", ("get_weather", {"place": "tour Eiffel"})),
+    (_F, "et en livres ?", ("convert_currency", {"from": "EUR", "to": "GBP", "amount": 100})),
+    (_F, "et 500 ?", ("convert_currency", {"from": "EUR", "to": "USD", "amount": 500.0})),
+    (_F, "et en yens", ("convert_currency", {"from": "EUR", "to": "JPY", "amount": 100})),
+    (_C, "et Sydney ?", ("clock", ["Sydney"])),
+    (_C, "et à New York ?", ("clock", ["New York"])),
+    (_CO, "et Danone ?", ("find_company", {"name": "Danone"})),
+    (_CHART, "en camembert plutôt", ("chart", "pie")),
+    (_CHART, "et en courbe ?", ("chart", "line")),
+    (_CHART, "plutôt en barres", ("chart", "bar")),
+]
+OFFICE_NO = [  # ordinary office prompts: no rich content at all, alone or right after a rich result
+    "rédige un mail de relance pour la facture 2024-118",
+    "résume ce compte rendu en 5 points",
+    "traduis ce paragraphe en anglais",
+    "quel est le délai de préavis pour une démission ?",
+    "prépare l'ordre du jour de la réunion de lundi",
+    "améliore l'image de marque de notre PME",
+    "le climat de l'équipe est tendu, des conseils ?",
+    "la courbe d'apprentissage d'Excel est raide",
+    "comment rédiger une offre d'emploi attractive ?",
+    "fais-moi un tableau des congés de l'équipe",
+    "quelle est la différence entre CDD et CDI ?",
+    "écris un post LinkedIn sur notre nouveau produit",
+    "peux-tu relire ce contrat ?",
+    "où en est le dossier Martin ?",
+    "il faut faire le point sur le budget marketing",
+    "donne-moi 5 idées de team building",
+    "quelles sont les étapes d'un recrutement ?",
+    "explique-moi la TVA intracommunautaire",
+    "la tendance est au télétravail, qu'en penses-tu ?",
+    "la photo de profil de mon compte Teams ne s'affiche pas",
+    "convertis ce document Word en PDF",
+    "réunion annulée demain, préviens l'équipe",
+    "quel est le taux de TVA sur la restauration ?",
+    "combien coûte un salarié au SMIC pour l'employeur ?",
+    "mets à jour le planning de la semaine",
+    "c'est quoi un KPI ?",
+    "calcule la marge sur un produit vendu 120 € acheté 80 €",
+    "liste les risques du projet Atlas",
+    "il faut améliorer l'image de l'entreprise auprès des jeunes",
+    "quel temps de réponse pour le support client ?",
+    "quelles sont les prévisions de vente pour 2027 ?",
+    "la météo du projet est au vert",
+    "crée une image de couverture pour la newsletter",
+    "mets une photo de l'équipe dans le document",
+    "quelle image donner à nos clients ?",
+    "comment insérer une photo dans Word ?",
+    "quel est le décalage entre le budget et le réel ?",
+    "le cours de formation Excel commence quand ?",
+    "et maintenant rédige le mail",
+    "merci !",
+    "et pour la réunion ?",
+    "et le projet ?",
+    "ok",
+    "et à Lyon, combien de salariés ?",
+]
+FOLLOWUP_NO = [(prev, q) for prev in (_W, _P, _PW, _F, _C, _CO, _CHART) for q in OFFICE_NO]
+IMAGES_YES = [  # (ask, the subject searched)
+    ("montre-moi une photo de la tour Eiffel", "tour Eiffel"),
+    ("à quoi ressemble le Mont-Saint-Michel ?", "Mont-Saint-Michel"),
+    ("show me a picture of a koala", "koala"),
+    ("Montre moi des photos de koalas", "koalas"),
+    ("des images de Lyon", "Lyon"),
+    ("What does the Eiffel Tower look like", "Eiffel Tower"),
+    ("show me what the Burj Khalifa looks like", "Burj Khalifa"),
+    ("trouve-moi une image du Taj Mahal pour ma présentation", "Taj Mahal"),
+    ("j'aimerais voir des photos de Kyoto", "Kyoto"),
+    ("j'aimerais voir à quoi ressemble Marrakech", "Marrakech"),
+    ("tu peux me montrer une image de la Joconde ?", "Joconde"),
+    ("montre-moi une photo du pont du Gard", "pont du Gard"),
+    ("à quoi ressemble la cathédrale de Strasbourg ?", "cathédrale de Strasbourg"),
+    ("show me photos of the Grand Canyon", "Grand Canyon"),
+    ("des photos du château de Chambord stp", "château de Chambord"),
+    ("image de la Grande Muraille de Chine", "Grande Muraille de Chine"),
+    ("montre une image d'un panda roux", "panda roux"),
+    ("can you find me a picture of the Golden Gate Bridge?", "Golden Gate Bridge"),
+]
+IMAGES_NO = [
+    "image de marque de notre entreprise",
+    "comment améliorer l'image de l'entreprise ?",
+    "droit à l'image des salariés",
+    "l'image de la société s'est dégradée",
+    "génère une image de chat",
+    "insère une photo de la tour Eiffel dans la présentation",
+    "montre-moi les photos de la soirée",
+    "une photo de Marie Dupont",
+    "à quoi ressemble un bon CV ?",
+    "à quoi ressemble une journée type chez Google",
+    "photo de profil LinkedIn : conseils",
+    "une image vaut mille mots",
+    "images de synthèse : quel logiciel ?",
+    "show me pictures of our team",
+    "décris cette image",
+    "ajoute une image dans la diapo 3",
+    "l'image du service client s'est améliorée",
+    "faut-il une photo sur un CV ?",
+]
+REALISTIC_YES = [  # (phrasing, family it must START): realistic asks found missing or fixed in this round
+    ("prévisions pour Lille demain matin", "get_weather"),
+    ("what's the weather like in Madrid this weekend?", "get_weather"),
+    ("forecast for Berlin on Monday", "get_weather"),
+    ("quelle météo à Bordeaux jeudi ?", "get_weather"),
+    ("doit-on prendre un parapluie à Rennes demain ?", "get_weather"),
+    ("risque de neige à Clermont-Ferrand samedi ?", "get_weather"),
+    ("il va faire froid à Strasbourg demain ?", "get_weather"),
+    ("where is the nearest pharmacy to the Louvre?", "find_places"),
+    ("la pharmacie la plus proche du Louvre", "find_places"),
+    ("the closest ATM to Times Square", "find_places"),
+    ("y a-t-il une boulangerie près de la gare Saint-Lazare ?", "find_places"),
+    ("trouve un parking à côté du Zénith de Nantes", "find_places"),
+    ("hôtels près du Palais des congrès de Lyon", "find_places"),
+    ("any good restaurants near the Colosseum?", "find_places"),
+    ("je cherche un coworking à Bordeaux", "find_places"),
+    ("show me hotels around Gare du Nord", "find_places"),
+    ("10 000 yens ça fait combien ?", "convert_currency"),
+    ("50 dollars c'est combien en euros ?", "convert_currency"),
+    ("le taux euro dollar aujourd'hui", "convert_currency"),
+    ("convertis 2 500 € en francs suisses", "convert_currency"),
+    ("1 200 GBP en EUR stp", "convert_currency"),
+    ("combien valent 200 francs suisses ?", "convert_currency"),
+    ("fiche entreprise de la société Alan", "find_company"),
+    ("qui est le dirigeant de BlaBlaCar ?", "find_company"),
+    ("numéro SIRET de la société Qonto", "find_company"),
+    ("on est à quelle heure à Los Angeles ?", "clock"),
+    ("quelle heure est-il à Saint-Denis ?", "clock"),
+    ("quel décalage avec Sydney ?", "clock"),
+    ("best time to call Tokyo from Paris", "clock"),
+    ("programmer une formation le 15 janvier", "event"),
+    ("réserve une salle pour la formation le 12 janvier", "event"),
+    ("planifie un call avec le fournisseur le 2 décembre à 11h", "event"),
+    ("fixe un rendez-vous avec Maître Durand jeudi 16h", "event"),
+    ("fais un histogramme : Q1 40, Q2 55, Q3 61, Q4 70", "chart"),
+    ("plot this: Jan 10, Feb 14, Mar 9, Apr 17", "chart"),
+]
+CHART_HOWTO_NO = [  # questions ABOUT charts: no make_chart offered, nothing drawn
+    "comment faire un graphique dans Excel ?",
+    "je voudrais savoir comment insérer un graphique dans Word",
+    "tuto pour faire une courbe sur Excel",
+    "quel graphique choisir pour montrer une répartition ?",
+    "Quel type de graphique pour des données temporelles ?",
+    "Peux-tu m'expliquer comment tracer une courbe de tendance dans Excel ?",
+    "définition d'un diagramme de Pareto",
+    "étapes pour créer un graphique croisé dynamique",
+    "montre-moi comment faire un graphique dans Excel",
+    "which chart should I use for market share?",
+    "dans quel cas utiliser un camembert plutôt qu'un histogramme ?",
+]
+
 NOW = datetime(2026, 11, 23, 10, 0, tzinfo=ZoneInfo("Europe/Paris"))
 
 
@@ -578,6 +755,68 @@ def agent_on(q: str) -> bool:
     return bool(crew.decide(q, mode="auto", lang="fr").recipe)
 
 
+_CHART_HISTORY = [
+    {"role": "user", "content": "le CA par trimestre"},
+    {"role": "assistant", "content": "Voilà.\n\n[Mémo de ce tour — graphique affiché : « CA » (bar) colonnes T / CA — "
+     "T1 120 ; T2 135 ; T3 150]"},
+]  # fmt: skip
+
+
+def _follow(prev, q):
+    """What a follow-up starts: ("chart", type) | ("clock", [cities]) | (tool, args) | None."""
+    if prev == _CHART:
+        if not followup.chart_retype(q):
+            return None
+        rows = figures_in(_previous_answer(_CHART_HISTORY))
+        return ("chart", chart_call(q, rows, "fr")["type"]) if rows else None
+    if intents.detect(q, False, "fr") and any(i.args for i in intents.detect(q, False, "fr")):
+        return None  # a complete ask of its own is read as itself
+    got = followup.resolve(q, prev, "fr")
+    if got is None:
+        return None
+    if got.tool == "clock":
+        found = clock.detect(got.args["text"])
+        return ("clock", [c["fr"] for c in found["cities"]]) if found else None
+    return (got.tool, got.args)
+
+
+def followup_ok(item) -> bool:
+    prev, q, want = item
+    return _follow(prev, q) == want
+
+
+def followup_touched(item) -> bool:
+    prev, q = item[:2]
+    return _follow(prev, q) is not None
+
+
+def images_ok(q) -> bool:
+    text, subject = q if isinstance(q, tuple) else (q, None)
+    got = intents.images(text)
+    return bool(got) and (subject is None or got.args["query"] == subject)
+
+
+def _started(q: str, family: str) -> bool:
+    if family == "clock":
+        found = clock.detect(q)
+        return bool(found and found["cities"])
+    if family == "event":
+        return event_widget(q, NOW, detect_lang(q)) is not None
+    if family == "chart":
+        return chart_offered(q) and chart_ask(q) and figures_in(q) is not None
+    return any(i.tool == family and i.args for i in intents.detect(q, False, "fr"))
+
+
+def realistic_ok(item) -> bool:
+    return _started(*item)
+
+
+def anything(q: str) -> bool:
+    """Any rich content at all: an intent (even only offered), a clock, an event card, a chart offer, pictures."""
+    return bool(intents.detect(q, False, "fr") or clock.detect(q) or event_widget(q, NOW, detect_lang(q))
+                or chart_offered(q) or intents.images(q))  # fmt: skip
+
+
 def bench(name: str, yes: list[str], no: list[str], fn, touched=None) -> tuple[int, int]:
     miss = [q for q in yes if not fn(q)]
     false = [q for q in no if (touched or fn)(q)]
@@ -603,6 +842,10 @@ if __name__ == "__main__":
         ("company_fx", COMPANY_FX_YES, COMPANY_FX_NO, company_fx_started, company_fx_touched),
         ("events", EVENT_YES, EVENT_NO, event_card),
         ("office_agent", OFFICE_AGENT_YES, OFFICE_AGENT_NO, agent_on),
+        ("followups", FOLLOWUP_YES, FOLLOWUP_NO, followup_ok, followup_touched),
+        ("images", IMAGES_YES, IMAGES_NO, images_ok),
+        ("realistic", REALISTIC_YES, OFFICE_NO, realistic_ok, anything),
+        ("chart_howto", [], CHART_HOWTO_NO, chart_touched),
     ):
         ok, n = bench(*args)
         total[0] += ok
