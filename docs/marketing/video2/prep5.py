@@ -13,7 +13,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SCR = "/tmp/claude-0/-home-user-BirdS/27eb98ec-b9ba-5cf1-a125-8008c93c0d55/scratchpad/video5"
 CAP = os.path.join(SCR, "cap")
 OUT = os.path.join(SCR, "assets")
-SCENES = {"mail": "mail", "deck": "deck", "chart": "chart", "rich": "rich_b"}
+SCENES = {k: k for k in ("mail", "deck", "chart", "rich", "places", "weather", "clock", "agent")}
 
 data = {}
 for key, d in SCENES.items():

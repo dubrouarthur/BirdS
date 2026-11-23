@@ -1,8 +1,29 @@
-Bright Tomorrow - John Bartmann (album "Machine Learning")
-Licence: CC0 1.0 Universal (public domain dedication) - commercial use OK, no attribution required.
+Bright Tomorrow - John Bartmann (album "Machine Learning", 2021)
 Source: https://freemusicarchive.org/music/John_Bartmann/machine-learning/bright-tomorrow/
-Licence: https://creativecommons.org/publicdomain/zero/1.0/
-Retrieved 2026-11-22. SHA-256 of John_Bartmann_-_Bright_Tomorrow.mp3:
+Album:  https://freemusicarchive.org/music/John_Bartmann/machine-learning/
+
+Licence: the track page states CC0 1.0 Universal (https://creativecommons.org/publicdomain/zero/1.0/).
+The album description on the same site also says "Creative Commons CC-BY 4.0 License. You must add this
+credit to the description of your video or podcast: Music by John Bartmann https://johnbartmann.com".
+Both allow commercial use. We follow the stricter reading (CC BY 4.0: author, title, licence with a link,
+and a note that the track was edited), which also covers the album page's own credit line. Wherever the
+video is published, put this exact line in the description / caption:
+
+    Music: "Bright Tomorrow" by John Bartmann (https://johnbartmann.com), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), excerpted/edited
+
+Retrieved 2026-11-22, re-verified 2026-11-23. SHA-256 of John_Bartmann_-_Bright_Tomorrow.mp3:
 bfae394b1b54096dde982f6d9159264afe558f8aaed0ed056965cf7826ffc5f0
-Optional courtesy credit: "Musique : John Bartmann - Bright Tomorrow (CC0)".
-Real track by a human musician (page states "AI generated? No"); used unedited apart from excerpting/fades.
+Real track by a human musician (track page: "AI generated? No"); used unedited apart from excerpting,
+splicing on the beat grid, fades and loudness normalisation.
+
+In bird-promo-v5-9x16.mp4 the credit is also shown on the end card:
+    Musique : « Bright Tomorrow », John Bartmann · johnbartmann.com
+Excerpt used: track 0.750-1.940 s (opening swell), then 153.416 s to the ending (faded out), see audio.py.
+
+Posting checklist (every platform: Reels, TikTok, Shorts, LinkedIn, YouTube):
+  [ ] Description / caption contains, verbatim (mandatory: the on-screen credit is only an extra and
+      platform overlays may cover it):
+      Music: "Bright Tomorrow" by John Bartmann (https://johnbartmann.com), CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), excerpted/edited
+  [ ] No synthetic voice added by the platform editor; no extra music layered on top.
+  [ ] End card shows bird-s.vercel.app; if a webinar is scheduled, set WEBINAR_DATE / WEBINAR_URL in
+      promo.html and re-render before posting.

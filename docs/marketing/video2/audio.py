@@ -4,11 +4,14 @@ Usage: python audio.py cues.json out.wav
   cues.json = window.AUDIO from promo.html (dumped by render.js):
     {clips: [[video_t, track_t0, track_t1], ...], fadeOut: [t0, t1], whoosh: [t, ...], duration}
 
-Music: « Bright Tomorrow », John Bartmann, album « Machine Learning » (2021), CC0 1.0 Universal
-(see music/LICENSE). 122 BPM, downbeats at 1.882 + n x 1.9672 s in the track.
-The edit: the opening swell (track 0.750-1.882 s) under the first title, then, from the first
-downbeat, the track from its bar 79 (157.291 s) to its own ending (breakdown, final hit, ring-out).
-Both pieces meet on a downbeat with a 25 ms equal-power crossfade, so the grid never slips.
+Music: « Bright Tomorrow », John Bartmann, album « Machine Learning » (2021), Free Music Archive
+(see music/LICENSE.txt: the track page says CC0, the album page says CC BY 4.0; every post's description
+carries the full CC BY 4.0 credit line given there, and the end card shows a short extra credit).
+122 BPM, downbeats at 1.968 + n x 1.9672 s in the track.
+The edit: the opening swell (track 0.750-1.940 s) under the first title, then, from the first downbeat, the
+track from its bar 77 (153.444 s) to its own ending (breakdown at bar 93, final hit 188.068 s, ring-out),
+faded out under the end card. Both pieces meet on a downbeat with a 25 ms equal-power crossfade, so the grid
+never slips.
 Sound design: two very soft, low-passed air whooshes on the main transitions, about 20 dB under
 the music; nothing else.
 Mastering: two-pass ffmpeg loudnorm (linear) to -14 LUFS integrated, true peak <= -1 dBTP;

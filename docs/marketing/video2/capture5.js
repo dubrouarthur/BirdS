@@ -1,6 +1,7 @@
 // v5: capture real, unedited Bird sessions of the current app (new UI) as PNG sequences.
 // Usage: node capture5.js <scene names...>   (server: scripts/serve.py ... --port 9081)
-//   scenes: mail deck chart rich
+//   scenes: mail deck chart rich places weather clock agent
+//   BIRD_URL=http://127.0.0.1:9082/ (demo server) for the cards whose live data calls are blocked
 // Each scene: one live request typed into the real composer, screenshots every ~250 ms on an
 // iPhone-like viewport (390x844 @3x), timing.json with the capture clock. Nothing is retouched.
 const { chromium } = require("playwright");
@@ -28,7 +29,23 @@ const SCENES = {
   },
   rich: {
     prompt:
-      "Comment inverser une chaîne en Python ? Réponse courte avec un exemple de code.",
+      "Explique les listes en compréhension en Python : une phrase, trois points clés en liste, puis un court exemple de code.",
+    fast: true, // as many frames as the screenshots allow: the bird's wings beat next to « Bird »
+  },
+  places: {
+    prompt: "Restaurants près de la gare de Lyon",
+    widget: ".widget-places .map-frame",
+  },
+  weather: { prompt: "Météo à Lyon demain", widget: ".widget-weather" },
+  clock: {
+    prompt: "Trouve un créneau commun Paris Montréal Singapour",
+    widget: ".widget-clock",
+  },
+  agent: {
+    prompt:
+      "Prépare une présentation de 5 slides pour lancer notre newsletter interne : objectifs, contenu, rythme, équipe, prochaines étapes.",
+    agent: "on",
+    deck: true,
   },
 };
 
@@ -40,6 +57,7 @@ const HIDE = `
 async function run(name, tag) {
   const sc = {
     ...SCENES[name],
+    ...(process.env.HIDE_DEMO ? { hideDemo: true } : {}),
     ...(process.env.PROMPT ? { prompt: process.env.PROMPT } : {}),
   };
   const dir = path.join(ROOT, "cap", `${name}${tag || ""}`);
@@ -86,11 +104,16 @@ async function run(name, tag) {
     while (shooting) {
       const s = Date.now();
       await shot().catch(() => {});
-      const wait = 250 - (Date.now() - s);
+      const wait = (sc.fast ? 0 : 250) - (Date.now() - s);
       if (wait > 0) await page.waitForTimeout(wait);
     }
   })();
 
+  if (sc.agent) {
+    await page.selectOption("#agent-mode", sc.agent).catch(() => {});
+    await page.waitForTimeout(400);
+  }
+  if (sc.hideDemo) await page.addStyleTag({ content: ".badge-demo, .tag-scripted { display: none !important; }" });
   await page.locator("#composer-input").click();
   await page.keyboard.type(sc.prompt, { delay: 35 });
   await page.waitForTimeout(400);
@@ -139,6 +162,16 @@ async function run(name, tag) {
         .catch(() => {});
       await page.waitForTimeout(800);
       marks.fullClosed = now();
+    }
+  }
+  if (sc.widget) {
+    const w = page.locator(sc.widget).last();
+    if (await w.count()) {
+      await w.evaluate((el) =>
+        el.scrollIntoView({ block: "center", behavior: "smooth" }),
+      );
+      await page.waitForTimeout(2200);
+      marks.widgetShown = now();
     }
   }
   if (sc.chart) {

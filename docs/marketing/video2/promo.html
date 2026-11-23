@@ -4,9 +4,12 @@
 <meta charset="utf-8">
 <script>
   // ==================== OWNER SETTING ====================
-  // Next webinar, shown under « Rejoignez notre prochain webinaire » on the end card.
-  // Both empty by default: the card then shows the invitation only (no invented date or link).
-  // Example: WEBINAR_DATE = 'jeudi 11 décembre · 12 h 30'; WEBINAR_URL = 'bird.example.fr/webinaire';
+  // End card. The main call to action is the invitation « Rejoignez notre prochain webinaire » (owner request).
+  // « Essayez Bird » + TRY_URL (the public Bird app) is the secondary line under the card.
+  const TRY_URL = 'bird-s.vercel.app';
+  // Next webinar: both empty by default, the card then shows the invitation only (no invented date or link);
+  // when set, the date and link appear in the card under the invitation.
+  // Example: WEBINAR_DATE = 'jeudi 11 décembre · 12 h 30'; WEBINAR_URL = 'bird-s.vercel.app/webinaire';
   const WEBINAR_DATE = '';
   const WEBINAR_URL = '';
   // =======================================================
@@ -18,7 +21,8 @@
   animations, no timers. Product footage = real Playwright captures of the current Bird app
   (capture5.js, live model, iPhone-like 390x844 @3x), shown unedited: only scaled, panned and
   sped up, with a visible « Accéléré ×N » chip on every sped-up stretch (N = the real speed-up).
-  Music: « Bright Tomorrow », John Bartmann (CC0), 122 BPM; audio.py places it on this clock.
+  Music: « Bright Tomorrow », John Bartmann (album « Machine Learning », FMA; see music/LICENSE.txt:
+  the full credit line given there goes in every post's description; a small extra credit on the end card), 122 BPM; audio.py places it on this clock.
   Every scene boundary sits on the track's beat grid (window.AUDIO lists the grid).
   Safe area for 9:16 social: key text between y = 250 and y = 1650. No voice-over.
 -->
@@ -53,22 +57,7 @@
   #lock { left:0; right:0; top:470px; display:flex; justify-content:center; align-items:center; gap:30px; }
   #lock .nm { font-size:200px; line-height:1; letter-spacing:-0.05em; font-weight:800; }
   #bl { left:0; right:0; top:850px; text-align:center; font-size:76px; line-height:1.18; }
-  #bsub { left:0; right:0; top:1110px; text-align:center; font-size:40px; font-weight:500; color:var(--mute); line-height:1.4; }
-  #bsub b { color:#fff; font-weight:600; }
-
-  /* size */
-  #szh { left:0; right:0; top:300px; text-align:center; height:240px; }
-  #szh > div { position:absolute; left:0; right:0; top:0; font-size:96px; line-height:1.08; }
-  #ghost { left:540px; top:1130px; width:900px; height:900px; margin:-450px 0 0 -450px; border-radius:50%; border:2px dashed rgba(157,187,255,.42); }
-  #giant { left:540px; top:1130px; width:900px; height:900px; margin:-450px 0 0 -450px; border-radius:50%;
-           background:radial-gradient(circle at 42% 36%, #2f6cf0 0%, #2258d6 48%, #1a47ad 100%); box-shadow:0 30px 90px rgba(5,12,35,.45); }
-  #gtxt { left:0; right:0; top:1030px; text-align:center; }
-  #gtxt b { display:block; font-family:'Inter Display','Inter',sans-serif; font-weight:700; font-size:64px; letter-spacing:-0.02em; }
-  #gtxt span { display:block; margin-top:14px; font-size:36px; font-weight:500; color:#dce6ff; }
-  #dot { left:495px; top:1085px; width:90px; height:90px; border-radius:50%; background:var(--green); }
-  #tinyl { left:0; right:0; top:1210px; text-align:center; }
-  #tinyl b { display:block; font-family:'Inter Display','Inter',sans-serif; font-weight:700; font-size:56px; letter-spacing:-0.02em; }
-  #tinyl span { display:block; margin-top:8px; font-size:34px; font-weight:500; color:var(--green); }
+  #bsub { left:0; right:0; top:1120px; text-align:center; font-size:30px; font-weight:600; color:var(--mute); letter-spacing:.14em; text-transform:uppercase; }
 
   /* device */
   #device { left:0; top:0; transform-origin:0 0; width:608px; height:1329px; border-radius:78px; display:none;
@@ -86,9 +75,9 @@
            background:linear-gradient(180deg,var(--navy) 0%,var(--navy) 82%,rgba(11,27,63,0) 100%); }
   .cap { left:72px; right:72px; top:262px; display:none; }
   .cap .ct { margin-top:22px; font-size:78px; line-height:1.08; }
-  .etag { margin-top:28px; display:inline-flex; align-items:center; gap:14px; height:54px; padding:0 24px 0 8px; border-radius:27px;
-          background:rgba(91,214,155,.12); border:1px solid rgba(91,214,155,.45); font-size:27px; white-space:nowrap; }
-  .etag .leaf { width:38px; height:38px; }
+  .etag { margin-top:26px; display:inline-flex; align-items:center; gap:16px; height:70px; padding:0 30px 0 10px; border-radius:35px;
+          background:rgba(91,214,155,.16); border:2px solid rgba(91,214,155,.6); font-size:34px; white-space:nowrap; }
+  .etag .leaf { width:50px; height:50px; }
   .etag b { font-weight:700; color:#fff; }
   .etag span.l { font-weight:500; color:#bfe9d4; }
   #chip { right:72px; top:252px; height:48px; padding:0 20px 0 16px; border-radius:24px; display:none;
@@ -104,21 +93,21 @@
   #credo .ln.s { font-size:54px; font-weight:600; color:var(--mute); margin-top:22px; letter-spacing:-0.015em; }
 
   /* end card */
-  #elock { left:0; right:0; top:330px; display:flex; justify-content:center; align-items:center; gap:18px; }
+  #elock { left:0; right:0; top:440px; display:flex; justify-content:center; align-items:center; gap:18px; }
   #elock .nm { font-size:84px; line-height:1; letter-spacing:-0.05em; font-weight:800; }
-  #fut { left:0; right:0; top:520px; text-align:center; font-size:108px; line-height:1.06; }
-  #inv { left:90px; right:90px; top:900px; padding:50px 56px 54px; border-radius:40px; text-align:center; background:#fff; color:var(--navy);
+  #fut { left:0; right:0; top:630px; text-align:center; font-size:108px; line-height:1.06; }
+  #inv { left:90px; right:90px; top:1000px; padding:48px 56px 52px; border-radius:40px; text-align:center; background:#fff; color:var(--navy);
          box-shadow:0 40px 90px rgba(2,8,24,.40); }
   #inv .kick { color:var(--blue); display:flex; justify-content:center; align-items:center; gap:14px; }
   #inv .kick i { display:block; width:12px; height:12px; border-radius:50%; background:var(--green); }
   #inv .it { margin-top:22px; font-size:76px; line-height:1.08; letter-spacing:-0.03em; }
   #inv .it em { font-style:normal; color:var(--blue); }
-  #inv .det { margin-top:30px; padding-top:28px; border-top:2px solid #E6EBF5; display:none; }
-  #inv .dd { font-size:40px; font-weight:700; color:var(--navy); letter-spacing:-0.01em; }
-  #inv .du { margin-top:10px; font-size:34px; font-weight:600; color:var(--blue); }
-  #try { left:0; right:0; text-align:center; font-size:38px; font-weight:600; color:#fff; }
-  #try span { color:var(--light); }
+  #inv .url { margin-top:28px; padding-top:26px; border-top:2px solid #E6EBF5; font-size:52px; font-weight:700; color:var(--blue); letter-spacing:-0.015em; }
+  #web { left:60px; right:60px; text-align:center; font-size:38px; font-weight:600; color:#fff; }
+  #web span { color:var(--light); }
+  #web .det { display:none; margin-top:12px; font-size:32px; font-weight:600; color:var(--mute); }
   #efr { left:0; right:0; display:flex; justify-content:center; align-items:center; gap:18px; font-size:26px; font-weight:600; color:var(--mute); letter-spacing:.16em; text-transform:uppercase; }
+  #mcred { left:0; right:0; top:1600px; text-align:center; font-size:24px; font-weight:500; color:rgba(184,199,230,.72); letter-spacing:.01em; }
   #efr i { display:block; width:48px; height:2px; border-radius:1px; background:rgba(157,187,255,.5); }
 </style>
 </head>
@@ -140,20 +129,7 @@
   <div id="sBrand" class="scene">
     <div id="lock" class="abs"><span id="lockm"></span><span class="nm disp">Bird</span></div>
     <div id="bl" class="abs disp"><span class="ln">Des modèles d’IA tout petits,</span><span class="ln">performants et <span class="grn">sobres.</span></span></div>
-    <div id="bsub" class="abs">Pour vos <b>mails</b>, vos <b>présentations</b>, vos <b>chiffres</b>.</div>
-  </div>
-
-  <!-- size -->
-  <div id="sSize" class="scene">
-    <div id="szh" class="abs disp">
-      <div id="szq"><span class="ln">Toujours</span><span class="ln">plus gros&nbsp;?</span></div>
-      <div id="sza"><span class="ln">Nous&nbsp;:</span><span class="ln"><span class="grn">100×</span> plus petit.</span></div>
-    </div>
-    <div id="ghost" class="abs"></div>
-    <div id="giant" class="abs"></div>
-    <div id="gtxt" class="abs"><b>Les géants de l’IA</b><span>des centaines de milliards de paramètres</span></div>
-    <div id="dot" class="abs"></div>
-    <div id="tinyl" class="abs"><b>Bird</b><span>4 milliards de paramètres</span></div>
+    <div id="bsub" class="abs">Bird S 4B · Bird Models</div>
   </div>
 
   <!-- product -->
@@ -180,12 +156,13 @@
     <div id="elock" class="abs"><span id="elockm"></span><span class="nm disp">Bird</span></div>
     <div id="fut" class="abs disp"><span class="ln">Le futur de l’IA</span><span class="ln">sera <span class="acc">petit.</span></span></div>
     <div id="inv" class="abs">
-      <div class="kick"><i></i><span>Webinaire</span></div>
-      <div class="it disp"><span class="ln">Rejoignez notre</span><span class="ln"><em>prochain webinaire</em></span></div>
-      <div class="det"><div class="dd" id="wdate"></div><div class="du" id="wurl"></div></div>
+      <div class="kick"><i></i><span>Webinaire Bird Models</span></div>
+      <div class="it disp"><span class="ln">Rejoignez notre</span><span class="ln">prochain <em>webinaire</em></span></div>
+      <div class="url" id="wdet"></div>
     </div>
-    <div id="try" class="abs">Essayez <span>Bird</span></div>
+    <div id="web" class="abs">Essayez Bird · <span id="turl"></span></div>
     <div id="efr" class="abs"><i></i><span>Conçu en France</span><i></i></div>
+    <div id="mcred" class="abs">Musique : « Bright Tomorrow », John Bartmann · johnbartmann.com</div>
   </div>
 </div>
 
@@ -202,62 +179,92 @@
   const $ = (id) => document.getElementById(id);
 
   // ---------- beat grid: « Bright Tomorrow », 122 BPM ----------
-  // Measured on the track: kick on every downbeat at 1.968 + n x BAR s (bar 65 = 129.835 s, bar 79 = 157.378 s).
+  // Measured on the track: a kick on every downbeat at 1.968 + n x BAR s; the groove runs from bar 65 to bar 92,
+  // the breakdown starts at bar 93 (184.92 s), the final hit is at 188.068 s, then the ring-out.
   // video 0 = track 0.750 s (the opening swell), so the first downbeat (track 1.968 s) is at T0 = 1.218 s.
-  // Just before it, audio.py splices to the same point of bar 79 (157.350 s, 28 ms before its kick), so the
-  // grid continues unbroken to the track's own ending.
+  // Just before it, audio.py splices to the same point of bar 77 (153.416 s, 28 ms before its kick), so the
+  // grid continues unbroken to the track's own ending: the end card lands on the breakdown (bar 93 = at(16)).
   const BEAT = 60 / 122, BAR = 4 * BEAT, T0 = 1.218;
   const at = (bars, beats = 0) => T0 + bars * BAR + beats * BEAT;
   const S = {
-    o1:    [0, at(0, 2)],          // L'IA ne cesse de grossir.
-    o2:    [at(0, 2), at(1, 2)],   // Nous, on la rend toute petite.
-    brand: [at(1, 2), at(3)],      // Bird: tout petits, performants et sobres
-    size:  [at(3), at(5)],         // toujours plus gros ? / nous : 100x plus petit
-    mail:  [at(5), at(7)],
-    deck:  [at(7), at(9)],
-    chart: [at(9), at(10, 1)],
-    rich:  [at(10, 1), at(12)],
-    credo: [at(12), at(14)],       // last two bars of the groove
-    end:   [at(14), 35.0],         // the track's own ending: breakdown, final hit, ring-out
+    o1:        [0, at(0, 2)],          // L'IA ne cesse de grossir.
+    o2:        [at(0, 2), at(1, 2)],   // Nous, on la rend toute petite.
+    brand:     [at(1, 2), at(2, 2)],   // Bird: tout petits, performants et sobres
+    mail:      [at(2, 2), at(4)],
+    deck:      [at(4), at(5, 2)],
+    chart:     [at(5, 2), at(6, 2)],
+    rich:      [at(6, 2), at(8)],
+    places:    [at(8), at(9, 2)],
+    weather:   [at(9, 2), at(10, 2)],
+    clock:     [at(10, 2), at(12)],
+    agent:     [at(12), at(13)],       // the team at work
+    agentdeck: [at(13), at(14)],       // what it delivered
+    credo:     [at(14), at(16)],       // last two bars of the groove
+    end:       [at(16), 38.9],         // breakdown, final hit, ring-out
   };
-  const HIT = T0 + (188.068 - 157.378);   // the track's final hit (track 188.068 s), 31.91 s
+  const HIT = T0 + (188.068 - 153.444);   // the track's final hit, 35.84 s
   const DURATION = S.end[1];
-  const CONV = ['mail', 'deck', 'chart', 'rich'];
+  const CONV = ['mail', 'deck', 'chart', 'rich', 'places', 'weather', 'clock', 'agent', 'agentdeck'];
+  const SRC = { agentdeck: 'agent' };     // capture folder of a scene, when it differs from its name
+  const GROUP = { agentdeck: 'agent' };   // the caption stays on screen across these scenes
+  const srcOf = (k) => SRC[k] || k, grpOf = (k) => GROUP[k] || k;
 
   // Capture mapping per product scene: [u0, u1, c0, c1] (scene seconds -> capture seconds).
-  // One sped-up stretch per scene at most; the rest plays at true speed.
+  // A short sped-up stretch from the question to the result, then the result at true speed.
   const MAP = {
-    mail:  [[0, 0.55, 3.40, 3.95], [0.55, 1.45, 3.95, 16.20], [1.45, 9, 16.20, 23.75]],
-    deck:  [[0, 1.0, 28.95, 29.95], [1.0, 1.7, 29.95, 32.65], [1.7, 9, 32.65, 39.95]],
-    chart: [[0, 0.9, 12.30, 19.70], [0.9, 9, 19.70, 27.80]],
-    rich:  [[0, 0.6, 5.30, 5.90], [0.6, 2.35, 5.90, 14.40], [2.35, 9, 14.40, 21.05]],
+    mail:      [[0, 0.8, 4.35, 13.40], [0.8, 9, 13.40, 21.60]],
+    deck:      [[0, 0.45, 18.00, 19.40], [0.45, 1.5, 19.40, 20.45], [1.5, 9, 22.70, 30.20]],  // cut: the tap on « Plein écran »
+    chart:     [[0, 0.5, 4.60, 9.10], [0.5, 9, 9.10, 17.60]],
+    rich:      [[0, 0.7, 6.25, 6.95], [0.7, 1.05, 6.95, 10.25], [1.05, 9, 10.25, 18.20]],
+    places:    [[0, 0.6, 2.15, 12.30], [0.6, 9, 12.30, 20.70]],
+    weather:   [[0, 0.45, 1.45, 7.05], [0.45, 9, 7.05, 15.60]],
+    clock:     [[0, 1.0, 2.65, 11.90], [1.0, 9, 11.90, 19.90]],
+    agent:     [[0, 9, 6.60, 44.40]],   // x4.2: plan, then the two versions written side by side
+    agentdeck: [[0, 9, 59.30, 68.30]],  // the deck the team delivered (after the run: 3 agents, 49.6 s)
   };
   const speedOf = (s) => { const f = (s[3] - s[2]) / (s[1] - s[0]); return f > 1.05 ? f : 0; };
   const fmtSpeed = (f) => f < 1.95 ? f.toFixed(1).replace('.', ',') : String(Math.round(f));
 
   // Camera keyframes: [u, scale, focusX, focusY (capture px), canvasY of that point]
   const CAM = {
-    mail:  [[0, 0.98, 585, 1420, 1290], [1.35, 0.98, 585, 1420, 1290], [2.05, 1.24, 585, 1330, 1178], [3.93, 1.25, 585, 1330, 1176]],
-    deck:  [[0, 1.36, 585, 1090, 1150], [1.45, 1.38, 585, 1090, 1150], [1.95, 1.56, 585, 1190, 1150], [3.93, 1.60, 585, 1190, 1150]],
-    chart: [[0, 1.12, 585, 1100, 1220], [0.7, 1.12, 585, 1100, 1220], [1.2, 1.42, 585, 960, 1150], [2.46, 1.45, 585, 960, 1150]],
-    rich:  [[0, 1.55, 585, 860, 1060], [0.6, 1.55, 585, 860, 1060], [1.4, 1.22, 585, 1250, 1143], [3.44, 1.24, 585, 1262, 1140]],
+    mail:      [[0, 1.18, 585, 760, 1170], [0.6, 1.18, 585, 760, 1170], [1.2, 1.3, 585, 1100, 1170], [2.95, 1.32, 585, 1100, 1170]],
+    // full screen: the slide (capture y 860-1525) fills the width, just under the caption
+    deck:      [[0, 1.3, 585, 1000, 1150], [0.45, 1.36, 585, 1000, 1150], [1.37, 1.40, 585, 1000, 1150], [1.63, 2.0, 585, 1192, 1060], [2.95, 2.04, 585, 1192, 1060]],
+    // the whole chart card, title to x-axis, above the fold
+    chart:     [[0, 1.22, 585, 700, 1150], [0.5, 1.3, 585, 870, 1290], [1.97, 1.32, 585, 870, 1290]],
+    // opener: the whole question bubble, then the bird and « Bird réfléchit… » at the centre
+    rich:      [[0, 1.85, 585, 850, 1250], [0.65, 1.85, 585, 850, 1250], [1.15, 1.2, 585, 1500, 1170], [2.95, 1.22, 585, 1560, 1170]],
+    places:    [[0, 1.3, 585, 1100, 1170], [0.6, 1.5, 585, 1300, 1380], [2.95, 1.52, 585, 1300, 1380]],
+    weather:   [[0, 1.26, 585, 900, 1180], [0.45, 1.3, 585, 1000, 1180], [1.97, 1.32, 585, 1000, 1180]],
+    clock:     [[0, 1.26, 585, 1000, 1170], [1.0, 1.32, 585, 1500, 1200], [2.95, 1.34, 585, 1500, 1200]],
+    agent:     [[0, 1.3, 585, 1300, 1180], [1.97, 1.34, 585, 1300, 1180]],
+    agentdeck: [[0, 1.36, 585, 1000, 1120], [1.97, 1.40, 585, 1000, 1120]],
   };
+  // The app shows a floating « Aller à la fin » / « Suite de la réponse » pill just above the composer
+  // (capture y >= 2040) while an answer streams. In these scenes the camera never shows the capture below
+  // y = CLIP_Y, so the pill (and the composer) stay out of frame; the frames themselves are untouched.
+  const CLIP = { mail: 1, deck: 1, chart: 1, places: 1, weather: 1, clock: 1, agent: 1 }, CLIP_Y = 2030;
 
   // e = the estimate the app printed under that very answer (copied exactly); eAt = scene seconds
   const CAPS = {
-    mail:  { k: 'Mail',         t: ['Un mail clair,', '<span class="acc">prêt à relire.</span>'], e: '≈ 0,203 Wh', eAt: 2.2 },
-    deck:  { k: 'Présentation', t: ['Vos slides,', '<span class="acc">en grand aperçu.</span>'] },
-    chart: { k: 'Graphique',    t: ['Vos chiffres,', '<span class="acc">en un graphique.</span>'] },
-    rich:  { k: 'Réponses',     t: ['Mise en forme soignée,', '<span class="acc">énergie affichée.</span>'], e: '≈ 0,14 Wh', eAt: 2.4 },
+    mail:    { k: 'Mail',             t: ['Un mail clair,', '<span class="acc">prêt à relire.</span>'] },
+    deck:    { k: 'Présentation',     t: ['Vos slides,', '<span class="acc">en grand aperçu.</span>'] },
+    chart:   { k: 'Graphique',        t: ['Vos chiffres,', '<span class="acc">en un graphique.</span>'] },
+    rich:    { k: 'Réponses',         t: ['Soignées, et leur coût', '<span class="acc">toujours affiché.</span>'], e: '≈ 0,024 Wh', eAt: 1.2 },
+    places:  { k: 'Lieux',            t: ['Les bonnes adresses,', '<span class="acc">sur la carte.</span>'] },
+    weather: { k: 'Météo',            t: ['Demain à Lyon,', '<span class="acc">heure par heure.</span>'] },
+    clock:   { k: 'Fuseaux horaires', t: ['Paris, Montréal, Singapour :', '<span class="acc">un créneau commun.</span>'] },
+    // eAt counts from the start of the caption group (agent, then agentdeck, where the receipt is shown)
+    agent:   { k: 'Mode Agent',       t: ['Une petite équipe,', '<span class="acc">un livrable prêt.</span>'], e: '≈ 0,29 Wh', eAt: 2.15 },
   };
   // the app's compact consumption line (« ≈ … Wh · … tokens · … s ») in capture px, outlined with the tag
-  const EROW = { mail: [30, 2030, 720, 82], rich: [30, 2032, 690, 82] };
+  const EROW = { rich: [30, 2036, 745, 78], agentdeck: [30, 1988, 770, 78] };
 
   // ---------- audio cues for audio.py ----------
   window.AUDIO = {
     bpm: 122,
     // [video start, track start, track end]: the swell, then bar 79 to the end of the track
-    clips: [[0, 0.750, 1.940], [T0 - 0.028, 157.350, 196.70]],
+    clips: [[0, 0.750, 1.940], [T0 - 0.028, 153.416, 196.70]],
     fadeOut: [DURATION - 1.6, DURATION],
     whoosh: [S.mail[0], S.end[0]],        // two soft transitions, well under the music
     grid: { T0, BEAT, cuts: Object.fromEntries(Object.entries(S).map(([k, v]) => [k, +v[0].toFixed(3)])), hit: HIT },
@@ -292,11 +299,14 @@
   $('elockm').innerHTML = MARK('#fff', '#9DBBFF');
   $('elockm').firstChild.setAttribute('style', 'width:84px;height:74px;display:block');
 
-  // end card: webinar details only when the owner filled them in
-  $('wdate').textContent = WDATE; $('wurl').textContent = WURL;
+  // end card: the app's address in the card; webinar details only when the owner filled them in
+  $('turl').textContent = TRY_URL;
+  $('wdet').textContent = [WDATE, WURL].filter(Boolean).join('\n'); $('wdet').style.whiteSpace = 'pre-line';
   const hasDet = !!(WDATE || WURL);
-  if (hasDet) { $('inv').querySelector('.det').style.display = 'block'; }
-  show($('wdate'), !!WDATE); show($('wurl'), !!WURL);
+  show($('wdet'), hasDet);
+  // with the date / link the webinar line is taller: the whole stack moves up to stay in the safe area (y <= 1650)
+  const LIFT = hasDet ? 90 : 0, INV_TOP = 1000 - LIFT;
+  $('elock').style.top = (440 - LIFT) + 'px'; $('fut').style.top = (630 - LIFT) + 'px'; $('inv').style.top = INV_TOP + 'px';
 
   // ---------- background: navy, one slow soft glow, faint vignette ----------
   const bg = $('bg').getContext('2d');
@@ -316,7 +326,7 @@
 
   // ---------- captions ----------
   const capEls = {};
-  for (const k of CONV) {
+  for (const k of Object.keys(CAPS)) {
     const c = CAPS[k];
     const d = document.createElement('div'); d.className = 'cap abs';
     d.innerHTML = `<div class="kick">${c.k}</div><div class="ct disp">${c.t.map((r) => `<span class="ln">${r}</span>`).join('')}</div>` +
@@ -331,6 +341,7 @@
     return c;
   }
   function frameAt(key, c) {
+    key = srcOf(key);
     const fr = C[key].frames;
     let f = fr[0];
     for (const x of fr) { if (x[1] <= c + 1e-6) f = x; else break; }
@@ -346,8 +357,13 @@
     return ks[ks.length - 1].slice(1);
   }
   const K = 580 / 1170, SB = 46;
-  function placeDevice(s, fx, fy, ty, dy = 0) {
-    const L = 540 - (14 + fx * K) * s, T = ty - (14 + SB + fy * K) * s + dy;
+  function placeDevice(s, fx, fy, ty, dy = 0, clip = 0) {
+    // the phone always runs off the bottom edge: never a floating phone bottom
+    let T = Math.max(ty - (14 + SB + fy * K) * s, 1965 - 1329 * s);
+    // CLIP: the frame's bottom edge (canvas y 1920) shows the capture no lower than CLIP_Y
+    T = lerp(T, Math.max(T, 1920 - (14 + SB + CLIP_Y * K) * s), clip);
+    T += dy;
+    const L = 540 - (14 + fx * K) * s;
     $('device').style.transform = `translate(${L}px, ${T}px) scale(${s})`;
   }
   const last = { A: '', B: '' };
@@ -393,38 +409,14 @@
       const a = S.brand[0];
       enter($('lock'), t, a + 0.02, 0.6, 30);
       const ls = $('bl').querySelectorAll('.ln');
-      enter(ls[0], t, a + 2 * BEAT, 0.5);
-      enter(ls[1], t, a + 3 * BEAT, 0.5);
-      enter($('bsub'), t, a + 4 * BEAT, 0.5, 18);
+      enter(ls[0], t, a + 0.3, 0.5);
+      enter(ls[1], t, a + 0.42, 0.5);
+      enter($('bsub'), t, a + 0.75, 0.5, 12);
       br.style.opacity = sceneAlpha(t, ...S.brand);
     }
 
-    // ===== size =====
-    const sz = $('sSize');
-    if (show(sz, t >= S.size[0] && t < S.size[1])) {
-      const a = S.size[0], M = a + BAR;            // the answer lands on the next bar
-      const q = $('szq'), an = $('sza');
-      enter(q, t, a + 0.02, 0.5);
-      q.style.opacity *= 1 - eio(prog(t, M - 0.3, M - 0.05));
-      an.style.opacity = 0;
-      if (t >= M - 0.05) enter(an, t, M, 0.5);
-      // the giant grows calmly during the question, then shrinks to Bird's size (1/10 of the diameter)
-      const gi = $('giant');
-      const pg = eout4(prog(t, a + 0.05, a + 1.0));
-      const sk = eio(prog(t, M, M + 0.7));
-      gi.style.opacity = pg * (1 - prog(t, M + 0.55, M + 0.72));
-      gi.style.transform = `scale(${lerp(0.82, 1, pg) * (1 + 0.025 * prog(t, a + 1, M)) * lerp(1, 0.1, sk)})`;
-      $('gtxt').style.opacity = eout(prog(t, a + 0.45, a + 0.85)) * (1 - prog(t, M - 0.2, M + 0.05));
-      $('ghost').style.opacity = eout(prog(t, M + 0.15, M + 0.6));
-      const pd = eout4(prog(t, M + 0.5, M + 0.8));
-      $('dot').style.opacity = pd;
-      $('dot').style.transform = `scale(${lerp(1.25, 1, pd)})`;
-      enter($('tinyl'), t, M + 0.65, 0.5, 20);
-      sz.style.opacity = sceneAlpha(t, ...S.size);
-    }
-
     // ===== product =====
-    const pa = S.mail[0], pb = S.rich[1];
+    const pa = S.mail[0], pb = S.agentdeck[1];
     const devOn = t >= pa && t < pb;
     show($('device'), devOn);
     show($('scrim'), devOn);
@@ -432,8 +424,8 @@
     if (devOn) {
       const key = CONV.find((k) => t >= S[k][0] && t < S[k][1]);
       const u = t - S[key][0];
-      let [s, fx, fy, ty] = cam(key, u);
-      const XF = 0.32;  // cross-fade between scenes, centred on the cut
+      let [s, fx, fy, ty] = cam(key, u), clip = CLIP[key] || 0;
+      const XF = 0.36;  // cross-fade between scenes, centred on the cut
       const ki = CONV.indexOf(key);
       let xf = null;
       if (ki > 0 && u < XF / 2) xf = { from: CONV[ki - 1], to: key, p: 0.5 + u / XF };
@@ -446,29 +438,42 @@
         const fa = frameAt(xf.from, capTime(xf.from, ufrom)), fb = frameAt(xf.to, capTime(xf.to, Math.max(0, uto)));
         const ca = cam(xf.from, Math.min(ufrom, lf)), cb = cam(xf.to, Math.max(0, uto));
         [s, fx, fy, ty] = ca.map((v, j) => lerp(v, cb[j], p));
+        clip = lerp(CLIP[xf.from] || 0, CLIP[xf.to] || 0, p);
         setImg('A', fa.src); setImg('B', fb.src);
         imA.style.opacity = 1; imB.style.display = 'block'; imB.style.opacity = p;
         $('sbar').style.background = p < 0.5 ? fa.top : fb.top;
         wait.push(imA, imB);
       } else {
-        const f = frameAt(key, capTime(key, u));
-        setImg('A', f.src); imA.style.opacity = 1; imB.style.display = 'none';
-        $('sbar').style.background = f.top;
-        wait.push(imA);
+        // an inner cut (a jump in the capture clock between two stretches): a short cross-fade
+        const IX = 0.26, sgs = MAP[key];
+        const j = sgs.findIndex((sg, i) => i > 0 && Math.abs(sg[2] - sgs[i - 1][3]) > 0.05 && Math.abs(u - sg[0]) < IX / 2);
+        if (j > 0) {
+          const p = eio(0.5 + (u - sgs[j][0]) / IX);
+          const fa = frameAt(key, sgs[j - 1][3] - 0.01), fb = frameAt(key, sgs[j][2]);
+          setImg('A', fa.src); setImg('B', fb.src);
+          imA.style.opacity = 1; imB.style.display = 'block'; imB.style.opacity = p;
+          $('sbar').style.background = p < 0.5 ? fa.top : fb.top;
+          wait.push(imA, imB);
+        } else {
+          const f = frameAt(key, capTime(key, u));
+          setImg('A', f.src); imA.style.opacity = 1; imB.style.display = 'none';
+          $('sbar').style.background = f.top;
+          wait.push(imA);
+        }
       }
       // entrance (rises in) and exit (sinks and fades)
       const pin = eout4(prog(t, pa, pa + 0.7));
       const pout = eio(prog(t, pb - 0.32, pb));
-      placeDevice(s, fx, fy, ty, (1 - pin) * 260 + pout * 220);
+      placeDevice(s, fx, fy, ty, (1 - pin) * 260 + pout * 220, clip);
       $('device').style.opacity = clamp(pin * 1.6) * (1 - pout);
       $('scrim').style.opacity = 1;
 
       // outline on the app's consumption line while the tag repeating it is shown
-      const c = CAPS[key];
-      if (EROW[key] && !xf && u >= c.eAt) {
+      const g = grpOf(key), c = CAPS[g], ug = t - S[CONV.find((k) => grpOf(k) === g)][0];
+      if (EROW[key] && !xf && ug >= c.eAt) {
         spotOn = true;
         const [x, y, w, h] = EROW[key];
-        const sp = $('spot'), p = eout(prog(u, c.eAt, c.eAt + 0.4));
+        const sp = $('spot'), p = eout(prog(ug, c.eAt, c.eAt + 0.4));
         sp.style.left = x * K + 'px'; sp.style.top = SB + y * K + 'px';
         sp.style.width = w * K + 'px'; sp.style.height = h * K + 'px';
         sp.style.opacity = p * (1 - pout);
@@ -480,7 +485,7 @@
       for (const k of CONV) for (const sg of MAP[k]) {
         const f = speedOf(sg);
         if (!f) continue;
-        const s0 = S[k][0] + sg[0], s1 = S[k][0] + sg[1];
+        const s0 = S[k][0] + sg[0], s1 = Math.min(S[k][0] + sg[1], S[k][1]);
         // never fade in over the previous scene (its chip value would be wrong there)
         const pre = sg[0] > 0.2 ? (t >= s0 - 0.15 ? prog(t, s0 - 0.15, s0) : 0) : 0;
         const al = (t >= s0 ? 1 : pre) * (1 - prog(t, s1, s1 + 0.2));
@@ -488,16 +493,20 @@
       }
     }
     $('spot').style.display = spotOn ? 'block' : 'none';
-    for (const k of CONV) {
-      const el = capEls[k], a = S[k][0], b = S[k][1];
+    let tagA = 0;
+    for (const g of Object.keys(CAPS)) {
+      const ks = CONV.filter((k) => grpOf(k) === g);
+      const el = capEls[g], a = S[ks[0]][0], b = S[ks[ks.length - 1]][1];
       if (!show(el, devOn && t >= a && t < b)) continue;
       const kk = el.querySelector('.kick');
-      enter(kk, t, a + 0.04, 0.45, 16);
-      el.querySelectorAll('.ln').forEach((l, i) => enter(l, t, a + 0.08 + i * 0.12, 0.5, 24));
+      enter(kk, t, a + 0.04, 0.45, 14);
+      el.querySelectorAll('.ln').forEach((l, i) => enter(l, t, a + 0.1 + i * 0.1, 0.5, 20));
       const tag = el.querySelector('.etag');
-      if (tag) enter(tag, t, a + CAPS[k].eAt, 0.45, 14);
+      if (tag) tagA = Math.max(tagA, enter(tag, t, a + CAPS[g].eAt - 0.1, 0.45, 12));
       el.style.opacity = 1 - eio(prog(t, b - 0.2, b));
     }
+    // the scrim grows under the estimate tag, so the tag never sits on top of the app's text
+    $('scrim').style.height = (690 + 100 * tagA) + 'px';
     const chip = $('chip');
     show(chip, chipA > 0, 'flex');
     chip.style.opacity = chipA;
@@ -505,20 +514,24 @@
 
     // ===== credo =====
     const cr = $('sCredo');
-    if (show(cr, t >= S.credo[0] && t < S.credo[1])) {
+    // overlaps the end of the product sequence and the start of the end card, so the first
+    // element is already on screen on each downbeat (no empty navy gap)
+    if (show(cr, t >= S.credo[0] - 0.14 && t < S.credo[1])) {
       const a = S.credo[0];
-      enter(cr.querySelector('.kick'), t, a + 0.05, 0.5, 16);
-      cr.querySelectorAll('#credo .ln').forEach((l, i) => enter(l, t, a + 0.2 + i * BEAT, 0.55, 26));
-      cr.style.opacity = sceneAlpha(t, ...S.credo, 0.3, 0.28);
+      enter(cr.querySelector('.kick'), t, a - 0.14, 0.4, 16);
+      cr.querySelectorAll('#credo .ln').forEach((l, i) => enter(l, t, a - 0.02 + i * BEAT, 0.5, 26));
+      const fi = eout(prog(t, a - 0.14, a + 0.1)), fo = 1 - eio(prog(t, S.credo[1] - 0.2, S.credo[1]));
+      cr.style.opacity = fi * fo;
     }
 
     // ===== end card =====
     const en = $('sEnd');
-    if (show(en, t >= S.end[0])) {
+    if (show(en, t >= S.end[0] - 0.14)) {
       const a = S.end[0];
-      enter($('elock'), t, a + 0.05, 0.6, 20);
+      // the logo is already visible on the downbeat (breakdown, bar 93)
+      enter($('elock'), t, a - 0.14, 0.45, 20);
       const fl = $('fut').querySelectorAll('.ln');
-      enter(fl[0], t, a + 0.25, 0.6, 26);
+      enter(fl[0], t, a + 0.12, 0.6, 26);
       enter(fl[1], t, a + 0.25 + BEAT, 0.6, 26);
       // the invitation, the main call to action, lands on the next bar
       const inv = $('inv'), ti = a + BAR;
@@ -526,14 +539,18 @@
       inv.style.transform += ` scale(${lerp(0.985, 1, pi)})`;
       inv.querySelectorAll('.it .ln').forEach((l, i) => enter(l, t, ti + 0.1 + i * 0.12, 0.55, 18));
       enter(inv.querySelector('.kick'), t, ti + 0.05, 0.5, 10);
-      if (hasDet) enter(inv.querySelector('.det'), t, ti + 2 * BEAT, 0.55, 12);
-      // secondary lines sit under the card, whatever its height
-      const bottom = 900 + inv.offsetHeight;
-      $('try').style.top = (bottom + 90) + 'px';
-      $('efr').style.top = (bottom + 170) + 'px';
-      enter($('try'), t, ti + 3 * BEAT, 0.55, 14);
-      enter($('efr'), t, ti + 4 * BEAT, 0.55, 14);
-      en.style.opacity = eout(prog(t, a - 0.02, a + 0.35)) * (1 - prog(t, DURATION - 0.45, DURATION));
+      if (hasDet) enter($('wdet'), t, ti + BEAT, 0.55, 12);
+      // secondary lines sit under the card, whatever its height, all inside the safe area (y <= 1650)
+      const bottom = INV_TOP + inv.offsetHeight, web = $('web');
+      web.style.top = (bottom + 70) + 'px';
+      const wb = bottom + 70 + web.offsetHeight;
+      $('efr').style.top = (wb + 56) + 'px';
+      $('mcred').style.top = (wb + 112) + 'px';
+      // the secondary lines arrive with the track's final hit
+      enter(web, t, HIT - 0.05, 0.6, 14);
+      enter($('efr'), t, HIT + BEAT, 0.6, 14);
+      enter($('mcred'), t, HIT + BEAT + 0.1, 0.6, 0);
+      en.style.opacity = eout(prog(t, a - 0.14, a + 0.12)) * (1 - prog(t, DURATION - 0.45, DURATION));
     }
 
     await Promise.all(wait.map((im) => im.decode().catch(() => {})));

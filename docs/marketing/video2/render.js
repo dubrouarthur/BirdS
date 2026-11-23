@@ -22,7 +22,7 @@ const PY =
   process.env.AUDIO_PY ||
   path.join(HERE, "..", "..", "..", ".venv", "bin", "python");
 // contact sheet: 8 settled moments (s)
-const PICKS = [1.95, 6.6, 10.6, 14.6, 18.5, 21.4, 24.4, 33.5];
+const PICKS = [8.4, 11.6, 13.2, 16.3, 19.4, 23.6, 27.6, 37.5];
 
 function soundtrackAndMux() {
   // audio.py writes the final, loudness-normalised soundtrack (-14 LUFS, true peak <= -1 dBTP)
