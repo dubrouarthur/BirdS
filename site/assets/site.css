@@ -921,12 +921,6 @@ figcaption {
   background: color-mix(in srgb, var(--leaf) 45%, transparent);
   min-width: 10px;
 }
-.fill-min {
-  display: block;
-  height: 100%;
-  background: var(--leaf);
-  border-radius: 999px;
-}
 .cmp-foot {
   font-size: 0.9375rem;
   color: var(--muted);
@@ -951,14 +945,11 @@ figcaption {
 .w71 {
   width: 71%;
 }
-.w38 {
-  width: 38%;
+.w21 {
+  width: 21%;
 }
-.w31 {
-  width: 31%;
-}
-.w6 {
-  width: 6%;
+.w3 {
+  width: 3%;
 }
 
 /* ---------- Fonctionnalités ---------- */
