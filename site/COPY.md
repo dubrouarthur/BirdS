@@ -148,8 +148,8 @@ Alors relisez ce qui compte. C'est vrai pour tout assistant. Chez nous, c'est é
 
 ## Ce que coûte une réponse.
 
-Pour une réponse courte, notre estimation haute : **0,04 à 0,13 Wh**.
-*Méthode : 72 W (puissance de la carte GPU) × 1,7 à 5,5 s de calcul × 1,15 (refroidissement et alimentation).*
+Pour une requête courte (2 000 tokens lus, 500 écrits), notre estimation d'après les tokens : **≈ 0,07 Wh**.
+*Méthode : 2 × 0,006 Wh + 0,5 × 0,10 Wh = 0,062 Wh, arrondi à 0,07 Wh, service complet compris.*
 
 En génération, sur notre banc de mesure : **0,36 Wh pour 1 000 tokens générés**.
 *GPU seul, NVIDIA A10G, requêtes groupées.*
@@ -278,9 +278,9 @@ Nos chiffres, comment on les obtient, et ce qu'ils ne disent pas.
 
 **Dans le produit.** Chaque réponse affiche trois choses : les tokens lus et écrits, le temps de calcul, et une estimation d'énergie.
 
-Cette estimation part des **tokens** : 0,10 Wh pour 1 000 tokens écrits et 0,006 Wh pour 1 000 tokens lus, valeurs tirées de mesures publiées de serveurs vLLM, ramenées à Bird S 4B sur une NVIDIA L4 et comptées pour tout le service (GPU × 1,72). Le détail de la réponse donne la fourchette et les sources. Les chiffres « 0,04 à 0,13 Wh » de cette page sont l'ancienne borne haute (72 W × durée × PUE), volontairement prudente : environ 0,01 à 0,03 Wh d'après les tokens.
+Cette estimation part des **tokens** : 0,10 Wh pour 1 000 tokens écrits et 0,006 Wh pour 1 000 tokens lus, valeurs tirées de mesures publiées de serveurs vLLM, ramenées à Bird S 4B sur une NVIDIA L4 et comptées pour tout le service (GPU × 1,72). Le détail de la réponse donne la fourchette et les sources.
 
-**Ce qu'on ne compte pas.** La fabrication du matériel, le réseau, votre appareil. Nous ne publions pas de chiffre d'eau. Nous ne convertissons pas en CO₂ quand l'intensité carbone du réseau n'est pas déclarée.
+**Ce qu'on ne compte pas.** La fabrication du matériel, le réseau, votre appareil. L'eau est estimée à partir de la même énergie : 0,15 L d'eau de refroidissement par kWh, soit ≈ 0,01 mL par requête courte. Nous ne convertissons pas en CO₂ quand l'intensité carbone du réseau n'est pas déclarée.
 
 **Où ça tourne.** Le modèle est servi depuis AWS, région us-east-1. Conçu en France, oui ; hébergé en France, non. Vos conversations, elles, restent dans votre navigateur.
 
@@ -292,7 +292,7 @@ Cette estimation part des **tokens** : 0,10 Wh pour 1 000 tokens écrits et 0,00
 |---|---|---|
 | Entraînement de la version actuelle | **1,8 kWh** | Mesuré sur le GPU. 1 × NVIDIA L40S, 5 h 26. |
 | Génération | **0,36 Wh / 1 000 tokens** | Notre banc de mesure. GPU seul, NVIDIA A10G, requêtes groupées. |
-| Une réponse courte | **0,04 à 0,13 Wh** | Estimation haute : 72 W × 1,7 à 5,5 s × 1,15 (refroidissement et alimentation). |
+| Une requête courte | **≈ 0,07 Wh** | D'après les tokens : 2 000 lus × 0,006 Wh / 1 000 + 500 écrits × 0,10 Wh / 1 000 = 0,062 Wh, arrondi à 0,07 Wh. |
 
 ### Le calcul par token
 
@@ -312,13 +312,13 @@ En pratique, l'énergie ne suit pas un pour un : le matériel, le taux d'occupat
 |---|---|---|---|
 | OpenAI — requête ChatGPT moyenne | ≈ 0,34 Wh | ≈ 0,32 mL | Sam Altman, « The Gentle Singularity », juin 2025. Méthode non publiée. |
 | Google — requête texte médiane de Gemini | 0,24 Wh | 0,26 mL | Août 2025. arxiv.org/abs/2508.15734 |
-| Bird S 4B — réponse courte | 0,04 à 0,13 Wh | non publié | Notre borne haute. GPU uniquement, PUE 1,15. |
+| Bird S 4B — requête courte | ≈ 0,07 Wh | ≈ 0,01 mL | 2 000 tokens lus, 500 écrits. Service complet (× 1,72), comme Google. Eau : 0,15 L/kWh. |
 
 ### Les précautions
 
 ## Ce que ce tableau ne permet pas de dire.
 
-- **Les méthodes diffèrent.** Moyenne d'un côté, médiane de l'autre, borne haute chez nous. Périmètres différents. Une méthode n'est même pas publiée.
+- **Les méthodes diffèrent.** Moyenne d'un côté, médiane de l'autre, requête courte type chez nous. Périmètres différents. Une méthode n'est même pas publiée.
 - **Les requêtes diffèrent.** Une « requête » ne fait pas la même longueur partout.
 - **Ce n'est pas un classement.** Nous publions nos chiffres à côté des leurs pour donner un ordre de grandeur, pas pour annoncer une victoire.
 
@@ -472,8 +472,8 @@ So check what matters. That's true of any assistant. We just write it down.
 
 ## What an answer costs.
 
-For a short answer, our upper-bound estimate: **0.04 to 0.13 Wh**.
-*Method: 72 W (GPU board power) × 1.7 to 5.5 s of compute × 1.15 (cooling and power delivery).*
+For a short request (2,000 tokens read, 500 written), our token-based estimate: **≈ 0.07 Wh**.
+*Method: 2 × 0.006 Wh + 0.5 × 0.10 Wh = 0.062 Wh, rounded up to 0.07 Wh, whole service included.*
 
 For generation, on our benchmark: **0.36 Wh per 1,000 generated tokens**.
 *GPU only, NVIDIA A10G, batched requests.*
@@ -602,9 +602,9 @@ Our numbers, how we get them, and what they don't say.
 
 **In the product.** Every answer shows three things: tokens read and written, compute time, and an energy estimate.
 
-That estimate starts from **tokens**: 0.10 Wh per 1,000 tokens written and 0.006 Wh per 1,000 tokens read, values drawn from published measurements of vLLM servers, scaled to Bird S 4B on an NVIDIA L4 and counted for the whole service (GPU × 1.72). The answer's detail gives the range and the sources. The "0.04 to 0.13 Wh" figures on this page are the former upper bound (72 W × duration × PUE), deliberately cautious: about 0.01 to 0.03 Wh from tokens.
+That estimate starts from **tokens**: 0.10 Wh per 1,000 tokens written and 0.006 Wh per 1,000 tokens read, values drawn from published measurements of vLLM servers, scaled to Bird S 4B on an NVIDIA L4 and counted for the whole service (GPU × 1.72). The answer's detail gives the range and the sources.
 
-**What we don't count.** Hardware manufacturing, the network, your device. We don't publish a water figure. We don't convert to CO₂ when the grid's carbon intensity isn't declared.
+**What we don't count.** Hardware manufacturing, the network, your device. Water is estimated from the same energy: 0.15 L of cooling water per kWh, i.e. ≈ 0.01 mL per short request. We don't convert to CO₂ when the grid's carbon intensity isn't declared.
 
 **Where it runs.** The model is served from AWS, us-east-1 region. Designed in France, yes; hosted in France, no. Your conversations stay in your browser.
 
@@ -616,7 +616,7 @@ That estimate starts from **tokens**: 0.10 Wh per 1,000 tokens written and 0.006
 |---|---|---|
 | Training the current version | **1.8 kWh** | Measured on the GPU. 1 × NVIDIA L40S, 5 h 26 min. |
 | Generation | **0.36 Wh / 1,000 tokens** | Our benchmark. GPU only, NVIDIA A10G, batched. |
-| One short answer | **0.04 to 0.13 Wh** | Upper bound: 72 W × 1.7–5.5 s × 1.15 (cooling and power delivery). |
+| One short request | **≈ 0.07 Wh** | From tokens: 2,000 read × 0.006 Wh / 1,000 + 500 written × 0.10 Wh / 1,000 = 0.062 Wh, rounded up to 0.07 Wh. |
 
 ### Compute per token
 
@@ -636,13 +636,13 @@ In practice, energy doesn't follow one-to-one: hardware, utilisation, answer len
 |---|---|---|---|
 | OpenAI — average ChatGPT query | ≈ 0.34 Wh | ≈ 0.32 mL | Sam Altman, "The Gentle Singularity", June 2025. Method not published. |
 | Google — median Gemini text prompt | 0.24 Wh | 0.26 mL | August 2025. arxiv.org/abs/2508.15734 |
-| Bird S 4B — short answer | 0.04 to 0.13 Wh | not published | Our upper bound. GPU only, PUE 1.15. |
+| Bird S 4B — short request | ≈ 0.07 Wh | ≈ 0.01 mL | 2,000 tokens read, 500 written. Whole service (× 1.72), like Google. Water: 0.15 L/kWh. |
 
 ### Caveats
 
 ## What this table doesn't tell you.
 
-- **Methods differ.** An average on one side, a median on the other, an upper bound for us. Different scopes. One method isn't even published.
+- **Methods differ.** An average on one side, a median on the other, a typical short request for us. Different scopes. One method isn't even published.
 - **Queries differ.** A "query" isn't the same length everywhere.
 - **It's not a ranking.** We put our numbers next to theirs to give an order of magnitude, not to claim a win.
 

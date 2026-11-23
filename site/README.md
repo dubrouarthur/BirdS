@@ -75,11 +75,12 @@ Les captures de contrôle ne sont pas rangées dans `site/` : elles alourdiraien
 
 Ton promotionnel, mais chaque affirmation doit être vraie et vérifiable (publicité comparative : comparaisons objectives, sources en notes).
 Chiffres autorisés : 4 Md de paramètres, ≈ 400 Md pour un grand modèle dense (≈ 100× plus petit ; « 100× moins de calcul par mot » seulement avec « en théorie »),
-≤ 0,13 Wh et ≈ 0,02 mL par requête courte (estimation haute, ≈ 0,04 Wh pour les plus brèves), 0,34 Wh / 0,32 mL (ChatGPT, Altman, juin 2025),
-0,24 Wh / 0,26 mL (Gemini, Google, août 2025), « 3 à 8 fois moins d'électricité », « environ 15 fois moins d'eau »,
+≈ 0,07 Wh et ≈ 0,01 mL par requête courte (2 000 tokens lus, 500 écrits ; estimation d'après les tokens, la méthode du compteur), 0,34 Wh / 0,32 mL (ChatGPT, Altman, juin 2025),
+0,24 Wh / 0,26 mL (Gemini, Google, août 2025), « plus de 4 fois moins d'électricité », « environ 30 fois moins d'eau »,
 le banc d'essai interne de Notre démarche. Écrire « conçu en France » uniquement : jamais hébergé / entraîné en France, ni renouvelable aujourd'hui,
 ni neutre en carbone, ni « le plus sobre du marché » ; ne pas nommer le modèle de base ni la région du serveur. Les objectifs énergie se lisent comme des objectifs.
 Jamais de nombre de GPU ni de matériel, jamais d'énergie d'entraînement, jamais où ni sur quoi Bird tourne. Vitesse et coût d'entraînement : en qualitatif
 (« répond vite », « pour un coût bien inférieur ») ; aucun chiffre de latence tant qu'il n'est pas mesuré sur le modèle réel.
-Notes de méthode : le facteur 1,15 (refroidissement et alimentation) et 0,15 L/kWh d'eau de refroidissement restent, sans nommer de centre de données,
-car ils fondent les chiffres 0,13 Wh et « environ 15 fois moins d'eau ». À faire valider par le propriétaire : s'il les refuse, retirer aussi ces deux chiffres.
+Notes de méthode : 0,006 Wh / 1 000 tokens lus et 0,10 Wh / 1 000 tokens écrits (`birds/web/settings.py`, service complet, × 1,72 compris),
+0,062 Wh arrondi à 0,07 Wh ; eau : 0,15 L/kWh d'eau de refroidissement (efficacité d'usage de l'eau), sans nommer de centre de données.
+Ratios arrondis en défaveur de Bird : 0,34 / 0,07 ≈ 4,9 (« plus de 4× ») ; 0,32 / 0,0105 ≈ 30. Si les constantes de `settings.py` changent, recalculer ces chiffres.
