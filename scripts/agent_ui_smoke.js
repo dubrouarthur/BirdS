@@ -568,6 +568,68 @@ async function landscape(browser) {
   await ctx.close();
 }
 
+// iPhone SE (320 and 375 x 568), composer focused: a real touch (down, 90 ms, up) on a control just above the dock
+// lands on it. The dock's notes used to come back on blur, grow the dock mid-tap and swallow the click.
+async function touchTap(page, ctx, selector, what) {
+  const target = await page.evaluate((sel) => {
+    const dock = document.getElementById("dock").getBoundingClientRect();
+    const sc = document.getElementById("scroll");
+    const el = [...document.querySelectorAll(sel)].filter((e) => e.getBoundingClientRect().height > 0).pop();
+    if (!el) return null;
+    // the control right above the dock, where the notes would cover it
+    sc.scrollTop += el.getBoundingClientRect().bottom - dock.top + 2;
+    const r = el.getBoundingClientRect();
+    el.setAttribute("data-probe", "1");
+    window.__hits = [];
+    document.addEventListener("click", (ev) => window.__hits.push(!!ev.target.closest("[data-probe]")), {
+      capture: true,
+      once: true,
+    });
+    return { x: r.x + r.width / 2, y: r.bottom - 4 };
+  }, selector);
+  check(!!target, `${what}: control found`);
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: target.x, y: target.y }] });
+  await page.waitForTimeout(90);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.waitForTimeout(500);
+  const hits = await page.evaluate(() => window.__hits);
+  check(hits.length === 1 && hits[0], `${what}: the tap lands on the control (${JSON.stringify(hits)})`);
+}
+
+async function smallTouch(browser) {
+  console.log("small phone touch, composer focused (iPhone SE 320/375 x 568, emulated)");
+  const out = dir("small-touch");
+  for (const width of [320, 375]) {
+    const { ctx, page } = await open(browser, {
+      ...pw.devices["iPhone SE"],
+      viewport: { width, height: 568 },
+    });
+    await send(page);
+    await page.waitForSelector('[data-phase="drafts"] .crew-lane[data-status="running"]', { timeout: 20000 });
+    await page.tap("#composer-input");
+    await page.keyboard.type("ok");
+    await touchTap(page, ctx, '[data-act="agent-off"]', `${width} px, running: « Revenir au mode simple »`);
+    await idle(page);
+    await send(page);
+    await idle(page);
+    await page.tap("#composer-input");
+    await page.keyboard.type("ok");
+    await page.waitForTimeout(200);
+    const typing = await page.$eval("#dock", (e) => e.getBoundingClientRect().top);
+    await touchTap(page, ctx, ".crew-fold > summary", `${width} px, done: the team's fold`);
+    check(
+      await page.$eval(".crew-fold", (e) => e.open),
+      `${width} px: the fold opened`,
+    );
+    await page.screenshot({ path: path.join(out, `se-${width}.png`) });
+    const rest = await page.$eval("#dock", (e) => e.getBoundingClientRect().top);
+    check(rest < typing, `${width} px: the notes come back after the tap (${Math.round(typing)} -> ${Math.round(rest)})`);
+    check(page.errors.length === 0, `no page error (${page.errors.join(" | ")})`);
+    await ctx.close();
+  }
+}
+
 (async () => {
   const browsers = { chromium: await pw.chromium.launch() };
   for (const name of ["webkit", "firefox"]) {
@@ -596,6 +658,7 @@ async function landscape(browser) {
     },
     pillWidths: () => pillWidths(browsers.chromium),
     landscape: () => landscape(browsers.chromium),
+    smallTouch: () => smallTouch(browsers.chromium),
     stall: () => stall(browsers.chromium),
     firefox: async () => browsers.firefox && desktopRun(browsers.firefox),
   };
