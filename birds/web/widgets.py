@@ -22,9 +22,9 @@ DEFAULT_TZ = "Europe/Paris"
 
 _TITLE = re.compile(
     r"\b(?P<noun>r[ée]union|rdv|rendez-vous|call|point|d[ée]jeuner|d[îi]ner|meeting|visio|entretien|atelier|lunch|"
-    r"dinner)\s+(?:avec|with)\s+(?P<who>[^,.;:!?\n]{2,40}?)(?=\s+(?:le|la|les|demain|aujourd|après|lundi|mardi|"
-    r"mercredi|jeudi|vendredi|samedi|dimanche|next|this|on|at|à|a|au|de|du|dans|in|pour|for|et|and|tomorrow|today|"
-    r"\d)\b|[,.;:!?\n]|$)",
+    r"dinner)\s+(?:avec|with)\s+(?P<who>[^,.;:!?\n]{2,40}?)(?=\s+(?:le|la|les|demain|aujourd|apr[eè]s(?:-demain)?|"
+    r"lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|next|this|on|at|à|a|au|de|du|dans|in|pour|for|et|and|to|"
+    r"chez|sur|via|en|tomorrow|today|\d)\b|[,.;:!?\n]|$)",
     re.I,
 )
 _NOUN = re.compile(

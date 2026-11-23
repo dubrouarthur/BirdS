@@ -297,6 +297,20 @@ def event_words(text: str) -> bool:
     return bool(_SCHEDULE.search(t) or _TERSE.search(t))
 
 
+# « programmer une formation le 15 janvier », « planifier un atelier le 3 mars 2027 »: a scheduling VERB (never the
+# noun « le programme ») and a full date (day and month written) make a whole-day event even with a weak word
+_PLAN_VERB = re.compile(
+    r"(?:^|[.!?]\s*|\b(?:peux-tu|pourrais-tu|tu peux|pouvez-vous|merci de|il faut|je (?:dois|veux|voudrais))\s+)"
+    r"(?:programm(?:e|er|ez|ons)|planifi(?:e|er|ez|ons)|organis(?:e|er|ez|ons)|cal(?:e|er|ez)|bloqu(?:e|er|ez)|"
+    r"pr[ée]voi[rs]|pr[ée]voyez|r[ée]serv(?:e|er|ez)|ajout(?:e|er|ez)|schedule|book|plan)\b",
+    re.I,
+)
+
+
+def _dated_plan(text: str) -> bool:
+    return bool(_PLAN_VERB.search(text) and any(rx.search(text) for rx in (RX_DMY, RX_MDY, RX_ISO, RX_SLASH)))
+
+
 def event_ask(text: str, now: datetime, lang: str = "fr") -> dict | None:
     """``parse`` of an event ask, or None: no event word, no day, or a weak word ("point") with no time."""
     t = " ".join((text or "").split())
@@ -304,7 +318,7 @@ def event_ask(text: str, now: datetime, lang: str = "fr") -> dict | None:
         return None
     got = parse(t, now, lang)
     weak = {m.group(0).lower() for m in EVENT_ASK.finditer(t)} <= _WEAK
-    if got is not None and weak and got["all_day"]:
+    if got is not None and weak and got["all_day"] and not _dated_plan(t):
         return None  # "fais le point sur les ventes d'aujourd'hui": a weak word with no time is not a meeting
     if got is not None and _TERSE.search(t) and not _SCHEDULE.search(t) and got["all_day"]:
         return None  # a terse line needs a time: "réunion demain" alone is not a request
