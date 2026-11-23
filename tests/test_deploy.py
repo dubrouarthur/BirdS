@@ -141,7 +141,7 @@ def test_vercel_bundle_keeps_referenced_assets():
         for path in re.findall(r'["(](/static/[^"\')?#]+)', page.read_text(encoding="utf-8")):
             refs.add("birds/web" + path)
     for page in (ROOT / "site").rglob("*.html"):
-        for path in re.findall(r'(?:href|src)="(/assets/[^"?#]+)"', page.read_text(encoding="utf-8")):
+        for path in re.findall(r'(?:href|src|srcset)="(/assets/[^"?#]+)"', page.read_text(encoding="utf-8")):
             refs.add("site" + path)
     assert refs and any(r.endswith(".png") for r in refs)
     missing = sorted(r for r in refs if not (ROOT / r).is_file())
@@ -160,3 +160,6 @@ def test_internal_site_files_are_not_served():
     assert c.get("/a-propos/assets/apple-touch-icon.png").status_code == 200
     assert c.get("/a-propos/assets/site.css").status_code == 200
     assert c.get("/a-propos/demarche").status_code == 200
+    home = c.get("/a-propos/").text
+    # root-relative links, <picture> sources included, point inside /a-propos/
+    assert 'srcset="/a-propos/assets/' in home and 'srcset="/assets/' not in home
