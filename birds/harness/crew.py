@@ -1544,12 +1544,8 @@ class Crew:
             tool_calls=len(self.steps),
             bytes_fetched=self.bytes,
             measured_wh=None,
-            wh_per_1k_tokens=cfg.wh_per_1k_tokens,
-            calibration_source=cfg.calibration_source,
-            gpu_watts=cfg.gpu_watts,
-            gpu_label=cfg.gpu_label,
-            pue=cfg.pue,
-            busy_seconds_override=union,
+            **meter.energy_options(cfg),
+            busy_seconds_override=union,  # power x time only: the tokens of parallel calls are simply summed
         )
         roles: dict[str, dict] = {}
         for u in usage:
@@ -1629,7 +1625,8 @@ class Crew:
             # report counts the team once, not as the sum of its calls and not zero
             team = {"role": "crew", "busy_seconds": self._union(), "seconds": self._union(),
                     "prompt_tokens": sum(int(u.get("prompt_tokens") or 0) for u in self.usage),
-                    "completion_tokens": sum(int(u.get("completion_tokens") or 0) for u in self.usage)}  # fmt: skip
+                    "completion_tokens": sum(int(u.get("completion_tokens") or 0) for u in self.usage),
+                    "cached_tokens": sum(int(u.get("cached_tokens") or 0) for u in self.usage)}  # fmt: skip
             run.state["usage"] = ([team] if self.usage else []) + list(run.state.get("usage") or [])
         return run
 

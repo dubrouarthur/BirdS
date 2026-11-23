@@ -55,6 +55,7 @@ USAGE_KEYS = {
     "busy_seconds",
     "first_token_seconds",
     "history",
+    "cached_tokens",
 }
 STEP_KEYS = {
     "type",
@@ -1066,6 +1067,21 @@ def test_harness_energy_estimate_is_labelled_and_co2_needs_grid():
         usage = one(chat(client, "hello"), "usage")
     assert usage["energy_kind"] == "estimated" and usage["energy_wh"] > 0 and usage["energy_source"] == "banc d'essai"
     assert usage["co2_g"] == pytest.approx(usage["energy_wh"] / 1000 * 100, abs=1e-4)
+
+
+def test_harness_default_energy_is_the_token_estimate_with_its_range():
+    from birds.web.server import harness_config
+
+    s = settings()
+    backend = HarnessBackend(FakeClient(["ok"]), _Tok(), model="m", config=harness_config(s))
+    with TestClient(create_app(s, server_backend=backend)) as client:
+        usage = one(chat(client, "hello"), "usage")
+    tin, tout = usage["prompt_tokens"], usage["completion_tokens"]
+    assert usage["energy_kind"] == "estimated" and usage["energy_method"] == "tokens"
+    assert usage["energy_wh"] == pytest.approx(tin / 1000 * 0.006 + tout / 1000 * 0.1, abs=1e-6)
+    basis = usage["energy_basis"]
+    assert basis["low_wh"] < usage["energy_wh"] < basis["high_wh"] and basis["serving_overhead"] == 1.72
+    assert "tokens" in usage["energy_source"] and "upper bound" not in usage["energy_source"]
 
 
 def test_harness_tokens_are_labelled_estimated_when_the_server_reports_none():

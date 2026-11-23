@@ -10,8 +10,45 @@ from dataclasses import dataclass, field
 
 DEFAULT_ENDPOINT_HOSTS = ("endpoints.huggingface.cloud",)  # i.e. *.endpoints.huggingface.cloud
 
-# Energy estimate of the remote GPU (power x time). Default: the NVIDIA L4 of the Inference Endpoint, whose rated
-# maximum board power (TDP) is 72 W: https://www.nvidia.com/en-us/data-center/l4/ (specifications table).
+# Energy per answer, default method "tokens": Wh = input/1000 x WH_PER_1K_IN + output/1000 x WH_PER_1K_OUT.
+# Bird S 4B (dense, bf16) served by vLLM on one NVIDIA L4 (72 W TDP, 300 GB/s). The values are central estimates at
+# the FULL serving boundary (GPU x SERVING_OVERHEAD), the boundary of the 0.24 Wh reference below.
+# Derivation (GPU only first, then x 1.72):
+# - output tokens (decode, memory-bound): each step reads the ~8 GB of weights once for the whole batch. Alone on the
+#   card ~25 tok/s at 60-72 W = 2.4-2.9 J/token (the upper bound); at concurrency 8-16 ~250-400 tok/s at ~70 W =
+#   0.18-0.28 J/token; at concurrency 64 ~0.076 J/token. Central: 0.2 J/token. Cross-checks: Llama 3.1 8B under
+#   vLLM, measured 0.057 J per output token on H100 (ML.ENERGY Benchmark, https://arxiv.org/html/2505.06371v2,
+#   App. B.3 Table 4), about half for 4B; batching cuts J/token 3-5x (https://arxiv.org/html/2601.22076v2);
+#   L4/A10 throughput under vLLM: https://www.truefoundry.com/blog/vllm-benchmark
+# - input tokens (prefill, compute-bound): 8 GFLOP/token at ~50 TFLOPS effective = ~6 000 tok/s at 72 W =
+#   0.012 J/token (ML.ENERGY measured 0.017 J per input token for 8B, so ~0.0085 J for 4B).
+# - serving boundary: Google measured the whole service (host CPU/DRAM, idle capacity, PUE 1.09) at 0.24 / 0.14 =
+#   1.72 x the active accelerators (https://arxiv.org/html/2508.15734v1).
+# - central: 0.2 J x 1.72 / 3.6 = 0.096 Wh per 1 000 output tokens; 0.012 J x 1.72 / 3.6 = 0.0057 per 1 000 input.
+#   Independent top-down check, full boundary: Llama 3.1 8B ~0.17 Wh per 1k output and ~0.018 per 1k input
+#   (https://arxiv.org/html/2505.09598v5, Table 4), halved for 4B: 0.09 and 0.009.
+# - range: low = a well-batched L4 (0.076 J x 1.3); high = one request alone on the card at TDP (72 W x 40 s per
+#   1 000 tokens). Input: 0.0085 J x 1.3 (low), 0.03 J x 1.5 (high, long context).
+# Prompt tokens served from vLLM's prefix cache (cached_tokens) skip prefill, so they count CACHED_INPUT_SHARE of an
+# input token: 0, their KV is reused, and attending to them during decode is already in the per-output-token figure
+# (measured with long contexts).
+# The former default, rated power x HTTP stream time, counted network, queueing and the whole card for one request
+# (5-15 x too high). It stays available only on request: BIRD_ENERGY_METHOD=power_time.
+WH_PER_1K_OUT = 0.10
+WH_PER_1K_IN = 0.006
+WH_PER_1K_OUT_RANGE = (0.03, 0.8)
+WH_PER_1K_IN_RANGE = (0.003, 0.0125)
+SERVING_OVERHEAD = 1.72  # already inside WH_PER_1K_*: the GPU-only share is these values / 1.72
+CACHED_INPUT_SHARE = 0.0
+ENERGY_SOURCES = (
+    {"label": "ML.ENERGY Benchmark (2025)", "url": "https://arxiv.org/html/2505.06371v2"},
+    {"label": "Where Do the Joules Go? (2026)", "url": "https://arxiv.org/html/2601.22076v2"},
+    {"label": "Google, AI inference at scale (2025)", "url": "https://arxiv.org/html/2508.15734v1"},
+    {"label": "How Hungry is AI? (2025)", "url": "https://arxiv.org/html/2505.09598v5"},
+)
+ENERGY_METHODS = ("tokens", "power_time", "off")
+# Power x time, opt-in only (BIRD_ENERGY_METHOD=power_time): rated board power of the NVIDIA L4 of the Inference
+# Endpoint, 72 W TDP: https://www.nvidia.com/en-us/data-center/l4/ (specifications table).
 DEFAULT_GPU_WATTS = 72.0
 DEFAULT_GPU_LABEL = "NVIDIA L4 (72 W TDP)"
 GPU_SOURCE = "https://www.nvidia.com/en-us/data-center/l4/"
@@ -66,7 +103,10 @@ class Settings:
     calibration_source: str | None = None
     measure_gpu: bool = False
     equivalent: dict | None = None  # {"label", "wh", "source"}: an everyday comparison, only if configured and cited
-    gpu_watts: float | None = DEFAULT_GPU_WATTS  # None/0: no power x time estimate
+    energy_method: str = "tokens"  # "tokens" (default) | "power_time" (opt-in, the old upper bound) | "off"
+    wh_per_1k_out: float = WH_PER_1K_OUT  # "tokens": Wh per 1 000 output tokens, full serving boundary
+    wh_per_1k_in: float = WH_PER_1K_IN  # "tokens": Wh per 1 000 uncached input tokens
+    gpu_watts: float | None = DEFAULT_GPU_WATTS  # "power_time" only; None/0: no power x time estimate
     gpu_label: str = DEFAULT_GPU_LABEL
     gpu_source: str | None = GPU_SOURCE
     pue: float = 1.0
@@ -123,6 +163,21 @@ class Settings:
     trusted_proxies: int = 0  # proxies of the operator in front (X-Forwarded-For is ignored when 0)
 
     @property
+    def energy_config(self) -> dict:
+        """The token estimate's parameters for the harness; the range follows a configured central value."""
+        out_k = self.wh_per_1k_out / WH_PER_1K_OUT
+        in_k = self.wh_per_1k_in / WH_PER_1K_IN
+        return {
+            "energy_method": self.energy_method,
+            "wh_per_1k_out": self.wh_per_1k_out,
+            "wh_per_1k_in": self.wh_per_1k_in,
+            "wh_per_1k_out_range": tuple(round(v * out_k, 6) for v in WH_PER_1K_OUT_RANGE),
+            "wh_per_1k_in_range": tuple(round(v * in_k, 6) for v in WH_PER_1K_IN_RANGE),
+            "cached_input_share": CACHED_INPUT_SHARE,
+            "serving_overhead": SERVING_OVERHEAD,
+        }
+
+    @property
     def server_configured(self) -> bool:
         return bool(self.base_url) or self.local_llm is not None
 
@@ -151,6 +206,7 @@ class Settings:
         eq_wh = _num(get("BIRD_EQUIVALENT_WH"), None, float, 0.0)
         if get("BIRD_EQUIVALENT_LABEL") and get("BIRD_EQUIVALENT_SOURCE") and eq_wh:
             equivalent = {"label": get("BIRD_EQUIVALENT_LABEL"), "wh": eq_wh, "source": get("BIRD_EQUIVALENT_SOURCE")}
+        method = (get("BIRD_ENERGY_METHOD") or "tokens").lower()
         gpu_watts = _num(get("BIRD_GPU_WATTS"), DEFAULT_GPU_WATTS, float, 0.0) or None
         gpu_label = get("BIRD_GPU_LABEL") or (
             DEFAULT_GPU_LABEL if gpu_watts == DEFAULT_GPU_WATTS else f"GPU {gpu_watts:g} W" if gpu_watts else ""
@@ -189,6 +245,9 @@ class Settings:
             else "wikipedia",
             search_contact=contact,
             pin_dns=_flag(get("BIRD_PIN_DNS"), default=True),
+            energy_method=method if method in ENERGY_METHODS else "tokens",
+            wh_per_1k_out=_num(get("BIRD_WH_PER_1K_OUT"), WH_PER_1K_OUT, float, 0.0),
+            wh_per_1k_in=_num(get("BIRD_WH_PER_1K_IN"), WH_PER_1K_IN, float, 0.0),
             gpu_watts=gpu_watts,
             gpu_label=gpu_label,
             pue=max(1.0, _num(get("BIRD_PUE"), 1.0, float, 1.0)),

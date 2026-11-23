@@ -222,12 +222,16 @@ def usage_event(
     busy_seconds: float | None = None,
     first_token_seconds: float | None = None,
     history: dict | None = None,
+    cached_tokens: int | None = None,
 ) -> Event:
     if energy_wh is None or energy_kind not in ("measured", "estimated"):
         energy_wh, energy_kind, energy_source, energy_method, energy_basis = None, None, None, None, None
     return {
-        "energy_method": energy_method,  # "nvidia_smi" | "calibration" | "power_time" | None
-        "energy_basis": energy_basis,  # power x time: {"watts", "busy_seconds", "pue", "gpu"}
+        "energy_method": energy_method,  # "nvidia_smi" | "calibration" | "tokens" | "power_time" | None
+        # tokens: {"input_tokens", "cached_tokens", "output_tokens", "wh_per_1k_in", "wh_per_1k_out", "low_wh",
+        # "high_wh", "serving_overhead", "boundary", ...}; power x time: {"watts", "busy_seconds", "pue", "gpu"}
+        "energy_basis": energy_basis,
+        "cached_tokens": None if cached_tokens is None else int(cached_tokens),  # prompt tokens from the prefix cache
         "busy_seconds": None if busy_seconds is None else round(float(busy_seconds), 2),
         "first_token_seconds": None if first_token_seconds is None else round(float(first_token_seconds), 2),
         "history": history,  # {"turns", "dropped_turns", "history_tokens_est", "budget"}
@@ -1706,7 +1710,8 @@ class HarnessBackend:
             [
                 {
                     k: u.get(k)
-                    for k in ("prompt_tokens", "completion_tokens", "seconds", "busy_seconds", "first_token_seconds")
+                    for k in ("prompt_tokens", "completion_tokens", "cached_tokens", "seconds", "busy_seconds",
+                              "first_token_seconds")  # fmt: skip
                 }
                 for u in image_usage
             ],
@@ -1714,11 +1719,7 @@ class HarnessBackend:
             tool_calls=len(image_usage),
             bytes_fetched=0,
             measured_wh=None,
-            wh_per_1k_tokens=cfg.wh_per_1k_tokens,
-            calibration_source=cfg.calibration_source,
-            gpu_watts=cfg.gpu_watts,
-            gpu_label=cfg.gpu_label,
-            pue=cfg.pue,
+            **meter.energy_options(cfg),
         )
         return run
 
@@ -1823,7 +1824,7 @@ class HarnessBackend:
         from birds.harness import Agent, guard
         from birds.harness.agent import PAUSE, Hooks
         from birds.harness.history import memo
-        from birds.harness.meter import estimate_power_time
+        from birds.harness.meter import energy_options, estimate_power_time, estimate_tokens
         from birds.web import crew_web
 
         lang = "en" if request.lang == "en" else "fr"
@@ -1962,12 +1963,23 @@ class HarnessBackend:
             energy_source = report.get("energy_source")
             busy = float(report.get("busy_seconds") or 0.0)
             tin, tout = report.get("prompt_tokens") or 0, report.get("completion_tokens") or 0
+            cached = int(report.get("cached_tokens") or 0)
             for u in image_usage:  # image tokens are prompt tokens of the reading call
                 tin += int(u.get("prompt_tokens") or 0)
                 tout += int(u.get("completion_tokens") or 0)
+                cached += min(int(u.get("cached_tokens") or 0), int(u.get("prompt_tokens") or 0))
                 busy += float(u.get("busy_seconds") or 0.0)
+            est = None
             if image_usage and energy_method == "power_time" and cfg.gpu_watts:
                 est = estimate_power_time(cfg.gpu_watts, busy, pue=cfg.pue, label=cfg.gpu_label)
+            elif image_usage and energy_method == "tokens":  # the reading calls' tokens count like the others
+                o = energy_options(cfg)
+                est = estimate_tokens(tin, tout, cached=cached, wh_per_1k_in=o["wh_per_1k_in"] or 0.0,
+                                      wh_per_1k_out=o["wh_per_1k_out"] or 0.0, in_range=o["wh_per_1k_in_range"],
+                                      out_range=o["wh_per_1k_out_range"], cached_share=o["cached_input_share"],
+                                      serving_overhead=o["serving_overhead"],
+                                      exact=bool(report.get("tokens_exact", True)))  # fmt: skip
+            if est is not None:
                 energy, energy_source, energy_basis = est["energy_wh"], est["energy_source"], est["energy_basis"]
             if energy_kind == "measured" and carry.get("energy_wh") is not None:
                 energy = round(energy + float(carry["energy_wh"]), 4)
@@ -2060,6 +2072,7 @@ class HarnessBackend:
                     thinking=request.thinking,
                     prompt_tokens=tin,
                     completion_tokens=tout,
+                    cached_tokens=cached,
                     seconds=seconds,
                     tool_calls=(report.get("tool_calls") or len(run.steps)) + len(image_usage),
                     bytes_fetched=report.get("bytes_fetched") or 0,
