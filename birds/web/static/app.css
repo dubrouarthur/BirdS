@@ -2751,6 +2751,36 @@ details[open] > summary > .chev {
   .dock-inner {
     padding-block-end: calc(4px + var(--safe-b));
   }
+  /* the hints give their room to the conversation (a landscape phone kept 130 px of it, 0 with the keyboard) */
+  .thinking-hint,
+  .dock-note {
+    display: none;
+  }
+}
+/* keyboard up on a landscape phone (about 160 px left): no header, and the message box sits beside its buttons, so
+   the running team (its chip and current lane) stays in view while typing */
+@media (max-height: 300px) {
+  .top {
+    display: none;
+  }
+}
+@media (max-height: 300px) and (min-width: 560px) {
+  .composer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+  .composer > * {
+    flex: 1 1 100%;
+  }
+  .composer > textarea {
+    flex: 1 1 12rem;
+    inline-size: auto;
+    min-inline-size: 0;
+  }
+  .composer > .composer-row {
+    flex: none;
+  }
 }
 .slash {
   margin-block-end: 8px;
