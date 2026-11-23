@@ -918,7 +918,7 @@ figcaption {
   background: var(--them);
 }
 .fill.bird {
-  background: color-mix(in srgb, var(--leaf) 45%, transparent);
+  background: var(--leaf);
   min-width: 10px;
 }
 .cmp-foot {
