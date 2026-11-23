@@ -1994,6 +1994,10 @@ class HarnessBackend:
                         (workspace / (sanitize_filename(name) + ".txt")).write_text(
                             guard.truncate(text or "", IMAGE_TEXT_CHARS), encoding="utf-8"
                         )
+                if request.images:  # the pictures themselves, for a deck or a document made in this run
+                    from birds.harness.office_media import keep_user_images
+
+                    keep_user_images(workspace, request.images, dict(image_texts))
                 # Images from EARLIER messages are not sent again, but what was read in them is in the history:
                 # put it back so read_file("facture.jpg") still works on a follow-up (« reprends les totaux »).
                 for name, text in earlier_image_texts(request.messages[:-1]):
@@ -2184,6 +2188,8 @@ class HarnessBackend:
         finally:
             if ephemeral:
                 shutil.rmtree(workspace, ignore_errors=True)
+            else:  # a persistent workspace keeps no copy of the pictures of one message
+                shutil.rmtree(workspace / ".bird_images", ignore_errors=True)
 
     def _widgets(self, run, request: ChatRequest, ctx: RunContext, lang: str, draft) -> list[dict]:
         """Widgets of the answer, from tool results and the user's own words (never the model's text)."""

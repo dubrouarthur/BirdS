@@ -238,9 +238,9 @@ def _match(m: Media, text: str) -> int:
 
 
 def _named(m: Media, text: str) -> bool:
-    """The slide names the picture by its file name ('photo-chantier.jpg', 'logo')."""
-    name = (m.title or "").lower()
-    return bool(name) and name in str(text).lower()
+    """The slide names the picture by its file name ('photo-chantier.jpg', 'photo-chantier')."""
+    stem = re.sub(r"\.\w{2,4}$", "", (m.title or "").lower())
+    return m.kind == "user" and len(stem) >= 3 and stem in str(text).lower()
 
 
 def expand_deck(title: str, slides: list[dict], media: list[Media], lang: str = "fr", sources: list | None = None,
@@ -271,7 +271,7 @@ def expand_deck(title: str, slides: list[dict], media: list[Media], lang: str = 
         elif img == "none":
             s["no_image"] = True
         for m in pictures:  # a bullet that only names an attached picture places it here
-            hit = next((b for b in bullets if _named(m, b) and len(_plain(b)) <= len(m.title) + 20), None)
+            hit = next((b for b in bullets if _named(m, b) and len(_plain(b)) <= len(m.title) + 24), None)
             if hit and "image" not in s:
                 s["image"], s["bullets"] = m, [b for b in bullets if b is not hit]
                 used.add(m.id)
@@ -508,5 +508,5 @@ def expand_doc(title: str, sections: list[dict], media: list[Media], lang: str =
         else:
             srcs["content"] = srcs["content"].rstrip() + f"\n\n### {tr('credits', lang)}\n" + text
     long = sum(len(s["content"]) for s in out) > 5000
-    toc = options.get("toc", len([s for s in out if s["heading"]]) >= 4 or long)
+    toc = options.get("toc", len([s for s in out if s["heading"]]) >= 5 or long)
     return out, {"cover": cover, "logo": logo, "toc": bool(toc), "added": added}

@@ -104,7 +104,8 @@ def test_document_preview_says_how_much_is_cut(tmp_path):
     preview: dict = {}
     sections = [{"heading": f"Partie {i}", "content": "\n\n".join(f"Paragraphe {j}." for j in range(5))} for i in range(40)]
     build_docx(tmp_path / "d.docx", "Long", sections, "", preview)
-    assert len(preview["blocks"]) == 120 and preview["more"] == 2 + 40 * 6 - 120  # title, date, then 6 blocks a section
+    # cover page (title, date, page break), contents (heading + 40 entries, page break), then 6 blocks a section
+    assert len(preview["blocks"]) == 120 and preview["more"] == 3 + 42 + 40 * 6 - 120
     small: dict = {}
     build_docx(tmp_path / "s.docx", "Court", sections[:2], "", small)
     assert "more" not in small

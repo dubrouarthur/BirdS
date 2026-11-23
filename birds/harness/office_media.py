@@ -15,6 +15,7 @@ import base64
 import html
 import io
 import re
+import time
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -323,7 +324,8 @@ class Fetcher:
 COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 
 
-def web_images(candidates: list[dict], fetch, topic: str, limit: int = 4, start: int = 1) -> list[Media]:
+def web_images(candidates: list[dict], fetch, topic: str, limit: int = 4, start: int = 1,
+               deadline: float | None = None) -> list[Media]:  # fmt: skip
     """Free-licence pictures among the research step's candidates: Commons files only (Wikipedia thumbnails),
     relevant to ``topic`` (a content word in common), licence checked on Commons, credit captured. Page images
     (og:image) carry no licence: they are skipped."""
@@ -332,7 +334,7 @@ def web_images(candidates: list[dict], fetch, topic: str, limit: int = 4, start:
     topic_w = words(topic)
     out, seen = [], set()
     for c in candidates or []:
-        if len(out) >= limit or not isinstance(c, dict):
+        if len(out) >= limit or not isinstance(c, dict) or (deadline is not None and time.monotonic() > deadline):
             break
         name = commons_file(str(c.get("src") or ""))
         if not name or name in seen or re.search(r"\.(svg|tiff?|pdf|djvu)$", name, re.I):
@@ -575,3 +577,23 @@ def chart_spec_ok(spec) -> bool:
         if not all(v is None or (isinstance(v, int | float) and not isinstance(v, bool)) for v in r[1:]):
             return False
     return all(isinstance(c, str) and len(c) <= 80 for c in cols)
+
+
+def keep_user_images(workspace: Path, images: list[dict], texts: dict[str, str] | None = None) -> int:
+    """Leave the pictures attached to the message in <workspace>/.bird_images (re-encoded), for a deck or a
+    document of this run. A picture whose transcription is long (a scanned invoice, a page of text) is a document
+    already read as text, not an illustration: it is not kept. Returns the number kept."""
+    d = Path(workspace) / USER_DIR
+    kept = 0
+    for k, img in enumerate(images or [], 1):
+        name = re.sub(r"[^\w.-]+", "-", str(img.get("name") or f"image-{k}"))[:80] or f"image-{k}"
+        if len((texts or {}).get(str(img.get("name") or ""), "")) > 400:
+            continue
+        try:
+            m = from_data_url(str(img.get("url") or ""), f"u{k}")
+        except (ImageError, ValueError):
+            continue
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{k:02d}-{Path(name).stem}.{'png' if m.fmt == 'png' else 'jpg'}").write_bytes(m.data)
+        kept += 1
+    return kept

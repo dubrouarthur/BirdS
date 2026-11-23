@@ -1159,6 +1159,10 @@ _PPR = (
 _TCPR = "cnfStyle tcW gridSpan hMerge vMerge tcBorders shd noWrap tcMar textDirection tcFitText vAlign hideMark".split()
 _DECISION = re.compile(r"^\W{0,3}(?:d[ée]cision|d[ée]cid[ée]e?s?|valid[ée]e?s?|decided)\b[^:]{0,30}:", re.I)
 _ACTION = re.compile(r"^\W{0,3}(?:actions?|[àa] faire|to ?do|next steps?|prochaine [ée]tape)\b[^:]{0,30}:", re.I)
+_NOTE = re.compile(r"^\W{0,3}(?:[àa] retenir|important|note|nb|n\.b\.|conseil|astuce|en bref|key takeaways?|"
+                   r"takeaway|tip|in short|bon [àa] savoir)\b[^:]{0,20}:", re.I)  # fmt: skip
+_WARN = re.compile(r"^\W{0,3}(?:attention|avertissement|vigilance|risques?|warning|caution|alerte)\b[^:]{0,20}:", re.I)
+_WARN_T, _WARN_BAR = "FFF4E0", "E8A33D"
 _DECISION_HEAD = re.compile(r"d[ée]cision|decision", re.I)
 _ACTION_HEAD = re.compile(r"\bactions?\b|[àa] faire|next steps|prochaines? [ée]tapes|to ?do", re.I)
 _NUM_CELL = re.compile(r"[-+−]?\s?(?:[\d\xa0  .,]*\d)\s?(?:%|€|k€|M€|\$|£|pts?|h)?")
@@ -1604,11 +1608,12 @@ def _callout(doc, text: str, kind: str):
     pf = par.paragraph_format
     pf.left_indent, pf.space_after = Cm(0.5), Pt(4)
     ppr = par._p.get_or_add_pPr()
-    fill = C.POS_T if kind == "decision" else C.TINT
-    _p_border(ppr, left=(24, C.POS if kind == "decision" else C.BLUE, 8), **_pad(fill))
+    fill = C.POS_T if kind == "decision" else _WARN_T if kind == "warn" else C.TINT
+    bar = C.POS if kind == "decision" else _WARN_BAR if kind == "warn" else C.BLUE
+    _p_border(ppr, left=(24, bar, 8), **_pad(fill))
     _p_shade(ppr, fill)
     m = re.match(r"^\s*(?:\*\*|__)?([^:*_\n]{1,40}?)\s*(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*", text)
-    if m and (_DECISION.match(text) or _ACTION.match(text)):
+    if m and (_DECISION.match(text) or _ACTION.match(text) or _NOTE.match(text) or _WARN.match(text)):
         r = par.add_run(m.group(1).strip() + " : ")
         r.bold, r.font.color.rgb = True, RGBColor.from_string(C.NAVY)
         rest = text[m.end() :]
@@ -1618,6 +1623,16 @@ def _callout(doc, text: str, kind: str):
     else:
         _add_runs(par, text)
     return par
+
+
+def _callout_kind(text: str) -> str:
+    if _DECISION.match(text):
+        return "decision"
+    if _ACTION.match(text):
+        return "action"
+    if _WARN.match(text):
+        return "warn"
+    return "note" if _NOTE.match(text) else ""
 
 
 def _new_list(doc, style_name: str) -> str | None:
@@ -1659,7 +1674,7 @@ def _blocks_to_docx(doc, blocks: list[Block], base_level: int = 1, context: str 
                 mode = "action"
         elif is_item:
             text = plain(b.text)
-            kind = "decision" if _DECISION.match(text) else "action" if _ACTION.match(text) else ""
+            kind = _callout_kind(text)
             if b.kind == "bullet" and (kind or (mode and flat)):
                 last_item = _callout(doc, b.text, kind or mode)
                 continue
@@ -1702,7 +1717,7 @@ def _blocks_to_docx(doc, blocks: list[Block], base_level: int = 1, context: str 
             _p_border(par._p.get_or_add_pPr(), bottom=(4, C.HAIR, 1))
         else:
             text = plain(b.text)
-            kind = "decision" if _DECISION.match(text) else "action" if _ACTION.match(text) else ""
+            kind = _callout_kind(text)
             if kind:
                 last_item = _callout(doc, b.text, kind)
             else:
@@ -1723,29 +1738,13 @@ def _cover(doc, title: str, subtitle: str | None) -> None:
         doc.add_paragraph(subtitle, style="Subtitle")
 
 
-def build_docx(path, title: str, sections: list[dict], subtitle: str = "", preview: dict | None = None) -> dict:
-    """Write the document; return counts for the summary (sections, tables, list items). `preview`, if given, is
-    filled with the blocks as written (doc_preview)."""
-    from docx import Document
+def build_docx(path, title: str, sections: list[dict], subtitle: str = "", preview: dict | None = None, **kw) -> dict:
+    """Write the document; return counts for the summary (sections, tables, list items, figures). `preview`, if
+    given, is filled with the blocks as written (doc_preview). Keyword arguments (media, theme, sources, lang,
+    request, options) go to the document engine (office_doc.build)."""
+    from birds.harness.office_doc import build
 
-    doc = Document()
-    _docx_styles(doc)
-    doc.core_properties.title = title[:200]
-    _furniture(doc, title)
-    _cover(doc, title, subtitle or dt.date.today().strftime("%d/%m/%Y"))
-    stats = {"sections": len(sections), "tables": 0, "items": 0}
-    for s in sections:
-        heading = plain(str(s.get("heading") or ""))
-        doc.add_heading(heading, level=1)
-        blocks = parse_markdown(str(s.get("content") or ""))
-        stats["tables"] += sum(b.kind == "table" for b in blocks)
-        stats["items"] += sum(b.kind in ("bullet", "number") for b in blocks)
-        _blocks_to_docx(doc, blocks, base_level=2, context=heading)
-    _finish(doc)
-    doc.save(str(path))
-    if preview is not None:
-        preview.update(doc_preview(doc, title))
-    return stats
+    return build(path, title, sections, subtitle, preview, **kw)
 
 
 _PREVIEW_BLOCKS, _PREVIEW_ROWS = 120, 30
@@ -1755,9 +1754,14 @@ def doc_preview(doc, title: str) -> dict:
     """The body of a written document as blocks the chat draws like the page: title, subtitle, headings, paragraphs
     (runs with bold), list items (bullet or number, level), callouts (decision/action), quotes, code, tables (header,
     right-aligned figures, totals, zebra). Text and rows are capped."""
+    import hashlib
+
     from docx.oxml.ns import qn
 
+    from birds.harness.office_media import thumb
+
     blocks: list[dict] = []
+    thumbs: dict[str, str] = {}
     counters: dict = {}
     names = {st.style_id: st.name for st in doc.styles}
 
@@ -1791,9 +1795,41 @@ def doc_preview(doc, title: str) -> dict:
             style_el = ppr.find(qn("w:pStyle")) if ppr is not None else None
             name = names.get(style_el.get(qn("w:val")), "Normal") if style_el is not None else "Normal"
             r = runs(el)
+            blip = el.find(".//" + qn("a:blip"))
+            if blip is not None and blip.get(qn("r:embed")):
+                try:
+                    blob = doc.part.related_parts[blip.get(qn("r:embed"))].blob
+                    key = hashlib.sha1(blob).hexdigest()[:12]
+                    if key not in thumbs:
+                        thumbs[key] = thumb(blob, 520)
+                    ext = el.find(".//" + qn("wp:extent"))
+                    pr = el.find(".//" + qn("wp:docPr"))
+                    item = {"k": "img", "m": key, "alt": (pr.get("descr") if pr is not None else "") or ""}
+                    if ext is not None:
+                        item["w"] = round(int(ext.get("cx")) / 360000, 2)  # cm
+                        item["h"] = round(int(ext.get("cy")) / 360000, 2)
+                    blocks.append(item)
+                except (KeyError, ValueError, OSError):
+                    pass
+                continue
             if not r:
                 if ppr is not None and ppr.find(qn("w:pBdr")) is not None and style_el is None:
                     blocks.append({"k": "rule"})
+                elif el.find(".//" + qn("w:br")) is not None and blocks and blocks[-1].get("k") != "pb":
+                    blocks.append({"k": "pb"})
+                continue
+            if name == "Caption":
+                blocks.append({"k": "cap", "r": r})
+                continue
+            if name.lower().startswith("toc"):
+                if name.lower() == "toc heading":
+                    blocks.append({"k": "toch", "r": r})
+                else:
+                    level = int(name[-1]) if name[-1].isdigit() else 1
+                    blocks.append({"k": "toc", "l": level, "r": r})
+                continue
+            if name == "Bird Source":
+                blocks.append({"k": "src", "r": r})
                 continue
             if not name.startswith("List Number"):
                 counters = {} if not name.startswith("List") else counters
@@ -1819,8 +1855,9 @@ def doc_preview(doc, title: str) -> dict:
                 blocks.append({"k": "quote", "r": r})
             elif fill(ppr) == _CODE:
                 blocks.append({"k": "code", "t": "".join(x[0] for x in r)})
-            elif fill(ppr) in (C.POS_T, C.TINT):
-                blocks.append({"k": "callout", "c": "decision" if fill(ppr) == C.POS_T else "action", "r": r})
+            elif fill(ppr) in (C.POS_T, C.TINT, _WARN_T):
+                c = {C.POS_T: "decision", _WARN_T: "warn"}.get(fill(ppr), "action")
+                blocks.append({"k": "callout", "c": c, "r": r})
             else:
                 blocks.append({"k": "p", "r": r})
         elif el.tag == qn("w:tbl"):
@@ -1844,6 +1881,8 @@ def doc_preview(doc, title: str) -> dict:
             total_rows = sum(1 for _ in el.iterchildren(qn("w:tr")))
             blocks.append({"k": "table", "rows": rows, "more": max(0, total_rows - len(rows))})
     out = {"kind": "document", "v": 2, "title": _cut(plain(title), 160), "blocks": blocks}
+    if thumbs:
+        out["media"] = thumbs
     if more:
         out["more"] = more
     return out
