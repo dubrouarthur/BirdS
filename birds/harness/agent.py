@@ -140,6 +140,55 @@ def chart_nudge(request: str, messages: list[dict]) -> str:
 _ABOUT_CHARTS = re.compile(
     r"^\s*(?:explique|expliquez|explain|d[ée]finis|define|qu['’]est[- ]ce|what (?:is|are)|c['’]est quoi)\b", re.I
 )
+# How-to, advice or definition about charts: steps in a sheet tool, which chart to pick, what a chart is. No chart
+# is drawn and make_chart is not offered (« comment faire un graphique dans Excel ? », « tuto pour faire une courbe
+# sur Excel », « quel graphique choisir pour une répartition ? », « différence entre histogramme et barres »).
+_CHART_HOWTO = re.compile(
+    r"\b(?:comment|how\s+(?:do|can|to|should|would)|tuto\w*|tutorial|[ée]tapes?\s+pour|steps?\s+to|proc[ée]dure\s+pour|"
+    r"m[ée]thode\s+pour|astuces?\s+pour|explique\w*|expliquer|explain\w*|d[ée]finition|define|diff[ée]rences?\s+entre|"
+    r"difference\s+between|(?:quel|quelle|which|what)\s+(?:type\s+de\s+|sorte\s+de\s+|kind\s+of\s+|type\s+of\s+)?"
+    r"(?:graphique|graphe|diagramme|chart|graph|visuali[sz]ation)s?\s+(?:choisir|utiliser|privil[ée]gier|"
+    r"pour|to\s+(?:use|choose|pick)|should|is\s+best|est\s+le\s+(?:plus|mieux))|"
+    r"(?:quand|when)\s+(?:utiliser|use|choisir)|c['’]est\s+quoi|qu['’]est[- ]ce\s+qu)\b|"
+    r"\b(?:dans|sous|avec|sur|on|in|with|using)\s+(?:excel|word|powerpoint|power\s?point|google\s+sheets|sheets|"
+    r"libreoffice|calc|numbers|power\s?bi|tableau|looker|matplotlib|python|r)\b[^.?!\n]{0,40}"
+    r"(?:\?|$)|\b(?:crois[ée]s?\s+dynamiques?|pivot\s+charts?|tableaux?\s+crois[ée]s?)\b",
+    re.I,
+)
+# A sheet tool named with a how-to verb (« insérer un graphique dans Word », « ajouter une courbe de tendance »)
+_SHEET_HOWTO = re.compile(
+    r"\b(?:ins[ée]rer|ajouter|modifier|changer|mettre\s+en\s+forme|formater|insert|add|format|customi[sz]e|"
+    r"courbe\s+de\s+tendance|trendline|axe\s+secondaire|secondary\s+axis|l[ée]gende|legend)\b",
+    re.I,
+)
+
+
+_DO_CHART = re.compile(
+    r"^\s*(?:(?:peux-tu|pourrais-tu|tu peux|tu pourrais|pouvez-vous|can you|could you|please)\s+)?(?:me\s+)?"
+    r"(?:fais|fait|faites|refais|trace|tracez|dessine|montre|affiche|g[ée]n[èe]re|cr[ée]e|mets|make|draw|plot|show|"
+    r"create|generate|build|chart|graph|visualise|visualize|represent[ez]?)\b",
+    re.I,
+)
+
+
+def chart_howto(text: str) -> bool:
+    """A question ABOUT making or choosing a chart, not a request for one. The user's own figures (two numbers or
+    more) always make it a request: « comment représenter ça : T1 120, T2 135 ? » is drawn."""
+    words = _chart_words(text)
+    if len(_NUMBER.findall(re.sub(r"\b(?:19|20)\d\d\b", " ", words))) >= 2:
+        return False
+    if _DO_CHART.match(words) and not re.match(r"^\s*\S+(?:[\s-]+(?:moi|me|nous|us))?\s+(?:comment|how)\b", words, re.I):
+        return False  # « fais un graphique des ventes et explique la tendance »: a request that also asks for words
+    if _HOWTO.search(words) or _ABOUT_CHARTS.search(words):
+        return True
+    m = _CHART_HOWTO.search(words)
+    if not m:
+        return False
+    if re.match(r"\s*(?:dans|sous|avec|sur|on|in|with|using)\b", m.group(0), re.I):
+        return bool(_SHEET_HOWTO.search(words) or _HOWTO.search(words) or re.search(r"\bcomment\b|\bhow\b", words, re.I))
+    return True
+
+
 # an answer that only announces work the model could do now (« je reviens sur l'image », « je vais vérifier »)
 _PROMISE = re.compile(
     r"\b(?:je (?:reviens|vais (?:relire|reprendre|vérifier|verifier|chercher|rechercher|récupérer|recuperer|compléter|"
@@ -314,7 +363,7 @@ def route(user: str, attached: bool = False) -> set[str]:
     words = _chart_words(user)
     # untrained tool: only when a chart is asked, or the question is about a trend over time (« la population de
     # Paris évolue comment depuis 2012 ») where a line chart is the natural answer
-    about = _HOWTO.search(words) or _ABOUT_CHARTS.search(words)  # « comment faire un graphique dans Excel ? »
+    about = chart_howto(user)  # « comment faire un graphique dans Excel ? », « quel graphique choisir ? »
     out = set() if (_CHART_ASK.search(words) and not about) or trend_ask(user) else {"make_chart"}
     # A chart of public facts (« la population des 5 plus grandes villes ») is researched first, as ChatGPT does:
     # the web tools are withheld only when the message itself carries the figures (or a document does).
@@ -484,7 +533,7 @@ def chart_ask(text: str) -> bool:
     « courbe en J »), and not a question about charts. Only then is a text answer reminded or replaced."""
     text = _chart_words(text)
     clear = _CHART_VERB.search(text) or len(_NUMBER.findall(text)) >= 2  # « graphique du CA : T1 120, T2 135 »
-    return bool(_CHART_ASK.search(text) and clear and not _HOWTO.search(text) and not _ABOUT_CHARTS.search(text))
+    return bool(_CHART_ASK.search(text) and clear and not chart_howto(text))
 
 
 def _file_edit_ask(text: str, attached: bool = False) -> bool:
