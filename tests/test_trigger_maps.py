@@ -185,3 +185,19 @@ def test_a_capitalised_known_town_still_gets_a_map():
 def test_a_kind_near_an_unnamed_spot_is_only_offered(text):
     got = intents.places(text)
     assert got is not None and got.args is None
+
+
+@pytest.mark.parametrize("text", ["trajet client fournisseur", "itinéraire marketing digital", "itinéraire client idéal"])
+def test_a_customer_journey_is_not_a_route(text):
+    assert not _call(text)
+
+
+@pytest.mark.parametrize(
+    "text,args",
+    [
+        ("trajet vierzon -> bourges", {"query": "bourges", "near": "vierzon"}),
+        ("trajet roanne → vichy", {"query": "vichy", "near": "roanne"}),
+    ],
+)
+def test_an_arrow_joins_two_stops(text, args):
+    assert _call(text) == (args, "route")

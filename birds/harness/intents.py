@@ -146,7 +146,7 @@ _NOT_TOWN = re.compile(  # « les écoles de commerce », « les pharmacies de g
     re.I,
 )
 # « itinéraire Lyon Grenoble », « trajet paris marseille »
-_RX_ROUTE_BARE = re.compile(r"^(?:itin[ée]raire|trajet)\s+(?P<a>[^\W\d_][\w'-]+)\s+(?:[-–>→]\s*)?(?P<b>[^\W\d_][\w'-]+)$", re.I)
+_RX_ROUTE_BARE = re.compile(r"^(?:itin[ée]raire|trajet)\s+(?P<a>[^\W\d_][\w'-]+)\s+(?:(?:->|[-–>→])\s*)?(?P<b>[^\W\d_][\w'-]+)$", re.I)
 _NOT_STOP = re.compile(
     r"^(?:domicile|travail|boulot|maison|retour|aller|quotidien|formation|professionnel|carri[èe]re|"
     r"le|la|les|de|du|des|pour|en|vers|optimal|rapide|direct|habituel)$",
@@ -447,7 +447,11 @@ def places(text: str, lang: str = "fr") -> Intent | None:
             keep_web=False, mode="near",
         )
     m = _RX_ROUTE_BARE.match(t)
-    if m and not _NOT_STOP.match(m.group("a")) and not _NOT_STOP.match(m.group("b")):
+    # « trajet client fournisseur », « itinéraire marketing digital »: two words are a route only when both are
+    # towns (known, or capitalised) or joined by an arrow or a dash
+    stops = m and (re.search(r"[-–>→]\s*\S+$", t[m.end("a"):]) or all(
+        known_place(m.group(k)) or m.group(k)[:1].isupper() for k in ("a", "b")))  # fmt: skip
+    if m and stops and not _NOT_STOP.match(m.group("a")) and not _NOT_STOP.match(m.group("b")):
         if not _not_a_place(m.group("a")) and not _not_a_place(m.group("b")):
             return Intent("find_places", {"query": m.group("b"), "near": m.group("a")}, keep_web=False, mode="route")
     m = _RX_WHERE.search(t) or _RX_SITUE_MAP.search(t)
