@@ -1,0 +1,625 @@
+// Mode Agent UI smoke test on the demo server (scripted team, no model): focus, screen-reader announcements,
+// lane timers, failure and connection-loss states, a stalled stream, and the phone layouts.
+//
+//   .venv/bin/python scripts/serve.py --demo --port 9231 &
+//   BIRD_URL=http://127.0.0.1:9231/ SHOTS=/tmp/agentui node scripts/agent_ui_smoke.js [scenario ...]
+//
+// Uses the preinstalled Playwright (require('playwright')); never run `playwright install`. WebKit and Firefox are
+// used when they launch; otherwise the phones are emulated with Chromium device descriptors (said in the output).
+// SOFT=1 records the failed checks without stopping (to measure the state before a fix).
+const pw = require("playwright");
+const fs = require("fs");
+const http = require("http");
+const path = require("path");
+
+const URL = process.env.BIRD_URL || "http://127.0.0.1:9231/";
+const SHOTS = process.env.SHOTS || path.join(process.cwd(), "agentui-shots");
+const SOFT = !!process.env.SOFT;
+const DECK =
+  "Fais une présentation avec des chiffres sur le télétravail depuis 2019";
+const failures = [];
+
+function check(cond, what) {
+  if (cond) return console.log(`  ok    ${what}`);
+  console.log(`  FAIL  ${what}`);
+  failures.push(what);
+  if (!SOFT) throw new Error(`FAILED: ${what}`);
+}
+
+const dir = (label) => {
+  const d = path.join(SHOTS, label);
+  fs.mkdirSync(d, { recursive: true });
+  return d;
+};
+
+async function open(browser, options = {}) {
+  const ctx = await browser.newContext({ locale: "fr-FR", ...options });
+  const page = await ctx.newPage();
+  page.errors = [];
+  page.on("pageerror", (e) => page.errors.push(String(e)));
+  // every text given to the live region, in order (announce() empties it, then fills it)
+  await page.addInitScript(() => {
+    window.__said = [];
+    new MutationObserver(() => {
+      const live = document.getElementById("live");
+      if (live && live.textContent) window.__said.push(live.textContent);
+    }).observe(document, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+  });
+  await page.goto(URL);
+  await page
+    .locator("#welcome-start")
+    .click({ timeout: 6000 })
+    .catch(() => {});
+  await page.waitForTimeout(300);
+  return { ctx, page };
+}
+
+async function send(page, text = DECK) {
+  await page.fill("#composer-input", text);
+  await page.press("#composer-input", "Enter");
+}
+
+async function idle(page, timeout = 60000) {
+  await page.waitForSelector("#btn-send:not([hidden])", { timeout });
+}
+
+const active = (page) =>
+  page.evaluate(() => {
+    const a = document.activeElement;
+    return a === document.body
+      ? "BODY"
+      : `${a.tagName} ${a.className || a.id}`.trim();
+  });
+
+// ------------------------------------------------------------------ desktop: focus, announcements, timers
+
+async function desktopRun(browser) {
+  console.log("desktop-run (1440x900, fr, light)");
+  const out = dir("desktop-run");
+  const { ctx, page } = await open(browser, {
+    viewport: { width: 1440, height: 900 },
+  });
+  await send(page);
+  await page.waitForSelector('[data-act="agent-off"]', { timeout: 15000 });
+  check(
+    (await page.$$("section.crew[aria-live]")).length === 0,
+    "the crew board is not itself a live region",
+  );
+  await page.focus('[data-act="agent-off"]');
+  const before = await active(page);
+  // timers: sample the running lanes' elapsed time every 250 ms for 5 s
+  let blank = 0;
+  let samples = 0;
+  for (let i = 0; i < 20; i++) {
+    await page.waitForTimeout(250);
+    // a timer is blank in its first second only (as the live line's)
+    const times = await page.$$eval(
+      '.crew-lane[data-status="running"] .crew-time',
+      (els) => els.filter((e) => Date.now() - Number(e.dataset.since) >= 1100).map((e) => e.textContent),
+    );
+    for (const x of times) {
+      samples++;
+      if (!x) blank++;
+    }
+  }
+  const after = await active(page);
+  check(
+    before.includes("crew-out") && after.includes("crew-out"),
+    `focus stays on « Revenir au mode simple » (${before} -> ${after})`,
+  );
+  check(
+    samples > 0 && blank <= samples / 4,
+    `running lanes show their time (${blank}/${samples} blank)`,
+  );
+  const hidden = await page.$$eval(".crew-time", (els) =>
+    els.every((e) => e.getAttribute("aria-hidden") === "true"),
+  );
+  check(hidden, "lane timers are aria-hidden");
+  await page.screenshot({ path: path.join(out, "1-running.png") });
+  // Escape with the focus in the turn does not stop the team (the focus never falls back to <body>)
+  await page.waitForSelector(
+    '[data-phase="drafts"] .crew-lane[data-status="running"]',
+    { timeout: 20000 },
+  );
+  await idle(page);
+  await page.screenshot({ path: path.join(out, "2-done.png") });
+  const said = await page.evaluate(() => window.__said);
+  check(
+    said.some((s) => /retenue/.test(s)),
+    `the kept version is announced (${said.filter((s) => /Version|retenue/.test(s)).join(" | ")})`,
+  );
+  check(
+    said.some((s) => /terminé/.test(s)),
+    "a lane finishing is announced",
+  );
+  check(
+    said.some((s) => /Équipe : \d+ agents/.test(s)),
+    "the team summary is announced",
+  );
+  // focus on the folded summary survives the end of the run's redraws
+  check(page.errors.length === 0, `no page error (${page.errors.join(" | ")})`);
+  await ctx.close();
+}
+
+async function desktopAgentOff(browser) {
+  console.log("desktop-agent-off (keyboard)");
+  const out = dir("desktop-agent-off");
+  const { ctx, page } = await open(browser, {
+    viewport: { width: 1440, height: 900 },
+  });
+  await send(page);
+  await page.waitForSelector('[data-act="agent-off"]', { timeout: 15000 });
+  await page.waitForTimeout(800);
+  await page.focus('[data-act="agent-off"]');
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(600);
+  const where = await active(page);
+  check(
+    where.includes("composer-input"),
+    `after Enter on « Revenir au mode simple », focus is in the composer (${where})`,
+  );
+  await idle(page);
+  await page.screenshot({ path: path.join(out, "after.png") });
+  await ctx.close();
+}
+
+// ------------------------------------------------------------------ scripted failures (page.route over the demo stream)
+
+function frames(body) {
+  return body.split("\n\n").filter(Boolean);
+}
+const evOf = (f) => {
+  const line = f.split("\n").find((l) => l.startsWith("data:"));
+  try {
+    return line ? JSON.parse(line.slice(5)) : null;
+  } catch {
+    return null;
+  }
+};
+const frame = (ev) => `data: ${JSON.stringify(ev)}`;
+
+const TRANSFORMS = {
+  // the server fails after the reading phase
+  serverError(fs) {
+    const i = fs.findIndex(
+      (f) => evOf(f)?.type === "agent_step" && evOf(f).phase === "drafts",
+    );
+    return [
+      ...fs.slice(0, i + 1),
+      frame({ type: "error", code: "internal", message: "boom" }),
+      frame({ type: "done" }),
+    ];
+  },
+  // the connection is cut while the drafts run (no « done »)
+  cut(fs) {
+    const i = fs.findIndex(
+      (f) => evOf(f)?.type === "agent_step" && evOf(f).phase === "drafts",
+    );
+    return fs.slice(0, i + 1);
+  },
+  // one drafter fails, the other is kept
+  laneError(fs) {
+    return fs
+      .map((f) => {
+        const ev = evOf(f);
+        if (
+          ev?.type === "agent_step" &&
+          ev.id === "redacteur_b" &&
+          ev.status === "done"
+        )
+          return frame({ ...ev, status: "error" });
+        if (
+          ev?.type === "agent_step" &&
+          ev.id === "redacteur_b" &&
+          ev.status === "scored"
+        )
+          return null;
+        return f;
+      })
+      .filter(Boolean);
+  },
+};
+
+async function scripted(browser, kind, { lang = "fr", scheme = "light" } = {}) {
+  const label = `err-${kind}-${lang}-${scheme}`;
+  console.log(label);
+  const out = dir(label);
+  const { ctx, page } = await open(browser, {
+    viewport: { width: 1280, height: 860 },
+    colorScheme: scheme,
+    locale: lang === "en" ? "en-US" : "fr-FR",
+  });
+  await page.route("**/api/chat", async (route) => {
+    const resp = await route.fetch();
+    const body =
+      TRANSFORMS[kind](frames(await resp.text())).join("\n\n") + "\n\n";
+    await route.fulfill({
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+      body,
+    });
+  });
+  await send(page);
+  await idle(page, 90000);
+  await page.waitForTimeout(300);
+  await page
+    .locator(".crew-fold > summary")
+    .click()
+    .catch(() => {});
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: path.join(out, "state.png"), fullPage: true });
+  const line =
+    (await page.textContent(".crew-fold > summary").catch(() => "")) || "";
+  const statuses = await page.$$eval(".crew-lane", (els) =>
+    els.map((e) => e.dataset.status),
+  );
+  const details = await page.$$eval(".crew-lane .crew-detail", (els) =>
+    els.map((e) => e.textContent),
+  );
+  if (kind === "serverError") {
+    check(
+      !/interrompue|stopped/i.test(line),
+      `server error: not « interrompue » (${line})`,
+    );
+    check(
+      /n'a pas abouti|did not finish/.test(line),
+      `server error: « l'équipe n'a pas abouti » (${line})`,
+    );
+    check(
+      !details.some((d) => /non nécessaire|not needed/.test(d)),
+      `server error: no lane « non nécessaire » (${statuses.join(",")})`,
+    );
+  } else if (kind === "cut") {
+    check(
+      /connexion perdue|connection lost/.test(line),
+      `cut: « connexion perdue » (${line})`,
+    );
+    check(
+      !statuses.includes("stopped"),
+      `cut: no lane « arrêté » (${statuses.join(",")})`,
+    );
+    check(
+      await page.isVisible('[data-act="retry"], .notice [data-act]'),
+      "cut: the retry card is shown",
+    );
+  } else if (kind === "laneError") {
+    check(
+      /n'a pas abouti|did not finish/.test(line),
+      `lane error: the folded line says one agent failed (${line})`,
+    );
+  }
+  check(page.errors.length === 0, `no page error (${page.errors.join(" | ")})`);
+  await ctx.close();
+}
+
+// ------------------------------------------------------------------ a stalled stream (proxy stops forwarding)
+
+function stallProxy(target, port) {
+  const t = new globalThis.URL(target);
+  const server = http.createServer((req, res) => {
+    const up = http.request(
+      {
+        host: t.hostname,
+        port: t.port,
+        path: req.url,
+        method: req.method,
+        headers: req.headers,
+      },
+      (r) => {
+        res.writeHead(r.statusCode, r.headers);
+        let sent = 0;
+        r.on("data", (chunk) => {
+          if (req.url.startsWith("/api/chat") && sent > 5000) return; // swallow: the socket stays open
+          sent += chunk.length;
+          res.write(chunk);
+        });
+        r.on(
+          "end",
+          () => !(req.url.startsWith("/api/chat") && sent > 5000) && res.end(),
+        );
+      },
+    );
+    req.pipe(up);
+  });
+  return new Promise((resolve) => server.listen(port, () => resolve(server)));
+}
+
+async function stall(browser) {
+  console.log("sse-stall (proxy stops forwarding after 5 kB)");
+  const out = dir("sse-stall");
+  const proxy = await stallProxy(URL, 9299);
+  const ctx = await browser.newContext({
+    locale: "fr-FR",
+    viewport: { width: 1280, height: 860 },
+  });
+  const page = await ctx.newPage();
+  await page.goto("http://127.0.0.1:9299/");
+  await page
+    .locator("#welcome-start")
+    .click({ timeout: 6000 })
+    .catch(() => {});
+  await send(page);
+  await page.waitForTimeout(45000);
+  await page.screenshot({ path: path.join(out, "after.png"), fullPage: true });
+  check(
+    await page.isVisible("#btn-send"),
+    "after 45 s without a byte: Send is back",
+  );
+  check(
+    !(await page.isVisible("#btn-stop")),
+    "after 45 s without a byte: Stop is gone",
+  );
+  const text = (await page.textContent(".turn-bird:last-child")) || "";
+  check(
+    /interrompue avant la fin|connexion/.test(text),
+    "after 45 s without a byte: the connection-loss card",
+  );
+  await ctx.close();
+  proxy.close();
+}
+
+// ------------------------------------------------------------------ phones
+
+const PHONES = {
+  iPhone13: "iPhone 13",
+  Pixel7: "Pixel 7",
+  iPhoneSE: "iPhone SE",
+  iPhone14: "iPhone 14",
+};
+
+async function phone(browsers, key, scheme = "light") {
+  const desc = pw.devices[PHONES[key]];
+  const engine =
+    desc.defaultBrowserType === "webkit" && browsers.webkit
+      ? "webkit"
+      : "chromium";
+  const label = `mobile-${key}-${scheme}`;
+  console.log(
+    `${label} (${engine}${engine === "chromium" && desc.defaultBrowserType !== "chromium" ? ", emulated" : ""})`,
+  );
+  const out = dir(label);
+  const { ctx, page } = await open(browsers[engine], {
+    ...desc,
+    colorScheme: scheme,
+  });
+  // the pill: every value readable
+  for (const v of ["auto", "on", "off"]) {
+    await page.selectOption("#agent-mode", v);
+    await page.waitForTimeout(100);
+    const m = await page.evaluate(pillFit);
+    check(
+      m.need <= m.room + 0.5,
+      `${key}: « ${m.text} » fits in the pill (${m.need.toFixed(0)} <= ${m.room.toFixed(0)} px)`,
+    );
+    if (v === "on")
+      await page.screenshot({
+        path: path.join(out, "pill-on.png"),
+        clip: {
+          x: 0,
+          y: desc.viewport.height - 160,
+          width: desc.viewport.width,
+          height: 160,
+        },
+      });
+    if (v === "off")
+      await page.screenshot({
+        path: path.join(out, "pill-off.png"),
+        clip: {
+          x: 0,
+          y: desc.viewport.height - 160,
+          width: desc.viewport.width,
+          height: 160,
+        },
+      });
+    if (desc.hasTouch) {
+      check(
+        m.pill[1] >= 44,
+        `${key}: the pill is at least 44 px high (${m.pill.map(Math.round).join("x")})`,
+      );
+      check(
+        m.sel[1] >= 40 && m.sel[0] >= m.pill[0] - 30,
+        `${key}: the select covers the pill (${m.sel.map(Math.round).join("x")})`,
+      );
+    }
+  }
+  await page.selectOption("#agent-mode", "auto");
+  await send(page);
+  await page.waitForSelector(
+    '[data-phase="brief"] .crew-lane[data-status="running"], [data-phase="drafts"] .crew-lane[data-status="running"]',
+    { timeout: 20000 },
+  );
+  if (desc.hasTouch) {
+    const stop = await page.evaluate(() =>
+      document.getElementById("btn-stop").getBoundingClientRect(),
+    );
+    check(
+      stop.width >= 44 && stop.height >= 44,
+      `${key}: Stop is at least 44x44 (${Math.round(stop.width)}x${Math.round(stop.height)})`,
+    );
+  }
+  await page.waitForSelector(
+    '[data-phase="drafts"] .crew-lane[data-status="running"]',
+    { timeout: 20000 },
+  );
+  await page.$eval('[data-phase="drafts"]', (e) => e.scrollIntoView({ block: "center" }));
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: path.join(out, "1-running.png") });
+  const lanes = await page.$$eval('[data-phase="drafts"] .crew-lane', (els) =>
+    els.map((e) => e.getBoundingClientRect().width),
+  );
+  const board = await page.$eval(
+    ".crew-board",
+    (e) => e.getBoundingClientRect().width,
+  );
+  check(
+    lanes.every((w) => w >= board - 2),
+    `${key}: parallel lanes stack (${lanes.map(Math.round).join(", ")} of ${Math.round(board)} px)`,
+  );
+  await idle(page);
+  if (desc.hasTouch) {
+    const sum = await page.$eval(
+      ".crew-fold > summary",
+      (e) => e.getBoundingClientRect().height,
+    );
+    check(
+      sum >= 44,
+      `${key}: the folded line is at least 44 px high (${Math.round(sum)})`,
+    );
+  }
+  await page.click(".crew-fold > summary");
+  await page.waitForTimeout(200);
+  await page.screenshot({
+    path: path.join(out, "2-done-open.png"),
+    fullPage: true,
+  });
+  const [sw, cw] = await page.evaluate(() => [
+    document.documentElement.scrollWidth,
+    document.documentElement.clientWidth,
+  ]);
+  check(sw <= cw + 1, `${key}: no horizontal scroll (${sw} <= ${cw})`);
+  check(page.errors.length === 0, `no page error (${page.errors.join(" | ")})`);
+  await ctx.close();
+}
+
+// The text the pill shows for its value (the <select>'s option, or the short word over a see-through select on
+// phones), the width it needs and the room it has; and whether Send stays inside the composer.
+function pillFit() {
+  const s = document.getElementById("agent-mode");
+  const v = document.getElementById("agent-pill-value");
+  const shown = v && getComputedStyle(v).display !== "none" ? v : s;
+  const text = shown === s ? s.options[s.selectedIndex].text : v.textContent;
+  const probe = document.createElement("span");
+  probe.style.font = getComputedStyle(shown).font;
+  probe.style.position = "absolute";
+  probe.style.whiteSpace = "nowrap";
+  probe.textContent = text;
+  document.body.append(probe);
+  const need = probe.getBoundingClientRect().width;
+  probe.remove();
+  const cs = getComputedStyle(shown);
+  const room = shown.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const r = s.getBoundingClientRect();
+  const p = document.getElementById("agent-pill").getBoundingClientRect();
+  const send = document.getElementById("btn-send").getBoundingClientRect();
+  const box = document.getElementById("composer").getBoundingClientRect();
+  return { text, need, room, sel: [r.width, r.height], pill: [p.width, p.height], sendIn: send.right <= box.right - 1 };
+}
+
+// every phone width: the selected value is never ellipsized
+async function pillWidths(browser) {
+  console.log("pill widths 320-412 (fr)");
+  for (const width of [320, 360, 375, 390, 412]) {
+    const { ctx, page } = await open(browser, {
+      ...pw.devices["iPhone 14"],
+      viewport: { width, height: 760 },
+    });
+    for (const v of ["auto", "on", "off"]) {
+      await page.selectOption("#agent-mode", v);
+      const ok = await page.evaluate(pillFit);
+      check(
+        ok.need <= ok.room + 0.5 && ok.sendIn,
+        `${width} px: « ${ok.text} » fits (${ok.need.toFixed(0)}/${ok.room.toFixed(0)}), Send inside`,
+      );
+    }
+    await ctx.close();
+  }
+}
+
+// landscape phone, keyboard up (viewport 180 px shorter): the conversation keeps room
+async function landscape(browser) {
+  console.log("keyboard landscape (iPhone 14 landscape, emulated)");
+  const out = dir("keyboard");
+  const desc = pw.devices["iPhone 14 landscape"];
+  const { ctx, page } = await open(browser, { ...desc });
+  await send(page);
+  await page.waitForSelector(
+    '[data-phase="drafts"] .crew-lane[data-status="running"]',
+    { timeout: 20000 },
+  );
+  const free = await page.$eval(
+    "#scroll",
+    (e) => e.getBoundingClientRect().height,
+  );
+  await page.screenshot({ path: path.join(out, "landscape-nokeyboard.png") });
+  check(
+    free >= 160,
+    `landscape: the conversation keeps ${Math.round(free)} px (>= 160)`,
+  );
+  await page.setViewportSize({
+    width: desc.viewport.width,
+    height: desc.viewport.height - 180,
+  });
+  await page.focus("#composer-input");
+  await page.waitForTimeout(300);
+  const kb = await page.$eval(
+    "#scroll",
+    (e) => e.getBoundingClientRect().height,
+  );
+  await page.screenshot({ path: path.join(out, "landscape.png") });
+  check(
+    kb >= 90,
+    `landscape with the keyboard: the conversation keeps ${Math.round(kb)} px (>= 90)`,
+  );
+  await idle(page);
+  await ctx.close();
+}
+
+(async () => {
+  const browsers = { chromium: await pw.chromium.launch() };
+  for (const name of ["webkit", "firefox"]) {
+    try {
+      browsers[name] = await pw[name].launch();
+      console.log(`${name}: available`);
+    } catch {
+      console.log(
+        `${name}: not installed, phones emulated with Chromium device descriptors`,
+      );
+    }
+  }
+  const all = {
+    desktopRun: () => desktopRun(browsers.chromium),
+    desktopAgentOff: () => desktopAgentOff(browsers.chromium),
+    serverError: () =>
+      scripted(browsers.chromium, "serverError", {
+        lang: "en",
+        scheme: "dark",
+      }),
+    laneError: () => scripted(browsers.chromium, "laneError"),
+    cut: () => scripted(browsers.chromium, "cut"),
+    phones: async () => {
+      for (const k of Object.keys(PHONES)) await phone(browsers, k);
+      await phone(browsers, "iPhone13", "dark");
+    },
+    pillWidths: () => pillWidths(browsers.chromium),
+    landscape: () => landscape(browsers.chromium),
+    stall: () => stall(browsers.chromium),
+    firefox: async () => browsers.firefox && desktopRun(browsers.firefox),
+  };
+  const only = process.argv.slice(2);
+  for (const [name, fn] of Object.entries(all))
+    if (!only.length || only.includes(name)) {
+      try {
+        await fn();
+      } catch (e) {
+        if (!SOFT) throw e;
+        console.log(
+          `  ERROR ${name}: ${String(e.message || e).split("\n")[0]}`,
+        );
+        failures.push(`${name}: error`);
+      }
+    }
+  for (const b of Object.values(browsers)) await b.close();
+  console.log(
+    failures.length
+      ? `${failures.length} check(s) failed`
+      : "all checks passed",
+  );
+  process.exit(failures.length ? 1 : 0);
+})().catch((e) => {
+  console.error(e.message || e);
+  process.exit(1);
+});
