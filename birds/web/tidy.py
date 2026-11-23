@@ -322,9 +322,42 @@ def _check_json(code: str) -> dict:
         return {"ok": False, "kind": "error", "line": int(getattr(exc, "lineno", 0) or 0), "msg": str(exc)[:120]}
 
 
+# an unlabelled fence that reads as Python: a def/class/import line, a decorator, a block header ending in « : »,
+# print(...) or plain assignments; never shell prompts, braces or semicolons of C-like code
+_PY_LINE = re.compile(
+    r"^(?:(?:async\s+)?def\s+\w+\s*\(|class\s+\w+\s*[(:]|import\s+\w|from\s+[\w.]+\s+import\s|@\w+|"
+    r"(?:if|for|while|with|try|elif|else|except)\b[^\n{;]*:\s*$|print\(|return\b|[\w.\[\]]+\s*[-+*/]?=\s*\S)"
+)
+_NOT_PY = re.compile(r"[{};]\s*$|^\s*(?:\$|>|#include|function\b|const\b|let\b|var\b|public\b|<\w)|=>", re.M)
+_STRONG_PY = re.compile(
+    r"^\s*(?:(?:async\s+)?def\s|class\s|import\s|from\s+[\w.]+\s+import\s|return\b|@\w|(?:if|for|while|with|try|"
+    r"elif|else|except)\b[^\n]*:\s*$)|\bprint\(",
+    re.M,
+)
+_JSON_KEY = re.compile(r'"[^"\n]{1,80}"\s*:')
+_JSONISH = re.compile(r'^\s*[{\[]\s*(?:"[^"\n]*"\s*:|[\[{"\d\-]|true|false|null|\]|\})')
+
+
+def sniff(code: str) -> str:
+    """'json', 'python' or '' for an unlabelled fence (the server's reading; markdown.js shows its verdict)."""
+    if _JSONISH.match(code):
+        return "json"
+    lines = [ln.strip() for ln in code.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
+    if not lines or _NOT_PY.search(code):
+        return ""
+    hits = sum(bool(_PY_LINE.match(ln)) for ln in lines)
+    if re.match(r"(?:(?:async\s+)?def|class|import|from\s+[\w.]+\s+import)\b", lines[0]) or (
+        hits >= 2 and hits >= len(lines) * 0.6
+    ):
+        return "python"
+    return ""
+
+
 def code_checks(text: str) -> list[dict]:
     """One verdict per Python or JSON fence: ``i`` is the index among all fences (the order markdown.js meets them
-    in) and ``n`` the block's line count, so a fence the two parsers count differently is never mislabelled."""
+    in) and ``n`` the block's line count, so a fence the two parsers count differently is never mislabelled. An
+    unlabelled fence is checked when it reads as JSON (« { » or « [ » first) or as Python; its verdict says which
+    (``lang``) and that it was guessed (``sniffed``)."""
     lines = text.split("\n")
     out = []
     for i, (start, end, _, lang) in enumerate(_fence_spans(lines)):
@@ -335,8 +368,16 @@ def code_checks(text: str) -> list[dict]:
         if not code.strip() or len(code) > 20_000 or end - start - 1 > 400:
             continue
         n = end - start - 1  # the client matches a verdict to its block by index AND line count
+        guessed = {"sniffed": True} if not lang else {}
+        lang = lang or sniff(code)
         if lang in PY_LANGS:
-            out.append({"i": i, "n": n, "lang": "python", **_check_python(code)})
+            verdict = _check_python(code)
+            if guessed and not verdict["ok"] and not _STRONG_PY.search(code):
+                continue  # « Total = 120 € »: a guess that does not parse and has no Python keyword is not Python
+            out.append({"i": i, "n": n, "lang": "python", **guessed, **verdict})
         elif lang in JSON_LANGS:
-            out.append({"i": i, "n": n, "lang": "json", **_check_json(code)})
+            verdict = _check_json(code)
+            if guessed and not verdict["ok"] and not (_JSON_KEY.search(code) or code.rstrip()[-1:] in "]}"):
+                continue  # « [1] Source… »: a bracket first is not enough to call a broken text JSON
+            out.append({"i": i, "n": n, "lang": "json", **guessed, **verdict})
     return out

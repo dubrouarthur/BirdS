@@ -661,14 +661,27 @@ function codeBlock(code, name, closed, ctx) {
   const L = ctx.labels;
   const index = ctx.fence++;
   const given = langInfo(name);
-  const key = given.key || (name || !closed ? null : sniff(code));
+  const lines = code.split("\n");
+  const n = lines.length;
+  // an unlabelled fence the server read as Python or JSON (tidy.code_checks, "sniffed"): its verdict and its label
+  const guessed =
+    !name && closed && ctx.final
+      ? ctx.checks.find(
+          (c) =>
+            c &&
+            c.sniffed &&
+            c.i === index &&
+            c.n === n &&
+            (c.lang === "python" || c.lang === "json"),
+        ) || null
+      : null;
+  const key =
+    given.key || (name || !closed ? null : guessed ? guessed.lang : sniff(code));
   const info = key ? langInfo(key) : given;
   const label = escapeHtml(info.label || name || L.text);
   const file = ctx.file;
   ctx.file = null;
-  const lines = code.split("\n");
-  const n = lines.length;
-  let check = null;
+  let check = guessed ? { ...guessed, json: guessed.lang === "json" } : null;
   if (ctx.final && closed && name) {
     if (info.key === "json") check = { ...jsonCheck(code), json: true };
     else if (info.key === "python")

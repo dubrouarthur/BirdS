@@ -169,6 +169,20 @@ test("code blocks: language label, file name from the line above, download, copy
   assert.match(out, /data-lang="bash" data-i="2" data-lines="2">/); // short: no numbers, no collapse
 });
 
+test("unlabelled fences: the server's guessed verdict and language are shown, only for that block", () => {
+  const py = `${FENCE}\ndef f(x):\n    return x +\n${FENCE}`;
+  const bad = [{ i: 0, n: 2, lang: "python", sniffed: true, ok: false, kind: "error", line: 2, msg: "invalid syntax" }];
+  const out = md(py, { codeChecks: bad });
+  assert.match(out, /code-check--err[\s\S]*Syntaxe à vérifier, ligne 2/);
+  assert.match(out, /Python/);
+  assert.doesNotMatch(md(py, { codeChecks: [{ ...bad[0], i: 1 }] }), /code-check/);
+  assert.doesNotMatch(md(py, { codeChecks: bad, final: false }), /code-check/);
+  const js = `${FENCE}\n{"a": 1}\n${FENCE}`;
+  const ok = [{ i: 0, n: 1, lang: "json", sniffed: true, ok: true, kind: "ok" }];
+  assert.match(md(js, { codeChecks: ok }), /code-check--ok/);
+  assert.doesNotMatch(md(js), /code-check/); // no server verdict: no badge for a guess
+});
+
 test("code text content is exactly the source: copy and download never see numbers or markup", () => {
   const src = 'x = "<b>&"  # c\n\n  y = 1';
   const out = md(`${FENCE}python\n${src}\n${FENCE}`);
