@@ -458,12 +458,14 @@ def test_token_estimate_rules():
     # 500 x 0.1 / 1000 + 1500 x 0.006 / 1000, whatever the stream's wall time
     assert (est["energy_wh"], est["energy_kind"], est["energy_method"]) == (0.059, "estimated", "tokens")
     old = meter.report(u, **base, **dict(opts, energy_method="power_time"))
-    assert old["energy_wh"] == 0.4 and old["energy_wh"] / est["energy_wh"] > 5  # the former figure, far too high
+    assert old["energy_wh"] == 0.4 and old["energy_wh"] / est["energy_wh"] > 5  # the former figure: far too high under batching
     b = est["energy_basis"]
-    assert (b["low_wh"], b["high_wh"]) == (0.0195, 0.41875) and b["boundary"] == "serving"
+    assert (b["low_wh"], b["high_wh"]) == (0.024, 0.71145) and b["boundary"] == "serving"
     # prefix-cached prompt tokens skip prefill: not counted
     cached = meter.report([dict(u[0], cached_tokens=1000)], **base, **opts)
-    assert cached["energy_wh"] == 0.053 and cached["cached_tokens"] == 1000 and "prefix cache" in cached["energy_source"]
+    assert (
+        cached["energy_wh"] == 0.053 and cached["cached_tokens"] == 1000 and "prefix cache" in cached["energy_source"]
+    )
     # a cached count larger than the prompt is clamped
     assert meter.report([dict(u[0], cached_tokens=10**6)], **base, **opts)["energy_wh"] == 0.05
     # Mode Agent: the calls' tokens add up, the GPU-time union is irrelevant here
@@ -482,9 +484,11 @@ def test_token_estimate_rules():
 def test_settings_token_estimate_env():
     s = Settings.from_env({})
     assert (s.energy_method, s.wh_per_1k_out, s.wh_per_1k_in) == ("tokens", 0.1, 0.006)
-    s = Settings.from_env({"BIRD_WH_PER_1K_OUT": "0.2", "BIRD_WH_PER_1K_IN": "0.01", "BIRD_ENERGY_METHOD": "Power_Time"})
+    s = Settings.from_env(
+        {"BIRD_WH_PER_1K_OUT": "0.2", "BIRD_WH_PER_1K_IN": "0.01", "BIRD_ENERGY_METHOD": "Power_Time"}
+    )
     assert (s.energy_method, s.wh_per_1k_out, s.wh_per_1k_in) == ("power_time", 0.2, 0.01)
-    assert s.energy_config["wh_per_1k_out_range"] == (0.06, 1.6)  # the range follows the configured value
+    assert s.energy_config["wh_per_1k_out_range"] == (0.072, 2.76)  # the range follows the configured value
     assert Settings.from_env({"BIRD_ENERGY_METHOD": "bogus"}).energy_method == "tokens"
 
 

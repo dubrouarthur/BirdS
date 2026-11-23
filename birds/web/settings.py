@@ -27,17 +27,21 @@ DEFAULT_ENDPOINT_HOSTS = ("endpoints.huggingface.cloud",)  # i.e. *.endpoints.hu
 # - central: 0.2 J x 1.72 / 3.6 = 0.096 Wh per 1 000 output tokens; 0.012 J x 1.72 / 3.6 = 0.0057 per 1 000 input.
 #   Independent top-down check, full boundary: Llama 3.1 8B ~0.17 Wh per 1k output and ~0.018 per 1k input
 #   (https://arxiv.org/html/2505.09598v5, Table 4), halved for 4B: 0.09 and 0.009.
-# - range: low = a well-batched L4 (0.076 J x 1.3); high = one request alone on the card at TDP (72 W x 40 s per
-#   1 000 tokens). Input: 0.0085 J x 1.3 (low), 0.03 J x 1.5 (high, long context).
+#   The central value ASSUMES 8-16 concurrent requests on the card; nothing measures it (vLLM's /metrics
+#   num_requests_running would). A quiet dedicated endpoint serving one request at a time sits near the high bound.
+# - range, same x 1.72 boundary as the central value: low = a well-batched L4 (0.076 J x 1.72 / 3.6 = 0.036 Wh per
+#   1 000 output tokens); high = one request alone on the card at TDP (72 W x 40 s per 1 000 tokens = 0.8 Wh GPU,
+#   x 1.72 = 1.38). Input: 0.0085 J x 1.72 / 3.6 = 0.004 (low), 0.03 J x 1.72 / 3.6 = 0.0143 (high, long context).
 # Prompt tokens served from vLLM's prefix cache (cached_tokens) skip prefill, so they count CACHED_INPUT_SHARE of an
 # input token: 0, their KV is reused, and attending to them during decode is already in the per-output-token figure
 # (measured with long contexts).
-# The former default, rated power x HTTP stream time, counted network, queueing and the whole card for one request
-# (5-15 x too high). It stays available only on request: BIRD_ENERGY_METHOD=power_time.
+# The former default, rated power x HTTP stream time, counted network, queueing and the whole card for one request:
+# up to 5-15 x high under batching; about 1.5 x when the card serves one request (it draws less than its TDP and
+# time to first token is ~0.6 s of ~10 s). It stays available only on request: BIRD_ENERGY_METHOD=power_time.
 WH_PER_1K_OUT = 0.10
 WH_PER_1K_IN = 0.006
-WH_PER_1K_OUT_RANGE = (0.03, 0.8)
-WH_PER_1K_IN_RANGE = (0.003, 0.0125)
+WH_PER_1K_OUT_RANGE = (0.036, 1.38)
+WH_PER_1K_IN_RANGE = (0.004, 0.0143)
 SERVING_OVERHEAD = 1.72  # already inside WH_PER_1K_*: the GPU-only share is these values / 1.72
 CACHED_INPUT_SHARE = 0.0
 ENERGY_SOURCES = (

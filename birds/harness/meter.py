@@ -261,7 +261,8 @@ def estimate_power_time(watts: float, busy_seconds: float, *, pue: float = 1.0, 
     """Upper-bound energy of a remote GPU: rated power x busy time x PUE. Always labelled "estimated".
 
     Opt-in only (energy_method="power_time"): the busy time is the HTTP stream's wall time (network and queueing
-    included) and the whole card is charged to one request although vLLM batches requests, so it runs 5-15 x high."""
+    included) and the whole card is charged to one request although vLLM batches requests: up to 5-15 x high under
+    batching; about 1.5 x when the card serves one request (it draws less than its TDP, first token ~0.6 s of ~10 s)."""
     pue = pue if pue and pue >= 1.0 else 1.0
     wh = float(watts) * float(busy_seconds) * pue / 3600.0
     scope = "GPU only" if pue == 1.0 else f"PUE {pue:g}"
