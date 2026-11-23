@@ -22,10 +22,10 @@ site/
 ## Avant la mise en ligne
 
 1. **Bouton « Essayer Bird »** : dans `config.js`, remplacer `TRY_URL: "#essayer"` par l'URL de l'application.
-2. **Adresse de contact** : dans `config.js`, remplacer `CONTACT_EMAIL` (provisoire : `contact@birdmodels.example`). Le script l'applique aux 8 pages (liens `data-contact`, et `data-contact-href` pour les boutons « Nous écrire ») ; pour les visiteurs sans JavaScript, remplacer aussi `contact@birdmodels.example` dans les 8 pages.
+2. **BLOQUANT — adresse de contact** : `contact@birdmodels.example` est un domaine réservé qui ne reçoit rien ; tous les boutons « Nous écrire », « Parler de votre projet » et Contact y mènent. Dans `config.js`, remplacer `CONTACT_EMAIL` par l'adresse réelle avant toute mise en ligne. Le script l'applique aux 8 pages (liens `data-contact`, et `data-contact-href` pour les boutons « Nous écrire ») ; pour les visiteurs sans JavaScript, remplacer aussi `contact@birdmodels.example` dans les 8 pages.
 3. **Poids affiché en pied de page** : chaque page affiche son propre poids. Si une page change, remesurer et mettre à jour son pied de page.
    Méthode : charger la page dans Chromium (1440 px, cache désactivé), faire défiler jusqu'en bas pour charger toutes les images, additionner la taille des fichiers reçus, puis ajouter la favicon (`assets/favicon.svg`, que Chromium sans interface ne demande pas). 1 Ko = 1 000 octets. Le chiffre « compressé » est la même somme avec les fichiers texte (HTML, CSS, JS, SVG) compressés en gzip niveau 9 ; les images WebP sont comptées telles quelles.
-   Valeurs actuelles (thème clair) : accueil FR **379 Ko** (13 requêtes) ; accueil EN 378 KB (13) ; Entraîner Bird 75 Ko (5) ; Train Bird 74 KB (5) ; Notre démarche 73 Ko (5) ; Sobriété 119 Ko (7) ; Our approach 72 KB (5) ; Frugality 118 KB (7).
+   Valeurs actuelles (thème clair, 1440 px) : accueil FR **414 Ko** (13 requêtes) ; accueil EN 413 KB (13) ; Entraîner Bird 77 Ko (5) ; Train Bird 76 KB (5) ; Notre démarche 74 Ko (5) ; Sobriété 121 Ko (7) ; Our approach 74 KB (5) ; Frugality 120 KB (7).
 
 ## Déployer sur Vercel
 
@@ -63,7 +63,9 @@ Les captures de contrôle ne sont pas rangées dans `site/` : elles alourdiraien
 ## Captures et scènes
 
 - `assets/img/app/*-light.webp` / `*-dark.webp` : captures réelles de l'application (`scripts/serve.py --demo`, Chromium, échelle 2),
-  recadrées sur la conversation ; les badges propres au mode démo sont masqués. La version sombre ne se charge qu'en thème sombre (`.th-l` / `.th-d`).
+  recadrées au plus près de la carte riche (graphique, tableur, diapositive, note Word, code, Mode Agent), prises à 390-600 px de large
+  pour s'afficher à leur taille réelle : le texte reste à 11 px ou plus à 1440 px comme sur téléphone. `map-m-*` et `slides-m-*` sont les
+  recadrages téléphone, servis par `<picture>` sous 760 px. Les badges propres au mode démo sont masqués. La version sombre ne se charge qu'en thème sombre (`.th-l` / `.th-d`).
 - Scènes (`[data-scene]` dans le HTML, lecteur dans `site.js`) : un échange rejoué en HTML et CSS, sans vidéo.
   `data-at` (apparition, en ms), `data-out` (disparition), `data-type` / `data-stream` (texte écrit lettre à lettre / mot à mot pendant `data-dur`).
   Sans JavaScript ou avec « réduire les animations », l'état final s'affiche ; la lecture ne tourne que quand la scène est visible.
@@ -79,3 +81,5 @@ le banc d'essai interne de Notre démarche. Écrire « conçu en France » uniqu
 ni neutre en carbone, ni « le plus sobre du marché » ; ne pas nommer le modèle de base ni la région du serveur. Les objectifs énergie se lisent comme des objectifs.
 Jamais de nombre de GPU ni de matériel, jamais d'énergie d'entraînement, jamais où ni sur quoi Bird tourne. Vitesse et coût d'entraînement : en qualitatif
 (« répond vite », « pour un coût bien inférieur ») ; aucun chiffre de latence tant qu'il n'est pas mesuré sur le modèle réel.
+Notes de méthode : le facteur 1,15 (refroidissement et alimentation) et 0,15 L/kWh d'eau de refroidissement restent, sans nommer de centre de données,
+car ils fondent les chiffres 0,13 Wh et « environ 15 fois moins d'eau ». À faire valider par le propriétaire : s'il les refuse, retirer aussi ces deux chiffres.
