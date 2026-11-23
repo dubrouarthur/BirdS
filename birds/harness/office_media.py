@@ -68,6 +68,11 @@ class Media:
             out["logo"] = 1
         if self.spec:
             out["spec"] = self.spec
+        if self.data and self.kind != "chart":
+            try:  # a small thumbnail for the editor's picture list
+                out["th"] = thumb(self.data, 160)
+            except ImageError:
+                pass
         return out
 
 

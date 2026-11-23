@@ -66,7 +66,7 @@ def clean_args(tool: str, args: dict) -> dict:
             if not isinstance(bullets, list):
                 raise _err(422, "invalid_plan", "bullets must be a list")
             slide = {"title": _text(s.get("title"), 300), "bullets": [_text(b, 1200) for b in bullets[:30]]}
-            for k in ("image", "layout"):
+            for k in ("image", "layout", "chart"):
                 if isinstance(s.get(k), str) and len(s[k]) <= 16:
                     slide[k] = s[k]
             if s.get("notes"):
