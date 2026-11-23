@@ -584,6 +584,11 @@ strong {
   margin-top: 1.75rem;
   font-size: clamp(2.6rem, 5.5vw, 5.4rem);
 }
+@media (max-width: 560px) {
+  .hero .display {
+    font-size: clamp(1.9rem, 9.8vw, 2.6rem);
+  }
+}
 .display .line {
   display: block;
   white-space: nowrap;
