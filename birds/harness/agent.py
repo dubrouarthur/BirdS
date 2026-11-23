@@ -215,19 +215,36 @@ _SPAN = re.compile(
 )
 _MOVE = re.compile(r"\b(?:[ée]volu\w*|tendances?|trends?|progression|historique|changed|evolved)\b", re.I)
 _QTY = re.compile(
-    r"\b(?:population|prix|prices?|co[uû]ts?|costs?|chiffres? d.affaires|ca|revenues?|ventes?|sales|"
-    r"ch[ôo]mage|unemployment|taux|rates?|nombre|number|effectifs?|inflation|cours|pib|gdp|salaires?|wages?|smic|"
-    r"abonn[ée]s|subscribers|clients|customers|march[ée]|market|budget|d[ée]penses|immobilier|loyers?|rents?|"
+    r"\b(?:population|co[uû]ts?|costs?|chiffres? d.affaires|ca|revenues?|ventes?|sales|"
+    r"ch[ôo]mage|unemployment|taux|rates?|effectifs?|inflation|cours|pib|gdp|salaires?|wages?|smic|"
+    r"abonn[ée]s|subscribers|clients|customers|budget|d[ée]penses|immobilier|loyers?|rents?|"
     r"bourse|cac|emplois?|jobs|production|consommation|consumption|trafic|traffic|visites|visits|habitants)\b",
+    re.I,
+)
+
+
+# vague quantities: a trend only over a span of years (« le prix du gaz entre 2020 et 2024 ») or a named series,
+# never with a change word alone (« nos prix évoluent au 1er janvier », « la tendance du marché est bonne »)
+_QTY_WEAK = re.compile(r"\b(?:prix|prices?|nombre|number|march[ée]|markets?)\b", re.I)
+# a series is named: « historique du prix du baril », « l'évolution des prix »
+_SERIES = re.compile(r"\b(?:historique|history|[ée]volution|evolution)\s+(?:des?|du|of|d['’])", re.I)
+# a piece of writing is asked: its figures are context, not a series to draw
+_WRITE_ASK = re.compile(
+    r"\b(?:r[ée]dig\w*|[ée]cri(?:s|re|vez|t)\b|mail|e-mail|courriel|lettre|mot pour|un mot|demande d'|traduis\w*|"
+    r"traduire|reformule\w*|draft|write|compose|annonce)\b",
     re.I,
 )
 
 
 def trend_ask(text: str) -> bool:
     """« la population de Lyon ces 10 dernières années », « historique du prix du baril »: a span of years or a
-    word of change about a quantity, where a line chart is the natural answer."""
+    word of change about a quantity, where a line chart is the natural answer. Never a writing ask with no chart
+    noun (« depuis 2019 mon salaire n'a pas évolué, rédige une demande d'augmentation »)."""
     text = text or ""
-    return bool((_SPAN.search(text) or _MOVE.search(text)) and _QTY.search(text))
+    if _WRITE_ASK.search(text) and not _CHART_ASK.search(_chart_words(text)):
+        return False
+    span = _SPAN.search(text) or _SERIES.search(text)
+    return bool((span or _MOVE.search(text)) and (_QTY.search(text) or (span and _QTY_WEAK.search(text))))
 
 
 EVENT_NOTE = {

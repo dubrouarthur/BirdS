@@ -182,6 +182,8 @@ TREND_YES = [
     "how has the population of london changed since 2000?",
     "population of france from 2000 to 2020",
     "quelle est la tendance des prix de l'immobilier à Lyon ?",
+    "historique du prix du baril",
+    "rédige un rapport avec un graphique de l'évolution du CA depuis 2020",
 ]
 TREND_NO = [
     "je suis dans l'entreprise depuis 2019, aide-moi à rédiger ma demande d'augmentation",
@@ -190,6 +192,11 @@ TREND_NO = [
     "quelles sont les tendances du marketing digital en 2026 ?",
     "l'evolution de carriere d'un comptable",
     "comment evoluer vers un poste de manager ?",
+    "je suis dans l'entreprise depuis 2019 et mon salaire n'a pas évolué, rédige une demande d'augmentation",
+    "rédige un mail aux clients : nos prix évoluent au 1er janvier",
+    "le nombre de tickets a évolué, peux-tu rédiger un mot pour l'équipe support ?",
+    "la tendance du marché est bonne selon notre directeur, rédige un mot pour l'équipe",
+    "la tendance du marché est bonne",
 ]
 
 
