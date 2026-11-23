@@ -103,10 +103,12 @@ Ces mesures sont de l'hygiène, **pas de l'isolation**. Le code s'exécute avec 
 
 `Run.report` donne : tokens en entrée et en sortie, secondes de génération et durée totale, nombre d'appels d'outils, octets téléchargés.
 
-Énergie : `energy_wh` vaut `null` tant qu'il n'y a pas de mesure. **Aucune estimation n'est inventée.**
+Énergie : `energy_wh` vaut `null` tant qu'il n'y a ni mesure, ni étalonnage, ni valeurs par token configurées. **Aucune estimation n'est inventée** : chacune dit sa méthode (`energy_method`) et sa base (`energy_basis`).
 
 - `measured` : puissance du GPU relevée par `nvidia-smi` pendant les générations (client local, ou `measure_gpu=True` si le serveur tourne sur la même machine). C'est la consommation du GPU entier, hors processeur et reste de la machine.
-- `estimated` : seulement si l'exploitant fixe `wh_per_1k_tokens` ; le bilan porte alors la mention « estimated » et la source de l'étalonnage.
+- `estimated`, `calibration` : l'exploitant fixe `wh_per_1k_tokens` ; le bilan porte la mention « estimated » et la source de l'étalonnage.
+- `estimated`, `tokens` (par défaut dans l'application web, qui fournit `wh_per_1k_in` / `wh_per_1k_out`) : tokens lus non cachés × Wh par 1 000 + tokens écrits × Wh par 1 000, avec une fourchette basse et haute ; valeurs et sources dans `birds/web/settings.py`, méthode dans docs/WEB.md. Les tokens du cache de préfixe (`cached_tokens`) ne sont pas comptés.
+- `estimated`, `power_time` : seulement si `energy_method="power_time"` ; puissance nominale × durée des générations × PUE, une borne haute grossière.
 
 ## 6. Lancer le harnais
 
@@ -242,9 +244,9 @@ demande seulement.
 n'entache la demande que si son texte a été donné à un modèle. Le jeton signé porte `{k: "crew", tool, args, sources,
 caveats, usage, answer_ctx, carry}` (24 Ko au plus) ; à la reprise, rien n'est régénéré.
 
-**Énergie.** Les jetons sont additionnés exactement ; le temps GPU de l'estimation puissance × temps est l'union des
-intervalles des appels (`meter.report(busy_seconds_override=…)`), pas leur somme : des appels en parallèle partagent
-le même lot. L'événement `usage` gagne `agents` (par rôle), `gpu_seconds_union` et `busy_seconds_sum` (borne haute).
+**Énergie.** Les jetons sont additionnés exactement, et l'estimation par défaut part de ces jetons. Pour l'estimation
+puissance × temps (sur demande seulement), le temps GPU est l'union des intervalles des appels
+(`meter.report(busy_seconds_override=…)`), pas leur somme : des appels en parallèle partagent le même lot. L'événement `usage` gagne `agents` (par rôle), `gpu_seconds_union` et `busy_seconds_sum` (borne haute).
 
 **Événements SSE** (en plus des existants) : `agent_start {recipe, reason, mode, forced, lanes[{id, role, label,
 group}], budget}`, `agent_step {id, role, phase, status, label, progress, tokens, seconds, detail, score, chosen}`,
