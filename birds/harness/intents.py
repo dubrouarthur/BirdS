@@ -579,7 +579,27 @@ _WX_STOP = frozenset(
     température températures temperature temperatures parapluie umbrella risque chance chances région region coin
     rain snow sunny cold hot warm raining snowing moment instant""".split()
 )
-_WX_CUT = frozenset("et and ou or avec with pour for à a au in si if quand when est-ce va-t-il stp svp".split())
+_WX_CUT = frozenset(
+    "et and ou or avec with pour for à a au in si if quand when est-ce va-t-il stp svp est sont is are depuis since"
+    .split()  # fmt: skip
+)
+# asks that are office talk, not weather: « quel temps de livraison », « quel temps faut-il pour traiter »,
+# « il pleut des bugs », « le parapluie de garantie », « le projet Météo », « the weather station »
+_WX_FALSE_ASK = re.compile(
+    r"\bquel\s+temps\s+(?:de\s+(?!chien\b|cochon\b)|d'|du\s+|des\s+|faut|fau(?:dra|t)|met|prend|pour\s+(?:faire|traiter|"
+    r"livrer|pr[ée]parer|valider|recevoir|obtenir)\b)|"
+    r"\bil\s+(?:pleut|neige)\b(?!\s+(?:(?:aujourd'hui|demain|encore|toujours|beaucoup|fort|ce\s+\w+)\s+)?"
+    r"(?:à|a|au|aux|en|sur)\s)|"
+    r"\bparapluies?\b(?:\s+(?:de\s+(?!pluie)|publicitaires?|personnalis|logot|brand|juridique|fiscal|assuranc|"
+    r"d'assurance|contractuel|social|financier|of\s))|"
+    r"(?:\b(?:projets?|programmes?|produits?|stations?|applis?|applications?|app|logiciels?|modules?|dossiers?|"
+    r"[ée]quipes?|clients?|offres?|op[ée]rations?|project|product|team)\s+m[ée]t[ée]o\b|\bm[ée]t[ée]o(?=\s+"
+    r"(?:station|app|product|project|data|api|stations?|projet)\b)|(?-i:(?<=[a-zà-ÿ,] )M[ée]t[ée]o)\b)|"
+    r"\bm[ée]t[ée]o\s+(?:du|des|de\s+la|de\s+l'|of)\s+(?:chiffre|ca\b|ventes?|budget|tr[ée]sorerie|march[ée]s?|stocks?|"
+    r"bourse|cours|r[ée]sultats?|commandes?|recrutements?|carnet|sales|revenue)|"
+    r"\bweather\s+(?:stations?|app|product|project|data|api|widget|service|team|startup|company)\b",
+    re.I,
+)
 # a preposition (or « météo ») then, in a lookahead so that « pour à Lille » still sees « à Lille », the place
 _WX_PLACE = re.compile(
     r"(?:\b(?:à|a|au|aux|en|sur|pour|vers|près\s+de|pres\s+de|in|at|for|near|around|de|du)\s+|\bd'|"
@@ -609,11 +629,33 @@ def _wx_place(t: str) -> str:
     return ""
 
 
+def _wx_false(raw: str, m: re.Match) -> bool:
+    """The ask word at ``m`` is part of office talk (``_WX_FALSE_ASK`` overlaps it): it does not count."""
+    for f in _WX_FALSE_ASK.finditer(raw):
+        if f.start() < m.end() and m.start() < f.end():
+            return True
+    return False
+
+
+def _wx_named(place: str) -> bool:
+    """A pre-call needs a real name: a capitalised word, a landmark of a named place (« gare de Lyon »), or a
+    city or country of the clock table (« lyon »). « le salon de Lyon », « livraison »: offered only."""
+    from birds.harness import clock
+
+    if place[:1].isupper():
+        return True
+    if _LANDMARK.match(place) and re.search(r"\s[A-ZÀ-Ý]", place):
+        return True
+    f = clock.fold(place)
+    return f in clock._ALIAS or f in clock.COUNTRIES
+
+
 def weather(text: str, lang: str = "fr") -> Intent | None:
     raw = " ".join(_URL.sub(" ", (text or "").replace("’", "'")).split())
     if not raw or _WX_NEVER.search(raw) or _HOWTO.search(raw):
         return None
-    if not (_WX_ASK.search(raw) or _WX_BARE.search(raw)):
+    asks = [m for m in _WX_ASK.finditer(raw) if not _wx_false(raw, m)]
+    if not (asks or _WX_BARE.search(raw)):
         return None
     if (
         re.search(r"\btemp[ée]ratures?\b", raw, re.I)
@@ -629,9 +671,10 @@ def weather(text: str, lang: str = "fr") -> Intent | None:
     day_m = _WX_DAY.search(raw)
     day = " ".join(day_m.group(0).split()) if day_m else ""
     rest = _WX_DAY.sub(" ", raw) if day_m else raw
+    rest = re.sub(r"\btemps\s+de\s+(?:chien|cochon)\b", "temps", rest, flags=re.I)  # an idiom, not a place
     place = _wx_place(normalise(rest))
-    if not place:
-        return Intent("get_weather", None, keep_web=True)
+    if not place or not _wx_named(place):
+        return Intent("get_weather", None, keep_web=True)  # « le salon de Lyon »: offered, never pre-called
     args = {"place": place}
     if day and not re.fullmatch(r"(?:aujourd'hui|today)", day, re.I):
         args["day"] = day

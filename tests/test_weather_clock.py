@@ -76,6 +76,18 @@ WEATHER_NO = [
     "sales forecast for Q3",
     "règle la température du modèle à 0,7",
     "quelle est la température idéale d'un bureau ?",
+    "Quel temps de livraison pour un colis vers Lyon ?",
+    "Quel temps de préparation pour le dossier Martin ?",
+    "Quel temps faut-il pour traiter une commande ?",
+    "Quel temps de validation pour les notes de frais ?",
+    "Quel temps de cuisson pour un rôti ?",
+    "Il pleut des bugs en production depuis la mise à jour",
+    "Il neige des tickets au support ce matin",
+    "Le parapluie de garantie couvre-t-il notre filiale de Lille ?",
+    "Je veux un parapluie publicitaire avec notre logo pour le salon de Lyon",
+    "Le projet Météo à Toulouse est en retard",
+    "les prévisions météo du chiffre d'affaires",
+    "Draft an email about the weather station product launch in Berlin",
 ]
 
 
@@ -93,6 +105,12 @@ def test_weather_look_alikes_offer_nothing(text):
 def test_weather_without_a_place_is_only_offered():
     found = intents.detect("quel temps fait-il demain ?")
     assert found == [intents.Intent("get_weather", None, keep_web=True)]
+
+
+def test_a_lowercase_place_outside_the_city_table_is_only_offered():
+    assert intents.weather("météo pour le séminaire demain ?") == intents.Intent("get_weather", None, keep_web=True)
+    assert intents.weather("météo à lyon demain").args == {"place": "lyon", "day": "demain"}  # a table city
+    assert intents.weather("quel temps de chien à Lille demain ?").args == {"place": "Lille", "day": "demain"}
 
 
 def test_weather_wins_over_a_map_and_places_still_win_their_own_asks():

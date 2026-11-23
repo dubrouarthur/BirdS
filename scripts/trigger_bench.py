@@ -100,6 +100,18 @@ WEATHER_NO = [
     "règle la température du modèle à 0,7",
     "rédige un mail à Paul pour la réunion de lundi",
     "en même temps, il faut finir le budget",
+    "Quel temps de livraison pour un colis vers Lyon ?",
+    "Quel temps de préparation pour le dossier Martin ?",
+    "Quel temps faut-il pour traiter une commande ?",
+    "Quel temps de validation pour les notes de frais ?",
+    "Quel temps de cuisson pour un rôti ?",
+    "Il pleut des bugs en production depuis la mise à jour",
+    "Il neige des tickets au support ce matin",
+    "Le parapluie de garantie couvre-t-il notre filiale de Lille ?",
+    "Je veux un parapluie publicitaire avec notre logo pour le salon de Lyon",
+    "Le projet Météo à Toulouse est en retard",
+    "les prévisions météo du chiffre d'affaires",
+    "Draft an email about the weather station product launch in Berlin",
 ]
 CLOCK_YES = [  # (phrase, cities the card must show besides the user's)
     ("quelle heure est-il à New York", ["New York"]),
