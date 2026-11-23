@@ -42,6 +42,7 @@ MIME = {
 
 
 MAX_WEB_IMAGES = 3
+MAX_ASKED_IMAGES = 4  # « montre-moi des photos de Kyoto »: pictures are the answer
 _STOP = set(
     "avec dans pour plus sont cette ceux elle elles leur leurs mais comme tout tous toute toutes quel quelle quels "
     "être etre avoir fait faire entre sans sous vers chez donc alors aussi encore depuis selon quoi dont était etait "
@@ -65,10 +66,29 @@ def chart_summary(lang: str, values: int, series: int) -> str:
     )
 
 
-def pick_web_images(run, answer: str, request_text: str, sources: list[dict], sign) -> list[dict]:
+def _stems(words: set[str]) -> set[str]:
+    return {w[:-1] if len(w) > 4 and w[-1] in "sx" else w for w in words}
+
+
+def subject_words(subject: str) -> set[str]:
+    """Content words of a picture's subject (« tour Eiffel » -> {tour, eiffel}; « Ulm » keeps its 3 letters)."""
+    import unicodedata
+
+    plain = unicodedata.normalize("NFKD", str(subject or "")).encode("ascii", "ignore").decode().lower()
+    return _stems({w for w in re.findall(r"[a-z0-9]{3,}", plain) if w not in _STOP and w not in _SUBJECT_STOP})
+
+
+_SUBJECT_STOP = {"les", "des", "une", "the", "and", "aux", "sur", "par", "nuit", "jour", "night", "day"}
+
+
+def pick_web_images(run, answer: str, request_text: str, sources: list[dict], sign, subject: str = "") -> list[dict]:
     """At most 3 credited images for an answer that used the web, or [] (the honest default: no image rather than
     an unrelated one). Pages actually read come first; any image's page title must share a content word with both
-    the answer and the request. One per page and per domain. Images never come from files or the model's words."""
+    the answer and the request. One per page and per domain. Images never come from files or the model's words.
+
+    ``subject``: the user asked for pictures of it (intents.images). Then up to 4 images, and the gate is the
+    SUBJECT, not the answer: every subject word (all but one past two words) must be in the page's title or path,
+    so « Gustave Eiffel » is never shown for « tour Eiffel »."""
     if sign is None or getattr(run, "stop_reason", "") != "answer" or not str(answer or "").strip():
         return []
     steps = list(getattr(run, "steps", []) or [])
@@ -83,6 +103,8 @@ def pick_web_images(run, answer: str, request_text: str, sources: list[dict], si
             return []  # "the search is unavailable" / "no results" answers get no picture
     numbers = {str(s.get("url")): s.get("n") for s in sources}
     answer_w, request_w = _words(answer), _words(request_text)
+    want = subject_words(subject) if subject else set()
+    cap = MAX_ASKED_IMAGES if want else MAX_WEB_IMAGES
     read_pages = [str(u) for u in getattr(run, "sources", []) or []]
     cands = [c for c in getattr(run, "images", []) or [] if isinstance(c, dict)]
     ordered = sorted(
@@ -99,7 +121,11 @@ def pick_web_images(run, answer: str, request_text: str, sources: list[dict], si
             continue
         title = " ".join(str(c.get("title") or "").split())[:120] or _source_title(page)
         words = _words(title) | _words(urlsplit(page).path.replace("_", " "))
-        if not (words & answer_w and words & request_w):
+        if want:
+            have = subject_words(title) | subject_words(urlsplit(page).path.replace("_", " "))
+            if len(want & have) < (len(want) if len(want) <= 2 else len(want) - 1):
+                continue  # the picture must be OF the subject asked
+        elif not (words & answer_w and words & request_w):
             continue  # the relevance gate
         entry = {
             "src": sign(src),
@@ -112,9 +138,16 @@ def pick_web_images(run, answer: str, request_text: str, sources: list[dict], si
             entry["n"] = numbers[page]
         out.append(entry)
         srcs.add(src), pages.add(page), domains.add(domain)
-        if len(out) >= MAX_WEB_IMAGES:
+        if len(out) >= cap:
             break
     return out
+
+
+def _picture_subject(words: str) -> str:
+    from birds.harness import intents
+
+    got = intents.images(words)
+    return str(got.args["query"]) if got else ""
 
 
 def sanitize_filename(name: str) -> str:
@@ -1915,6 +1948,7 @@ class HarnessBackend:
     def run(self, request: ChatRequest, ctx: RunContext) -> None:
         from birds.harness import Agent, guard
         from birds.harness.agent import PAUSE, Hooks
+        from birds.harness.followup import context_of
         from birds.harness.history import memo
         from birds.harness.meter import energy_options, estimate_power_time, estimate_tokens
         from birds.web import crew_web
@@ -2122,6 +2156,7 @@ class HarnessBackend:
                 draft,
                 [r for s in run.steps for r in (getattr(s, "info", {}) or {}).get("results", [])],
                 list(getattr(run, "charts", []) or []),
+                context_of(run.steps, getattr(run, "widgets", None)),
             )
             answer_text = hide_out_paths(strip_tool_echo(strip_memo(str(run.answer))))
             request_words = (
@@ -2138,7 +2173,9 @@ class HarnessBackend:
                     "content": content,
                     "sources": enrich_sources(sources, run.steps, ctx.secret, icons=bool(ctx.secret)),
                     "charts": _plain(list(getattr(run, "charts", []) or [])),
-                    "web_images": pick_web_images(run, answer_text, request_words, sources, ctx.sign_image),
+                    "web_images": pick_web_images(
+                        run, answer_text, request_words, sources, ctx.sign_image, subject=_picture_subject(request_words)
+                    ),
                     "widgets": widgets,
                     "files": files,
                     "draft_email": None

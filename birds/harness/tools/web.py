@@ -83,7 +83,10 @@ def web_search(args: dict, ctx) -> str:
         url = str(r.get("url") or "")
         if url and url not in ctx.found:
             ctx.found.append(url)
-    for r in results[:3]:  # image candidates for the UI only: an image URL is never put in the model's text
+    from birds.harness.intents import images
+
+    wide = images(getattr(ctx, "request", "") or "") is not None  # « des photos de Kyoto »: pictures are the answer
+    for r in results[: 5 if wide else 3]:  # image candidates for the UI only, never put in the model's text
         if r.get("image"):
             add_image(ctx, str(r["image"]), str(r.get("url") or ""), str(r.get("title") or ""), "", "search")
     if not results:

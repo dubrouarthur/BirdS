@@ -950,6 +950,88 @@ def weather(text: str, lang: str = "fr") -> Intent | None:
     return Intent("get_weather", args, keep_web=False)
 
 
+# ---------------------------------------------------------------- pictures of something (web images)
+
+_IMG_NOUN = r"(?:photos?|photographies?|images?|illustrations?|pictures?|pics?|photographs?)"
+_IMG_VERB = (
+    r"(?:(?:est-ce que tu peux|est-ce que vous pouvez|tu peux|tu pourrais|peux-tu|pourrais-tu|pouvez-vous|"
+    r"pourriez-vous|can you|could you|would you)\s+)?(?:me\s+)?"
+    r"(?:montre[rz]?(?:[- ]moi|[- ]nous)?|affiche[rz]?(?:[- ]moi|[- ]nous)?|trouve[rz]?(?:[- ]moi|[- ]nous)?|cherche[rz]?(?:[- ]moi)?|"
+    r"donne[rz]?(?:[- ]moi)?|envoie[rz]?(?:[- ]moi)?|je (?:veux|voudrais|souhaite|souhaiterais) (?:voir|avoir)|"
+    r"j'aimerais (?:voir|avoir)|on peut voir|show(?: me| us)?|find(?: me)?|get me|give me|send me|"
+    r"i(?:'d| would)? (?:like|want|love) to see|let me see|pull up)"
+)
+_RX_IMG = re.compile(
+    r"^(?:" + _IMG_VERB + r"\s+)?(?:(?:une?|des|la|les|quelques|deux|trois|quatre|a|an|some|a few|few|the|any)\s+)?"
+    r"(?:(?:belles?|jolies?|vraies?|nice|real)\s+)?" + _IMG_NOUN + r"\s+(?:de\s+|du\s+|des\s+|d'|of\s+)(?P<s>.+)$",
+    re.I,
+)
+_RX_LOOKS = re.compile(
+    r"^(?:et\s+|and\s+)?(?:(?:à|a)\s+quoi\s+ressembl(?:e|ent)\s+(?P<s>.+)|what\s+(?:does|do|did)\s+(?P<s2>.+?)\s+"
+    r"look\s+like)$",
+    re.I,
+)
+# a picture to be made, edited or put into a file: no web search (« génère une image de… », « insère une photo… »)
+_IMG_MAKE = re.compile(
+    r"\b(?:g[ée]n[èée]r\w*|cr[ée]e[rz]?|cr[ée]ation|dessin\w*|fais(?:-moi)?|faites|fabrique\w*|produi\w*|imagine\w*|"
+    r"draw|generate|create|make|design|ins[èée]r\w*|ajout\w*|int[èée]gr\w*|mets|mettre|insert|add|retouch\w*|"
+    r"recadr\w*|redimension\w*|compress\w*|convert\w*|crop|resize|edit|d[ée]cri[st]\w*|describe|analys\w*|"
+    r"lis|lire|read|transcri\w*)\b",
+    re.I,
+)
+# « image de marque », « l'image de l'entreprise », « photo de profil », « image disque », « les photos de la
+# soirée »: not a picture to look up on the web
+_IMG_NOT_SUBJECT = re.compile(
+    r"^(?:(?:la|le|les|l'|une?|the|a|an)\s*)?(?:marques?|l'entreprise|entreprises?|soci[ée]t[ée]s?|employeur|soi|"
+    r"profils?|fonds?|disques?|docker|iso|syst[èe]mes?|synth[èe]se|identit[ée]|groupe|couverture|en-t[êe]te|"
+    r"signature|l'[ée]quipe|[ée]quipes?|bo[iî]te|services?|l'[ée]v[ée]nement|[ée]v[ée]nements?|soir[ée]es?|"
+    r"r[ée]unions?|s[ée]minaires?|produits?|clients?|bureaux?|locaux|marketing|communication|presse|banques? "
+    r"d'images|stock|[ée]cran|brand|company|profile|background|disk|cover|team|event|party|meeting|office|"
+    r"product|screen|"
+    r"(?:mon|ma|mes|ton|ta|tes|son|sa|ses|notre|nos|votre|vos|leurs?|ce|cet|cette|ces|my|our|your|his|her|their|"
+    r"this|that|these|those|it)\b)",
+    re.I,
+)
+_IMG_CUT = re.compile(
+    r"\s*(?:[?!.;:,]|\s(?:pour|for|afin|et|and|dans|in\s+my|in\s+the|sur\s+(?:internet|le\s+web|google)|"
+    r"en\s+ligne|online|s'il|stp|svp|please|merci|si possible|if possible|du web|from the web)\b).*$",
+    re.I,
+)
+
+
+def _img_subject(s: str) -> str:
+    s = _IMG_CUT.sub("", " " + (s or "").strip()).strip(" '\"")
+    return re.sub(r"^(?:(?:la|le|les|une?|des|the|a|an)\s+|l')", "", s, flags=re.I).strip()
+
+
+def images(text: str, lang: str = "fr") -> Intent | None:
+    """« montre-moi une photo de la tour Eiffel », « à quoi ressemble le Mont-Saint-Michel », « show me a picture of
+    a koala »: a web search for pictures of the subject, pre-called by the harness. Never « image de marque »,
+    « droit à l'image », « génère une image de… », a file edit, a person or the user's own things."""
+    raw = " ".join(_URL.sub(" ", (text or "").replace("’", "'")).split())
+    if not raw or len(raw) > 160 or _IMG_MAKE.search(raw):
+        return None
+    t = " ".join(_POLITE.sub(" ", raw).split()).strip(" ?!.,;:")
+    t = re.sub(r"^(?:bonjour|bonsoir|salut|hello|hi)\b[\s,!]*", "", t, flags=re.I)
+    m = _RX_IMG.match(t)
+    looks = None if m else _RX_LOOKS.match(t)
+    if not (m or looks):
+        return None
+    head = (m.group("s") if m else looks.group("s") or looks.group("s2")).strip()
+    if _IMG_NOT_SUBJECT.match(head):
+        return None
+    subject = _img_subject(head)
+    if not (2 <= len(subject) <= 60) or _NEVER.search(subject) or _not_a_place(subject) or _person(subject):
+        return None
+    if looks:
+        # « à quoi ressemble un bon CV », « une journée type chez Google »: only a named thing or a landmark
+        first = re.match(r"(?:(?:la|le|les|the)\s+|l')?([\wÀ-ÿ'-]+)", head, re.I)
+        word = first.group(1) if first else ""
+        if not (word[:1].isupper() or _LANDMARK.fullmatch(word) or known_place(word)):
+            return None
+    return Intent("web_search", {"query": subject}, keep_web=True, mode="images")
+
+
 # ---------------------------------------------------------------- all together
 
 
