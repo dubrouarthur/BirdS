@@ -1420,7 +1420,7 @@ function webImageTile(turn, img) {
 function renderWebImages(turn) {
   const images = (turn.answer?.web_images || [])
     .filter((x) => x && typeof x === "object" && typeof x.src === "string" && IMG_OK.test(x.src))
-    .slice(0, 3);
+    .slice(0, 4); // 3 beside a web answer, up to 4 when pictures were asked (backends.pick_web_images)
   if (!images.length) return null;
   // kept between re-renders: an image that already loaded (or failed) is not fetched or laid out again
   if (turn.ui.webImagesLang !== state.prefs.lang) {
