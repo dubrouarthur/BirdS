@@ -216,10 +216,10 @@ MAP_NO2 = [
 ]
 # what the map must look for (query, near): a named landmark stays whole, a route goes to its destination
 MAP_ARGS = {
-    "ou est la gare de lyon": ("la gare de lyon", None),
-    "c'est où le musée d'Orsay ?": ("le musée d'Orsay", None),
-    "où est l'hôtel de ville de Lyon ?": ("l'hôtel de ville de Lyon", None),
-    "où se trouve la Banque de France": ("la Banque de France", None),
+    "ou est la gare de lyon": ("gare de lyon", None),
+    "c'est où le musée d'Orsay ?": ("musée d'Orsay", None),
+    "où est l'hôtel de ville de Lyon ?": ("hôtel de ville de Lyon", None),
+    "où se trouve la Banque de France": ("Banque de France", None),
     "les parkings de aix": ("parking", "aix"),
     "comment aller à la tour Eiffel depuis la gare de Lyon": ("tour Eiffel", "gare de Lyon"),
     "how to get to Orly from Paris": ("Orly", "Paris"),
@@ -486,9 +486,9 @@ def bench(name: str, yes: list[str], no: list[str], fn, touched=None) -> tuple[i
     miss = [q for q in yes if not fn(q)]
     false = [q for q in no if (touched or fn)(q)]
     for q in miss:
-        print(f"  MISS  [{name}] {q}")
+        print(f"  MISS  [{name}] " + q.replace("\n", " / "))
     for q in false:
-        print(f"  FALSE [{name}] {q}")
+        print(f"  FALSE [{name}] " + q.replace("\n", " / "))
     ok = len(yes) - len(miss) + len(no) - len(false)
     print(f"{name}: {ok}/{len(yes) + len(no)}  (missed {len(miss)}/{len(yes)}, false {len(false)}/{len(no)})")
     return ok, len(yes) + len(no)

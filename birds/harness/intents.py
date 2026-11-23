@@ -25,7 +25,12 @@ class Intent:
 
 _POLITE = re.compile(r"\b(?:s'il te pla[iî]t|s'il vous pla[iî]t|stp|svp|please|merci)\b", re.I)
 _LEAD = re.compile(
-    r"^(?:(?:est-ce que |pourrais-tu |peux-tu |pouvez-vous |tu peux |can you |could you )?"
+    r"^(?:(?:bonjour|bonsoir|salut|hello|hi)\b[\s,!]*|"
+    # « pourriez-vous m'indiquer où… », « est-ce que tu peux me dire où… », « dis-moi où… », « je voudrais l'adresse… »
+    r"(?:est-ce que |pourrais-tu |peux-tu |pouvez-vous |pourriez-vous |tu peux |tu sais |sais-tu |savez-vous |"
+    r"can you |could you )?(?:tu peux |pourrais-tu |peux-tu |pourriez-vous )?(?:me dire |m'indiquer |me donner )|"
+    r"dis-moi |je voudrais (?:savoir |conna[iî]tre )?|j'aimerais (?:savoir |conna[iî]tre )?|"
+    r"(?:est-ce que |pourrais-tu |peux-tu |pouvez-vous |tu peux |can you |could you )?"
     r"(?:montre(?:-moi)?|affiche(?:-moi)?|donne(?:-moi)?|trouve(?:-moi)?|cherche(?:-moi)?|indique(?:-moi)?|"
     r"liste(?:-moi)?|propose(?:-moi)?|conseille(?:-moi)?|recommande(?:-moi)?|je cherche|"
     r"show(?: me)?|find(?: me)?|give me|tell me|list|recommend|suggest)\b[\s,:]*)",
@@ -86,6 +91,7 @@ _NEAR_WORDS = (
     r"a\s+cote\s+d(?:e\s+|u\s+|')|autour\s+d(?:e\s+|u\s+|es\s+|')|proches?\s+d(?:e\s+|u\s+|es\s+|')|"
     r"aux\s+alentours\s+d(?:e\s+|u\s+|es\s+|')|dans\s+le\s+quartier\s+d(?:e\s+|u\s+|es\s+|')|vers\s+|"
     r"near\s+|around\s+|close\s+to\s+|next\s+to\s+|by\s+|"
+    r"[àa]\s+proximit[ée]\s+d(?:e\s+|u\s+|es\s+|')|"
     # « une pharmacie à Nantes », « un garage dans Versailles »: a kind in a town (letters after it, never « à 100 € »)
     r"(?:à|a|dans|sur|in)\s+(?=[^\W\d_]))"
 )
@@ -114,15 +120,46 @@ _RX_ROUTE1 = re.compile(
 )
 _RX_WHERE = re.compile(
     # typed fast on a phone: « ou es la boutique… », « c est ou le siège… » (never « où en est le projet »)
-    r"^(?:o[uù]\s+(?:se\s+trouve(?:nt)?|se\s+situe(?:nt)?|est|es|ets|sont|son)|c'?\s?est\s+o[uù]|"
+    r"^(?:o[uù]\s+(?:se\s+trouve(?:nt)?|se\s+situe(?:nt)?|est|es|ets|sont|son)(?:\s+situ[ée]e?s?)?(?:\s+exactement)?|"
+    r"c'?\s?est\s+o[uù](?:\s+(?:exactement|donc|d[ée]j[àa]))?|(?:what'?s|what\s+is)\s+the\s+address\s+of|"
     r"(?:quelle\s+est\s+)?l?'?adresse\s+(?:de\s+|du\s+|des\s+|d')|localise(?:-moi)?|"
     r"(?:une\s+)?carte\s+(?:de\s+|du\s+|des\s+|d')|(?:un\s+)?plan\s+(?:d'accès|de\s+situation)\s+(?:de\s+|du\s+|d'|des\s+)?|"
     r"where(?:\s+is|'s|\s+are)|(?:the\s+)?address\s+of|(?:a\s+)?map\s+of|locate)(?:\s+|(?<=[\s']))"
     + _ART
+    + r"(?:(?:ville|city)\s+(?:de\s+|d'|of\s+))?"
     + _NAME.format("q"),
     re.I,
 )
-_RX_SITUE_MAP = re.compile(r"^situe(?:-moi)?\s+" + _ART + r"(?P<q>[^?!\n]{2,80}?)\s+sur\s+(?:une|la)\s+carte\b", re.I)
+_RX_SITUE_MAP = re.compile(  # « situe Nantes sur une carte », « (montre-moi) Lyon sur une carte »
+    r"^(?:situe(?:-moi)?\s+" + _ART + r"(?P<q>[^?!\n]{2,80}?)|(?P<q2>[^\W\d_][\w'-]+(?:\s+[^\W\d_][\w'-]+)?))"
+    r"\s+sur\s+(?:une|la)\s+carte\b",
+    re.I,
+)
+# an explicit map ask: any target is a place (« carte de la bretagne »)
+_MAP_ASK = re.compile(r"^(?:(?:une\s+)?carte\b|(?:a\s+)?map\b|localise|locate|situe)|\bsur\s+(?:une|la)\s+carte\b", re.I)
+# « les parkings de aix »: a plural kind of place in a town, said bare
+_RX_KIND_OF = re.compile(r"^(?:les\s+|des\s+)?" + _KIND + r"\s+(?:de\s+|du\s+|d')(?P<near>[^\W\d_][\w' -]{1,40})$", re.I)
+_NOT_TOWN = re.compile(  # « les écoles de commerce », « les pharmacies de garde »: a complement, not a town
+    r"^(?:garde|commerce|nuit|jour|luxe|sport|langues?|musique|danse|conduite|cuisine|ing[ée]nieurs?|management|"
+    r"art|design|formation|quartier|proximit[ée]|ville|campagne|montagne|mer|charme|r[ée]f[ée]rence|qualit[ée]|"
+    r"l'entreprise|entreprise|soir|week-end)\b",
+    re.I,
+)
+# « itinéraire Lyon Grenoble », « trajet paris marseille »
+_RX_ROUTE_BARE = re.compile(r"^(?:itin[ée]raire|trajet)\s+(?P<a>[^\W\d_][\w'-]+)\s+(?:[-–>→]\s*)?(?P<b>[^\W\d_][\w'-]+)$", re.I)
+_NOT_STOP = re.compile(
+    r"^(?:domicile|travail|boulot|maison|retour|aller|quotidien|formation|professionnel|carri[èe]re|"
+    r"le|la|les|de|du|des|pour|en|vers|optimal|rapide|direct|habituel)$",
+    re.I,
+)
+_ARTICLE_BEFORE = re.compile(r"(?:\b(?:la|le|les|the|un|une|des)\s+|l')$", re.I)
+_TOWNISH = re.compile(r"[^\W\d_][\w'-]+(?:\s+(?:en|sur)\s+[^\W\d_][\w'-]+|\s+[^\W\d_][\w'-]+)?")
+_NOT_TARGET = re.compile(  # « c'est où que je change… », « où est passée ma commande », « c'est où demain ? »
+    r"^(?:qu|pass[ée]e?s?\b|demain\b|aujourd'hui\b|hier\b|maintenant\b|ce soir\b|tomorrow\b|today\b|now\b|"
+    r"ensuite\b|apr[èe]s\b|maman\b|papa\b|mamie\b|papi\b|papy\b|mom\b|mum\b|dad\b)",
+    re.I,
+)
+_POSSESSIVE = re.compile(r"^(?:mon|ma|mes|ton|ta|tes|son|sa|ses|notre|nos|votre|vos|leurs?|my|your|our|his|her|their)\b", re.I)
 _LIST_NOUNS = (
     r"(?:sites|adresses|lieux|agences|bureaux|magasins|boutiques|villes|implantations|entrepôts|entrepots|"
     r"locations|offices|stores|places|cities|sites)"
@@ -160,7 +197,8 @@ _DOC_TARGET = re.compile(
     r"r[ée]unions?|meetings?|factur\w*|invoices?|billing|devis|notes?|comptes?[- ]rendus?|cr|compta\w*|"
     r"pr[ée]sentations?|slides?|diapos?|tableurs?|budgets?|pi[èe]ces? jointes?|attachments?|pdf|contexte|essentiel|"
     r"points?|ordres? du jour|agenda|planning|proc[ée]dures?|process|mentionn\w*|ce contrat|ce document|summary|"
-    r"synth[èe]se|minutes|deck|draft|brouillon|q[1-4])\b",
+    r"synth[èe]se|minutes|deck|draft|brouillon|q[1-4]|diff[ée]rences?|int[ée]r[êe]ts?|probl[èe]mes?|soucis?|"
+    r"avantages?|inconv[ée]nients?|logique|valeur|value|deal|catch|difference|problem|issue|point mort|solutions?)\b",
     re.I,
 )
 # a person: civility, colleague, a home, or a common first name followed by a surname (never geocoded)
@@ -249,6 +287,12 @@ _PERSON_HOME = re.compile(
 )
 
 
+def _plural(words: str) -> bool:
+    """« pharmacies », « hôtels », « bureaux »: the first word is plural. « la gare de Lyon » names one place."""
+    first = (words or "").split()[0] if (words or "").split() else ""
+    return first.lower().endswith(("s", "x"))
+
+
 def _kind_of(word: str) -> str:
     for rx, key in KINDS:
         if re.fullmatch(rx, word.strip(), re.I):
@@ -287,6 +331,10 @@ def places(text: str, lang: str = "fr") -> Intent | None:
         if 2 <= len(items) <= 5:
             return Intent("find_places", {"query": " ; ".join(items)}, keep_web=True, mode="list")
     m = _RX_NEAR.search(t)
+    if m and not _plural(m.group("kind")) and re.match(
+        r"\s+(?:de\s+la\s+|de\s+l'|de\s+|du\s+|des\s+|d')(?:[A-ZÀ-Ý]|ville\b)", t[m.end("kind"):]
+    ):
+        m = None  # « l'hôtel de la Paix à Genève »: one named place, looked up whole below
     if m and re.search(r"itin[ée]raire|trajet|comment (?:aller|se rendre)|directions?|how (?:do i |to )?get", t, re.I) \
             and not re.search(r"pr[eè]s d|autour d|[àa] c[ôo]t[ée] d|proches? d|alentours|near|around|close to", t, re.I):
         m = None  # « itinéraire de la gare de Lyon à la tour Eiffel »: a route, the « à » is its destination
@@ -311,6 +359,11 @@ def places(text: str, lang: str = "fr") -> Intent | None:
     m = _RX_ROUTE1.search(t)
     if m:
         b = _clean_name(m.group("b"))
+        parts = re.split(r"\s+(?:depuis|en partant d(?:e|u|es)|from)\s+" + _ART, b, maxsplit=1, flags=re.I)
+        if len(parts) == 2:  # « comment aller à la tour Eiffel depuis la gare de Lyon »: destination, then start
+            dest, origin = _clean_name(parts[0]), _clean_name(parts[1])
+            if _ok(dest) and _ok(origin) and not _not_a_place(dest) and not _not_a_place(origin):
+                return Intent("find_places", {"query": dest, "near": origin}, keep_web=False, mode="route")
         if _ok(b):
             if _not_a_place(b):
                 return None  # "comment aller à l'essentiel dans une présentation"
@@ -323,21 +376,41 @@ def places(text: str, lang: str = "fr") -> Intent | None:
     if addr and _PLACE_WORD.search(raw):
         addr = re.sub(r"\s+(?:à|a|in)\s+(?=[A-ZÀ-Ý])", " ", addr)
         return Intent("find_places", {"query": addr}, keep_web=False, mode="address")
+    m = _RX_KIND_OF.match(t)
+    if m and _plural(m.group("kind")) and not _NOT_TOWN.match(m.group("near")) and _ok(m.group("near")):
+        return Intent(
+            "find_places", {"query": _kind_of(m.group("kind")), "near": _clean_name(m.group("near"))},
+            keep_web=False, mode="near",
+        )
+    m = _RX_ROUTE_BARE.match(t)
+    if m and not _NOT_STOP.match(m.group("a")) and not _NOT_STOP.match(m.group("b")):
+        if not _not_a_place(m.group("a")) and not _not_a_place(m.group("b")):
+            return Intent("find_places", {"query": m.group("b"), "near": m.group("a")}, keep_web=False, mode="route")
     m = _RX_WHERE.search(t) or _RX_SITUE_MAP.search(t)
     if m:
-        q = _clean_name(m.group("q"))
+        g = "q" if m.groupdict().get("q") else "q2"
+        q = _clean_name(m.group(g))
         if re.fullmatch(r"(?:il|elle|ça|ca|it|they|là|la)", q, re.I):
             return Intent("find_places", None, keep_web=True)
-        if not _ok(q) or _not_a_place(q):
+        if not _ok(q) or _not_a_place(q) or _NOT_TARGET.match(q):
             return None  # "où est le contrat de Paul Martin", "where is the Q3 report": not a place at all
-        # « les parkings de aix », « pharmacies à Lyon »: a kind of place in a town is a "near" search
+        landmark = bool(_LANDMARK.search(q) or _kind_in(q))
+        words = re.findall(r"[\wÀ-ÿ'-]+", q)
+        if _POSSESSIVE.match(q):  # « où est ma commande », « où est mon hôtel »: never geocoded as written
+            return Intent("find_places", None, keep_web=True) if landmark else None
+        if not landmark and all(w.lower() in FIRST_NAMES for w in words):
+            return None  # « ou est sophie »: a person
+        # « les parkings de aix », « pharmacies à Lyon »: a plural kind of place in a town is a "near" search;
+        # a singular one names a place (« la gare de Lyon », « le musée d'Orsay »), looked up whole
         kn = re.match(r"(?P<kind>.+?)\s+(?:de|du|d'|à|a|au|aux|in|of)\s*(?P<near>[^\s].*)$", q, re.I)
-        if kn and _kind_of(kn.group("kind")) and len(kn.group("near")) >= 3:
+        if kn and _kind_of(kn.group("kind")) and _plural(kn.group("kind")) and len(kn.group("near")) >= 3:
             return Intent(
                 "find_places", {"query": _kind_of(kn.group("kind")), "near": _clean_name(kn.group("near"))},
                 keep_web=False, mode="near",
             )
-        if _placey(q):
+        # a bare town typed in lowercase (« ou est nantes », « where is lyon »): no article, one or two words
+        town = not _ARTICLE_BEFORE.search(t[: m.start(g)]) and bool(_TOWNISH.fullmatch(q))
+        if _placey(q) or town or _MAP_ASK.search(t):
             return Intent("find_places", {"query": q}, keep_web=False, mode="where")
         return Intent("find_places", None, keep_web=True)
     if _HINT.search(raw):
