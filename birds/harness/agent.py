@@ -205,6 +205,13 @@ _TREND_ASK = re.compile(
 )
 
 
+CLOCK_NOTE = {
+    "fr": "\n\n(Note de Bird : une fiche « Horloge » est affichée sous ta réponse. {facts} Réponds en une ou deux "
+    "phrases avec ces heures exactes ; n'en calcule aucune autre et ne cherche rien sur le web.)",
+    "en": "\n\n(Bird's note: a 'World clock' card is shown under your answer. {facts} Answer in one or two sentences "
+    "with these exact times; compute no other and do not search the web.)",
+}
+
 EVENT_NOTE = {
     # the resolved day is written out: live model, given only "le 25 décembre", wrote "dimanche 25 décembre" (a Friday)
     "fr": "\n\n(Note de Bird : une fiche d'agenda pour le {slot} avec un bouton « Ajouter au calendrier » est affichée "
@@ -416,6 +423,7 @@ class Run:
     drafts: list[dict] = field(default_factory=list)
     files: list[str] = field(default_factory=list)
     charts: list[dict] = field(default_factory=list)  # make_chart specs, drawn by the browser
+    widgets: list[dict] = field(default_factory=list)  # cards computed by the harness without a tool (world clock)
     images: list[dict] = field(default_factory=list)  # web image candidates seen by web_search / read_page
     usage: list[dict] = field(default_factory=list)  # one entry per generation
     report: dict = field(default_factory=dict)
@@ -509,6 +517,31 @@ class Agent:
         params = inspect.signature(llm.generate).parameters
         self._llm_kwargs = any(p.kind is p.VAR_KEYWORD for p in params.values()) or "on_token" in params
 
+    @staticmethod
+    def _clock(req: str, lang: str, tz: str | None, ctx: Context) -> str:
+        """World clock / common slot in the user's own words: the card goes to ``ctx.widgets``, the facts for the
+        model are returned ('' when there is none). A town missing from the table is geocoded for its COUNTRY only
+        (its zone always comes from the table)."""
+        from datetime import datetime
+
+        from birds.harness import clock
+
+        found = clock.detect(req)
+        if not found:
+            return ""
+        if not found["cities"] and found["unknown"]:
+            try:
+                city = clock.lookup(found["unknown"], ctx, lang)
+            except (guard.Blocked, guard.ToolError):
+                city = None
+            found["cities"] = [city] if city else []
+        zone = clock.valid_zone(tz)
+        w = clock.card(found, datetime.now(clock.ZoneInfo(zone)), lang, zone) if found["cities"] else None
+        if not w:
+            return ""
+        ctx.widgets.append(w)
+        return clock.summary(w, lang)
+
     def _allowed(self) -> set[str]:
         """Tools shown to the model: the deployment allowlist, minus what is switched off or not configured."""
         off = set() if self.cfg.allow_python else {"run_python"}
@@ -563,6 +596,7 @@ class Agent:
         decision: bool | None = None,
         request_text: str | None = None,
         attached: bool = False,
+        tz: str | None = None,
     ) -> Run:
         """Run one user request, or continue one that stopped on a pending confirmation.
 
@@ -598,6 +632,7 @@ class Agent:
                 fetched=[[str(k), str(v)] for k, v in st.get("fetched", []) if k in ("web", "file")],
                 charts=[c for c in st.get("charts", []) if isinstance(c, dict)],
                 images=[i for i in st.get("images", []) if isinstance(i, dict)],
+                widgets=[w for w in st.get("widgets", []) if isinstance(w, dict)],
             )
             messages, seen, queue = st["messages"], set(st["seen"]), list(st["queue"])
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
@@ -634,9 +669,17 @@ class Agent:
             found = intents.detect(req, attached, run.lang) if getattr(cfg, "widgets", True) else []
             routed |= set(EXTRA_TOOL_NAMES) - {"make_chart"} - {i.tool for i in found}
             prefill = next((i for i in found if i.args), None)
-            if prefill and not prefill.keep_web and (prefill.tool == "convert_currency" or not _NEEDS_WEB.search(req)):
+            # « météo aujourd'hui », « taux du jour »: words that usually call for the web, but the tool has the answer
+            own_answer = prefill and prefill.tool in ("convert_currency", "get_weather")
+            if prefill and not prefill.keep_web and (own_answer or not _NEEDS_WEB.search(req)):
                 routed |= {"web_search", "read_page"}
-            slot = "" if prefill or _NEEDS_WEB.search(req) else _event_slot(req, run.lang)
+            facts = "" if prefill or not getattr(cfg, "widgets", True) else self._clock(req, run.lang, tz, ctx)
+            if facts:
+                # « décalage horaire avec Tokyo »: the harness computes the times and the slot itself (no tool, no
+                # network); the model only puts them in a sentence
+                routed |= {"web_search", "read_page"}
+                messages[-1]["content"] += CLOCK_NOTE["en" if run.lang == "en" else "fr"].format(facts=facts)
+            slot = "" if prefill or facts or _NEEDS_WEB.search(req) else _event_slot(req, run.lang)
             if slot:
                 # "cale un déjeuner le 25 décembre à midi": the UI shows an event card (.ics) built from these
                 # words; live model, offered the web, searched "restaurants ouverts le 25 décembre" and refused
@@ -682,8 +725,19 @@ class Agent:
                         if step_thinking and stuck and "</think>" not in (out.get("text") or ""):
                             # the reasoning ran on, or looped, with no answer in sight: count it, then answer this
                             # step directly instead of showing nothing
-                            run.usage.append({k: out.get(k) for k in ("prompt_tokens", "completion_tokens", "seconds",
-                                                                      "busy_seconds", "finish_reason") if k in out})
+                            run.usage.append(
+                                {
+                                    k: out.get(k)
+                                    for k in (
+                                        "prompt_tokens",
+                                        "completion_tokens",
+                                        "seconds",
+                                        "busy_seconds",
+                                        "finish_reason",
+                                    )
+                                    if k in out
+                                }
+                            )
                             run.think_cut, step_thinking = True, False
                             if stream is not None and hooks.on_reset:
                                 hooks.on_reset()
@@ -770,7 +824,11 @@ class Agent:
                         if stream is not None and stream.streamed and hooks.on_reset:
                             hooks.on_reset()
                         messages.append(
-                            {"role": "assistant", "content": parsed["content"], "reasoning_content": parsed["reasoning"]}
+                            {
+                                "role": "assistant",
+                                "content": parsed["content"],
+                                "reasoning_content": parsed["reasoning"],
+                            }
                         )
                         messages.append({"role": "tool", "content": DO_IT_NUDGE})
                         gen += 1
@@ -900,6 +958,7 @@ class Agent:
                     "fetched": ctx.fetched,
                     "charts": ctx.charts,
                     "images": ctx.images,
+                    "widgets": ctx.widgets,
                     "attached": ctx.attached,
                     "gen": gen,
                     "ok": ok,
@@ -936,8 +995,13 @@ class Agent:
             # was gathered. Cheap, and far better than a generic "could not answer".
             last, used = self._last_answer(messages, run.lang, deadline)
             if used:  # the last generation counts in the receipt like any other
-                run.usage.append({k: used.get(k) for k in ("prompt_tokens", "completion_tokens", "seconds",
-                                                           "busy_seconds", "finish_reason") if k in used})
+                run.usage.append(
+                    {
+                        k: used.get(k)
+                        for k in ("prompt_tokens", "completion_tokens", "seconds", "busy_seconds", "finish_reason")
+                        if k in used
+                    }
+                )
             if last:
                 content, run.stop_reason, run.salvaged = last, "answer", True
         if run.stop_reason == "confirm":
@@ -952,7 +1016,7 @@ class Agent:
         else:
             run.answer = content or FALLBACK[run.lang]
         run.messages, run.sources, run.drafts, run.files = messages, ctx.sources, ctx.drafts, ctx.files
-        run.charts, run.images = ctx.charts, ctx.images
+        run.charts, run.images, run.widgets = ctx.charts, ctx.images, ctx.widgets
         run.report = meter.report(
             run.usage,
             wall_seconds=time.monotonic() - t0,

@@ -298,6 +298,10 @@ def fetch(ctx, lat: float, lon: float):
 _WEEKEND = re.compile(r"\b(?:ce\s+)?(?:week-?end|weekend|this weekend|samedi et dimanche)\b", re.I)
 
 
+def utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
 def resolve_day(text: str, today: date, lang: str) -> date | None:
     t = " ".join(str(text or "").split())
     if not t or re.fullmatch(r"(?:aujourd'hui|aujourd’hui|today|maintenant|now|ce soir|tonight|ce matin|"
@@ -345,7 +349,7 @@ def get_weather(args: dict, ctx) -> str:
     place = sorted(hits, key=lambda h: -(h.importance or 0.0))[0]
     zone_name, tz_label = zone_of(place, place_q)
     zone = ZoneInfo(zone_name)
-    now = (getattr(ctx, "now", None) or datetime.now(UTC)).astimezone(zone)
+    now = (getattr(ctx, "now", None) or utcnow()).astimezone(zone)
     today = now.date()
     day = resolve_day(day_q, today, lang) if day_q else today
     if day is None:

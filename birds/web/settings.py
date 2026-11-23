@@ -112,6 +112,7 @@ class Settings:
     ban_url: str | None = None
     company_url: str | None = None
     fx_url: str | None = None
+    met_url: str | None = None
     holiday_url: str = "https://calendrier.api.gouv.fr/jours-feries/{zone}/{year}.json"
     holiday_zone: str = "metropole"
     tile_url: str | None = None  # default https://tile.openstreetmap.org/{z}/{x}/{y}.png
@@ -225,6 +226,7 @@ class Settings:
             ban_url=get("BIRD_BAN_URL"),
             company_url=get("BIRD_COMPANY_URL"),
             fx_url=get("BIRD_FX_URL"),
+            met_url=get("BIRD_MET_URL"),
             holiday_zone=(get("BIRD_HOLIDAY_ZONE") or "metropole").lower(),
             tile_url=get("BIRD_TILE_URL"),
             tile_layer="ign" if (get("BIRD_TILE_LAYER") or "").lower() == "ign" else "osm",

@@ -382,6 +382,47 @@ def zone_for_country(cc: str) -> str:
     return next(iter(zones)) if len(zones) == 1 and cc not in MULTI_ZONE else ""
 
 
+_FR_OVERSEAS = re.compile(
+    r"guadeloupe|martinique|guyane|r[ée]union|mayotte|cal[ée]donie|polyn[ée]sie|saint-pierre|wallis|barth[ée]lemy|"
+    r"saint-martin|terres australes|clipperton",
+    re.I,
+)
+
+
+def country_zone(cc: str, region: str = "", country: str = "") -> str:
+    """Zone of a geocoded town from its COUNTRY (never its coordinates): a single-zone country of the table, or
+    metropolitan France (France spans 12 zones: a town is metropolitan when its region is not an overseas one)."""
+    cc = (cc or "").upper()
+    if cc == "FR":
+        return "" if _FR_OVERSEAS.search(f"{region} {country}") else "Europe/Paris"
+    return zone_for_country(cc)
+
+
+def lookup(name: str, ctx, lang: str = "fr") -> City | None:
+    """A town missing from the table, by geocoding its name (the user's own words) to learn its country."""
+    from birds.harness import geo
+
+    hits = sorted(geo.Geocoder(ctx).search(name, limit=3, lang=lang), key=lambda h: -(h.importance or 0.0))
+    if not hits:
+        return None
+    p = hits[0]
+    zone = country_zone(p.country_code, p.region, p.country)
+    if not zone:
+        return None
+    return City(fr=p.name, en=p.name, zone=zone, cc=p.country_code)
+
+
+def valid_zone(name: str | None) -> str:
+    """The browser's zone when it is a real IANA name, else Europe/Paris."""
+    if name and len(name) <= 64 and re.fullmatch(r"[A-Za-z0-9_+\-/]+", name):
+        try:
+            ZoneInfo(name)
+            return name
+        except (ValueError, KeyError, OSError):
+            pass
+    return DEFAULT_TZ
+
+
 def city_of_zone(zone: str) -> City | None:
     """The first table city of a zone (the user's own zone, e.g. Europe/Paris -> Paris)."""
     return next((c for c in CITIES if c["zone"] == zone), None)
@@ -590,6 +631,7 @@ def card(
         wide = [] if common else common_slots(zones, user_zone, d, WIDE)
         widget["timeline"] = {
             "date": d.isoformat(),
+            "start": cols[0].strftime("%Y-%m-%dT%H:%MZ"),  # the user's local midnight, as an instant
             "user_hours": [t.astimezone(uz).hour for t in cols],
             "rows": tl,
         }

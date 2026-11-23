@@ -93,6 +93,7 @@ class Context:
     attached: bool = False  # the request comes with a document or an image (find_places: the user's words only)
     geo_calls: int = 0  # upstream geocoder requests of this run (cap: geo.MAX_LOOKUPS_PER_RUN)
     place_calls: int = 0  # successful find_places calls of this run
+    widgets: list[dict] = field(default_factory=list)  # cards the harness computed itself, no tool (world clock)
 
     @property
     def workspace(self) -> Path:
