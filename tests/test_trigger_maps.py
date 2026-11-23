@@ -144,3 +144,23 @@ def test_filler_words_stay_out_of_the_geocoder_query(text, args, mode):
 
 def test_a_legal_question_keeps_the_web_and_calls_no_map():
     assert intents.detect("où est la différence entre SAS et SARL ?") == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "carte de vœux pour nos clients",
+        "carte des vins pour le séminaire",
+        "carte de crédit perdue, que faire ?",
+        "carte de séjour d'un salarié étranger : quelles démarches ?",
+    ],
+)
+def test_a_card_that_is_not_a_map_calls_nothing(text):
+    assert intents.detect(text) == []
+
+
+@pytest.mark.parametrize(
+    "text,query", [("carte de Lyon", "Lyon"), ("carte de l'Europe", "Europe"), ("carte de la bretagne", "bretagne")]
+)
+def test_a_map_of_a_place_is_still_drawn(text, query):
+    assert _call(text) == ({"query": query}, "where")

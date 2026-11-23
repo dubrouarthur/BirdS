@@ -232,6 +232,62 @@ _LANDMARK = re.compile(
 )
 
 
+# Towns, regions and countries a user may type in lowercase (« ou est nantes », « trajet paris marseille ») or that
+# name a place, not a company or a team (« combien de salariés à Paris »). Accents and case are ignored.
+KNOWN_PLACES = frozenset(
+    """paris marseille lyon toulouse nice nantes montpellier strasbourg bordeaux lille rennes reims toulon
+    saint-etienne le-havre grenoble dijon angers nimes villeurbanne clermont-ferrand le-mans aix aix-en-provence brest
+    tours amiens limoges annecy perpignan boulogne-billancourt metz besancon orleans rouen mulhouse caen nancy
+    argenteuil montreuil saint-denis roubaix tourcoing avignon poitiers versailles nanterre creteil pau la-rochelle
+    calais cannes antibes colmar bourges vierzon chartres lens arras dunkerque valence ajaccio bastia bayonne biarritz
+    lorient vannes quimper saint-malo cherbourg niort angouleme troyes chambery blois laval beauvais evry cergy massy
+    orly roissy toussus-le-noble saclay vincennes neuilly levallois issy courbevoie puteaux saint-cloud meudon rueil
+    vichy valenciennes douai cholet saint-nazaire montauban albi rodez carcassonne beziers sete narbonne frejus hyeres
+    gap auxerre nevers macon belfort epinal thionville charleville sedan compiegne soissons evreux lisieux alencon
+    aurillac tarbes lourdes agen perigueux brive tulle gueret moulins chateauroux deauville honfleur chamonix lens
+    bretagne normandie alsace lorraine provence corse bourgogne auvergne aquitaine occitanie champagne picardie savoie
+    vendee ile-de-france idf paca hauts-de-france grand-est nouvelle-aquitaine pays-de-la-loire centre-val-de-loire
+    auvergne-rhone-alpes bourgogne-franche-comte cote-d'azur landes dordogne gironde finistere morbihan jura vosges
+    ardeche drome isere vaucluse herault haute-savoie
+    france belgique suisse allemagne espagne italie portugal royaume-uni angleterre ecosse irlande pays-bas hollande
+    luxembourg autriche pologne grece suede norvege danemark finlande maroc algerie tunisie senegal canada quebec usa
+    etats-unis mexique bresil argentine chine japon inde australie russie turquie egypte europe afrique asie
+    london londres new-york berlin madrid barcelone barcelona rome milan turin venise florence naples lisbonne lisbon
+    porto bruxelles brussels anvers gand liege geneve geneva lausanne zurich berne bale amsterdam rotterdam la-haye
+    munich francfort frankfurt hambourg cologne vienne prague varsovie budapest athenes dublin edimbourg manchester
+    stockholm oslo copenhague helsinki montreal toronto vancouver tokyo pekin shanghai hong-kong singapour dubai
+    casablanca rabat marrakech tunis alger dakar abidjan istanbul moscou los-angeles san-francisco chicago boston
+    washington miami sydney melbourne monaco
+    """.split()
+)
+_ARTICLE_LEAD = re.compile(r"^(?:la|le|les|l'|the)\s*", re.I)
+
+
+def _fold(text: str) -> str:
+    """'Île-de-France' -> 'ile-de-france', 'côte d'Azur' -> 'cote-d'azur': lowercase, no accents, hyphens for spaces."""
+    t = unicodedata.normalize("NFKD", text or "").encode("ascii", "ignore").decode().lower().replace("’", "'")
+    return re.sub(r"\s+", "-", _ARTICLE_LEAD.sub("", t.strip(" .,;:!?")))
+
+
+def known_place(q: str) -> bool:
+    """A town, region or country from KNOWN_PLACES, or a compound town name (« saint-cyr », « villers-sur-mer »)."""
+    f = _fold(q)
+    if f in KNOWN_PLACES:
+        return True
+    return bool(re.fullmatch(r"(?:saint|sainte|st|ste)-[a-z'-]+|[a-z']+-(?:sur|en|le|la|les|de|d'|lès|les|sous)-[a-z'-]+", f))
+
+
+# « carte de vœux », « carte des vins », « carte de crédit »: a card or a list, never a map
+_NOT_A_MAP_CARD = re.compile(
+    r"\bcartes?\s+(?:de\s+|des\s+|d')?(?:v[œo]e?ux|vins?|cr[ée]dit|s[ée]jour|membres?|restaurant|menus?|desserts|"
+    r"boissons|identit[ée]|transport|navigo|d[ée]bit|paiement|r[ée]seau|m[ée]moire|[ée]lecteur|professionnelle|"
+    r"blanche|jeux?|t[ée]l[ée]phone|carburant|essence|embarquement|abonnement|fid[ée]lit[ée]|r[ée]duction|"
+    r"anniversaire|remerciements?|condol[ée]ances|f[ée]licitations|no[ëe]l|invitation|achat|stationnement|"
+    r"[ée]tudiante?|europ[ée]enne d'assurance|grise|vitale|bancaire|cadeau|visite|presse|famille|senior|jeune)\b",
+    re.I,
+)
+
+
 def _person(q: str) -> bool:
     if _PERSON_WORDS.search(q):
         return True
@@ -318,7 +374,7 @@ def _ok(name: str) -> bool:
 
 def places(text: str, lang: str = "fr") -> Intent | None:
     raw = " ".join(_URL.sub(" ", text or "").split())
-    if not raw or _NEVER.search(raw) or _HOWTO.search(raw) or _PERSON_HOME.search(raw):
+    if not raw or _NEVER.search(raw) or _NOT_A_MAP_CARD.search(raw) or _HOWTO.search(raw) or _PERSON_HOME.search(raw):
         return None
     t = normalise(raw)
     m = _RX_LIST.search(t)
@@ -410,7 +466,9 @@ def places(text: str, lang: str = "fr") -> Intent | None:
             )
         # a bare town typed in lowercase (« ou est nantes », « where is lyon »): no article, one or two words
         town = not _ARTICLE_BEFORE.search(t[: m.start(g)]) and bool(_TOWNISH.fullmatch(q))
-        if _placey(q) or town or _MAP_ASK.search(t):
+        # an explicit map ask (« carte de la bretagne ») still needs a place-like target: never « carte de X pour … »
+        explicit = _MAP_ASK.search(t) and (_placey(q) or known_place(q))
+        if _placey(q) or town or explicit:
             return Intent("find_places", {"query": q}, keep_web=False, mode="where")
         return Intent("find_places", None, keep_web=True)
     if _HINT.search(raw):
