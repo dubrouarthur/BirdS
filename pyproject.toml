@@ -19,6 +19,7 @@ dependencies = [
     "pypdf>=5",
     "pypdfium2>=4",
     "pillow>=10",  # already pulled in by python-pptx; /api/img re-encodes web images with it
+    "tzdata>=2024.1",  # world clock and weather times: a zone database even where the host has none (serverless)
 ]
 
 [project.optional-dependencies]
