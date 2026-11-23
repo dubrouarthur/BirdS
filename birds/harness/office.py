@@ -9,10 +9,75 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 
 NAVY, BLUE, INK, MUTED, LINE, SOFT = "0B1B3F", "1E5BD8", "121A2E", "586078", "DDDBD1", "E2E9F8"
 FONT = "Calibri"
+
+# ------------------------------------------------------------------ themes
+# One palette per theme; the drawing code reads its colours from C (the theme of the file being built, a context
+# variable: two files built at once in two threads never mix their themes). Same grid and type scale for all.
+THEMES: dict[str, dict[str, str]] = {
+    "corporate": {
+        "NAVY": "0B1B3F", "BLUE": "1E5BD8", "INK": "121A2E", "MUTED": "586078", "SOFT": "E2E9F8", "TINT": "F4F6FB",
+        "POS": "5BD69B", "POS_T": "EEFAF3", "ON_DARK": "C9D3EA", "ON_DARK2": "8FA0C8", "HAIR": "D9DEE8",
+        "SUB": "39435C", "DARK_LINE": "24366B", "BG": "FFFFFF", "ACCENT2": "5BD69B",
+        "CHART": "1E5BD8,0B1B3F,7FA4EE,5BD69B,B7C6E8,586078",
+    },
+    "modern": {
+        "NAVY": "111827", "BLUE": "0D9488", "INK": "0F172A", "MUTED": "64748B", "SOFT": "CCFBF1", "TINT": "F1F5F9",
+        "POS": "5EEAD4", "POS_T": "ECFDF5", "ON_DARK": "CBD5E1", "ON_DARK2": "94A3B8", "HAIR": "E2E8F0",
+        "SUB": "334155", "DARK_LINE": "1F2937", "BG": "FFFFFF", "ACCENT2": "6366F1",
+        "CHART": "0D9488,6366F1,111827,5EEAD4,A5B4FC,64748B",
+    },
+    "warm": {
+        "NAVY": "3B1F14", "BLUE": "C2410C", "INK": "2B1D16", "MUTED": "7C6A5E", "SOFT": "FDE7D7", "TINT": "F8EEE4",
+        "POS": "F2B25C", "POS_T": "FEF3E2", "ON_DARK": "F3E5D8", "ON_DARK2": "C9AE98", "HAIR": "EADFD3",
+        "SUB": "5A4336", "DARK_LINE": "5A3A2A", "BG": "FFFCF8", "ACCENT2": "E8A26B",
+        "CHART": "C2410C,3B1F14,E8A26B,9A6B4F,F2C9A0,7C6A5E",
+    },
+}  # fmt: skip
+THEME_NAMES = {
+    "corporate": {"fr": "Sobre", "en": "Corporate"},
+    "modern": {"fr": "Moderne", "en": "Modern"},
+    "warm": {"fr": "Chaleureux", "en": "Warm"},
+}
+_THEME_ASK = (
+    ("modern", re.compile(r"\b(?:th[eè]me|style|look|design)\s+(?:moderne|modern|tech)", re.I)),
+    ("warm", re.compile(r"\b(?:th[eè]me|style|look|design)\s+(?:chaleureux|warm|chaud)", re.I)),
+    ("corporate", re.compile(r"\b(?:th[eè]me|style|look|design)\s+(?:sobre|corporate|classique|institutionnel)", re.I)),
+    ("modern", re.compile(r"\b(?:moderne?|startup|start-up|tech\b|num[ée]rique|digital|innovation|innovant|saas|"
+                          r"logiciel|software|produit tech|intelligence artificielle|\bIA\b|\bAI\b|cyber)", re.I)),
+    ("warm", re.compile(r"\b(?:chaleureu\w*|warm|convivial\w*|restaurant|h[ôo]tel\w*|bien-[êe]tre|artisan\w*|"
+                        r"boulanger\w*|caf[ée]s?\b|cuisine|tourisme|association|f[êe]te|mariage|vins?\b|"
+                        r"famil\w+|patrimoine|culture\w*|jardin\w*|[ée]picerie|commerce local)", re.I)),
+)  # fmt: skip
+
+
+def pick_theme(request: str = "", asked: str | None = None) -> str:
+    """The theme asked for by name, else the one the request's subject suggests, else 'corporate' (sober)."""
+    if asked in THEMES:
+        return str(asked)
+    for name, rx in _THEME_ASK:
+        if rx.search(request or ""):
+            return name
+    return "corporate"
+
+
+class _Palette:
+    """C.NAVY, C.BLUE...: the colours of the theme of the file being built."""
+
+    def __getattr__(self, key: str) -> str:
+        return _THEME.get()[key]
+
+
+_THEME: ContextVar[dict[str, str]] = ContextVar("bird_office_theme", default=THEMES["corporate"])
+C = _Palette()
+
+
+def chart_colors() -> list[str]:
+    return C.CHART.split(",")
 
 # ------------------------------------------------------------------ a small Markdown reader (blocks + inline bold)
 
@@ -134,7 +199,7 @@ def _bullet(paragraph, level: int, char: str = "•") -> None:
         for el in p_pr.findall(qn(tag)):
             p_pr.remove(el)
     clr = p_pr.makeelement(qn("a:buClr"), {})
-    srgb = clr.makeelement(qn("a:srgbClr"), {"val": BLUE if level == 0 else MUTED})
+    srgb = clr.makeelement(qn("a:srgbClr"), {"val": C.BLUE if level == 0 else C.MUTED})
     clr.append(srgb)
     p_pr.append(clr)
     p_pr.append(p_pr.makeelement(qn("a:buFont"), {"typeface": "Arial"}))
@@ -285,32 +350,80 @@ def kpi_parts(bullet: str) -> tuple[str, str]:
     return big, label[:1].upper() + label[1:] if label else ""
 
 
+_EXTRA = ("layout", "image", "side", "chart", "table", "timeline", "quote", "compare", "agenda", "grid", "credits",
+          "subtitle")  # fmt: skip
+_WHOLE = {"chart", "timeline", "quote", "compare", "agenda", "grid", "image", "closing"}  # never split
+
+
 def plan_slides(slides: list[dict], max_lines: int = 6, max_chars: int = 680) -> list[dict]:
-    """Split long slides into balanced continuation slides so nothing overflows; each part keeps the title."""
+    """Split long slides into balanced continuation slides so nothing overflows; each part keeps the title. A
+    slide with a picture beside its text holds less; a table goes on by 7 rows (header repeated), sources by 8."""
     out = []
     for g, s in enumerate(slides):
         bullets = [str(b) for b in (s.get("bullets") or []) if str(b).strip()]
-        chars = sum(len(b) for b in bullets)
-        short = all(len(b) <= 60 for b in bullets) and not any(_level(b)[0] for b in bullets)
-        lines, limit = (10, 640) if short else (max_lines, max_chars)  # short points fit on two columns
-        n_parts = max(1, -(-len(bullets) // lines), -(-chars // limit))
-        n_parts = min(n_parts, max(1, len(bullets)))
-        size = -(-len(bullets) // n_parts) if bullets else 0
-        parts = [bullets[i : i + size] for i in range(0, len(bullets), size)] if bullets else [[]]
-        for k, part in enumerate(parts):
-            title = str(s.get("title") or "")
-            out.append(
-                {
-                    "title": title + (f" ({k + 1}/{len(parts)})" if len(parts) > 1 else ""),
-                    "base": title,
-                    "suffix": f" ({k + 1}/{len(parts)})" if len(parts) > 1 else "",
-                    "offset": k * size,  # bullets of the same slide on the parts before: numbering continues
-                    "bullets": part,
-                    "notes": str(s.get("notes") or "") if k == 0 else "",
-                    "section": not bullets,
-                    "group": g,
-                }
-            )
+        layout = s.get("layout") or ""
+        extra = {k: s[k] for k in _EXTRA if k in s}
+        title = str(s.get("title") or "")
+        if layout == "table":
+            rows = s["table"]
+            body = rows[1:]
+            per = 7 if len(rows[0]) <= 5 else 6
+            n_parts = max(1, -(-len(body) // per))
+            size = -(-len(body) // n_parts)
+            groups = [[rows[0]] + body[i : i + size] for i in range(0, len(body), size)] or [rows]
+            parts = [(bullets if k == 0 else [], {"table": grp}) for k, grp in enumerate(groups)]
+        elif layout == "sources":
+            lines = bullets
+            credits = list(s.get("credits") or [])
+            per = 8
+            chunks = [lines[i : i + per] for i in range(0, len(lines), per)] or [[]]
+            room = per - len(chunks[-1])
+            parts = [(c, {}) for c in chunks]
+            if credits:
+                first = credits[: max(0, room - 1)] if chunks[-1] else credits[:per]
+                if first:
+                    parts[-1][1]["credits"] = first
+                rest = credits[len(first) :]
+                for i in range(0, len(rest), per):
+                    parts.append(([], {"credits": rest[i : i + per]}))
+            if not parts[0][0] and not parts[0][1].get("credits") and len(parts) > 1:
+                parts = parts[1:]
+        elif layout in _WHOLE:
+            parts = [(bullets, {})]
+        else:
+            chars = sum(len(b) for b in bullets)
+            short = all(len(b) <= 60 for b in bullets) and not any(_level(b)[0] for b in bullets)
+            if layout == "image_side":
+                lines, limit = 5, 420
+            else:
+                lines, limit = (10, 640) if short else (max_lines, max_chars)  # short points fit on two columns
+            n_parts = max(1, -(-len(bullets) // lines), -(-chars // limit))
+            n_parts = min(n_parts, max(1, len(bullets)))
+            size = -(-len(bullets) // n_parts) if bullets else 0
+            chunks = [bullets[i : i + size] for i in range(0, len(bullets), size)] if bullets else [[]]
+            parts = [(c, {}) for c in chunks]
+        n = len(parts)
+        offset = 0
+        for k, (part, own) in enumerate(parts):
+            item = {
+                "title": title + (f" ({k + 1}/{n})" if n > 1 else ""),
+                "base": title,
+                "suffix": f" ({k + 1}/{n})" if n > 1 else "",
+                "offset": offset,  # bullets of the same slide on the parts before: numbering continues
+                "bullets": part,
+                "notes": str(s.get("notes") or "") if k == 0 else "",
+                "section": not bullets and not layout,
+                "group": g,
+                **{key: v for key, v in extra.items() if k == 0 or key not in ("image", "credits")},
+                **own,
+            }
+            if layout == "image_side" and k > 0:
+                item.pop("image", None)
+                item["layout"] = ""
+            if layout == "sources" and "credits" not in own:
+                item.pop("credits", None)
+            out.append(item)
+            offset += len(part)
     return out
 
 
@@ -392,10 +505,11 @@ def _rows_ok(bullets: list[str]) -> bool:
 
 
 def _deck_kinds(plan: list[dict]) -> list[str]:
-    """One render kind per planned slide; the parts of a split slide share one look (rows, else a list)."""
-    kinds = [render_kind(item["bullets"]) if item["bullets"] else "" for item in plan]
+    """One render kind per planned slide; the parts of a split slide share one look (rows, else a list). A slide
+    the harness read as a chart, a table, a timeline... keeps that layout."""
+    kinds = [item.get("layout") or (render_kind(item["bullets"]) if item["bullets"] else "") for item in plan]
     for g in {item["group"] for item in plan}:
-        idx = [i for i, item in enumerate(plan) if item["group"] == g]
+        idx = [i for i, item in enumerate(plan) if item["group"] == g and not item.get("layout")]
         if len({kinds[i] for i in idx}) > 1:
             shared = "rows" if all(_rows_ok(plan[i]["bullets"]) for i in idx) else "list"
             for i in idx:
@@ -474,7 +588,7 @@ def _par(
     tf,
     text: str,
     size: float,
-    color: str = INK,
+    color: str | None = None,
     bold: bool = False,
     first: bool = True,
     align=None,
@@ -490,7 +604,7 @@ def _par(
     if first:
         p.text = ""
     p.alignment = align if align is not None else PP_ALIGN.LEFT
-    _runs(p, text, size, color, bold)
+    _runs(p, text, size, color or C.INK, bold)
     if track:
         for r in p.runs:
             r._r.get_or_add_rPr().set("spc", str(track))
@@ -523,12 +637,12 @@ def _shape(slide, kind, x, y, w, h, fill: str | None):
 
 def _rule(slide, x, y, w, accent: int = int(0.6 * _IN)):
     """A hairline with a short blue accent segment at its left: the one piece of furniture of the deck."""
-    _box(slide, x, y, w, 9525, _HAIR)
-    _box(slide, x, y - 9525, accent, 28575, BLUE)
+    _box(slide, x, y, w, 9525, C.HAIR)
+    _box(slide, x, y - 9525, accent, 28575, C.BLUE)
 
 
 def _accent(slide, x, y, h: int = 28575):
-    _box(slide, x, y, int(0.6 * _IN), h, BLUE)
+    _box(slide, x, y, int(0.6 * _IN), h, C.BLUE)
 
 
 def _split_label(label: str) -> tuple[str, str]:
@@ -572,7 +686,7 @@ def _draw_statement(s, bullets, ctx):
     y = _place(block)
     _accent(s, _M, y)
     tb = _tb(s, _M, y + int(0.35 * _IN), w, _BOT - y - int(0.35 * _IN))
-    _par(tb.text_frame, bullets[0], size, NAVY, spacing=1.1)
+    _par(tb.text_frame, bullets[0], size, C.NAVY, spacing=1.1)
 
 
 def _cards_size(bullets) -> float:
@@ -596,9 +710,9 @@ def _draw_cards(s, bullets, ctx):
         x = col_x(j * n_cols)
         _rule(s, x, y, w)
         tb = _tb(s, x, y + int(0.32 * _IN), w, int(0.55 * _IN))
-        _par(tb.text_frame, f"{ctx.get('offset', 0) + j + 1:02d}", 32, BLUE, bold=True)
+        _par(tb.text_frame, f"{ctx.get('offset', 0) + j + 1:02d}", 32, C.BLUE, bold=True)
         tb = _tb(s, x, y + head, w, _BOT - y - head)
-        _par(tb.text_frame, raw, size, INK, spacing=1.15)
+        _par(tb.text_frame, raw, size, C.INK, spacing=1.15)
 
 
 def _rows_metrics(bullets) -> tuple[float, int]:
@@ -620,10 +734,10 @@ def _draw_rows(s, bullets, ctx):
         ty = y + max(0, (rh - th) // 2)
         # the index sits on the first line of its text (same baseline), not centred on the row
         tb = _tb(s, col_x(0), ty + int((size - 16) * 0.8 / 72 * _IN), _COL, int(0.3 * _IN))
-        _par(tb.text_frame, f"{ctx.get('offset', 0) + j + 1:02d}", 16, BLUE, bold=True)
+        _par(tb.text_frame, f"{ctx.get('offset', 0) + j + 1:02d}", 16, C.BLUE, bold=True)
         tb = _tb(s, col_x(1), ty, span(11), y + rh - ty)
-        _par(tb.text_frame, raw, size, INK, spacing=1.1)
-        _box(s, _M, y + rh - 4762, _CW, 9525, _HAIR)
+        _par(tb.text_frame, raw, size, C.INK, spacing=1.1)
+        _box(s, _M, y + rh - 4762, _CW, 9525, C.HAIR)
 
 
 def _columns_size(bullets) -> float:
@@ -646,10 +760,10 @@ def _draw_columns(s, bullets, ctx):
         x = col_x(6 * g)
         for j, raw in enumerate(group):
             y = y0 + j * rh
-            _box(s, x, y + (rh - marker) // 2, marker, marker, BLUE)
+            _box(s, x, y + (rh - marker) // 2, marker, marker, C.BLUE)
             tb = _tb(s, x + pad, y, w - pad, rh, MSO_ANCHOR.MIDDLE)
-            _par(tb.text_frame, raw, size, INK, spacing=1.0)
-            _box(s, x, y + rh - 4762, w, 9525, _HAIR)
+            _par(tb.text_frame, raw, size, C.INK, spacing=1.0)
+            _box(s, x, y + rh - 4762, w, 9525, C.HAIR)
 
 
 def _fit(size: float, text: str, width: int) -> float:
@@ -664,10 +778,10 @@ def _chip(s, x, y, delta: str):
     from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 
     w, h = int((0.11 * len(delta) + 0.3) * _IN), int(0.32 * _IN)
-    chip = _shape(s, MSO_SHAPE.ROUNDED_RECTANGLE, x, y, w, h, _GREEN if delta.lstrip()[:1] == "+" else SOFT)
+    chip = _shape(s, MSO_SHAPE.ROUNDED_RECTANGLE, x, y, w, h, C.POS if delta.lstrip()[:1] == "+" else C.SOFT)
     chip.adjustments[0] = 0.5
     _plain_frame(chip.text_frame, MSO_ANCHOR.MIDDLE)
-    _par(chip.text_frame, delta, 14, NAVY, bold=True, align=PP_ALIGN.CENTER)
+    _par(chip.text_frame, delta, 14, C.NAVY, bold=True, align=PP_ALIGN.CENTER)
 
 
 # a figure read as a bound ('Churn below 3%'): the comparator goes into the value ('< 3%'), not the label
@@ -714,22 +828,22 @@ def _draw_kpi(s, bullets, ctx):
         if _redundant(label, ctx.get("title", "")):
             label = ""
         y = _place(tile_h)
-        _box(s, _M, y, _CW, tile_h, _TINT)
+        _box(s, _M, y, _CW, tile_h, C.TINT)
         _accent(s, _M + pad, y + pad)
         w = span(7) - pad
         size = _fit(120 if len(big) <= 7 else 96, big, w)
         vh = _height(1, size, 0.95)
         tb = _tb(s, _M + pad, y + (tile_h - vh) // 2 + int(0.1 * _IN), w, vh, MSO_ANCHOR.MIDDLE)
-        _par(tb.text_frame, big, size, NAVY, bold=True, spacing=0.9)
+        _par(tb.text_frame, big, size, C.NAVY, bold=True, spacing=0.9)
         if label or delta:
             x, lw = col_x(7) + pad // 2, span(5) - pad
-            _box(s, col_x(7) - _GUT // 2, y + pad, 9525, tile_h - 2 * pad, _HAIR)
+            _box(s, col_x(7) - _GUT // 2, y + pad, 9525, tile_h - 2 * pad, C.HAIR)
             lh = _height(_lines(label, 20, lw), 20, 1.15) if label else 0
             block = lh + (int(0.32 * _IN) + (int(0.2 * _IN) if label else 0) if delta else 0)
             ly = y + (tile_h - block) // 2
             if label:
                 tb = _tb(s, x, ly, lw, lh + int(0.1 * _IN))
-                _par(tb.text_frame, label, 20, MUTED, spacing=1.15)
+                _par(tb.text_frame, label, 20, C.MUTED, spacing=1.15)
             if delta:
                 _chip(s, x, ly + lh + (int(0.2 * _IN) if label else 0), delta)
         return
@@ -747,16 +861,16 @@ def _draw_kpi(s, bullets, ctx):
     y = _place(tile_h)
     for j, (big, label, delta) in enumerate(parts):
         x = col_x(j * n_cols)
-        _box(s, x, y, w, tile_h, _TINT)
+        _box(s, x, y, w, tile_h, C.TINT)
         _accent(s, x + pad, y + pad)
         vy = y + pad + int(0.22 * _IN)
         tb = _tb(s, x + pad, vy, inner, vh, MSO_ANCHOR.BOTTOM)
-        _par(tb.text_frame, big, size, NAVY, bold=True, spacing=0.9)
+        _par(tb.text_frame, big, size, C.NAVY, bold=True, spacing=0.9)
         ly = vy + vh + int(0.14 * _IN)
         if label:
             lh = _height(_lines(label, _KPI_LABEL, inner), _KPI_LABEL, 1.15)
             tb = _tb(s, x + pad, ly, inner, min(int(1.1 * _IN), lh + int(0.1 * _IN)))
-            _par(tb.text_frame, label, _KPI_LABEL, MUTED, spacing=1.15)
+            _par(tb.text_frame, label, _KPI_LABEL, C.MUTED, spacing=1.15)
         if delta:
             _chip(s, x + pad, y + tile_h - pad - int(0.32 * _IN), delta)
 
@@ -781,18 +895,18 @@ def _draw_steps(s, bullets, ctx):
     gap = int(0.42 * _IN)
     block = d + gap + lh
     y = _place(block)
-    _box(s, _M + d // 2, y + d // 2 - 9525, (k - 1) * sw, 19050, _HAIR)  # from the first dot to the last one
+    _box(s, _M + d // 2, y + d // 2 - 9525, (k - 1) * sw, 19050, C.HAIR)  # from the first dot to the last one
     for j, raw in enumerate(bullets):
         x = _M + j * sw
         num = re.search(r"\d+", raw)
-        dot = _shape(s, MSO_SHAPE.OVAL, x, y, d, d, BLUE if j < k - 1 else NAVY)
+        dot = _shape(s, MSO_SHAPE.OVAL, x, y, d, d, C.BLUE if j < k - 1 else C.NAVY)
         _plain_frame(dot.text_frame, MSO_ANCHOR.MIDDLE)
         _par(dot.text_frame, num.group(0) if num else str(j + 1), 18, "FFFFFF", bold=True, align=PP_ALIGN.CENTER)
         head, rest = labels[j]
         tb = _tb(s, x, y + d + gap, lw, _BOT - y - d - gap)
-        _par(tb.text_frame, head, head_size, NAVY, bold=True, spacing=1.05)
+        _par(tb.text_frame, head, head_size, C.NAVY, bold=True, spacing=1.05)
         if rest:
-            _par(tb.text_frame, rest, rest_size, INK, first=False, spacing=1.15, before=6)
+            _par(tb.text_frame, rest, rest_size, C.INK, first=False, spacing=1.15, before=6)
 
 
 def _list_size(bullets) -> float:
@@ -801,11 +915,31 @@ def _list_size(bullets) -> float:
     return 22 if n <= 6 and chars <= 220 else 20 if n <= 4 and chars <= 360 else 18 if n <= 6 and chars <= 600 else 16
 
 
+def list_fit(bullets, width: int, height: int, start: float, floor: float = 12) -> float:
+    """The largest size <= ``start`` at which the bulleted list fits ``height`` (measured, spacing included)."""
+    size = start
+    n = len(bullets)
+    while size > floor:
+        total = 0
+        for i, raw in enumerate(bullets):
+            level, text = _level(raw)
+            z = size - 2 * level
+            total += _height(_lines(plain(text), z, width - int(0.30 * _IN) * (level + 1)), z, 1.15)
+            total += int((4 if level else (12 if n <= 4 else 8)) / 72 * _IN)
+            total += int(4 / 72 * _IN) if i and not level else 0
+        if total <= height:
+            return size
+        size -= 1
+    return floor
+
+
 def _draw_list(s, bullets, ctx):
     n = len(bullets)
-    size = ctx.get("size") or _list_size(bullets)
-    w = span(10) if all(len(plain(b)) <= 110 for b in bullets) else _CW
-    tb = _tb(s, _M, _TOP, w, _BOT - _TOP)
+    x, y, w, h = ctx.get("box") or (_M, _TOP, None, _BOT - _TOP)
+    if w is None:
+        w = span(10) if all(len(plain(b)) <= 110 for b in bullets) else _CW
+    size = list_fit(bullets, w, h, ctx.get("size") or _list_size(bullets))
+    tb = _tb(s, x, y, w, h)
     tf = tb.text_frame
     prev = 0
     for i, raw in enumerate(bullets):
@@ -814,7 +948,7 @@ def _draw_list(s, bullets, ctx):
             tf,
             text,
             size - 2 * level,
-            INK if level == 0 else _SUB,
+            C.INK if level == 0 else C.SUB,
             first=i == 0,
             spacing=1.15,
             after=4 if level else (12 if n <= 4 else 8),
@@ -863,116 +997,14 @@ def _group_context(plan: list[dict], kinds: list[str]) -> list[dict]:
 
 
 def build_pptx(
-    path, title: str, slides: list[dict], subtitle: str = "", lang: str = "fr", preview: dict | None = None
+    path, title: str, slides: list[dict], subtitle: str = "", lang: str = "fr", preview: dict | None = None, **kw
 ) -> int:
     """Write the deck; return the number of slides written (title slide included). `preview`, if given, is filled
-    with what was drawn (deck_preview), for the chat to show the real slides."""
-    from pptx import Presentation
-    from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
-    from pptx.util import Pt
+    with what was drawn (deck_preview), for the chat to show the real slides. Keyword arguments (media, theme,
+    sources, request, options) go to the deck engine (office_deck.build)."""
+    from birds.harness.office_deck import build
 
-    prs = Presentation()
-    prs.slide_width, prs.slide_height = _W, _H
-    prs.core_properties.title = title[:200]
-    prs.core_properties.author = prs.core_properties.last_modified_by = ""
-    blank = prs.slide_layouts[5]  # "Title Only": real slide titles (outline view, screen readers, read_file)
-
-    def title_box(slide, x, y, w, h, text, size, color, anchor):
-        t = slide.shapes.title
-        t.left, t.top, t.width, t.height = int(x), int(y), int(w), int(h)
-        sp = t._element  # drawn last, above the decorative shapes added after it
-        tree = sp.getparent()
-        tree.remove(sp)
-        tree.append(sp)
-        _plain_frame(t.text_frame, anchor)
-        _par(t.text_frame, text, size, color, bold=True, spacing=0.95)
-        return t
-
-    plan = plan_slides(slides)
-    kinds = _deck_kinds(plan)
-    contexts = _group_context(plan, kinds)
-    total = len(plan) + 1
-
-    def number(slide, n, color=MUTED):
-        tb = _tb(slide, _W - _M - int(1.2 * _IN), int(6.92 * _IN), int(1.2 * _IN), int(0.28 * _IN))
-        _par(tb.text_frame, f"{n} / {total}", 10, color, align=PP_ALIGN.RIGHT)
-
-    def dark(slide, text):
-        """Full-bleed navy: the title on the grid (columns 0-9) over a short blue tab, a hairline above the foot."""
-        text = _cut(text, 200)
-        size = 44 if len(text) <= 40 else 40 if len(text) <= 70 else 34 if len(text) <= 120 else 28
-        _box(slide, 0, 0, _W, _H, NAVY)
-        _box(slide, _M, int(4.78 * _IN), int(0.6 * _IN), 50800, BLUE)
-        _box(slide, _M, int(6.45 * _IN), _CW, 9525, _NAVY_LINE)
-        title_box(slide, _M, int(1.05 * _IN), span(10), int(3.45 * _IN), text, size, "FFFFFF", MSO_ANCHOR.BOTTOM)
-
-    # title slide
-    s = prs.slides.add_slide(blank)
-    dark(s, title)
-    if subtitle:
-        sub = _cut(subtitle, 180)
-        tb = _tb(s, _M, int(5.0 * _IN), span(10), int(1.3 * _IN))
-        _par(tb.text_frame, sub, 18 if len(sub) <= 90 else 16, _ON_NAVY, spacing=1.1)
-    dated = re.search(r"\d{1,2}/\d{1,2}/\d{2,4}|\b(?:19|20)\d{2}\b", subtitle or "")
-    if not dated:
-        tb = _tb(s, _M, int(6.62 * _IN), span(6), int(0.3 * _IN))
-        _par(tb.text_frame, _long_date(lang), 12, _ON_NAVY_2)
-    tb = _tb(s, col_x(6), int(6.62 * _IN), span(6), int(0.3 * _IN))
-    count = f"{total} slides" if lang == "en" else f"{total} diapositives"
-    _par(tb.text_frame, count, 12, _ON_NAVY_2, align=PP_ALIGN.RIGHT)
-
-    sections, eyebrow = 0, ""
-    for n, item in enumerate(plan, start=2):
-        s = prs.slides.add_slide(blank)
-        base, suffix = item.get("base", item["title"]), item.get("suffix", "")
-        heading = _cut(base, 160) + suffix
-        notes = item["notes"]
-        if len(re.sub(r"\s+", " ", base).strip()) > 160 and item["offset"] == 0:  # a cut title stays whole in notes
-            notes = (base + "\n\n" + notes).strip()
-        if item["section"] and n == total:  # the model's closing slide ("Merci", "Questions ?")
-            dark(s, heading)
-            number(s, n, _ON_NAVY_2)
-        elif item["section"]:  # a slide without bullets is a section divider
-            sections += 1
-            eyebrow = heading
-            heading = _cut(heading, 120)
-            _box(s, 0, 0, int(4.25 * _IN), _H, NAVY)
-            tb = _tb(s, _M, int(2.85 * _IN), int(3.0 * _IN), int(1.3 * _IN))
-            _par(tb.text_frame, f"{sections:02d}", 72, _GREEN, bold=True, spacing=0.9)
-            _accent(s, int(5.0 * _IN), int(2.85 * _IN))
-            title_box(
-                s,
-                int(5.0 * _IN),
-                int(3.15 * _IN),
-                _W - int(5.0 * _IN) - _M,
-                int(2.9 * _IN),
-                heading,
-                40 if len(heading) <= 40 else 32 if len(heading) <= 80 else 26,
-                NAVY,
-                MSO_ANCHOR.TOP,
-            )
-            number(s, n)
-        else:
-            if eyebrow:
-                tb = _tb(s, _M, int(0.42 * _IN), _CW, int(0.28 * _IN))
-                _par(tb.text_frame, _cut(eyebrow, 60).upper(), 11, BLUE, bold=True, track=100)
-            size = 30 if len(heading) <= 45 else 26 if len(heading) <= 70 else 22 if len(heading) <= 110 else 18
-            title_box(s, _M, int(0.74 * _IN), _CW, int(0.96 * _IN), heading, size, NAVY, MSO_ANCHOR.BOTTOM)
-            _rule(s, _M, int(1.84 * _IN), _CW)
-            _DRAW[kinds[n - 2]](s, item["bullets"], contexts[n - 2])
-            tb = _tb(s, col_x(0), int(6.92 * _IN), span(9), int(0.28 * _IN))
-            _par(tb.text_frame, _cut(plain(title), 80), 10, MUTED)
-            number(s, n)
-        if notes:
-            tf = s.notes_slide.notes_text_frame
-            tf.text = notes[:4000]
-            for p in tf.paragraphs:
-                for r in p.runs:
-                    r.font.name, r.font.size, r.font.color.rgb = FONT, Pt(12), _rgb(INK)
-    prs.save(str(path))
-    if preview is not None:
-        preview.update(deck_preview(prs, title, subtitle, plan, kinds))
-    return total
+    return build(path, title, slides, subtitle, lang, preview, **kw)["total"]
 
 
 # ------------------------------------------------------------------ what the chat shows of a deck
@@ -1022,7 +1054,7 @@ def _scene(slide) -> list[dict]:
                     {
                         "t": text[:_PREVIEW_TEXT],
                         "s": int(attr(r, qn("a:rPr"), "sz", "1800")) / 100,
-                        "c": attr(rpr, qn("a:solidFill") + "/" + qn("a:srgbClr"), "val", INK),
+                        "c": attr(rpr, qn("a:solidFill") + "/" + qn("a:srgbClr"), "val", C.INK),
                         **({"b": 1} if attr(r, qn("a:rPr"), "b") == "1" else {}),
                         **({"k": int(attr(r, qn("a:rPr"), "spc")) / 100} if attr(r, qn("a:rPr"), "spc") else {}),
                     }
@@ -1042,7 +1074,7 @@ def _scene(slide) -> list[dict]:
                 if (ch := attr(ppr, qn("a:buChar"), "char")) is not None:
                     par["bu"] = {
                         "ch": ch,
-                        "c": attr(ppr, qn("a:buClr") + "/" + qn("a:srgbClr"), "val", INK),
+                        "c": attr(ppr, qn("a:buClr") + "/" + qn("a:srgbClr"), "val", C.INK),
                         "m": _px(ppr.get("marL")),
                         "i": _px(ppr.get("indent")),
                     }
@@ -1239,7 +1271,7 @@ def _style_numbering(doc) -> None:
                     _set(fonts, ascii="Arial", hAnsi="Arial", cs="Arial", hint="default")
                     rpr.append(fonts)
                     color = _w("w:color")
-                    _set(color, val=BLUE if level == 0 else MUTED)
+                    _set(color, val=C.BLUE if level == 0 else C.MUTED)
                     rpr.append(color)
                 else:
                     fonts = _w("w:rFonts")
@@ -1247,7 +1279,7 @@ def _style_numbering(doc) -> None:
                     rpr.append(fonts)
                     rpr.append(_w("w:b"))
                     color = _w("w:color")
-                    _set(color, val=NAVY)
+                    _set(color, val=C.NAVY)
                     rpr.append(color)
     except (AttributeError, KeyError, TypeError, ValueError):
         return  # an unexpected template: keep Word's default glyphs, never fail the document
@@ -1292,33 +1324,33 @@ def _docx_styles(doc) -> None:
                 ppr.remove(el)
         return st
 
-    style("Normal", 10.5, INK)
-    title = style("Title", 26, NAVY, bold=True, after=4, line=1.0, keep=True)
-    sub = style("Subtitle", 11, MUTED, after=28)
+    style("Normal", 10.5, C.INK)
+    title = style("Title", 26, C.NAVY, bold=True, after=4, line=1.0, keep=True)
+    sub = style("Subtitle", 11, C.MUTED, after=28)
     for el in sub.element.pPr.findall(qn("w:numPr")):
         sub.element.pPr.remove(el)
-    bar = (36, BLUE, 10)  # 4.5 pt bar in the left margin, shared by title and subtitle (Word merges them)
+    bar = (36, C.BLUE, 10)  # 4.5 pt bar in the left margin, shared by title and subtitle (Word merges them)
     _p_border(title.element.pPr, left=bar)
     _p_border(sub.element.pPr, left=bar)
     # sections are set apart by space and colour, not by a rule: a rule above an H1 that opens a page would sit
     # right under the running-header hairline (two stacked grey lines)
-    style("Heading 1", 15, NAVY, bold=True, before=26, after=8, line=1.0, keep=True)
-    style("Heading 2", 12, BLUE, bold=True, before=16, after=4, line=1.0, keep=True)
-    style("Heading 3", 10.5, INK, bold=True, before=12, after=2, line=1.0, keep=True)
+    style("Heading 1", 15, C.NAVY, bold=True, before=26, after=8, line=1.0, keep=True)
+    style("Heading 2", 12, C.BLUE, bold=True, before=16, after=4, line=1.0, keep=True)
+    style("Heading 3", 10.5, C.INK, bold=True, before=12, after=2, line=1.0, keep=True)
     for name in ("List Bullet", "List Number"):
         for level in range(3):
-            st = style(name + (f" {level + 1}" if level else ""), 10.5, INK, after=3)
+            st = style(name + (f" {level + 1}" if level else ""), 10.5, C.INK, after=3)
             st.paragraph_format.left_indent = Cm(0.63 + 0.635 * level)
             st.paragraph_format.first_line_indent = Cm(-0.5)
-    quote = style("Quote", 10.5, INK, before=6, after=10)
+    quote = style("Quote", 10.5, C.INK, before=6, after=10)
     quote.paragraph_format.left_indent = Cm(0.5)
     quote.paragraph_format.right_indent = Cm(0)  # every tinted block ends on the text column, like tables
-    _p_border(quote.element.pPr, left=(24, BLUE, 8), **_pad(_TINT))
-    _p_shade(quote.element.pPr, _TINT)
+    _p_border(quote.element.pPr, left=(24, C.BLUE, 8), **_pad(C.TINT))
+    _p_shade(quote.element.pPr, C.TINT)
     for name, size, color, bold in (
-        ("Bird Table", 9.5, INK, False),
+        ("Bird Table", 9.5, C.INK, False),
         ("Bird Table Header", 9.5, "FFFFFF", True),
-        ("Bird Table Small", 7.5, INK, False),  # tables of more than 8 columns
+        ("Bird Table Small", 7.5, C.INK, False),  # tables of more than 8 columns
         ("Bird Table Header Small", 7.5, "FFFFFF", True),
     ):
         if name not in [s.name for s in doc.styles]:
@@ -1347,8 +1379,8 @@ def _furniture(doc, title: str) -> None:
     sec.first_page_header.is_linked_to_previous = False
     head = sec.header.paragraphs[0]
     r = head.add_run(_cut(title, 80))
-    r.font.size, r.font.color.rgb = Pt(8.5), RGBColor.from_string(MUTED)
-    _p_border(head._p.get_or_add_pPr(), bottom=(4, _HAIR, 4))
+    r.font.size, r.font.color.rgb = Pt(8.5), RGBColor.from_string(C.MUTED)
+    _p_border(head._p.get_or_add_pPr(), bottom=(4, C.HAIR, 4))
     for footer in (sec.footer, sec.first_page_footer):
         par = footer.paragraphs[0]
         par.alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -1360,7 +1392,7 @@ def _furniture(doc, title: str) -> None:
                 rp = _w("w:rPr")
                 sz, color = _w("w:sz"), _w("w:color")
                 _set(sz, val=17)
-                _set(color, val=MUTED)
+                _set(color, val=C.MUTED)
                 rp.append(color)
                 rp.append(sz)
                 for old in el.findall(rp.tag):
@@ -1377,7 +1409,7 @@ def _add_runs(par, text: str, code_size: float = 9.5) -> None:
             r.bold = True
         elif style == "code":
             r.font.name, r.font.size = "Consolas", Pt(code_size)
-            r._r.get_or_add_rPr().append(_shd(_TINT))
+            r._r.get_or_add_rPr().append(_shd(C.TINT))
 
 
 def _shade(cell, fill: str) -> None:
@@ -1461,7 +1493,7 @@ def _table(doc, rows: list[list[str]]) -> None:
     tbl_w = _w("w:tblW")
     _set(tbl_w, type="pct", w=5000)
     _put(tbl_pr, tbl_w, order)
-    rules = {"top": None, "left": None, "right": None, "insideV": None, "bottom": (8, NAVY, 0), "insideH": (4, _HAIR, 0)}
+    rules = {"top": None, "left": None, "right": None, "insideV": None, "bottom": (8, C.NAVY, 0), "insideH": (4, C.HAIR, 0)}
     _put(tbl_pr, _border("w:tblBorders", rules), order)
     ind = _w("w:tblInd")  # cell edges, not cell text, on the margin (the padding goes inside)
     _set(ind, w=pad, type="dxa")
@@ -1505,15 +1537,15 @@ def _table(doc, rows: list[list[str]]) -> None:
             if figure:
                 par.alignment = WD_ALIGN_PARAGRAPH.RIGHT
             if i == 0:
-                _shade(cell, NAVY)
+                _shade(cell, C.NAVY)
             elif total:
-                _shade(cell, SOFT)
+                _shade(cell, C.SOFT)
                 for run in par.runs:
                     run.bold = True
                 if first_total:
-                    _put(tc_pr, _border("w:tcBorders", {"top": (6, NAVY, 0)}), _TCPR)
+                    _put(tc_pr, _border("w:tcBorders", {"top": (6, C.NAVY, 0)}), _TCPR)
             elif i % 2 == 0:
-                _shade(cell, _TINT)
+                _shade(cell, C.TINT)
         first_total = first_total and not total
     _spacer(doc)
     if wide:
@@ -1572,13 +1604,13 @@ def _callout(doc, text: str, kind: str):
     pf = par.paragraph_format
     pf.left_indent, pf.space_after = Cm(0.5), Pt(4)
     ppr = par._p.get_or_add_pPr()
-    fill = _GREEN_T if kind == "decision" else _TINT
-    _p_border(ppr, left=(24, _GREEN if kind == "decision" else BLUE, 8), **_pad(fill))
+    fill = C.POS_T if kind == "decision" else C.TINT
+    _p_border(ppr, left=(24, C.POS if kind == "decision" else C.BLUE, 8), **_pad(fill))
     _p_shade(ppr, fill)
     m = re.match(r"^\s*(?:\*\*|__)?([^:*_\n]{1,40}?)\s*(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*", text)
     if m and (_DECISION.match(text) or _ACTION.match(text)):
         r = par.add_run(m.group(1).strip() + " : ")
-        r.bold, r.font.color.rgb = True, RGBColor.from_string(NAVY)
+        r.bold, r.font.color.rgb = True, RGBColor.from_string(C.NAVY)
         rest = text[m.end() :]
         if rest.count("**") % 2:
             rest = rest.replace("**", "", 1)
@@ -1667,7 +1699,7 @@ def _blocks_to_docx(doc, blocks: list[Block], base_level: int = 1, context: str 
         elif b.kind == "para" and _RULE.fullmatch(b.text.strip()):
             par = doc.add_paragraph()
             par.paragraph_format.space_after = Pt(12)
-            _p_border(par._p.get_or_add_pPr(), bottom=(4, _HAIR, 1))
+            _p_border(par._p.get_or_add_pPr(), bottom=(4, C.HAIR, 1))
         else:
             text = plain(b.text)
             kind = "decision" if _DECISION.match(text) else "action" if _ACTION.match(text) else ""
@@ -1787,8 +1819,8 @@ def doc_preview(doc, title: str) -> dict:
                 blocks.append({"k": "quote", "r": r})
             elif fill(ppr) == _CODE:
                 blocks.append({"k": "code", "t": "".join(x[0] for x in r)})
-            elif fill(ppr) in (_GREEN_T, _TINT):
-                blocks.append({"k": "callout", "c": "decision" if fill(ppr) == _GREEN_T else "action", "r": r})
+            elif fill(ppr) in (C.POS_T, C.TINT):
+                blocks.append({"k": "callout", "c": "decision" if fill(ppr) == C.POS_T else "action", "r": r})
             else:
                 blocks.append({"k": "p", "r": r})
         elif el.tag == qn("w:tbl"):
@@ -1806,7 +1838,7 @@ def doc_preview(doc, title: str) -> dict:
                     cells.append(cell)
                 tc_fill = tr.find(".//" + qn("w:shd"))
                 row = {"c": cells}
-                if tc_fill is not None and tc_fill.get(qn("w:fill")) == SOFT:
+                if tc_fill is not None and tc_fill.get(qn("w:fill")) == C.SOFT:
                     row["total"] = 1
                 rows.append(row)
             total_rows = sum(1 for _ in el.iterchildren(qn("w:tr")))
