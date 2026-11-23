@@ -179,3 +179,9 @@ def test_an_unknown_lone_name_or_a_lowercase_phrase_is_only_offered(text):
 
 def test_a_capitalised_known_town_still_gets_a_map():
     assert _call("où est Biarritz") == ({"query": "Biarritz"}, "where")
+
+
+@pytest.mark.parametrize("text", ["les restaurants du coin", "les hôtels du centre"])
+def test_a_kind_near_an_unnamed_spot_is_only_offered(text):
+    got = intents.places(text)
+    assert got is not None and got.args is None

@@ -439,6 +439,9 @@ def places(text: str, lang: str = "fr") -> Intent | None:
         return Intent("find_places", {"query": addr}, keep_web=False, mode="address")
     m = _RX_KIND_OF.match(t)
     if m and _plural(m.group("kind")) and not _NOT_TOWN.match(m.group("near")) and _ok(m.group("near")):
+        near = _clean_name(m.group("near"))
+        if not (near[:1].isupper() or known_place(near)):  # « les restaurants du coin »: where is not said
+            return Intent("find_places", None, keep_web=True)
         return Intent(
             "find_places", {"query": _kind_of(m.group("kind")), "near": _clean_name(m.group("near"))},
             keep_web=False, mode="near",
