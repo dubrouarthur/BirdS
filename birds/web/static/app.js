@@ -705,6 +705,44 @@ function trackViewport() {
   apply();
 }
 
+// Typing on a narrow screen hides the dock's notes (.dock.is-typing, app.css). A tap in the conversation takes the
+// focus from the composer; if the notes came back at once, the dock would grow by a line mid-tap, cover the bottom of
+// the conversation and the click would land on the dock instead (seen on an iPhone SE, 320 and 375 x 568: « Réessayer »,
+// « Revenir au mode simple », the team's fold lost). So the notes stay hidden while a pointer is down outside the
+// dock, and come back only once its click has fired.
+function trackTyping() {
+  const dock = $("dock");
+  let held = false;
+  let timer = 0;
+  const sync = () => {
+    if (!held)
+      dock.classList.toggle("is-typing", dock.contains(document.activeElement));
+  };
+  dock.addEventListener("focusin", () => dock.classList.add("is-typing"));
+  dock.addEventListener("focusout", () => setTimeout(sync, 0));
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (dock.classList.contains("is-typing") && !dock.contains(e.target)) {
+        held = true;
+        clearTimeout(timer);
+      }
+    },
+    true,
+  );
+  const release = () => {
+    if (!held) return;
+    clearTimeout(timer);
+    // the click of a touch comes after pointerup (up to ~300 ms on older WebKit): let it land first
+    timer = setTimeout(() => {
+      held = false;
+      sync();
+    }, 400);
+  };
+  document.addEventListener("pointerup", release, true);
+  document.addEventListener("pointercancel", release, true);
+}
+
 function pendingConfirm() {
   const turns = state.conv?.turns || [];
   const last = turns[turns.length - 1];
@@ -2070,6 +2108,7 @@ async function init() {
   state.conv = (current && loadConv(current)) || newConv();
   bind();
   trackViewport();
+  trackTyping();
   applyTheme();
   applyStrings();
   setSidebar(!isNarrow() && store.get("bird.side") !== "0");

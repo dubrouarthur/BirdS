@@ -72,6 +72,12 @@ export function applyAgentEvent(turn, ev) {
     if (ev[k] !== undefined) lane[k] = ev[k];
   if (ev.detail !== undefined) lane.info = String(ev.detail);
   if (typeof ev.chosen === "boolean") lane.chosen = ev.chosen;
+  // the checker completed the kept version with parts of the other one: that version is « reprise en partie »
+  const lent = ev.merged && crew.lanes.find((l) => l.id === ev.merged);
+  if (lent && !lent.lent) {
+    lent.lent = true;
+    return t("agent.say.merged", { label: lent.label });
+  }
   if (ev.status !== "running" && lane.since && !lane.seconds)
     lane.seconds = (Date.now() - lane.since) / 1000;
   if (was === ev.status) return "";
@@ -139,6 +145,9 @@ function laneCard(turn, lane) {
         { class: "crew-label" },
         h("span", { text: lane.label }),
         lane.chosen && h("span", { class: "crew-kept", text: t("agent.kept") }),
+        !lane.chosen &&
+          lane.lent &&
+          h("span", { class: "crew-kept is-part", text: t("agent.kept.part") }),
       ),
       detailOf(lane) && h("p", { class: "crew-detail", text: detailOf(lane) }),
       counts.size > 0 &&

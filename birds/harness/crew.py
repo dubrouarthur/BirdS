@@ -48,7 +48,10 @@ MAX_CALLS = 7
 MAX_CALLS_GENERIC = 5
 DRAFTS = 2
 MAX_PAGES = 3
+MORE_PAGES = 2  # pages of other sites read when the first ones gave fewer than 2 extracts
 PAGE_CAP = 4000
+TEXT_MIN = 300  # a page without a verified figure is a source of a document only with this much text
+EXTRACT_CAP = 1500  # a page's extract given to the drafters of a document (3 pages: 4.5 kB of the shared prompt)
 TOTAL_CAP = 12000
 DEADLINE_S = 240.0
 BRIEF_S = 90.0
@@ -71,7 +74,12 @@ _DELIVERABLES = (
     ("draft_email", r"e-?mails?|mails?|courriels?"),
     (
         "make_document",
-        r"compte[- ]rendus?|rapports?|reports?|documents?|docx|notes? de synth[èe]se|memo|(?<!\d )minutes",
+        r"compte[- ]rendus?|rapports?|reports?|documents?|docx|notes? de synth[èe]se|memo|(?<!\d )minutes|"
+        # a study the user names as a deliverable (« une étude comparative », « un dossier de veille », « un
+        # benchmark »): a document, never « étude » or « dossier » alone (« le bureau d'études », « ce dossier »)
+        r"[ée]tudes? (?:comparatives?|de march[ée]|sectorielles?|concurrentielles?)|benchmarks?|"
+        r"(?:dossiers?|notes?|bulletins?) de veille|veille (?:concurrentielle|technologique|r[ée]glementaire|"
+        r"sectorielle|strat[ée]gique)|comparative stud(?:y|ies)|market stud(?:y|ies)|white ?papers?|livres? blancs?",
     ),
     ("make_sheet", r"tableurs?|excel|xlsx|feuilles? de calcul|spreadsheets?"),
 )
@@ -90,13 +98,39 @@ _GREET = re.compile(
     r"^\s*(?:bonjour|bonsoir|salut|coucou|merci|ok|okay|d'accord|super|parfait|hello|hi|hey|thanks|thank you)\b", re.I
 )
 _RESEARCH = re.compile(r"\b(?:cherch|recherch|search|sourc|v[ée]rifi)", re.I)
+# a study of what is out there: the public products, players or trends of a market, to be found on the web
+_STUDY = re.compile(
+    r"\b(?:veille|benchmarks?|[ée]tudes? (?:comparatives?|de march[ée]|sectorielles?|concurrentielles?)|comparatifs?|"
+    r"(?:du|sur le|of the) march[ée]|acteurs du|leaders du|concurrents|[ée]tat de l.art|panorama|"
+    r"comparative stud|market stud|competitors|state of the art|landscape|"
+    r"avec (?:des |les |ses )?sources|sources? (?:officielles|fiables|r[ée]centes)|sourc[ée]e?s|with sources|sourced)",
+    re.I,
+)
+# ... unless what is studied is the user's own (« un benchmark de nos fournisseurs actuels », « à partir de ces
+# liens »), and only when asked for (« range ce dossier de veille », « qu'est-ce qu'un benchmark ? » are not asks)
+_OWN_STUDY = re.compile(
+    r"\b(?:veille|benchmarks?|comparatifs?|[ée]tudes? comparatives?)\s+(?:de|des|sur|of)\s+"
+    r"(?:nos|notre|mes|mon|ma|our|my)\b|\b(?:[àa] partir d[eu]s?|d'apr[èe]s|based on|from)\s+"
+    r"(?:ces|mes|nos|ce|cet|cette|this|these|my|our)\b",
+    re.I,
+)
+_STUDY_NAME = (
+    r"[ée]tudes? (?:comparatives?|de march[ée]|sectorielles?|concurrentielles?)|benchmarks?|comparatifs?|"
+    r"(?:dossiers?|notes?|bulletins?) de veille|veille (?:concurrentielle|technologique|r[ée]glementaire|"
+    r"sectorielle|strat[ée]gique)|comparative stud(?:y|ies)|market stud(?:y|ies)|panorama"
+)
+_ASK = re.compile(
+    r"\b(?:fai[st]|r[ée]dige|r[ée]alise|pr[ée]pare|[ée]cri[st]|produi[st]|monte|dresse|[ée]labore|peux-tu|pourrais-tu|"
+    r"j'ai besoin|il me faut|make|write|draft|prepare|produce|build|create|need)\w*",
+    re.I,
+)
 
 RECIPES = {
     # auto: may start in Auto mode. Set by the live evaluation (docs/HARNESS.md, section 11); Activé ignores it.
     "deck_research": {"auto": True, "tool": "make_slides"},
     "compare_write": {"auto": True, "tool": None},  # draft_email or make_document, from the request
     "minutes_actions": {"auto": True, "tool": "make_document"},
-    "doc_research": {"auto": False, "tool": "make_document"},
+    "doc_research": {"auto": False, "tool": "make_document"},  # studies, monitoring, reports with sources
     "sheet_pasted": {"auto": False, "tool": "make_sheet"},
     "generic": {"auto": False, "tool": None},
 }
@@ -192,6 +226,8 @@ def signals(instr: str, pasted: str, attachments: int = 0) -> dict:
     offers = cc.offer_names(pasted)
     names = cc.roster(pasted)
     kinds = _kinds(instr)
+    study = (deliverable == "make_document" and bool(_STUDY.search(instr)) and bool(_ASK.search(instr))
+             and not _OWN_STUDY.search(instr))  # fmt: skip
     verbs = len(
         re.findall(
             r"\b(?:compare|r[ée]dige|fais|fait|pr[ée]pare|cr[ée]e|cherche|r[ée]sume|write|make|draft)\w*", instr, re.I
@@ -199,10 +235,11 @@ def signals(instr: str, pasted: str, attachments: int = 0) -> dict:
     )
     return {
         "deliverable": deliverable,
-        "web": bool(_NEEDS_WEB.search(instr) or (_PUBLIC.search(instr) and _FIGURES.search(instr)))
+        "web": bool(_NEEDS_WEB.search(instr) or (_PUBLIC.search(instr) and _FIGURES.search(instr)) or study)
         and not is_pasted
         and not _OWN_FIGURES.search(instr),
         "figures": bool(_FIGURES.search(instr)),
+        "study": study and not is_pasted,
         "pasted": is_pasted,
         "pasted_chars": len(pasted),
         "n_docs": attachments + (len(offers) if len(offers) >= 2 else 0),
@@ -231,7 +268,7 @@ def _match(sig: dict) -> str | None:
         return "compare_write"
     if d == "make_slides" and sig["web"] and sig["figures"]:
         return "deck_research"
-    if d == "make_document" and sig["web"] and sig["figures"]:
+    if d == "make_document" and sig["web"] and (sig["figures"] or sig["study"]):
         return "doc_research"
     if d == "make_sheet" and sig["pasted"] and sig["figures"]:
         return "sheet_pasted"
@@ -281,6 +318,7 @@ def decide(
         sig["n_docs"] >= 2,
         sig["web"] and bool(sig["deliverable"]),
         sig["pasted_chars"] >= 1000 or sig["actions"],  # a long or structured paste (attendee list)
+        sig["study"],  # a study of a market: research, then writing
     ]
     if sum(map(bool, heavy)) < 2:
         return Decision(None, mode=mode, signals=sig)
@@ -289,7 +327,9 @@ def decide(
     return Decision(recipe, reason, mode, False, sig["deliverable"], sig)
 
 
-_TOPIC = re.compile(r"\b(?:sur|à propos de|concernant|au sujet de|about|on)\s+(?:l['’]|la |le |les |the )?[\wÀ-ÿ-]{4,}", re.I)
+_TOPIC = re.compile(
+    r"\b(?:sur|à propos de|concernant|au sujet de|about|on)\s+(?:l['’]|la |le |les |the )?[\wÀ-ÿ-]{4,}", re.I
+)
 _LEANS = re.compile(r"\b(?:refai[st]|reprend|modifi|corrig|ajoute|enl[eè]ve|retire|change|remplace|la m[êe]me|"
                     r"le m[êe]me|ce (?:document|mail|fichier)|cette (?:pr[ée]sentation|version)|redo|again|same)\w*",
                     re.I)  # fmt: skip
@@ -396,6 +436,9 @@ class Brief:
     allowed: set = field(default_factory=set)
     caveats: list = field(default_factory=list)
     dropped: int = 0
+    study: bool = False  # a study of a market (doc_research): qualitative extracts go to the drafters too
+    texts: dict = field(default_factory=dict)  # source n -> the extract read (citations are checked against it)
+    allowed_by: dict = field(default_factory=dict)  # source n -> the figures of that page alone
 
 
 @dataclass
@@ -458,6 +501,7 @@ class Crew:
         self.index = 0
         self.flagged, self.found, self.bytes, self.images = False, [], 0, []
         self.lanes: list[dict] = []
+        self.trace: dict = {}  # what the team did, for « Ce que l'équipe a fait » (counts only, no text)
         self.n_drafts = DRAFTS
         self.own = self.message = self.instr = self.pasted = self.history = ""
         self.docs: list[tuple[str, str]] = []
@@ -498,7 +542,7 @@ class Crew:
 
     def _start(self, lanes: list[tuple[str, str]]) -> None:
         """lanes: (id, group). Lanes of one group run side by side."""
-        angles = ANGLES[self.lang].get(self._tool_name() or "", ("", ""))
+        angles = ANGLES[self.lang].get(self._angle_key(self._tool_name() or ""), ("", ""))
         self.lanes = []
         for lane, group in lanes:
             item = {"id": lane, "role": lane.split("_")[0], "label": self._label(lane), "group": group}
@@ -741,6 +785,8 @@ class Crew:
     def _topic(self) -> tuple[str, str, int | None]:
         own = self.instr
         m = re.search(r"\b(?:sur|à propos de|concernant|about|on)\s+(.+)", own, re.I)
+        # « une étude comparative des 3 principaux CRM du marché »: what follows the deliverable's name
+        m = m or re.search(rf"\b(?:{_STUDY_NAME})\s+(?:des |de la |du |de l['’]|de |d['’]|of (?:the )?)?(.+)", own, re.I)
         topic = m.group(1) if m else own
         topic = re.split(r"\s+(?:avec|pour|with|for|en\s+\d+\s+diapo)\b|[.?!\n]", topic)[0].strip()
         since = (
@@ -753,15 +799,19 @@ class Crew:
         core = re.sub(r"\s+(?:depuis|since|de|from)\s+(?:l.an\s+)?(?:19|20)\d\d.*$", "", core, flags=re.I).strip()
         return topic, core or topic, since
 
-    def _research(self, lane: str, queries: list[str], since: int | None, head: list[str], pages: int):
-        """Searches in parallel, reads the top pages in parallel, keeps evidence windows. 0 model calls."""
+    def _research(self, lane: str, queries: list[str], since: int | None, head: list[str], pages: int,
+                  *, need_figure: bool = True):  # fmt: skip
+        """Searches in parallel, reads the top pages one site each (2 to 3 distinct sources, not three pages of one
+        site), keeps evidence windows; when fewer than 2 pages gave an extract and time is left, reads up to
+        MORE_PAGES more pages of other sites. 0 model calls."""
         self._step(lane, "running", "brief", detail=" · ".join(queries))
         results = list(self.pool.map(lambda q: self._tool(lane, "web_search", {"query": q, "max_results": 5}), queries))
+        rows = [re.findall(r"^\s+(https?://\S+)\s*$", text, re.M) for _, step, text, _ in results if not step.error]
         urls, seen = [], set()
-        for _, step, text, _ in results:
-            if step.error:
-                continue
-            for u in re.findall(r"^\s+(https?://\S+)\s*$", text, re.M):
+        for row in itertools.zip_longest(*rows):  # the first result of each search, then the second...
+            for u in row:
+                if not u:
+                    continue
                 p = urlsplit(unquote(u))
                 key = (p.netloc.lower().removeprefix("www."), p.path.rstrip("/"), p.query)
                 if key not in seen:
@@ -770,20 +820,37 @@ class Crew:
         if not urls:
             self._step(lane, "error", "brief", detail="no_results")
             raise _Fallback("no_results")
-        read = list(self.pool.map(lambda u: self._tool(lane, "read_page", {"url": u}), urls[:pages]))
+        site = lambda u: urlsplit(u).netloc.lower().removeprefix("www.")  # noqa: E731
+        firsts, sites = [], set()
+        for u in urls:
+            if site(u) not in sites:
+                sites.add(site(u))
+                firsts.append(u)
+        urls = firsts + [u for u in urls if u not in firsts]
+        self.trace["queries"] = len(queries)
         windows, total = [], 0
-        for _, step, text, _ in read:
-            if step.error:
-                continue
-            url = (re.search(r"^URL: (\S+)", text, re.M) or [None, step.arguments.get("url")])[1]
-            title = (re.search(r"^Title: ([^\n]+)", text, re.M) or [None, ""])[1].strip()
-            body = text.split("\n\n", 1)[-1]
-            win = cc.evidence(body, head, since, PAGE_CAP)
-            if win and total + len(win) <= TOTAL_CAP:
-                windows.append(
-                    {"url": url, "title": title or urlsplit(url).netloc, "text": win, "flagged": bool(step.flags)}
-                )
-                total += len(win)
+
+        def keep(read) -> None:
+            nonlocal total
+            for _, step, text, _ in read:
+                self.trace["read"] = self.trace.get("read", 0) + 1
+                if step.error:
+                    continue
+                url = (re.search(r"^URL: (\S+)", text, re.M) or [None, step.arguments.get("url")])[1]
+                title = (re.search(r"^Title: ([^\n]+)", text, re.M) or [None, ""])[1].strip()
+                body = text.split("\n\n", 1)[-1]
+                win = cc.evidence(body, head, since, PAGE_CAP, need_figure=need_figure)
+                if win and total + len(win) <= TOTAL_CAP:
+                    windows.append(
+                        {"url": url, "title": title or urlsplit(url).netloc, "text": win, "flagged": bool(step.flags)}
+                    )
+                    total += len(win)
+
+        keep(self.pool.map(lambda u: self._tool(lane, "read_page", {"url": u}), urls[:pages]))
+        have = {site(w["url"] or "") for w in windows}
+        more = [u for u in urls[pages:] if site(u) not in have][:MORE_PAGES]
+        if len(windows) < 2 and more and self._left() > BRIEF_S + 60:
+            keep(self.pool.map(lambda u: self._tool(lane, "read_page", {"url": u}), more))
         self._step(
             lane, "done", "brief", detail=f"{len(windows)} page(s)", seconds=round(time.monotonic() - self.t0, 1)
         )
@@ -791,18 +858,31 @@ class Crew:
 
     def _brief_deck_research(self, tool: str = "make_slides") -> Brief:
         b = self._new_brief(tool)
+        doc = tool == "make_document"
+        b.study = doc and bool((self.d.signals or {}).get("study"))
         topic, core, since = self._topic()
         b.topic = topic
-        queries = [core, f"{core} statistiques" if self.lang == "fr" else f"{core} statistics"]
-        if self.lang == "fr":
-            queries.append(f"{core} INSEE")
-        head = [w for w in re.findall(r"[\wÀ-ÿ]{5,}", core) if cc.fold(w) not in ("france", "monde")] or [core]
-        windows = self._research("chercheur", list(dict.fromkeys(queries))[:3], since, head, MAX_PAGES)
+        fr = self.lang == "fr"
+        if b.study:  # what the market offers: a comparison or the trends, and this year's state
+            compare = re.search(r"compar|benchmark|versus|\bvs\b|meilleur|best", self.instr, re.I)
+            second = f"{core} comparatif" if fr and compare else f"{core} comparison" if compare else (
+                f"{core} tendances" if fr else f"{core} trends")  # fmt: skip
+            queries = [core, second, f"{core} {time.localtime().tm_year}"]
+        else:
+            queries = [core, f"{core} statistiques" if fr else f"{core} statistics"]
+            if fr:
+                queries.append(f"{core} INSEE")
+        head = [w for w in re.findall(r"[\wÀ-ÿ]{5,}|\b[A-Z]{2,4}\b", core) if cc.fold(w) not in ("france", "monde")]
+        head = head or [core]
+        windows = self._research("chercheur", list(dict.fromkeys(queries))[:3], since, head, MAX_PAGES,
+                                 need_figure=not doc)  # fmt: skip
         if not windows:
             raise _Fallback("no_facts")
         cold = self._cold()
         # official statistics first, then the richest extracts; page 1 has its own reader, pages 2 and 3 share one
-        windows = sorted(windows, key=lambda w: (not _OFFICIAL.search(urlsplit(w["url"] or "").netloc), -len(w["text"])))
+        windows = sorted(
+            windows, key=lambda w: (not _OFFICIAL.search(urlsplit(w["url"] or "").netloc), -len(w["text"]))
+        )
         windows = windows[: 1 if cold else MAX_PAGES]
         if any(w["flagged"] for w in windows):  # a flagged page whose text reaches a model taints the run
             self.flagged = True
@@ -813,7 +893,9 @@ class Crew:
         def extract(k_g):
             k, group = k_g
             lane = f"lecteur_{k + 1}"
-            parts = [f"[{k + 1 + j}] {w['title']}\n{w['text']}" if len(group) > 1 else w["text"] for j, w in enumerate(group)]
+            parts = [
+                f"[{k + 1 + j}] {w['title']}\n{w['text']}" if len(group) > 1 else w["text"] for j, w in enumerate(group)
+            ]
             data = guard.wrap_untrusted("\n\n".join(parts), self.lang)
             instr = PROMPTS[self.lang]["extract"].format(n=k + 1, topic=topic)
             g = self._gen(lane, "brief", self._user(data, instr), [RECORD_FACTS], 700 + 300 * (len(group) - 1),
@@ -839,16 +921,27 @@ class Crew:
             for w, f in found:
                 per_page.setdefault(w["url"], []).append(f)
         n = 0
-        for w in windows:
+        # pages with a verified figure first; a document may also cite a page's text when it says enough
+        for w in sorted(windows, key=lambda w: not per_page.get(w["url"])):
             kept = per_page.get(w["url"]) or []
-            if not kept:
+            if not kept and (not doc or len(w["text"]) < TEXT_MIN):
                 continue
             n += 1
             b.sources.append({"n": n, "url": w["url"], "title": w["title"]})
+            b.texts[n] = w["text"]
+            b.allowed_by[n] = cc.allowed_figures(w["text"])
             for f in kept:
                 b.facts.append({"n": n, **f})
-                b.allowed |= cc.allowed_figures(f["value"], f["fact"], f["quote"])
-        if not b.facts:
+                figs = cc.allowed_figures(f["value"], f["fact"], f["quote"])
+                b.allowed |= figs
+                b.allowed_by[n] |= figs
+            if doc:  # the page's own words: what a study or a report is written from (its figures are checked
+                # against the page they come from, citation included)
+                b.extracts.append({"n": n, "text": w["text"][:EXTRACT_CAP]})
+                b.allowed |= cc.allowed_figures(w["text"][:EXTRACT_CAP])
+        self.trace["facts"], self.trace["dropped"] = len(b.facts), b.dropped
+        self.trace["sites"] = list(dict.fromkeys(urlsplit(src["url"] or "").netloc.removeprefix("www.") for src in b.sources))
+        if not b.facts and not (doc and b.extracts):
             raise _Fallback("no_facts")
         # the points every draft must carry: one fact of each page in turn, so no source read is left unused
         by_n = [[f for f in b.facts if f["n"] == k] for k in range(1, n + 1)]
@@ -948,9 +1041,7 @@ class Crew:
                                       if fr else f"{o['name']}: usage-based cost left out (no volume in the text) — ")
                                      + ln[:120])  # fmt: skip
         else:
-            b.caveats.append(
-                "Calculs indisponibles : coûts à vérifier" if fr else "No computation: check costs"
-            )
+            b.caveats.append("Calculs indisponibles : coûts à vérifier" if fr else "No computation: check costs")
         if b.table and b.table["bad"]:
             b.caveats.append(
                 f"{b.table['bad']} valeur(s) du tableau introuvable(s) dans le texte"
@@ -965,7 +1056,9 @@ class Crew:
         Returns (offers, names of offers only the model read)."""
         out, unchecked, used = [], [], set()
         for o in offers:
-            mine = next((p for p in parsed if p["complete"] and cc.same_offer(p["name"], str(o.get("name") or ""))), None)
+            mine = next(
+                (p for p in parsed if p["complete"] and cc.same_offer(p["name"], str(o.get("name") or ""))), None
+            )
             if mine is not None:
                 used.add(mine["name"])
                 out.append(mine)
@@ -1044,6 +1137,7 @@ class Crew:
                 b.extracts.append({"n": n, "text": w["text"]})
                 self.flagged = self.flagged or w["flagged"]
                 b.allowed |= cc.allowed_figures(w["text"])
+                b.texts[n], b.allowed_by[n] = w["text"], cc.allowed_figures(w["text"])
         else:
             self._step("chercheur", "skipped", "brief")
         return b
@@ -1127,7 +1221,12 @@ class Crew:
         return "\n".join(out)
 
     def _shape(self, b: Brief) -> str:
-        return SHAPE[self.lang][b.tool].format(n=b.n_slides)
+        return SHAPE[self.lang][self._angle_key(b.tool)].format(n=b.n_slides)
+
+    def _angle_key(self, tool: str) -> str:
+        """A study of a market (doc_research with a study word) is drafted as a sourced comparison, not as notes."""
+        study = tool == "make_document" and self.d.recipe == "doc_research" and (self.d.signals or {}).get("study")
+        return "make_document_study" if study else tool
 
     def _valid(self, tool: str, args) -> dict | None:
         if not isinstance(args, dict):
@@ -1141,7 +1240,7 @@ class Crew:
         n = 1 if self._cold() else self.n_drafts
         if n < 2:
             self._step("redacteur_b", "skipped", "drafts")
-        angles = ANGLES[self.lang][tool]
+        angles = ANGLES[self.lang][self._angle_key(tool)]
         max_t = (900 if tool == "draft_email" else 1500) + (800 if self.thinking else 0)
 
         def one(k: int) -> Draft:
@@ -1188,7 +1287,9 @@ class Crew:
                 ok = cited >= {src["n"] for src in b.sources}
                 checks.append(ok)
                 if not ok:
-                    notes.append("utilise au moins un fait de chaque source " if fr else "use at least one fact of each source ")
+                    notes.append(
+                        "utilise au moins un fait de chaque source " if fr else "use at least one fact of each source "
+                    )
             facts = cc.fold(b.instr + " " + " ".join(f["fact"] + " " + f.get("quote", "") for f in b.facts))
             bad = []
             for s in slides:
@@ -1217,9 +1318,27 @@ class Crew:
                 checks.append(any(b.to.lower() == str(t).lower() for t in args.get("to") or []))
         elif b.tool == "make_document":
             secs = args.get("sections") or []
-            checks.append(len(secs) >= 2)
+            checks.append(len(secs) >= (3 if b.study else 2))
             if not checks[-1]:
                 notes.append("structure le document en sections" if fr else "split the document into sections")
+            if b.sources:  # a sourced document: its figures cited, every page read used
+                body = "\n".join(str(x.get("content") or "") for x in secs)
+                figs = [st for st in cc.sentences(body) if cc.figures(st)]
+                cited = sum(bool(re.search(r"\[\d{1,2}\]", st)) for st in figs)
+                checks.append(not figs or cited / len(figs) >= 0.7)
+                if not checks[-1]:
+                    notes.append("mets la source [n] après chaque chiffre" if fr else "put the source [n] after every figure")
+                if len(b.sources) >= 2:
+                    used = {int(x) for x in re.findall(r"\[(\d{1,2})\]", body)}
+                    checks.append(used >= {src["n"] for src in b.sources})
+                    if not checks[-1]:
+                        notes.append("utilise au moins une information de chaque source " if fr
+                                     else "use at least one piece of each source ")  # fmt: skip
+            if b.study and re.search(r"\btableau|\btable\b|compar|benchmark", b.instr, re.I):
+                checks.append(any(re.search(r"^\s*\|.+\|\s*$", str(x.get("content") or ""), re.M) for x in secs))
+                if not checks[-1]:
+                    notes.append("ajoute un tableau comparatif en markdown (| critère | … |)" if fr
+                                 else "add a comparison table in markdown (| criterion | … |)")  # fmt: skip
         elif b.tool == "make_sheet":
             checks.append(bool(args.get("rows")))
         return (sum(checks) / len(checks) if checks else 1.0), notes
@@ -1239,12 +1358,15 @@ class Crew:
         missing_m = [m for m in b.must if not cc.covered(m, text)]
         uns = self._bad(b, text)
         structure, notes = self._structure(b, d.args, text)
+        cites = cc.check_citations(text, b.texts, b.allowed_by) if b.texts else {"miscited": [], "weak": []}
         cov_p = 1 - len(missing_p) / len(b.points) if b.points else 1.0
         cov_m = 1 - len(missing_m) / len(b.must) if b.must else 1.0
-        score = 2.0 * cov_p + 1.5 * cov_m + structure - 1.0 * len(uns)
+        score = (2.0 * cov_p + 1.5 * cov_m + structure - 1.0 * len(uns) - 0.5 * len(cites["miscited"])
+                 - min(1.0, 0.25 * len(cites["weak"])))  # fmt: skip
         return {"points": round(cov_p, 2), "must": round(cov_m, 2), "unsupported": len(uns), "structure": round(structure, 2),
                 "score": round(score, 3), "missing_points": missing_p, "missing_must": missing_m, "bad": uns,
-                "notes": notes, "words": len(text.split())}  # fmt: skip
+                "notes": notes, "words": len(text.split()), "miscited": cites["miscited"],
+                "weak": cites["weak"]}  # fmt: skip
 
     @staticmethod
     def _rank(d: Draft):
@@ -1266,6 +1388,13 @@ class Crew:
                 ("chiffres sans source à supprimer : " if fr else "unsourced figures to delete: ")
                 + ", ".join(s["bad"][:6])
             )
+        for m in s.get("miscited", [])[:3]:
+            out.append(f"{m['value']} vient de la source [{m['source']}], pas [{m['cited'][0]}]" if fr
+                        else f"{m['value']} comes from source [{m['source']}], not [{m['cited'][0]}]")  # fmt: skip
+        for w in s.get("weak", [])[:2]:
+            out.append((f"affirmation absente de la source [{w['cited'][0]}], à retirer ou à reformuler d'après elle : "
+                        if fr else f"claim not in source [{w['cited'][0]}], remove it or rephrase it from the source: ")
+                       + f"« {w['sentence'][:100]} »")  # fmt: skip
         out += s["notes"]
         return out
 
@@ -1304,6 +1433,7 @@ class Crew:
         goes: a heading over nothing never reaches the file."""
         args, removed = copy.deepcopy(args), 0
         fr = self.lang == "fr"
+        self.trace["recited"] = self.trace.get("recited", 0) + self._recite(b, args)
         if not b.sources:  # no source was read: a « [3] » would point at nothing (seen live in a mail)
             args = json.loads(re.sub(r" ?\[\d{1,2}\]", "", json.dumps(args, ensure_ascii=False)))
         src = [f"[{s['n']}] {s['title']} — {s['url']}" for s in b.sources]
@@ -1375,6 +1505,25 @@ class Crew:
             if src:
                 args["body"] = str(args.get("body") or "").rstrip() + "\n\nSources :\n" + "\n".join(src)
         return args, removed
+
+    @staticmethod
+    def _recite(b: Brief, args: dict) -> int:
+        """« 26 % [1] » when page 2 holds the 26 %: the right number, not a removal (in place). Returns the fixes."""
+        if not b.texts:
+            return 0
+        miscited = cc.check_citations(cc.flat_text(args), b.texts, b.allowed_by)["miscited"]
+        fixes = 0
+        for sec in args.get("sections") or []:
+            sec["content"], k = cc.recite(str(sec.get("content") or ""), miscited)
+            fixes += k
+        for sl in args.get("slides") or []:
+            bullets = []
+            for x in sl.get("bullets") or []:
+                x, k = cc.recite(str(x), miscited)
+                bullets.append(x)
+                fixes += k
+            sl["bullets"] = bullets
+        return fixes
 
     def _clean_alt(self, b: Brief, heading, alts) -> str:
         """The content of the same section in another draft, if it carries no figure to remove."""
@@ -1483,8 +1632,13 @@ class Crew:
             )
         if actx.get("n_sources") and step is not None and not step.error and not step.decision.startswith("denied"):
             n = actx["n_sources"]
-            lines.append(f"Les chiffres viennent de {n} source(s) vérifiée(s), citées [n] et listées à la fin."
-                         if fr else f"The figures come from {n} checked source(s), cited [n] and listed at the end.")  # fmt: skip
+            what = "Les informations" if actx.get("recipe") == "doc_research" else "Les chiffres"
+            what_en = "The information" if actx.get("recipe") == "doc_research" else "The figures"
+            lines.append(f"{what} viennent de {n} source(s) vérifiée(s), citées [n] et listées à la fin."
+                         if fr else f"{what_en} come from {n} checked source(s), cited [n] and listed at the end.")  # fmt: skip
+        if actx.get("team") and step is not None and not step.error and not step.decision.startswith("denied"):
+            lines.append(("**Ce que l'équipe a fait** :\n" if fr else "**What the team did**:\n")
+                         + "\n".join(f"- {x}" for x in actx["team"][:5]))  # fmt: skip
         if caveats:
             lines.append(("**À vérifier** :\n" if fr else "**To check**:\n") + "\n".join(f"- {c}" for c in caveats[:6]))
         return "\n\n".join(x for x in lines if x)
@@ -1537,17 +1691,145 @@ class Crew:
                 self._step("correcteur", "error", "fix")
         else:
             self._step("correcteur", "skipped", "fix")
+        kept_lane = best.lane
+        best, merged = self._merge(b, best, drafts)
+        if merged:
+            fr = self.lang == "fr"
+            other = self._label(merged["from"])
+            self._step("verificateur", "done", "check", chosen=kept_lane, merged=merged["from"], score=self._public(best.score),
+                       detail=self._check_line(kept_lane, best.score, True)
+                       + (f" · complétée par {merged['parts']} partie(s) de {other}" if fr
+                          else f" · completed with {merged['parts']} part(s) of {other}"))  # fmt: skip
         args, removed = self._post(b, best.args, alts=[d.args for d in drafts if d is not best and d.args])
+        self.trace.update(drafts=len(drafts), chosen=kept_lane, merged=merged, fixed=fixed, removed=removed)
         caveats = list(b.caveats)
         if removed:
             caveats.insert(0, f"{removed} passage(s) avec un chiffre sans source retiré(s)" if self.lang == "fr"
                            else f"{removed} passage(s) with an unsourced figure removed")  # fmt: skip
-        caveats += self._left_out(b, self._score(b, Draft(best.lane, args, 0.0)))[:3]
+        final = self._score(b, Draft(best.lane, args, 0.0))
+        caveats += self._left_out(b, final)[:3]
+        for w in final.get("weak", [])[:2]:  # a claim the cited page does not hold: said, never silently shipped
+            caveats.append(f"affirmation non retrouvée dans la source [{w['cited'][0]}] : « {w['sentence'][:110]} »"
+                            if self.lang == "fr" else
+                            f"claim not found in source [{w['cited'][0]}]: “{w['sentence'][:110]}”")  # fmt: skip
         if b.tool == "draft_email" and best.score["bad"]:
             caveats.append(("chiffres à vérifier dans le mail : " if self.lang == "fr" else "figures to check in the email: ")
                            + ", ".join(best.score["bad"][:6]))  # fmt: skip
         actx = self._answer_ctx(b, args)
-        return self._build(b.tool, args, actx, caveats, b.sources, chosen=best.lane, fixed=fixed)
+        actx["team"] = self._team_lines(b)
+        return self._build(b.tool, args, actx, caveats, b.sources, chosen=kept_lane, fixed=fixed)
+
+    def _merge(self, b: Brief, best: Draft, drafts: list[Draft]) -> tuple[Draft, dict | None]:
+        """When both versions are clean, the kept one completed with the best parts of the other instead of picking
+        one: a section (or a slide) of the other that carries a verified fact or a point the kept one misses, or the
+        comparison table it lacks. The result must score at least as well, with no more unsourced figures."""
+        if b.tool not in ("make_document", "make_slides") or best.score.get("unsupported"):
+            return best, None
+        other = next((d for d in drafts if d is not best and d.lane != best.lane and d.args
+                      and not d.score.get("unsupported")), None)  # fmt: skip
+        if other is None:
+            return best, None
+        missing = list(best.score["missing_must"]) + list(best.score["missing_points"])
+        args, added = copy.deepcopy(best.args), 0
+        theirs = copy.deepcopy(other.args)
+        # what is borrowed comes with its right source number
+        wrong = cc.check_citations(cc.flat_text(theirs), b.texts, b.allowed_by)["miscited"] if b.texts else []
+        recited = 0
+
+        def fix(text: str) -> str:
+            nonlocal recited
+            text, k = cc.recite(text, wrong)
+            recited += k
+            return text
+        table = re.compile(r"^\s*\|.+\|\s*$", re.M)
+        if b.tool == "make_document":
+            secs = args.get("sections") or []
+            heads = {cc.fold(x.get("heading")) for x in secs}
+            has_table = any(table.search(str(x.get("content") or "")) for x in secs)
+            end = r"conclusion|recommand|synth[eè]se|sources?$|next steps|recommend|summary"
+            tail = next((i for i, x in enumerate(secs) if re.search(end, str(x.get("heading") or ""), re.I)), len(secs))
+            for sec in theirs.get("sections") or []:
+                content, h = str(sec.get("content") or ""), cc.fold(sec.get("heading"))
+                if added >= 2 or not content.strip() or h in ("source", "sources") or self._bad(b, content):
+                    continue
+                brings = [m for m in missing if cc.covered(m, content)]
+                if h not in heads and (brings or (b.study and not has_table and table.search(content))):
+                    secs.insert(tail, {**sec, "content": fix(content)})
+                    tail, added, has_table = tail + 1, added + 1, has_table or bool(table.search(content))
+                elif h in heads and brings:  # the same section: only the sentences that bring what is missing
+                    same = next(x for x in secs if cc.fold(x.get("heading")) == h)
+                    extra = [st for st in cc.sentences(content) if any(cc.covered(m, st) for m in brings)
+                             and not self._bad(b, st) and st.strip() not in str(same.get("content") or "")]  # fmt: skip
+                    if not extra:
+                        continue
+                    same["content"] = str(same.get("content") or "").rstrip() + "\n" + fix(" ".join(extra))
+                    added += 1
+                missing = [m for m in missing if m not in brings]
+            args["sections"] = secs
+        else:  # a slide of the other version that carries a missing fact replaces one that carries none
+            slides = args.get("slides") or []
+            for sl in theirs.get("slides") or []:
+                text = " ".join(map(str, sl.get("bullets") or []))
+                brings = [m for m in missing if cc.covered(m, text)]
+                if added >= 2 or not brings or self._bad(b, text):
+                    continue
+                weak = [i for i, x in enumerate(slides) if not any(cc.covered(m, " ".join(map(str, x.get("bullets") or [])))
+                                                                    for m in b.must)]  # fmt: skip
+                if not weak:
+                    break
+                slides[weak[-1]] = {**sl, "bullets": [fix(str(x)) for x in sl.get("bullets") or []]}
+                added += 1
+                missing = [m for m in missing if m not in brings]
+            args["slides"] = slides
+        if not added:
+            return best, None
+        cand = Draft(best.lane, args, best.temperature)
+        cand.score = self._score(b, cand)
+        if cand.score["unsupported"] > best.score["unsupported"] or cand.score["score"] < best.score["score"]:
+            return best, None
+        self.trace["recited"] = self.trace.get("recited", 0) + recited
+        return cand, {"from": other.lane, "parts": added}
+
+    def _team_lines(self, b: Brief) -> list[str]:
+        """« Ce que l'équipe a fait »: counts written by code (searches, pages, figures checked, versions, what the
+        checker changed), never a model's words."""
+        fr, t, out = self.lang == "fr", self.trace, []
+        if t.get("queries"):
+            sites = t.get("sites") or []
+            out.append((f"Recherche : {t['queries']} recherche(s), {t.get('read', 0)} page(s) lue(s)" if fr
+                        else f"Research: {t['queries']} search(es), {t.get('read', 0)} page(s) read")
+                       + (f", {len(sites)} source(s) retenue(s) ({', '.join(sites)})" if fr and sites
+                          else f", {len(sites)} source(s) kept ({', '.join(sites)})" if sites else ""))  # fmt: skip
+        if "facts" in t:
+            d = t.get("dropped") or 0
+            out.append((f"Lecture : {t['facts']} chiffre(s) vérifié(s) dans leur page" if fr
+                        else f"Reading: {t['facts']} figure(s) checked in their page")
+                       + ((f", {d} écarté(s)" if fr else f", {d} left out") if d else ""))  # fmt: skip
+        if b.actions:
+            out.append(f"Lecture : {len(b.actions)} action(s) vérifiée(s) ligne par ligne" if fr
+                       else f"Reading: {len(b.actions)} action(s) checked line by line")  # fmt: skip
+        if b.costs:
+            n = len(b.costs.get("rows") or [])
+            out.append(f"Calcul : coûts de {n} offre(s) calculés par Bird, verdict choisi par le code" if fr
+                       else f"Computation: costs of {n} offer(s) computed by Bird, verdict chosen in code")  # fmt: skip
+        if t.get("drafts"):
+            chosen, merged = self._label(t.get("chosen") or "redacteur_a"), t.get("merged")
+            line = (f"Rédaction : {t['drafts']} version(s) en parallèle, {chosen} retenue" if fr
+                    else f"Writing: {t['drafts']} version(s) in parallel, {chosen} kept")  # fmt: skip
+            if merged:
+                line += (f", complétée par {merged['parts']} partie(s) de {self._label(merged['from'])}" if fr
+                         else f", completed with {merged['parts']} part(s) of {self._label(merged['from'])}")  # fmt: skip
+            out.append(line)
+            bits = ["chiffres contrôlés contre le texte et les sources" if fr else "figures checked against the text and sources"]
+            if t.get("recited"):
+                bits.append(f"{t['recited']} citation(s) corrigée(s)" if fr else f"{t['recited']} citation(s) fixed")
+            if t.get("fixed"):
+                bits.append("1 correction ciblée" if fr else "1 targeted fix")
+            if t.get("removed"):
+                bits.append(f"{t['removed']} passage(s) sans source retiré(s)" if fr
+                            else f"{t['removed']} unsourced passage(s) removed")  # fmt: skip
+            out.append(("Vérification : " if fr else "Check: ") + ", ".join(bits))
+        return out
 
     def _build(self, tool, args, actx, caveats, sources, *, chosen=None, fixed=False, forced=None, carry=None) -> Run:
         self._step("assembleur", "running", "build")

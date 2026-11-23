@@ -271,19 +271,26 @@ def coverage(points: list[str], text: str) -> float:
 # ------------------------------------------------------------------ web evidence
 
 
-def evidence(text: str, head: list[str], since: int | None = None, cap: int = 4000) -> str:
-    """Whole paragraphs and table rows of a page that carry a figure and a head word, recent years first."""
+def _hit(head: str, low: str) -> bool:
+    # a short head word (« crm », « ia ») must be a word of its own, not a piece of « social »
+    return bool(re.search(rf"\b{re.escape(head)}\b", low)) if len(head) < 4 else head[:7] in low
+
+
+def evidence(text: str, head: list[str], since: int | None = None, cap: int = 4000, need_figure: bool = True) -> str:
+    """Whole paragraphs and table rows of a page that carry a figure and a head word, recent years first.
+    ``need_figure=False`` (a study, a report): a paragraph with head words and no figure is kept too, after the
+    ones with figures."""
     paras = [p.strip() for p in (text or "").split("\n") if len(p.strip()) > 30]
-    heads = [fold(w) for w in head if len(w) >= 4]
+    heads = [fold(w) for w in head if len(w) >= 4 or (len(w) >= 2 and w.isupper())]
 
     def score(p: str) -> float:
         low = fold(p)
-        hits = sum(h[:7] in low for h in heads)
+        hits = sum(_hit(h, low) for h in heads)
         if heads and not hits:
             return 0
         nums = [v for _, v in figures(p)]
         if not nums:
-            return 0
+            return hits * 2 + 1 if not need_figure and hits and len(p) > 80 else 0
         years = [int(y) for y in re.findall(r"\b((?:19|20)\d\d)\b", p)]
         recent = sum(y >= since for y in years) if since else len(years)
         return hits * 2 + min(len(nums), 4) + recent * 3 - (len(p) > 900) * 3
@@ -922,6 +929,51 @@ def compute_offers(offers, cons: dict) -> dict:
     good = [r for r in rows if r["ok"]]
     best = min(good, key=lambda r: r["per_year"]) if good else None
     return {"rows": rows, "verdict": best, "constraints": cons}
+
+
+# ------------------------------------------------------------------ citations against their own source
+
+_CITES = re.compile(r"\[(\d{1,2})\]")
+
+
+def support(sentence: str, source: str) -> float:
+    """Share of a sentence's long words (5 letters or more, compared on their first 6) found in a source text."""
+    words = [w for w in re.findall(r"[a-z]{5,}", fold(_CITES.sub(" ", sentence))) if w not in _STOPWORDS]
+    if len(words) < 3:
+        return 1.0
+    src = fold(source)
+    return sum(w[:6] in src for w in words) / len(words)
+
+
+def check_citations(text: str, by_source: dict, allowed_by: dict, weak_below: float = 0.34) -> dict:
+    """Every sentence that cites a page the team read, checked against THAT page: a figure that is not in it but in
+    another page read is ``miscited`` (the harness gives it the right number), and a sentence most of whose words are
+    not in the page it cites is ``weak`` (an unsupported claim, said in « À vérifier »). Figures found in no page are
+    left to ``unsupported`` (removed before the file is built)."""
+    out: dict = {"miscited": [], "weak": []}
+    for sent in sentences(text):
+        ns = [n for n in dict.fromkeys(int(x) for x in _CITES.findall(sent)) if n in by_source]
+        if not ns or re.search(r"https?://", sent):  # the Sources list itself
+            continue
+        for raw, v in figures(sent):
+            if any(supported(v, allowed_by.get(n, set()), tol=0.0) for n in ns):
+                continue
+            holder = next((m for m in sorted(by_source) if supported(v, allowed_by.get(m, set()), tol=0.0)), None)
+            if holder is not None:
+                out["miscited"].append({"sentence": sent, "value": raw, "cited": ns, "source": holder})
+        if support(sent, " ".join(by_source[n] for n in ns)) < weak_below:
+            out["weak"].append({"sentence": " ".join(sent.split())[:160], "cited": ns})
+    return out
+
+
+def recite(text: str, miscited: list[dict]) -> tuple[str, int]:
+    """Each miscited sentence given the number of the page that holds its figure. Returns (text, fixes)."""
+    n = 0
+    for m in miscited:
+        if len(m["cited"]) == 1 and m["sentence"] in text:
+            text = text.replace(m["sentence"], m["sentence"].replace(f"[{m['cited'][0]}]", f"[{m['source']}]"))
+            n += 1
+    return text, n
 
 
 def sentences(text: str) -> list[str]:

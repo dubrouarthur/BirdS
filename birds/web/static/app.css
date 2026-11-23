@@ -2749,11 +2749,12 @@ details[open] > summary > .chev {
 .dock-keys::before {
   content: " · ";
 }
-/* while typing on a narrow screen, the notes give their room to the conversation;
-   keyed to the whole dock, so tapping Send does not bring them back mid-tap and move the button away */
+/* while typing on a narrow screen, the notes give their room to the conversation; keyed to the whole dock (tapping
+   Send does not bring them back mid-tap) and set in app.js (trackTyping), not :focus-within, so a tap in the
+   conversation does not bring them back mid-tap either: the dock would grow and the click land on it */
 @media (max-width: 640px) {
-  .dock:focus-within .dock-note,
-  .dock:focus-within .att-note {
+  .dock.is-typing .dock-note,
+  .dock.is-typing .att-note {
     display: none;
   }
   /* a long message shows its count: the switch keeps its accessible name, the visible label steps aside */

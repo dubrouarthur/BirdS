@@ -110,6 +110,7 @@ Une réponse qui a utilisé le web peut montrer jusqu'à 3 images, chacune sous 
 - **Créer le fichier** : quand une étape `make_*` échoue, un encadré propose de la refaire avec les mêmes arguments (réparés), sans relancer le modèle (`POST /api/tool`).
 - **Aperçus** : diapositives rendues en cartes (même plan que le .pptx), document en page, premières lignes du tableur.
 - **Progression** : la ligne d'état dit ce que fait Bird, avec le temps écoulé, le moteur de recherche interrogé, et l'attente de réveil de l'endpoint.
+- **Petits téléphones** : en écrivant, les notes sous le compositeur s'effacent (classe `.dock.is-typing`, posée en JS) ; elles ne reviennent qu'après le clic d'un toucher dans la conversation, pour que le dock ne grandisse pas sous le doigt (iPhone SE 320/375 × 568 : « Réessayer », « Revenir au mode simple » et le pli de l'équipe étaient perdus). Test : `node scripts/agent_ui_smoke.js smallTouch`.
 
 ## Ce qu'il ne montre pas
 
