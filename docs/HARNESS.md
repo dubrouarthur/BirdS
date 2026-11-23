@@ -254,6 +254,16 @@ voie de l'autre version affiche « reprise en partie ». La réponse se termine 
 code à partir de compteurs, jamais par le modèle. Aucun appel de plus : 7 générations au plus, fin à t0 + 240 s
 (fonction Vercel : 300 s).
 
+**Drapeau Auto de `doc_research` : pas encore basculé.** Protocole : `scripts/agent_study_eval.py` (serveur réel,
+4 demandes d'étude, Mode Agent Activé contre Désactivé, au plus 25 générations en tout), noté à la main sur 4 critères
+de 0 à 2 : fidélité (aucun chiffre ni affirmation absent des sources lues ; un chiffre inventé donne 0), complétude
+(tableau, recommandation, tendances ou risques demandés), sources (au moins 2 sources distinctes citées [n] et
+listées), structure (sections titrées, tableau quand une comparaison est demandée). Le drapeau ne passe à « oui » que
+si l'équipe gagne d'au moins 1 point sur 8 en moyenne, sans jamais perdre en fidélité, en moins de 240 s. Le
+23/11/2026, l'endpoint a répondu 503 puis « endpoint in error » pendant plus de 45 minutes : 0 génération faite,
+aucun chiffre mesuré, le drapeau reste « non » (Activé lance la recette ; Auto reste en mode simple pour ces demandes,
+d'où les 3 « MISS » de la famille `agent` du banc).
+
 **Limites.** 4 générations en même temps, 7 par demande (5 pour `generic`), 2 versions, 3 pages lues (4 Ko d'extrait
 chacune, 12 Ko au total), fin à t0 + 240 s (brief 90 s, versions avant t0 + 190 s, correction seulement s'il reste
 plus de 45 s, 20 s réservées au fichier). Si le réveil de l'endpoint a pris plus de 120 s : une seule version, pas de
