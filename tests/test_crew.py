@@ -802,6 +802,171 @@ def test_compare_write_end_to_end(tmp_path):
     assert len(llm.prompts) == 3 and llm.peak >= 2  # reader, then 2 drafts side by side; costs read in code
 
 
+# ------------------------------------------------------------------ 5 bis. studies: research, cited drafts, merge
+
+ASK_STUDY = "Fais un dossier de veille sur le télétravail en France : chiffres, tendances, risques"
+STUDY_YES = [
+    ASK_STUDY,
+    "Fais une étude comparative des 3 principaux CRM du marché avec un tableau et une recommandation",
+    "Rédige un rapport sur la transition énergétique des PME françaises avec des chiffres récents et des sources",
+    "Fais un benchmark des outils de visioconférence du marché pour une PME de 50 personnes",
+    "Prépare une note de synthèse sur la réforme de la facturation électronique 2026 avec les sources officielles",
+    "Fais une veille concurrentielle sur les logiciels de paie pour PME",
+    "Write a comparative study of the main project management tools on the market",
+]
+# office requests that name a study word, or a report, and are not a study of what is out there
+STUDY_NO = [
+    "Rédige une note de synthèse sur la réunion d'hier",
+    "Fais un rapport d'activité du mois de novembre",
+    "Rédige un rapport d'incident pour la panne de ce matin",
+    "Fais un benchmark de nos fournisseurs actuels",
+    "Rédige une note de synthèse sur les principaux points du contrat",
+    "Fais une note de synthèse sur les tendances de nos ventes",
+    "Le bureau d'études doit me rendre le plan, rédige un mail de relance",
+    "Range ce dossier de veille dans le drive",
+    "Qu'est-ce qu'un benchmark ?",
+    "Comment faire une veille efficace ?",
+    "Écris un rapport sur nos résultats 2025 : CA 3,2 M€, marge 12 %",
+    "Rédige une note de veille pour l'équipe à partir de ces liens que je t'envoie demain",
+    "Fais un mail pour présenter le benchmark à l'équipe",
+    "Rédige un mail court au client pour lui envoyer le livre blanc",
+    "c'est quoi le meilleur CRM du marché ?",
+    "Fais un rapport sur l'avancement du projet ERP",
+]
+
+
+@pytest.mark.parametrize("text", STUDY_YES)
+def test_a_study_of_the_market_is_a_researched_document(text):
+    d = decide(text, mode="on")
+    assert d.recipe == "doc_research" and d.deliverable == "make_document" and d.signals["web"]
+    flipped = {**crew_mod.RECIPES, "doc_research": {"auto": True, "tool": "make_document"}}
+    assert decide(text, recipes=flipped).recipe == "doc_research"
+    assert decide(text).recipe == ("doc_research" if crew_mod.RECIPES["doc_research"]["auto"] else None)
+
+
+@pytest.mark.parametrize("text", STUDY_NO)
+def test_study_words_alone_never_start_a_researched_study(text):
+    flipped = {**crew_mod.RECIPES, "doc_research": {"auto": True, "tool": "make_document"}}
+    assert decide(text, recipes=flipped).recipe is None
+    assert decide(text, mode="on").recipe != "doc_research"
+
+
+def test_the_topic_of_a_study_follows_its_name():
+    crew = Crew(make_agent_stub(), decide("Fais une étude comparative des 3 principaux CRM du marché", mode="on"))
+    crew.instr = "Fais une étude comparative des 3 principaux CRM du marché avec un tableau"
+    topic, core, _ = crew._topic()
+    assert topic == "3 principaux CRM du marché" and "CRM" in core
+
+
+def make_agent_stub():
+    return Agent(Script(lambda *a: ""), Tok(), Config(workspace=".", audit_file=None), search=SEARCH, http=web())
+
+
+def test_research_reads_one_page_per_site_first(tmp_path):
+    search = StaticBackend([{"title": f"P{i}", "url": u, "snippet": "télétravail"} for i, u in
+                            enumerate(["https://a.test/tt1", "https://a.test/tt3", "https://b.test/tt2"])])  # fmt: skip
+    agent = Agent(Script(lambda *a: ""), Tok(), Config(workspace=tmp_path, audit_file=None), search=search, http=web())
+    crew = Crew(agent, decide(ASK_STUDY, mode="on"))
+    crew.pool = crew_mod.ThreadPoolExecutor(2)
+    crew.own = crew.message = ASK_STUDY
+    windows = crew._research("chercheur", ["télétravail"], None, ["télétravail"], 2, need_figure=False)
+    assert [w["url"] for w in windows] == ["https://a.test/tt1", "https://b.test/tt2"]  # two sites, not a.test twice
+    assert crew.trace["read"] == 2
+
+
+def test_a_figure_is_checked_against_the_page_it_cites():
+    texts = {1: "En 2019, 4 % des salariés télétravaillaient.", 2: "En 2023, 26 % des salariés du privé télétravaillent."}
+    by = {n: cc.allowed_figures(t) for n, t in texts.items()}
+    draft = "En 2023, 26 % des salariés du privé télétravaillent [1]. Le marché des licornes explose partout [2]."
+    got = cc.check_citations(draft, texts, by)
+    assert [(m["value"], m["source"]) for m in got["miscited"]] == [("26", 2)]
+    assert [w["cited"] for w in got["weak"]] == [[2]]  # « licornes … explose » is in no page read
+    fixed, n = cc.recite(draft, got["miscited"])
+    assert n == 1 and "télétravaillent [2]." in fixed
+    assert cc.check_citations("En 2019, 4 % des salariés télétravaillaient [1].", texts, by) == {"miscited": [], "weak": []}
+
+
+def doc(*sections, title="Le télétravail en France"):
+    return call("make_document", title=title, sections=[{"heading": h, "content": c} for h, c in sections])
+
+
+STUDY_A = doc(  # the « comparison » drafter: misses the cadres, cites the 26 % with the wrong number
+    ("Contexte", "En 2019, 4 % des salariés télétravaillaient chaque semaine [1]."),
+    ("Situation en 2023", "En 2023, 26 % des salariés du privé télétravaillent [1]."),
+    ("Conclusion", "Le télétravail concerne désormais les salariés du privé [2]."),
+)
+STUDY_B = doc(  # the « decision makers » drafter: misses the 26 %
+    ("Contexte", "En 2019, 4 % des salariés télétravaillaient chaque semaine [1]."),
+    ("Les cadres en première ligne", "En 2021, 22 % des salariés ont télétravaillé au moins une fois par mois [1]. "
+     "En 2023, 52 % des cadres télétravaillent [2]."),
+    ("Conclusion", "Les cadres télétravaillent davantage que les salariés du privé [2]."),
+)  # fmt: skip
+
+
+def study_script(a=STUDY_A, b=STUDY_B, facts=True):
+    def respond(tools, user, deadline):
+        if tools == ["record_facts"]:
+            return call("record_facts", facts=(FACTS_1 if "4 % des salariés" in user else FACTS_2) if facts else [])
+        if tools == ["make_document"]:
+            if "Voici ta version" in user:
+                return "pas d'appel"
+            return a if "critère par critère" in user else b
+        return "Réponse simple."
+
+    return respond
+
+
+def run_study(tmp_path, respond, ask=ASK_STUDY, extra=""):
+    llm, events = Script(respond), []
+    agent = make_agent(tmp_path, llm, extra=extra, hooks=Hooks(on_agent=events.append, on_token=lambda t: None))
+    run = Crew(agent, decide(ask, mode="on")).run(ask, ask)
+    built = next(e for e in events if e.get("kind") == "tool_start" and e.get("agent") == "assembleur")
+    return run, llm, events, built["arguments"]
+
+
+def test_study_merges_the_best_of_both_versions_and_says_what_the_team_did(tmp_path):
+    run, llm, events, args = run_study(tmp_path, study_script())
+    assert run.files and run.files[0].endswith(".docx")
+    text = cc.flat_text(args)
+    for v in ("4 %", "22 %", "26 %", "52 %"):  # every verified fact, from both versions
+        assert v in text
+    assert "26 % des salariés du privé télétravaillent [2]" in text  # re-cited to the page that holds it
+    heads = [s["heading"] for s in args["sections"]]
+    assert heads.index("Situation en 2023") < heads.index("Conclusion") and heads[-1] == "Sources"
+    prompts = [json.loads(p)["messages"][-1]["content"] for p in llm.prompts if json.loads(p)["tools"] == ["make_document"]]
+    assert all("Extraits de sources" in p and "[2]" in p for p in prompts[:2])  # drafters see the pages' words
+    check = [e for e in events if e.get("id") == "verificateur" and e.get("merged")]
+    assert check and "complétée par 1 partie(s)" in check[-1]["detail"]
+    assert "**Ce que l'équipe a fait**" in run.answer and "Recherche : 3 recherche(s)" in run.answer
+    assert "complétée par 1 partie(s) de Version A" in run.answer and "1 citation(s) corrigée(s)" in run.answer
+    assert "Les informations viennent de 2 source(s)" in run.answer
+
+
+def test_study_without_a_verified_figure_is_written_from_the_pages(tmp_path):
+    words = ("<p>Le télétravail s'installe durablement dans les entreprises françaises : les accords se multiplient, "
+             "les salariés y voient un gain de temps de transport et les employeurs revoient l'organisation des "
+             "bureaux, avec des jours fixes de présence et des espaces partagés pour les équipes hybrides.</p>")
+    run, llm, events, args = run_study(tmp_path, study_script(facts=False), extra=words)
+    assert run.files and len(run.sources) == 2  # the pages' text, still cited and listed
+    assert args["sections"][-1]["heading"] == "Sources"
+
+
+def test_a_claim_absent_from_its_source_is_said(tmp_path):
+    weak = doc(("Contexte", "En 2019, 4 % des salariés télétravaillaient chaque semaine [1]."),
+               ("Tendances", "Les licornes californiennes dominent largement ce secteur florissant [2]."),
+               ("Conclusion", "En 2023, 52 % des cadres télétravaillent [2]."))  # fmt: skip
+    run, llm, events, args = run_study(tmp_path, study_script(a=weak, b=weak))
+    assert any("non retrouvée dans la source [2]" in c for c in events[-1]["caveats"])
+
+
+def test_merge_never_brings_an_unsourced_figure(tmp_path):
+    bad_b = doc(("Contexte", "En 2019, 4 % des salariés télétravaillaient chaque semaine [1]."),
+                ("Chiffres", "En 2023, 52 % des cadres télétravaillent [2]. Le marché pèse 99 milliards [2]."),
+                ("Conclusion", "Les cadres télétravaillent davantage que les salariés du privé [2]."))  # fmt: skip
+    run, llm, events, args = run_study(tmp_path, study_script(b=bad_b))
+    assert "99" not in cc.flat_text(args)
+
+
 # ------------------------------------------------------------------ 6. orchestration and limits
 
 

@@ -126,6 +126,10 @@ SHAPE = {
         "draft_email": "Un mail de 150 à 350 mots : objet clair, contexte en une phrase, tableau ou liste des offres, "
         "recommandation explicite et sa raison, prochaine étape",
         "make_sheet": "Un tableur : une ligne par élément, des colonnes nommées, les valeurs telles qu'écrites",
+        "make_document_study": "Un document structuré en 4 à 6 sections avec un titre clair, des phrases rédigées "
+        "tirées des extraits de sources, chaque chiffre et chaque affirmation tirée d'une source suivie de [n], "
+        "toutes les sources utilisées ; si la demande parle d'un tableau ou d'une comparaison, un tableau markdown "
+        "(| a | b |) ; une conclusion ou recommandation qui dit sur quoi elle s'appuie",
     },
     "en": {
         "make_slides": "A deck of {n} slides: a short title per slide, 2 to 4 short bullets, every figure followed by "
@@ -134,6 +138,10 @@ SHAPE = {
         "draft_email": "An email of 150 to 350 words: clear subject, one line of context, the offers as a list or "
         "table, an explicit recommendation and its reason, the next step",
         "make_sheet": "A spreadsheet: one row per item, named columns, values as written",
+        "make_document_study": "A structured document of 4 to 6 sections with a clear title, written sentences drawn "
+        "from the source extracts, every figure and every claim taken from a source followed by [n], every source "
+        "used; if the request mentions a table or a comparison, a markdown table (| a | b |); a conclusion or "
+        "recommendation that says what it rests on",
     },
 }
 ANGLES = {
@@ -142,12 +150,16 @@ ANGLES = {
         "draft_email": ("exigences d'abord", "coût total d'abord"),
         "make_document": ("fidèle et complet", "décisions et risques mis en avant"),
         "make_sheet": ("fidèle", "fidèle"),
+        "make_document_study": ("comparaison structurée, critère par critère", "pour décideurs : synthèse, "
+                                "recommandation et limites"),  # fmt: skip
     },
     "en": {
         "make_slides": ("factual and chronological", "for decision makers: what changes and what to remember"),
         "draft_email": ("requirements first", "total cost first"),
         "make_document": ("faithful and complete", "decisions and risks first"),
         "make_sheet": ("faithful", "faithful"),
+        "make_document_study": ("structured comparison, criterion by criterion", "for decision makers: summary, "
+                                "recommendation and limits"),  # fmt: skip
     },
 }
 
