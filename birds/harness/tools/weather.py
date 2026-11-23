@@ -36,12 +36,18 @@ _SKY = {
     "fog": ("Brouillard", "Fog"),
 }
 ICONS = ("sun", "moon", "partly_day", "partly_night", "cloud", "fog", "drizzle", "rain", "showers", "sleet", "snow",
-         "thunder")  # fmt: skip
+         "thunder", "unknown")  # fmt: skip
+# no symbol, or one this table does not know: said as such, never drawn as a cloud
+UNKNOWN_SKY = {"icon": "unknown", "fr": "Ciel non précisé", "en": "Sky not given"}
 
 
 def sky(code: str) -> dict:
-    """{'icon', 'fr', 'en'} for a MET symbol_code such as 'lightrainshowersandthunder_day' (unknown: cloud)."""
-    c = str(code or "").lower()
+    """{'icon', 'fr', 'en'} for a MET symbol_code such as 'lightrainshowersandthunder_day' (empty or unknown:
+    ``UNKNOWN_SKY``). MET's list itself spells two codes 'lightssleetshowersandthunder' and
+    'lightssnowshowersandthunder': read as 'light'."""
+    c = re.sub(r"^lightss", "lights", str(code or "").lower().strip())
+    if not c:
+        return dict(UNKNOWN_SKY)
     night = c.endswith("_night")
     base = re.sub(r"_(?:day|night|polartwilight)$", "", c)
     thunder = base.endswith("andthunder")
@@ -55,7 +61,7 @@ def sky(code: str) -> dict:
         return {"icon": icon, "fr": fr, "en": en}
     m = re.fullmatch(r"(light|heavy)?(rain|sleet|snow)(showers)?", base)
     if not m:
-        return {"icon": "cloud", "fr": "Nuageux", "en": "Cloudy"}
+        return dict(UNKNOWN_SKY)
     level, what, showers = m.groups()
     fr_noun, en_noun = _PHENOMENA[what]
     if showers:
@@ -181,7 +187,8 @@ def days(points: list[dict], zone: ZoneInfo, first: date, n: int = DAYS_SHOWN) -
             else:
                 continue
         temps = [p["temp"] for p in pts]
-        rain = sum(mm for t, _, mm, _ in periods if t.astimezone(zone).date() == d)
+        mms = [mm for t, _, mm, _ in periods if t.astimezone(zone).date() == d]
+        rain = sum(mms) if mms else None  # no precipitation field that day: unknown, never « 0 »
         probs = [pr for t, _, _, pr in periods if t.astimezone(zone).date() == d and pr is not None]
         sym = day_symbol(points, zone, d)
         sk = sky(sym)
@@ -426,7 +433,7 @@ def _text(w: dict, lang: str, n_src: int) -> str:
     d = date.fromisoformat(w["day"])
     where = p["name"] + (f" ({p['region']})" if p["region"] else "")
     tz = ("heure locale" if lang == "fr" else "local time") if w["tz"] != "UTC" else "UTC"
-    bits = [s["label"].lower()]
+    bits = [s["label"].lower()] if s["icon"] != "unknown" else []
     if s["kind"] == "now" and s["temp"] is not None:
         bits.append(f"{_num(s['temp'], lang)} °C maintenant" if lang == "fr" else f"{_num(s['temp'], lang)} °C now")
     if s["min"] is not None and s["max"] is not None:
@@ -446,7 +453,8 @@ def _text(w: dict, lang: str, n_src: int) -> str:
         if t["d"] <= w["day"]:  # the days after the one asked
             continue
         dd = date.fromisoformat(t["d"])
-        nxt.append(f"{_DOW[lang][dd.weekday()][:3]}. {t['min']}/{t['max']} °C {t['label'].lower()}"
+        sky_word = f" {t['label'].lower()}" if t["icon"] != "unknown" else ""
+        nxt.append(f"{_DOW[lang][dd.weekday()][:3]}. {t['min']}/{t['max']} °C{sky_word}"
                    + (f" {_num(t['rain'], lang)} mm" if t["rain"] else ""))  # fmt: skip
     if lang == "fr":
         return (

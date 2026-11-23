@@ -7206,6 +7206,13 @@ ol.a4-list > li::before {
 .wx-flake {
   fill: var(--wx-snow);
 }
+.wx-unknown {
+  fill: none;
+  stroke: var(--wx-cloud-rain);
+  stroke-width: 2;
+  stroke-dasharray: 3 2.5;
+  stroke-linecap: round;
+}
 .wx-fog {
   stroke: var(--wx-cloud-rain);
   stroke-width: 2.2;

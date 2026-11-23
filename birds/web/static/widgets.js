@@ -1201,6 +1201,11 @@ const GLYPHS = {
       [22, 24.5],
     ]),
   ],
+  // no symbol from MET, or one we do not know: a dashed ring, never a cloud that would say « cloudy »
+  unknown: () => [
+    sv("circle", { class: "wx-unknown", cx: 16, cy: 16, r: 9 }),
+    sv("line", { class: "wx-unknown", x1: 12, y1: 16, x2: 20, y2: 16 }),
+  ],
   thunder: () => [
     cloud(true, "wx-cloud wx-cloud-rain"),
     sv("polygon", {
@@ -1212,11 +1217,11 @@ const GLYPHS = {
 
 /** An inline SVG weather icon (decorative: the label is written next to it). */
 export function wxIcon(name, size = 32, label = "") {
-  const draw = GLYPHS[name] || GLYPHS.cloud;
+  const draw = GLYPHS[name] || GLYPHS.unknown;
   return sv(
     "svg",
     {
-      class: `wx-icon wx-${GLYPHS[name] ? name : "cloud"}`,
+      class: `wx-icon wx-${GLYPHS[name] ? name : "unknown"}`,
       viewBox: "0 0 32 32",
       width: size,
       height: size,
@@ -1541,11 +1546,19 @@ function renderWeather(w) {
             h("span", { class: "wx-lo num", text: deg(d.min) }),
             h("span", {
               class: `wx-mm num${d.rain > 0 ? "" : " is-dry"}`,
+              // null: MET gave no precipitation for that day, which is not « 0 »
               text:
-                d.rain > 0
-                  ? nf({ maximumFractionDigits: 1 }).format(d.rain)
-                  : "0",
-              "aria-label": d.rain > 0 ? mm(d.rain) : t("weather.noRain"),
+                d.rain == null
+                  ? "–"
+                  : d.rain > 0
+                    ? nf({ maximumFractionDigits: 1 }).format(d.rain)
+                    : "0",
+              "aria-label":
+                d.rain == null
+                  ? t("weather.rainUnknown")
+                  : d.rain > 0
+                    ? mm(d.rain)
+                    : t("weather.noRain"),
             }),
           ),
         ),

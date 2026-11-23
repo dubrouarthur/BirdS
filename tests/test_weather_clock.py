@@ -278,7 +278,11 @@ def test_unknown_town_takes_its_zone_from_its_country_never_its_coordinates(tmp_
         ("lightsleet", "sleet", "Neige fondue faible"),
         ("heavysnowshowers_day", "snow", "Fortes averses de neige"),
         ("rainandthunder", "thunder", "Pluie et orage"),
-        ("lightssleetshowersandthunder_day", "cloud", "Nuageux"),  # unknown (typo): a neutral cloud, no guess
+        # MET's own list spells these two « lightss… »: read as « light… »
+        ("lightssleetshowersandthunder_day", "thunder", "Averses de neige fondue faibles et orage"),
+        ("lightssnowshowersandthunder_night", "thunder", "Averses de neige faibles et orage"),
+        ("", "unknown", "Ciel non précisé"),  # no symbol: said as such, never « Nuageux »
+        ("sandstorm_day", "unknown", "Ciel non précisé"),
     ],
 )
 def test_symbol_codes_map_to_icons_and_labels(code, icon, fr):
@@ -293,7 +297,8 @@ def test_every_recorded_symbol_has_an_icon():
             for k in ("next_1_hours", "next_6_hours", "next_12_hours"):
                 if k in p["data"]:
                     code = p["data"][k]["summary"]["symbol_code"]
-                    assert weather.sky(code)["icon"] != "cloud" or "cloud" in code or "fog" in code, code
+                    icon = weather.sky(code)["icon"]
+                    assert icon != "unknown" and (icon != "cloud" or "cloud" in code or "fog" in code), code
 
 
 def test_parse_met_and_rain_is_never_counted_twice():
@@ -307,6 +312,26 @@ def test_parse_met_and_rain_is_never_counted_twice():
     assert {h for _, h, _, _ in periods} == {1, 6}
     with pytest.raises(guard.ToolError):
         weather.parse_met({"properties": {"timeseries": []}})
+
+
+def test_a_day_without_precipitation_fields_has_unknown_rain_not_zero():
+    from zoneinfo import ZoneInfo
+
+    series = [
+        {"time": f"2026-11-24T{h:02d}:00:00Z", "data": {"instant": {"details": {"air_temperature": 5.0 + h / 10}}}}
+        for h in range(0, 24, 3)
+    ]
+    points, _ = weather.parse_met({"properties": {"meta": {}, "timeseries": series}})
+    tiles = weather.days(points, ZoneInfo("Europe/Paris"), date(2026, 11, 24), 1)
+    assert tiles and tiles[0]["rain"] is None and tiles[0]["icon"] == "unknown"
+    w = {
+        "place": {"name": "Lyon", "region": ""}, "tz": "Europe/Paris", "day": "2026-11-24",
+        "summary": {"kind": "day", "temp": 7, "icon": "unknown", "label": "Ciel non précisé", "wind_kmh": None,
+                    "rain_mm": None, "rain_prob": None, "min": 5, "max": 7},
+        "days": [],
+    }  # fmt: skip
+    text = weather._text(w, "fr", 1)
+    assert "pas de pluie" not in text and "pluie" not in text.split("Une carte")[0] and "non précisé" not in text
 
 
 def test_weather_tool_on_recorded_answers(tmp_path):
