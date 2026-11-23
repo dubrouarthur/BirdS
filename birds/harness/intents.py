@@ -154,6 +154,11 @@ _NOT_STOP = re.compile(
 )
 _ARTICLE_BEFORE = re.compile(r"(?:\b(?:la|le|les|the|un|une|des)\s+|l')$", re.I)
 _TOWNISH = re.compile(r"[^\W\d_][\w'-]+(?:\s+(?:en|sur)\s+[^\W\d_][\w'-]+|\s+[^\W\d_][\w'-]+)?")
+_APPS = re.compile(  # office software and tools: « où est Teams ? » asks for a menu, not a map
+    r"(?i:excel|word|outlook|teams|powerpoint|power point|sharepoint|onedrive|one drive|drive|google drive|slack|"
+    r"intranet|extranet|notion|jira|confluence|zoom|gmail|sap|salesforce|trello|asana|dropbox|onenote|"
+    r"windows|chrome|firefox|safari|edge|acrobat|photoshop|canva|figma|github|gitlab)"
+)
 _NOT_TARGET = re.compile(  # « c'est où que je change… », « où est passée ma commande », « c'est où demain ? »
     r"^(?:qu|pass[ée]e?s?\b|demain\b|aujourd'hui\b|hier\b|maintenant\b|ce soir\b|tomorrow\b|today\b|now\b|"
     r"ensuite\b|apr[èe]s\b|maman\b|papa\b|mamie\b|papi\b|papy\b|mom\b|mum\b|dad\b)",
@@ -464,8 +469,18 @@ def places(text: str, lang: str = "fr") -> Intent | None:
                 "find_places", {"query": _kind_of(kn.group("kind")), "near": _clean_name(kn.group("near"))},
                 keep_web=False, mode="near",
             )
-        # a bare town typed in lowercase (« ou est nantes », « where is lyon »): no article, one or two words
-        town = not _ARTICLE_BEFORE.search(t[: m.start(g)]) and bool(_TOWNISH.fullmatch(q))
+        if _APPS.fullmatch(q):
+            return None  # « où est Excel ? », « ou est outlook »: software, never a place
+        # a bare town typed in lowercase (« ou est nantes », « where is lyon »): no article and a known town
+        before = t[: m.start(g)]
+        bare = not _ARTICLE_BEFORE.search(before)
+        town = bare and bool(_TOWNISH.fullmatch(q)) and known_place(q)
+        # « où est Dupont ? », « où est Martin ? »: one capitalised word that is no known town may be a surname
+        lone = bare and len(words) == 1 and "-" not in q and not landmark and not known_place(q) and not re.search(
+            r"(?:ville|city|town|commune)\s+(?:de\s+|d'|of\s+)$", before, re.I
+        )
+        if lone and not _MAP_ASK.search(t):
+            return Intent("find_places", None, keep_web=True)
         # an explicit map ask (« carte de la bretagne ») still needs a place-like target: never « carte de X pour … »
         explicit = _MAP_ASK.search(t) and (_placey(q) or known_place(q))
         if _placey(q) or town or explicit:

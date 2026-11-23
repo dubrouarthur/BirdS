@@ -164,3 +164,18 @@ def test_a_card_that_is_not_a_map_calls_nothing(text):
 )
 def test_a_map_of_a_place_is_still_drawn(text, query):
     assert _call(text) == ({"query": query}, "where")
+
+
+@pytest.mark.parametrize("text", ["où est Excel ?", "où est Teams ?", "ou est outlook", "where is Excel?"])
+def test_office_software_is_never_a_place(text):
+    assert intents.places(text) is None
+
+
+@pytest.mark.parametrize("text", ["où est Dupont ?", "où est Martin ?", "carte du réseau commercial"])
+def test_an_unknown_lone_name_or_a_lowercase_phrase_is_only_offered(text):
+    got = intents.places(text)
+    assert got is not None and got.args is None
+
+
+def test_a_capitalised_known_town_still_gets_a_map():
+    assert _call("où est Biarritz") == ({"query": "Biarritz"}, "where")
