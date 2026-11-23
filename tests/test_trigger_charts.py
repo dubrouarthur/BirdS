@@ -70,6 +70,34 @@ def test_two_figures_in_a_sentence_are_still_not_a_chart():
 
 
 @pytest.mark.parametrize(
+    "text,rows,unit",
+    [
+        (
+            "fais un graphique de la population : Paris 2,1 millions, Lyon 0,5 millions, Marseille 0,87 millions",
+            [["Paris", "2,1"], ["Lyon", "0,5"], ["Marseille", "0,87"]],
+            "M",
+        ),
+        ("fais une courbe : T1 1,25 M, T2 1,4 M, T3 1,6 M", [["T1", "1,25"], ["T2", "1,4"], ["T3", "1,6"]], "M"),
+        (
+            "fais un histogramme du CA : Nord 1,2 Md, Sud 0,9 Md, Est 0,7 Md",
+            [["Nord", "1,2"], ["Sud", "0,9"], ["Est", "0,7"]],
+            "Md",
+        ),
+        (
+            "le budget est de 1,5 million, fais un graphique : salaires 0,8 million, loyers 0,4 million, "
+            "divers 0,3 million",
+            [["salaires", "0,8"], ["loyers", "0,4"], ["divers", "0,3"]],
+            "M",
+        ),
+    ],
+)
+def test_a_decimal_before_a_magnitude_word_is_read_whole(tmp_path, text, rows, unit):
+    assert _rows(text) == (rows, unit)
+    run = Agent(FakeClient(["Voici."]), Tok(), Config(workspace=tmp_path)).run(text, lang="fr")
+    assert [r[1] for r in run.charts[0]["rows"]] == [float(r[1].replace(",", ".")) for r in rows]
+
+
+@pytest.mark.parametrize(
     "text,kind",
     [
         ("nombre de tickets par semaine : S1 45, S2 52, S3 61, S4 58 — sous forme de courbe", "line"),

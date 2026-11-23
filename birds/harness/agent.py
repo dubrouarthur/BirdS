@@ -296,8 +296,14 @@ def route(user: str, attached: bool = False) -> set[str]:
 # One whole number: « 1,9 », « 12 500 », « 2 240 621 ». A space group is a thousands separator only as
 # \d{1,3}( \d{3})+ with no digit before it, so « 2021 100 » is the label 2021 and the value 100; and a number is never
 # split (« 1,9 M€. » was read as 1 because a full stop was not accepted after the value).
-_NUM = r"[-+]?(?<![\d.,])(?:\d{1,3}(?:[   ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(?!\d)"
-_UNIT = r"(?P<unit>%|k€|K€|M€|Md€|€|\$|h|ans?|k)?"
+_NUM = r"[-+]?(?<![\d.,])(?:\d{1,3}(?:[   ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(?!\d|[.,]\d)"
+# never backtrack into a decimal: « 2,1 millions » is 2,1 (the (?![.,]\d) above), and the magnitude word is kept
+_UNIT = (
+    r"(?P<unit>%|k€|K€|M€|Md€|€|\$|h|ans?|k)?"
+    r"(?:\s*(?P<mag>millions?|milliards?|mds?|md|mns?|bn|m)\b(?:\s*(?:d['’]\s*)?(?P<cur>euros?|€|\$))?)?"
+)
+_MAG = {"million": "M", "millions": "M", "m": "M", "mn": "M", "mns": "M", "milliard": "Md", "milliards": "Md",
+        "md": "Md", "mds": "Md", "bn": "bn"}  # fmt: skip
 # where a pair ends: a separator, a full stop (not a decimal point), a dash, « et / and / vs », or the end
 _END = r"(?=\s*(?:[,;\n)/!?—–]|\.(?!\d)|\s-\s|\bet\b|\band\b|\bvs\b|$)|\s+(?:19|20)\d\d\s*[:=]?\s*\d)"
 # « CA 2022 : 1,2 M€, 2023 : 1,5 M€ »: the first label is the year, like the others
@@ -331,11 +337,24 @@ _TIME_LABEL = re.compile(
 )
 
 
+def _unit_of(m: re.Match) -> str:
+    """« % », « M€ », or a magnitude word as a unit: « 2,1 millions » → M, « 1,2 Md € » → Md€."""
+    if m.group("unit") or not m.group("mag"):
+        return m.group("unit") or ""
+    return _MAG[m.group("mag").lower()] + ("€" if (m.group("cur") or "").lower().startswith(("€", "euro")) else "")
+
+
+# a label of several words that ends on a link word is a sentence, not a row: « le budget est de 1,5 million »
+_LINK_END = re.compile(
+    r"\b(?:de|du|des|d['’]|à|a|est|sont|était|soit|environ|par|pour|en|le|la|les|of|is|are|was|at|about|to)$", re.I
+)
+
+
 def _rows_of(pairs: list[tuple[str, str, str]]) -> tuple[list[str], list[list[str]], str] | None:
     rows, units = [], set()
     for label, num, unit in pairs:
         label = label.strip(" .-*").strip()
-        if label and len(label) <= 40:
+        if label and len(label) <= 40 and not (" " in label and _LINK_END.search(label)):  # « Est » is a label
             rows.append([label, num.replace(" ", "").replace("\u202f", "").replace("\xa0", "")])
             units.add(unit or "")
     if len(rows) < 3 or len({r[0].lower() for r in rows}) < len(rows):
@@ -364,7 +383,7 @@ def figures_in(text: str) -> tuple[list[str], list[list[str]], str] | None:
                 if got:
                     return [head[0] or "Libellé", head[j] or "Valeur"], got[1], got[2]
     for rx in (_LIST_ROW, _PAIR, _PAIR_REV):
-        got = _rows_of([(m.group("label"), m.group("num"), m.group("unit") or "") for m in rx.finditer(text)])
+        got = _rows_of([(m.group("label"), m.group("num"), _unit_of(m)) for m in rx.finditer(text)])
         if got:
             return got
     return None
