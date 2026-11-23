@@ -126,3 +126,42 @@ def test_geocoder_reads_saint_denis_as_seine_saint_denis_unless_reunion_is_said(
     assert geo.disambiguate("Saint-Denis", "météo à Saint-Denis de la Réunion") == "Saint-Denis"
     assert geo.disambiguate("Saint-Denis-de-Pile", "") == "Saint-Denis-de-Pile"
     assert geo.disambiguate("Lyon", "") == "Lyon"
+
+
+@pytest.mark.parametrize(
+    "text,tool,args",
+    [
+        ("prévisions pour Lille demain matin", "get_weather", {"place": "Lille", "day": "demain"}),
+        ("what's the weather like in Madrid this weekend?", "get_weather", {"place": "Madrid", "day": "this weekend"}),
+        ("forecast for Berlin on Monday", "get_weather", {"place": "Berlin", "day": "on Monday"}),
+        ("where is the nearest pharmacy to the Louvre?", "find_places", {"query": "pharmacy", "near": "Louvre"}),
+        ("la pharmacie la plus proche du Louvre", "find_places", {"query": "pharmacy", "near": "Louvre"}),
+        ("a restaurant to try in Lyon", "find_places", {"query": "restaurant", "near": "Lyon"}),
+        ("10 000 yens ça fait combien ?", "convert_currency", {"from": "JPY", "to": "EUR", "amount": 10000.0}),
+        ("le taux euro dollar aujourd'hui", "convert_currency", {"from": "EUR", "to": "USD"}),
+        ("fiche entreprise de la société Alan", "find_company", {"name": "Alan"}),
+    ],
+)
+def test_realistic_phrasings_start_the_right_call(text, tool, args):
+    from birds.harness import intents
+
+    got = next(i for i in intents.detect(text) if i.args)
+    assert (got.tool, got.args) == (tool, args)
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["prévisions pour Q3", "quelles sont les prévisions de vente pour 2027 ?", "prévisions pour Danone",
+     "la météo du projet est au vert", "le taux de TVA", "sales forecast for Q3"],
+)  # fmt: skip
+def test_business_forecasts_and_rates_stay_ordinary(text):
+    from birds.harness import intents
+
+    assert not intents.detect(text)
+
+
+def test_on_est_a_quelle_heure_and_a_full_meeting_title():
+    assert [c["fr"] for c in clock.detect("on est à quelle heure à Los Angeles ?")["cities"]] == ["Los Angeles"]
+    w = event_widget("réunion avec le comité de direction le 8 décembre à 9h30", NOW, "fr")
+    assert w["title"] == "Réunion avec le comité de direction"
+    assert event_widget("réunion avec Paul de 14h à 15h jeudi", NOW, "fr")["title"] == "Réunion avec Paul"

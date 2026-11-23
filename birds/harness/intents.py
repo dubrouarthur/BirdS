@@ -105,6 +105,12 @@ _RX_NEAR = re.compile(
     + _NAME.format("near"),
     re.I,
 )
+_RX_NEAREST = re.compile(
+    r"(?:\b(?:the\s+)?(?P<nr>nearest|closest)\s+|\b(?:la\s+|le\s+|l')?)" + _KIND
+    + r"(?(nr)\s+(?:to|from)\s+|\s+la\s+plus\s+proche\s+(?:de\s+(?:la\s+|l')?|du\s+|des\s+|d'))" + _ART
+    + _NAME.format("near"),
+    re.I,
+)
 _RX_ROUTE = re.compile(
     r"(?:itin[ée]raire|trajet|comment\s+(?:aller|se\s+rendre)|directions?|route|how\s+(?:do\s+i\s+|to\s+)?get)"
     r"\s+(?:de\s+|du\s+|depuis\s+|from\s+)" + _ART + r"(?P<a>[^?!\n]{2,80}?)\s+(?:à\s+|a\s+|au\s+|jusqu'à\s+|"
@@ -396,8 +402,8 @@ def places(text: str, lang: str = "fr") -> Intent | None:
         items = [i for i in items if _ok(i) and not _not_a_place(i)]
         if 2 <= len(items) <= 5:
             return Intent("find_places", {"query": " ; ".join(items)}, keep_web=True, mode="list")
-    m = _RX_NEAR.search(t)
-    if m and not _plural(m.group("kind")) and re.match(
+    m = _RX_NEAREST.search(t) or _RX_NEAR.search(t)
+    if m and m.re is _RX_NEAR and not _plural(m.group("kind")) and re.match(
         r"\s+(?:de\s+la\s+|de\s+l'|de\s+|du\s+|des\s+|d')(?:[A-ZÀ-Ý]|ville\b)", t[m.end("kind"):]
     ):
         m = None  # « l'hôtel de la Paix à Genève »: one named place, looked up whole below
@@ -567,7 +573,8 @@ _COMPANY_ASK2 = re.compile(
 # « fiche entreprise doctolib »: a lowercase name only after an explicit company noun
 _COMPANY_ASK_LOW = re.compile(
     r"(?i:\b(?:fiche|infos?|informations|renseignements)\s+(?:de\s+|sur\s+|du\s+)?"
-    r"(?:la soci[ée]t[ée]|l'entreprise|entreprise|soci[ée]t[ée])\s+(?P<lname>[a-z0-9à-ÿ][\w&'.\- ]{1,60}))"
+    r"(?:la soci[ée]t[ée]|l'entreprise|entreprise|soci[ée]t[ée])\s+(?:(?:de\s+la|de\s+l'|de|du|d')\s*"
+    r"(?:soci[ée]t[ée]|entreprise|bo[iî]te)?\s+)?(?P<lname>[a-z0-9à-ÿ][\w&'.\- ]{1,60}))"
 )
 # « explique ce qu'est un numéro SIREN », « comment trouver le siret d'une entreprise ? »: about the register
 _DEFINE = re.compile(
@@ -701,6 +708,12 @@ _RX_FX = [
     re.compile(
         _AMT + r"\s*(?P<from>" + _CUR + r")(?!\w)[^?!.]{0,40}?\bcombien\s+(?:en|in)\s+(?P<to>" + _CUR + r")\b", re.I
     ),
+    # « le taux euro dollar », « taux du dollar en euros »
+    re.compile(
+        r"\btaux\s+(?:du\s+|de\s+l'|de\s+la\s+|de\s+)?(?P<from>" + _CUR + r")\s+(?:en\s+|contre\s+|vs\s+|et\s+(?:le\s+|l')?)?"
+        r"(?P<to>" + _CUR + r")\b",
+        re.I,
+    ),
     # « le taux euro/livre »
     re.compile(
         r"\b(?:taux|cours|rate)\s+(?:de l'|du |de la |de |the )?(?P<from>" + _CUR + r")\s*/\s*(?P<to>" + _CUR + r")\b",
@@ -721,6 +734,12 @@ _RX_FX_TO_EUR = [
         re.I,
     ),
 ]
+_RX_FX_AFTER = re.compile(
+    r"^\s*" + _AMT + r"\s*(?P<from>" + _CUR + r")(?!\w)\s*,?\s*(?:[çc]a\s+(?:fait|vaut|donne)\s+combien|"
+    r"combien\s+(?:[çc]a\s+(?:fait|vaut)|en\s+euros?)|c'est\s+combien|that'?s\s+how\s+much|is\s+how\s+much)"
+    r"(?:\s+en\s+euros?|\s+in\s+euros?)?\s*[?!.]*\s*$",
+    re.I,
+)
 # money in the words: an offer of convert_currency needs it (« convertis ce fichier en PDF » is not money). ISO codes
 # are case-sensitive: the English word « try » is not TRY.
 _CUR_ANY = re.compile(
@@ -785,7 +804,7 @@ def fx(text: str, lang: str = "fr") -> Intent | None:
         if amt is not None:
             args["amount"] = amt
         return Intent("convert_currency", args, keep_web=keep)
-    for rx in _RX_FX_TO_EUR:
+    for rx in (*_RX_FX_TO_EUR, _RX_FX_AFTER):
         m = rx.search(raw)
         if not m:
             continue
@@ -806,7 +825,8 @@ def fx(text: str, lang: str = "fr") -> Intent | None:
 
 _WX_NEVER = re.compile(
     r"\b(?:climat\w*|m[ée]t[ée]o\s+(?:des?\s+march[ée]s|sociale|boursi[èe]re|financi[èe]re|[ée]conomique|du moral|"
-    r"interne|des ventes|des projets|de l'[ée]quipe|d'[ée]quipe|politique|des affaires|du business|des prix|du "
+    r"interne|des ventes|des projets|du projet|de la bo[iî]te|du service|du moral|de l'entreprise|de l'[ée]quipe|"
+    r"d'[ée]quipe|politique|des affaires|du business|des prix|du "
     r"recrutement|RH)|barom[èe]tre|temps\s+(?:de\s+r[ée]ponse|de\s+trajet|de\s+chargement|de\s+travail|de\s+calcul|"
     r"de\s+parole|partiel|plein|libre|r[ée]el|fort|mort|d'arr[êe]t|de\s+cycle|d'attente|de\s+lecture)|"
     r"pluie\s+de\s+(?:critiques|r[ée]clamations|commentaires|messages|mails|e-mails|notifications)|"
@@ -846,7 +866,7 @@ _WX_STOP = frozenset(
     prochain prochaine prochains next coming demain aujourd hui today tomorrow quoi quel quelle what how faire fera
     va pleuvoir neiger there here là ici y chez maison home bureau office notre nos votre vos mon ma mes my our your
     température températures temperature temperatures parapluie umbrella risque chance chances région region coin
-    rain snow sunny cold hot warm raining snowing moment instant""".split()
+    rain snow sunny cold hot warm raining snowing moment instant like comme""".split()
 )
 _WX_CUT = frozenset(
     "et and ou or avec with pour for à a au in si if quand when est-ce va-t-il stp svp est sont is are depuis since"
@@ -876,6 +896,21 @@ _WX_PLACE = re.compile(
     r"(?=(?:la\s+|le\s+|l'|les\s+|the\s+)?(?P<p>[\wÀ-ÿ'-]+(?:\s+[\wÀ-ÿ'-]+){0,4}))",
     re.I,
 )
+
+
+# « prévisions pour Lille demain matin »: « prévisions » alone is a weather ask only before a known town
+_WX_FORECAST = re.compile(
+    r"^(?:les\s+|the\s+)?(?:pr[ée]visions?\s+(?:pour|à|a|sur|de|du)|forecasts?\s+(?:for|in))\s+"
+    r"(?:la\s+|le\s+|l'|the\s+)?(?P<p>[\wÀ-ÿ'-]+(?:\s+[\wÀ-ÿ'-]+)?)",
+    re.I,
+)
+
+
+def _known_town(words: str) -> bool:
+    from birds.harness import clock
+
+    first = (words or "").split()[0] if (words or "").split() else ""
+    return any(known_place(w) or clock.fold(w) in clock._ALIAS for w in (words, first) if w)
 
 
 def _wx_place(t: str) -> str:
@@ -924,7 +959,10 @@ def weather(text: str, lang: str = "fr") -> Intent | None:
     if not raw or _WX_NEVER.search(raw) or _HOWTO.search(raw):
         return None
     asks = [m for m in _WX_ASK.finditer(raw) if not _wx_false(raw, m)]
-    if not (asks or _WX_BARE.search(raw)):
+    weak = _WX_FORECAST.search(normalise(raw))
+    if weak and not asks and not _known_town(weak.group("p")):
+        weak = None  # « prévisions pour Q3 », « prévisions pour Danone »: business forecasts
+    if not (asks or weak or _WX_BARE.search(raw)):
         return None
     if (
         re.search(r"\btemp[ée]ratures?\b", raw, re.I)
@@ -967,8 +1005,11 @@ _RX_IMG = re.compile(
     re.I,
 )
 _RX_LOOKS = re.compile(
-    r"^(?:et\s+|and\s+)?(?:(?:à|a)\s+quoi\s+ressembl(?:e|ent)\s+(?P<s>.+)|what\s+(?:does|do|did)\s+(?P<s2>.+?)\s+"
-    r"look\s+like)$",
+    r"^(?:et\s+|and\s+)?(?:(?:j'aimerais|je\s+voudrais|je\s+veux|on\s+peut|tu\s+peux\s+me|peux-tu\s+me|"
+    r"montre(?:[- ]moi)?)\s+(?:voir|savoir|montrer)?\s*)?"
+    r"(?:(?:à|a)\s+quoi\s+ressembl(?:e|ent)\s+(?P<s>.+)|what\s+(?:does|do|did)\s+(?P<s2>.+?)\s+look\s+like|"
+    r"(?:show\s+me\s+|tell\s+me\s+)?what\s+(?!(?:does|do|did)\s)(?P<s3>.+?)\s+"
+    r"looks?\s+like)$",
     re.I,
 )
 # a picture to be made, edited or put into a file: no web search (« génère une image de… », « insère une photo… »)
@@ -1017,7 +1058,7 @@ def images(text: str, lang: str = "fr") -> Intent | None:
     looks = None if m else _RX_LOOKS.match(t)
     if not (m or looks):
         return None
-    head = (m.group("s") if m else looks.group("s") or looks.group("s2")).strip()
+    head = (m.group("s") if m else looks.group("s") or looks.group("s2") or looks.group("s3")).strip()
     if _IMG_NOT_SUBJECT.match(head):
         return None
     subject = _img_subject(head)

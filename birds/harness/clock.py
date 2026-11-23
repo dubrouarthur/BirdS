@@ -433,6 +433,7 @@ def city_of_zone(zone: str) -> City | None:
 
 _TIME_ASK = re.compile(
     r"(?<!\ba )(?<!\bà )\b(?:quelle heure (?:est[ -]il|il est|est il|fait[ -]il)|il est quelle heure|"
+    r"on est à quelle heure|(?<=on est )à quelle heure|"
     r"l'heure (?:qu'il est |locale |actuelle )?(?:a|à|au|aux|en|de|du|d')|heures? locales?|"
     r"what time is it|what's the time|what is the time|(?:current|local) time|time (?:is it )?(?:now )?in)\b",
     re.I,

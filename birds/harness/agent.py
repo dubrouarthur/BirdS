@@ -149,8 +149,9 @@ _CHART_HOWTO = re.compile(
     r"difference\s+between|(?:quel|quelle|which|what)\s+(?:type\s+de\s+|sorte\s+de\s+|kind\s+of\s+|type\s+of\s+)?"
     r"(?:graphique|graphe|diagramme|chart|graph|visuali[sz]ation)s?\s+(?:choisir|utiliser|privil[ée]gier|"
     r"pour|to\s+(?:use|choose|pick)|should|is\s+best|est\s+le\s+(?:plus|mieux))|"
-    r"(?:quand|when)\s+(?:utiliser|use|choisir)|c['’]est\s+quoi|qu['’]est[- ]ce\s+qu)\b|"
-    r"\b(?:dans|sous|avec|sur|on|in|with|using)\s+(?:excel|word|powerpoint|power\s?point|google\s+sheets|sheets|"
+    r"(?:quand|when)\s+(?:utiliser|use|choisir)|dans\s+quels?\s+cas|in\s+which\s+cases?|c['’]est\s+quoi|"
+    r"qu['’]est[- ]ce\s+qu)\b|"
+    r"\b(?P<tool>dans|sous|avec|sur|on|in|with|using)\s+(?:excel|word|powerpoint|power\s?point|google\s+sheets|sheets|"
     r"libreoffice|calc|numbers|power\s?bi|tableau|looker|matplotlib|python|r)\b[^.?!\n]{0,40}"
     r"(?:\?|$)|\b(?:crois[ée]s?\s+dynamiques?|pivot\s+charts?|tableaux?\s+crois[ée]s?)\b",
     re.I,
@@ -184,7 +185,7 @@ def chart_howto(text: str) -> bool:
     m = _CHART_HOWTO.search(words)
     if not m:
         return False
-    if re.match(r"\s*(?:dans|sous|avec|sur|on|in|with|using)\b", m.group(0), re.I):
+    if m.group("tool"):
         return bool(_SHEET_HOWTO.search(words) or _HOWTO.search(words) or re.search(r"\bcomment\b|\bhow\b", words, re.I))
     return True
 
