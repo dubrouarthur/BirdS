@@ -19,6 +19,7 @@ signature is content.
 
 from __future__ import annotations
 
+import difflib
 import re
 from dataclasses import asdict, dataclass
 
@@ -321,12 +322,70 @@ def item_dicts(items: list[Item]) -> list[dict]:
 _ADDITIVE = {"mail", "slides", "document", "sheet", "chart", "table", "totals", "summary", "compare"}
 
 
+_REFUSE = re.compile(
+    r"\b(?:je\s+ne\s+(?:peux|pourrai|suis\s+pas\s+en\s+mesure)|je\s+n['’](?:ai|arrive)\s+pas|impossible\s+de|"
+    r"je\s+ne\s+sais\s+pas|i\s+(?:can(?:no|['’])t|am\s+unable|['’]m\s+unable|could\s+not|couldn['’]t)|unable\s+to)\b",
+    re.I,
+)
+_SEP = re.compile(r"^\s*\|?[\s:|-]+\|?\s*$")
+
+
+def _rows(text: str) -> list[str]:
+    """Markdown table rows up to spacing and the separator line (« |---| » and « | --- | » are the same table)."""
+    out = []
+    for line in (text or "").splitlines():
+        if re.match(r"^\s*\|.*\|\s*$", line) and not _SEP.match(line):
+            out.append("|".join(" ".join(c.split()).lower() for c in line.strip().strip("|").split("|")))
+    return out
+
+
+def _covered(e: str, f: str) -> bool:
+    """The new answer already holds the earlier one's substance: its table rows, or most of its words."""
+    er, fr = _rows(e), set(_rows(f))
+    if er and sum(r in fr for r in er) >= 0.8 * len(er):
+        return True
+    ew, fw = re.findall(r"\w+", e.lower()), re.findall(r"\w+", f.lower())
+    if not ew:
+        return True
+    bag: dict[str, int] = {}
+    for w in fw:
+        bag[w] = bag.get(w, 0) + 1
+    hit = 0
+    for w in ew:
+        if bag.get(w):
+            bag[w] -= 1
+            hit += 1
+    return hit / len(ew) > 0.6 or difflib.SequenceMatcher(None, e, f, autojunk=False).ratio() > 0.6
+
+
+def _drop_refusals(e: str, reasons: set[str]) -> str:
+    """Sentences of the earlier answer that refuse a deliverable the reminder then asked for (« Je ne peux pas
+    envoyer de mail moi-même. »): kept next to « Le brouillon est prêt », they contradict it."""
+    nouns = "|".join(KINDS[k][0] for k in reasons if k in KINDS)
+    if not nouns:
+        return e
+    about = re.compile(r"\b(?:" + nouns + r")\b", re.I)
+    lines = []
+    for line in e.splitlines():
+        if line.lstrip().startswith("|"):
+            lines.append(line)
+            continue
+        parts = re.split(r"(?<=[.!?…])\s+", line)
+        kept = [p for p in parts if not (_REFUSE.search(p) and about.search(p))]
+        if kept or not line.strip():
+            lines.append(" ".join(kept))
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
 def merged(earlier: str, final: str, reasons: set[str]) -> str:
     """The final answer after a reminder for a missing deliverable: the earlier answer (« Voici le tableau : … »)
     followed by the new one (« Le brouillon est prêt. »), so the table is not lost. Never after a reminder to read
-    or search first, or about figures or language: then the earlier answer was the problem."""
+    or search first, or about figures or language: then the earlier answer was the problem. Not when the new
+    answer repeats the earlier one (same table rows, most of its words): the table would appear twice. Sentences
+    of the earlier answer that refuse the deliverable then made are dropped."""
     e, f = (earlier or "").strip(), (final or "").strip()
     substance = len(e) >= 160 or bool(re.search(r"(?m)^\s*(?:\|.*\||[-*•]\s|\d+[.)]\s)", e))
-    if not substance or not reasons or not reasons <= _ADDITIVE or e in f:
+    if not substance or not reasons or not reasons <= _ADDITIVE or e in f or _covered(e, f):
         return final
-    return e + "\n\n" + f
+    e = _drop_refusals(e, reasons)
+    return e + "\n\n" + f if e else final

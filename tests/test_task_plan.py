@@ -193,6 +193,24 @@ def test_the_answer_given_before_a_deliverable_reminder_is_kept(tmp_path):
     assert run.answer.startswith("Voici le tableau :") and run.answer.endswith("Le brouillon est prêt.")
 
 
+TABLE3 = "| Ligne | Total HT |\n|---|---|\n| Cartes | 60,00 |\n| Flyers | 100,00 |\n| Affiches | 90,00 |"
+
+
+def test_a_repeated_table_is_not_shown_twice_and_an_earlier_refusal_is_dropped():
+    e = TABLE3 + "\n\nJe ne peux pas envoyer de mail moi-même, mais voici les totaux."
+    f = TABLE3.replace("|---|---|", "| --- | --- |") + "\n\nLe brouillon de mail est prêt."
+    assert taskplan.merged(e, f, {"mail"}) == f
+    out = taskplan.merged(e, "Le brouillon de mail est prêt.", {"mail"})
+    assert out.count("| Cartes |") == 1 and "ne peux pas" not in out and out.endswith("Le brouillon de mail est prêt.")
+    long = "Le budget 2027 progresse de 4 % : les salaires montent, l'informatique baisse, les déplacements restent " \
+           "stables et le loyer est renégocié à la baisse pour la troisième année."
+    assert taskplan.merged(long, long + " Le brouillon est prêt.", {"mail"}) == long + " Le brouillon est prêt."
+    assert taskplan.merged(long, long.replace("4 %", "4,0 %") + "\n\nLe brouillon est prêt.", {"mail"}).count(
+        "Le budget 2027") == 1
+    # a different earlier answer is still kept in front
+    assert taskplan.merged(e, "Le brouillon de mail est prêt.", {"mail"}).startswith("| Ligne |")
+
+
 def test_an_answer_before_reading_the_attached_file_is_sent_back_to_read_it(tmp_path):
     (tmp_path / "pieces-jointes").mkdir()
     (tmp_path / "pieces-jointes" / "budget.csv").write_text("poste;montant\nSalaires;42000\n", encoding="utf-8")
