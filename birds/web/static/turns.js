@@ -872,7 +872,7 @@ function energyWhy(usage) {
   if (usage.energy_method === "power_time")
     return [
       "why.energy.power",
-      { gpu: b.gpu || "GPU", s: fmtSig(b.busy_seconds || 0), pue: fmtSig(b.pue || 1) },
+      { s: fmtSig(b.busy_seconds || 0), pue: fmtSig(b.pue || 1) },
     ];
   if (usage.energy_method === "tokens") {
     const range =

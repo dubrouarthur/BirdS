@@ -4,6 +4,7 @@ import { test } from "node:test";
 
 import * as F from "../../birds/web/static/footprint-data.js";
 import { FOOTPRINT_STRINGS } from "../../birds/web/static/footprint-i18n.js";
+import { STRINGS } from "../../birds/web/static/i18n.js";
 
 const NB = " ";
 const strip = (s) => s.replaceAll(NB, " ").replaceAll(" ", " ");
@@ -164,4 +165,16 @@ test("footprint strings: French and English parity, footprint.* prefix, same pla
   const all = Object.values(fr).join(" ") + Object.values(en).join(" ");
   assert.doesNotMatch(all, /\b(L4|A10G|H100|NVIDIA|Qwen|Llama)\b/i);
   assert.doesNotMatch(all, /\b(deux|trois|two|three|\d+) (cartes|GPUs?|graphics cards)\b/i);
+});
+
+test("brand rules on every UI string: no card model, no card count (the receipt and Empreinte panels included)", () => {
+  // about.built.p is the open-source licence notice (Apache 2.0 asks for the original work to be named)
+  const shown = (lang) =>
+    Object.entries({ ...STRINGS[lang], ...FOOTPRINT_STRINGS[lang] })
+      .filter(([k]) => k !== "about.built.p")
+      .map(([k, v]) => `${k}: ${v}`);
+  for (const line of [...shown("fr"), ...shown("en")]) {
+    assert.doesNotMatch(line, /\b(L4|L40S?|A10G?|A100|H100|H200|T4|NVIDIA|Qwen|Llama)\b/i, line);
+    assert.doesNotMatch(line, /\b(deux|trois|two|three|\d+) (cartes|GPUs?|graphics cards)\b/i, line);
+  }
 });
