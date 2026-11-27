@@ -28,7 +28,7 @@ import { docCard, imageCard, kindOf, middle } from "./attach.js";
 import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { renderWidgets, widgetsText } from "./widgets.js";
-import { renderAgents } from "./agents.js";
+import { renderAgents, renderChecks } from "./agents.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1256,7 +1256,8 @@ function moreMenu(items) {
 // anything else ("internal", or a code this page does not know) is shown as a plain sentence, the raw text folded away
 const FRIENDLY_ERRORS = new Set(
   (
-    "waking endpoint_down network offline dropped stopped access_code rate_limited confirm_invalid unauthorized wrong_route " +
+    "waking endpoint_down network offline dropped stopped access_code rate_limited confirm_invalid agent_state_used " +
+    "unauthorized wrong_route " +
     "unknown_model blocked disabled not_configured host_not_allowed https_only invalid_url address bad_request " +
     "demo invalid_model invalid_token port server timeout unreachable attachment_invalid attachment_too_long " +
     "attachment_type cross_origin image_invalid image_too_large image_too_small image_type invalid_mode " +
@@ -1507,7 +1508,7 @@ function restoreFocus(el, key) {
   if (!key || el.contains(document.activeElement)) return;
   const all = el.querySelectorAll(key.sel);
   // the way out of a team that just finished is gone: its folded line takes the focus, never <body>
-  const next = all[key.rank] || all[0] || (key.crew && el.querySelector("[data-crew-summary]"));
+  const next = all[key.rank] || all[0] || (key.crew ? el.querySelector("[data-crew-summary]") : null);
   next?.focus({ preventScroll: true });
 }
 
@@ -1539,6 +1540,7 @@ function fillAssistant(el, turn, isLast) {
     renderCharts(turn),
     renderWebImages(turn),
     widgetsFor(turn, entry),
+    turn.crew?.done && renderChecks(turn), // « Vérifications faites »: the team's checks, figure by figure
     basedOn(turn),
     (!turn.crew || turn.crew.done || turn.live?.state === "waking") && liveLine(turn),
     renderConfirm(turn),

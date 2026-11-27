@@ -22,13 +22,15 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from urllib.parse import unquote, urlsplit
 
+from birds.harness import crew_canvas, guard, meter
 from birds.harness import crew_checks as cc
-from birds.harness import guard, meter
+from birds.harness import crew_plan as cp
 from birds.harness.agent import _HOWTO, _NEEDS_WEB, Hooks, Run, Step, _file_edit_ask
 from birds.harness.config import Context
 from birds.harness.crew_tools import (
     ANGLES,
     COST_MODEL,
+    PLAN_SEARCH,
     PRODUCT,
     PROMPTS,
     RECORD_ACTIONS,
@@ -60,10 +62,21 @@ FIX_MIN_LEFT = 45.0
 RESERVE_S = 20.0
 COLD_S = 120.0
 STATE_CAP = 24_000
+SLICE_CAP = 160_000  # a slice's signed state (compressed in the token: about a third of this)
+SLICE_NEED_S = 110.0  # after the brief, less time than this left in the request: the writing goes to a new slice
+LONG_PAGES = 5  # a long task (plan length « Approfondie », run in slices): pages read
+LONG_TOTAL_CAP = 20000
 
 _OFFICIAL = re.compile(
     r"(?:^|\.)(?:insee\.fr|gouv\.fr|dares\.travail-emploi\.gouv\.fr|ined\.fr|europa\.eu|banque-france\.fr|"
     r"service-public\.fr|urssaf\.fr|cre\.fr|ademe\.fr|oecd\.org|ecb\.europa\.eu|bpifrance\.fr)$",
+    re.I,
+)
+
+# sources read last: forums, social networks, video and Q&A sites (a page there is rarely primary)
+_LOW = re.compile(
+    r"(?:^|\.)(?:reddit\.com|quora\.com|facebook\.com|linkedin\.com|x\.com|twitter\.com|youtube\.com|tiktok\.com|"
+    r"pinterest\.\w+|instagram\.com|medium\.com|commentcamarche\.net|forum\.\w+|doctissimo\.fr)$",
     re.I,
 )
 
@@ -486,8 +499,24 @@ class Crew:
         lang: str = "fr",
         deadline: float | None = None,
         attached: bool = False,
+        plan: cp.Plan | None = None,
+        notes: cp.NoteBox | None = None,
+        run_id: str = "",
+        slices: bool = False,
     ):
         self.agent, self.d, self.lang = agent, decision, ("en" if lang == "en" else "fr")
+        # wave 2: the typed plan the user saw (and maybe edited), the instructions added while the team works, the
+        # run id the browser sends them with, and whether this client continues a long task in slices
+        self.plan, self.notes, self.run_id, self.slices = plan, notes, run_id, slices
+        self.note_log: list[dict] = []
+        self.removed_log: list[str] = []  # passages taken out of the drafts for want of a source (the card)
+        self.final_sources: list[dict] | None = None
+        self.cite_map: dict = {}
+        self.slice_n = 0  # this request's slice number (0: the first request)
+        self.lane_state: dict = {}  # lane -> its last status, for a slice resumed in another request
+        self.carried_union = 0.0  # GPU time of the previous slices (their calls ran in other requests)
+        self._late_findings: list = []  # notes about the writing that arrived after the drafts: the fix applies them
+        self.excluded_n: set = set()
         self.llm, self.tok, self.cfg, self.hooks = agent.llm, agent.tok, agent.cfg, agent.hooks
         self.system = system or DEFAULT_SYSTEM[self.lang]
         self.thinking, self.attached = thinking, attached
@@ -537,8 +566,11 @@ class Crew:
         return base
 
     def _step(self, lane: str, status: str, phase: str, **extra) -> None:
-        self._emit({"type": "agent_step", "id": lane, "role": lane.split("_")[0], "phase": phase, "status": status,
-                    "label": self._label(lane), **extra})  # fmt: skip
+        ev = {"type": "agent_step", "id": lane, "role": lane.split("_")[0], "phase": phase, "status": status,
+              "label": self._label(lane), **extra}  # fmt: skip
+        if status != "running":
+            self.lane_state[lane] = {k: ev[k] for k in ("phase", "status", "detail", "seconds", "tokens") if k in ev}
+        self._emit(ev)
 
     def _start(self, lanes: list[tuple[str, str]]) -> None:
         """lanes: (id, group). Lanes of one group run side by side."""
@@ -558,6 +590,9 @@ class Crew:
                 "forced": self.d.forced,
                 "lanes": self.lanes,
                 "budget": {"max_calls": self.max_calls, "max_seconds": round(self.deadline - self.t0)},
+                **({"run": self.run_id} if self.run_id else {}),
+                **({"plan": self.plan.public(self.lang)} if self.plan else {}),
+                **({"slice": self.slice_n} if self.slice_n else {}),
             }
         )
 
@@ -700,6 +735,64 @@ class Crew:
     def _left(self) -> float:
         return self.deadline - time.monotonic()
 
+    # -------------------------------------------------------------- wave 2: instructions added during the run
+    # stages, in order: what a note can still change at each one
+    _STAGES = ("research", "read", "drafts", "fix", "build")
+
+    def _take_notes(self, stage: str, b: Brief | None = None) -> None:
+        """Apply the instructions queued since the last generation, as typed edits of the plan, and say so in the
+        activity feed. Called between generations only: a running generation is never changed."""
+        if self.notes is None:
+            return
+        for n in self.notes.take() if stage != "end" else self.notes.close():
+            self._apply_note(n, stage, b)
+
+    def _apply_note(self, n: cp.Note, stage: str, b: Brief | None) -> None:
+        plan = self.plan or cp.make_plan(self.d, self.instr, self.lang)
+        at = self._STAGES.index(stage) if stage in self._STAGES else len(self._STAGES)
+        writing = n.kind in ("audience", "length", "add_section", "focus")
+        # what is too late: a site to prefer once the pages are read; a change of the writing once the versions are
+        # written and no correction will run; anything once the file is being built
+        late = (
+            at >= self._STAGES.index("build")
+            or (n.kind == "prefer_site" and at > self._STAGES.index("research"))
+            or (writing and at >= self._STAGES.index("fix") and not self._fix_possible())
+        )
+        status = "late" if late else "applied"
+        if not late:
+            self.plan, _ = cp.apply_edits(plan, cp.note_edits(plan, n))
+            if n.kind == "exclude_site" and b is not None:
+                self._drop_site(b, n.value)
+            if n.kind == "add_section" and b is not None:
+                b.points.append(n.value)
+            if writing and at >= self._STAGES.index("fix"):
+                self._late_findings.append(n)
+        entry = {"id": n.id, "kind": n.kind, "value": n.value, "status": status, "stage": stage}
+        self.note_log.append(entry)
+        self._emit({"type": "agent_note", **entry})
+
+    def _fix_possible(self) -> bool:
+        return self._left() > FIX_MIN_LEFT + RESERVE_S and not self._cold() and self.calls < self.max_calls
+
+    def _drop_site(self, b: Brief, site: str) -> None:
+        """A site the user excluded after its page was read: its facts, extracts and citations leave the brief."""
+        gone = {s["n"] for s in b.sources if cp.matches(s.get("url") or "", [site])}
+        if not gone:
+            return
+        b.sources = [s for s in b.sources if s["n"] not in gone]
+        b.facts = [f for f in b.facts if f["n"] not in gone]
+        b.extracts = [e for e in b.extracts if e["n"] not in gone]
+        for k in gone:
+            b.texts.pop(k, None)
+            b.allowed_by.pop(k, None)
+        b.must = [m for m in b.must if any(f["fact"] == m for f in b.facts)]
+        b.allowed = cc.allowed_figures(self.instr, self.pasted, *(t for _, t in self.docs))
+        for f in b.facts:
+            b.allowed |= cc.allowed_figures(f["value"], f["fact"], f.get("quote", ""))
+        for e in b.extracts:
+            b.allowed |= cc.allowed_figures(e["text"])
+        self.excluded_n |= gone
+
     # -------------------------------------------------------------- entry points
     def run(self, message: str, own: str, *, docs: list[tuple[str, str]] | None = None, history=None) -> Run:
         """``message``: the whole user message the model would get; ``own``: the user's own words (pasted text
@@ -710,11 +803,23 @@ class Crew:
         self.instr, self.pasted = split_request(own)
         if not self.pasted and self.docs:
             self.pasted = "\n\n".join(f"{n}\n{t}" for n, t in self.docs)[:20000]
+        return self._guarded(None)
+
+    def _guarded(self, brief: Brief | None) -> Run:
+        """The run (``brief`` None) or its next slice (the brief a previous request made), with the hand-overs."""
         self.pool = ThreadPoolExecutor(MAX_CONCURRENT, thread_name_prefix="bird-crew")
-        brief = None
         try:
             self._start(self._plan())
-            brief = getattr(self, "_brief_" + self.d.recipe)()
+            if brief is None:
+                brief = getattr(self, "_brief_" + self.d.recipe)()
+                if self.slices:
+                    if self._slice_now():  # the writing goes to the next request: the client carries the state
+                        return self._slice(brief)
+                    self._emit({"kind": "slice", "state": self._state(brief), "auto": False})  # a checkpoint
+            else:
+                for lane, st in self.lane_state.items():  # the lanes the previous slice finished, as they ended
+                    self._emit({"type": "agent_step", "id": lane, "role": lane.split("_")[0], "label": self._label(lane),
+                                **st})  # fmt: skip
             return self._finish(brief)
         except Cancelled:
             raise
@@ -725,6 +830,92 @@ class Crew:
             return self._fallback("error", brief)
         finally:
             self.pool.shutdown(wait=False, cancel_futures=True)
+
+    # -------------------------------------------------------------- wave 2: long tasks in resumable slices
+    def _slice_now(self) -> bool:
+        """After the brief: continue in a new request when the writing would not fit in this one, or when the plan
+        asks for an in-depth deliverable (its research took this request; the writing gets a fresh one)."""
+        if self.slice_n > 0:
+            return False
+        long = self.plan is not None and self.plan.length == "long"
+        return long or self._left() < SLICE_NEED_S
+
+    def _state(self, b: Brief) -> dict:
+        """Everything the next slice needs, JSON only (signed by the web layer, carried by the browser)."""
+        brief = dataclasses.asdict(b)
+        brief["allowed"] = sorted(b.allowed)
+        brief["texts"] = {str(k): v for k, v in b.texts.items()}
+        brief["allowed_by"] = {str(k): sorted(v) for k, v in b.allowed_by.items()}
+        elapsed = time.monotonic() - self.t0 + self.carried_seconds
+        state = {"k": "crew_slice", "v": 1, "recipe": self.d.recipe, "reason": self.d.reason, "mode": self.d.mode,
+                 "forced": self.d.forced, "deliverable": self.d.deliverable,
+                 "study": bool((self.d.signals or {}).get("study")), "lang": self.lang, "run": self.run_id,
+                 "slice": self.slice_n, "plan": self.plan.public(self.lang) if self.plan else None, "brief": brief,
+                 "trace": self.trace, "calls": self.calls, "index": self.index, "bytes": self.bytes,
+                 "flagged": self.flagged, "found": self.found[:40], "lanes": self.lane_state,
+                 "usage": [{k: v for k, v in u.items() if k not in ("t0", "t1")} for u in self.usage_carried + self.usage],
+                 "steps": [_compact_step(i, s) for i, s in sorted(self.steps, key=lambda x: x[0])],
+                 "notes": self.note_log[-12:],
+                 "carry": {"seconds": round(elapsed, 2), "gpu_union": round(self._union() + self.carried_union, 3)},
+                 "message": self.message[:24000], "own": self.own[:24000], "instr": self.instr[:4000],
+                 "history": self.history, "system": self.system[:8000], "thinking": self.thinking,
+                 "attached": self.attached}  # fmt: skip
+        size = len(json.dumps(state, ensure_ascii=False, default=str))
+        if size > SLICE_CAP:
+            state["steps"] = [{**s, "arguments": {}, "result": ""} for s in state["steps"]]
+            state["brief"]["texts"] = {k: v[:2500] for k, v in brief["texts"].items()}
+        return state
+
+    def _slice(self, b: Brief) -> Run:
+        state = self._state(b)
+        self._emit({"kind": "slice", "state": state, "auto": True})
+        run = Run(lang=self.lang, stop_reason="slice", flagged=self.flagged)
+        run.state, run.usage = state, list(self.usage)
+        run.steps = [s for _, s in sorted(self.steps, key=lambda x: x[0])]
+        run.report = self._report()
+        return run
+
+    @classmethod
+    def from_slice(cls, agent, state: dict, *, deadline: float | None = None, notes=None, history=None) -> Crew:
+        """A crew rebuilt from a slice's state (verified by the web layer). ``continue_`` runs the next slice."""
+        lang = "en" if state.get("lang") == "en" else "fr"
+        recipe = state.get("recipe") if state.get("recipe") in RECIPES else "generic"
+        d = Decision(recipe, str(state.get("reason") or ""), state.get("mode") if state.get("mode") in ("auto", "on")
+                     else "on", bool(state.get("forced")), state.get("deliverable") if isinstance(state.get("deliverable"), str)
+                     else None, {"study": bool(state.get("study"))})  # fmt: skip
+        crew = cls(agent, d, system=str(state.get("system") or "") or None, thinking=bool(state.get("thinking")),
+                   lang=lang, deadline=deadline, attached=bool(state.get("attached")),
+                   plan=cp.from_public(state.get("plan")), notes=notes, run_id=str(state.get("run") or "")[:40],
+                   slices=True)  # fmt: skip
+        crew.slice_n = _int(state.get("slice"), 0) + 1
+        crew.message, crew.own = str(state.get("message") or ""), str(state.get("own") or "")
+        crew.instr, crew.pasted = split_request(crew.own)
+        crew.history, crew.kept = str(state.get("history") or ""), list(history or [])
+        crew.usage_carried = [u for u in state.get("usage") or [] if isinstance(u, dict)]
+        crew.calls = _int(state.get("calls"), len(crew.usage_carried))
+        crew.steps = [_restore_step(s) for s in state.get("steps") or [] if isinstance(s, dict)]
+        crew.index = _int(state.get("index"), max((i for i, _ in crew.steps), default=-1) + 1)
+        crew.bytes = _int(state.get("bytes"), 0)
+        crew.flagged = bool(state.get("flagged"))
+        crew.found = [u for u in state.get("found") or [] if isinstance(u, str)]
+        crew.trace = state.get("trace") if isinstance(state.get("trace"), dict) else {}
+        crew.lane_state = {k: v for k, v in (state.get("lanes") or {}).items() if isinstance(v, dict)}
+        crew.note_log = [n for n in state.get("notes") or [] if isinstance(n, dict)]
+        carry = state.get("carry") if isinstance(state.get("carry"), dict) else {}
+        crew.carried_seconds = float(carry.get("seconds") or 0.0)
+        crew.carried_union = float(carry.get("gpu_union") or 0.0)
+        raw = state.get("brief") if isinstance(state.get("brief"), dict) else {}
+        names = {f.name for f in dataclasses.fields(Brief)}
+        b = Brief(**{k: v for k, v in raw.items() if k in names and k != "tool"}, tool=str(raw.get("tool") or
+                                                                                         crew._tool_name() or "make_document"))  # fmt: skip
+        b.allowed = {float(x) for x in raw.get("allowed") or []}
+        b.texts = {int(k): str(v) for k, v in (raw.get("texts") or {}).items()}
+        b.allowed_by = {int(k): {float(x) for x in v} for k, v in (raw.get("allowed_by") or {}).items()}
+        crew._brief_state = b
+        return crew
+
+    def continue_(self) -> Run:
+        return self._guarded(self._brief_state)
 
     HISTORY_CAP = 2000
 
@@ -771,6 +962,10 @@ class Crew:
         b = Brief(tool=tool, instr=self.instr, pasted=self.pasted)
         m = re.search(r"(\d{1,2})\s*(?:slides?|diapo\w*|diapositives?|pages?)", self.instr, re.I)
         b.n_slides = max(2, min(12, int(m.group(1)))) if m else 6
+        if self.plan is not None and self.plan.n_slides and tool == "make_slides":
+            b.n_slides = self.plan.n_slides  # the count the user set in the plan card
+        if self.plan is not None:
+            b.points += [x for x in self.plan.sections if x not in b.points]
         b.emails = cc.emails(self.instr + "\n" + self.pasted)
         b.to = (cc.emails(self.instr) or [""])[0]
         if not b.to and b.emails:  # « un mail à Nathalie » and the text gives nathalie.roux@…: that address
@@ -799,6 +994,42 @@ class Crew:
         core = re.sub(r"\s+(?:depuis|since|de|from)\s+(?:l.an\s+)?(?:19|20)\d\d.*$", "", core, flags=re.I).strip()
         return topic, core or topic, since
 
+    _QUERY_OK = re.compile(r"^[\w\s'’\-À-ÿ.,&+/:]{4,90}$")
+
+    def _plan_queries(self, topic: str, core: str, fallback: list[str]) -> list[str]:
+        """Up to 3 web queries for the request's sub-questions, planned by the model in one short generation
+        (``plan_search``), each checked in code: 2 to 10 words, no URL or operator, about the request (a long word
+        of the request in it), no duplicate. Missing or invalid: the fixed queries. A site the plan prefers gets a
+        ``site:`` query of its own."""
+        fr = self.lang == "fr"
+        instr = PROMPTS[self.lang]["search_plan"].format(topic=topic, year=time.localtime().tm_year)
+        data = ("Demande : " if fr else "Request: ") + self.instr
+        g = self._gen("chercheur", "research", self._user(data, instr), [PLAN_SEARCH], 260, temperature=0.0,
+                      until=self.t0 + 25)  # fmt: skip
+        args = self._args(g, "plan_search") or {}
+        req = {cc.fold(w)[:6] for w in re.findall(r"[\wÀ-ÿ]{5,}", self.instr + " " + core)}
+        out, questions, keys = [], [], set()
+        for sq in (args.get("sub_questions") or [])[:5]:
+            if not isinstance(sq, dict):
+                continue
+            q = " ".join(str(sq.get("query") or "").replace('"', " ").split())
+            words = q.split()
+            key = " ".join(sorted(cc.fold(q).split()))
+            if (not self._QUERY_OK.match(q) or not 2 <= len(words) <= 10 or "http" in q.lower() or ":" in q
+                    or key in keys or not any(cc.fold(w)[:6] in req for w in words if len(w) >= 5)):  # fmt: skip
+                continue
+            keys.add(key)
+            out.append(q)
+            questions.append(cp.clean_line(sq.get("question"), 140) or q)
+        if g:
+            self._step("chercheur", "running", "research", tokens=g["tokens"], questions=questions[:3])
+        self.trace["planned"] = len(out[:3])
+        queries = list(dict.fromkeys([*out[:3], *fallback]))[:3]  # the fixed queries fill what the plan lacks
+        prefer = self.plan.prefer if self.plan is not None else []
+        if prefer:  # the user's preferred site gets a query of its own (the engine reads « site: »)
+            queries = [*queries[:2], f"{core} site:{prefer[0]}"]
+        return queries
+
     def _research(self, lane: str, queries: list[str], since: int | None, head: list[str], pages: int,
                   *, need_figure: bool = True):  # fmt: skip
         """Searches in parallel, reads the top pages one site each (2 to 3 distinct sources, not three pages of one
@@ -821,6 +1052,17 @@ class Crew:
             self._step(lane, "error", "brief", detail="no_results")
             raise _Fallback("no_results")
         site = lambda u: urlsplit(u).netloc.lower().removeprefix("www.")  # noqa: E731
+        plan = self.plan
+        if plan is not None and plan.exclude:  # never read a site the user excluded
+            urls = [u for u in urls if not cp.matches(u, plan.exclude)]
+            if not urls:
+                self._step(lane, "error", "brief", detail="no_results")
+                raise _Fallback("no_results")
+        # primary and official sources first, then the engine's order; forums, social networks and video sites last
+        prefer = plan.prefer if plan is not None else []
+        rank = {u: (0 if cp.matches(u, prefer) else 1 if _OFFICIAL.search(site(u)) else 3 if _LOW.search(site(u))
+                    else 2, i) for i, u in enumerate(urls)}  # fmt: skip
+        urls = sorted(urls, key=rank.__getitem__)
         firsts, sites = [], set()
         for u in urls:
             if site(u) not in sites:
@@ -840,7 +1082,10 @@ class Crew:
                 title = (re.search(r"^Title: ([^\n]+)", text, re.M) or [None, ""])[1].strip()
                 body = text.split("\n\n", 1)[-1]
                 win = cc.evidence(body, head, since, PAGE_CAP, need_figure=need_figure)
-                if win and total + len(win) <= TOTAL_CAP:
+                if win and any(cc.near_duplicate(win, w["text"]) for w in windows):
+                    self.trace["dupes"] = self.trace.get("dupes", 0) + 1  # the same text on another site: one source
+                    continue
+                if win and total + len(win) <= (LONG_TOTAL_CAP if pages > MAX_PAGES else TOTAL_CAP):
                     windows.append(
                         {"url": url, "title": title or urlsplit(url).netloc, "text": win, "flagged": bool(step.flags)}
                     )
@@ -874,16 +1119,24 @@ class Crew:
                 queries.append(f"{core} INSEE")
         head = [w for w in re.findall(r"[\wÀ-ÿ]{5,}|\b[A-Z]{2,4}\b", core) if cc.fold(w) not in ("france", "monde")]
         head = head or [core]
-        windows = self._research("chercheur", list(dict.fromkeys(queries))[:3], since, head, MAX_PAGES,
+        # sub-questions planned by the model (typed, checked in code); the fixed queries above are the safety net
+        queries = self._plan_queries(topic, core, queries)
+        self._take_notes("research", b)
+        long = self.slices and self.plan is not None and self.plan.length == "long"
+        windows = self._research("chercheur", queries, since, head, LONG_PAGES if long else MAX_PAGES,
                                  need_figure=not doc)  # fmt: skip
+        self._take_notes("read", b)
+        if self.plan is not None and self.plan.exclude:  # a site excluded while the pages were being read
+            windows = [w for w in windows if not cp.matches(w["url"] or "", self.plan.exclude)]
         if not windows:
             raise _Fallback("no_facts")
         cold = self._cold()
         # official statistics first, then the richest extracts; page 1 has its own reader, pages 2 and 3 share one
-        windows = sorted(
-            windows, key=lambda w: (not _OFFICIAL.search(urlsplit(w["url"] or "").netloc), -len(w["text"]))
-        )
-        windows = windows[: 1 if cold else MAX_PAGES]
+        prefer = self.plan.prefer if self.plan is not None else []
+        windows = sorted(windows, key=lambda w: (not cp.matches(w["url"] or "", prefer),
+                                                 not _OFFICIAL.search(urlsplit(w["url"] or "").netloc),
+                                                 -len(w["text"])))  # fmt: skip
+        windows = windows[: 1 if cold else (LONG_PAGES if long else MAX_PAGES)]
         if any(w["flagged"] for w in windows):  # a flagged page whose text reaches a model taints the run
             self.flagged = True
         groups = [windows[:1], windows[1:]] if len(windows) > 1 else [windows]
@@ -1156,6 +1409,10 @@ class Crew:
             out.append(("Contexte de la conversation (tour précédent) :\n" if fr else "Conversation so far (last turn):\n")
                        + self.history)  # fmt: skip
         out.append(("Demande : " if fr else "Request: ") + b.instr)
+        wants = cp.constraint_lines(self.plan, self.lang)
+        if wants:  # the plan's typed choices, rendered from templates (never the user's raw text as an instruction)
+            out.append(("Choix de l'utilisateur (à respecter) :\n" if fr else "The user's choices (to follow):\n")
+                       + "\n".join(f"- {w}" for w in wants))  # fmt: skip
         c = b.constraints
         if c:
             bits = []
@@ -1434,14 +1691,29 @@ class Crew:
         args, removed = copy.deepcopy(args), 0
         fr = self.lang == "fr"
         self.trace["recited"] = self.trace.get("recited", 0) + self._recite(b, args)
+        if self.excluded_n:  # a site excluded after the drafts: the sentences that cite only it go
+            args = self._without_sources(args, self.excluded_n)
+        if b.texts:  # a figure written without its [n] gets the number of the page that holds it (code, not model)
+            args, k = cc.autocite(args, b.allowed_by, b.instr + "\n" + b.pasted)
+            self.trace["autocited"] = self.trace.get("autocited", 0) + k
         if not b.sources:  # no source was read: a « [3] » would point at nothing (seen live in a mail)
             args = json.loads(re.sub(r" ?\[\d{1,2}\]", "", json.dumps(args, ensure_ascii=False)))
-        src = [f"[{s['n']}] {s['title']} — {s['url']}" for s in b.sources]
+        # citations made consistent: numbered in the order they first appear, the file lists the cited ones
+        args, srcs, self.cite_map = cc.renumber(args, b.sources)
+        if any(k != v for k, v in self.cite_map.items()):
+            alts = [cc.apply_map(a, self.cite_map) for a in alts or []]
+            self._remap(b, self.cite_map)
+        if b.tool in ("make_slides", "make_document"):
+            removed += self._clean_titles(b, args)
+        cited = {int(x) for x in re.findall(r"\[(\d{1,2})\]", "\n".join(cc.deliverable_parts(args)))}
+        self.final_sources = srcs
+        src = [f"[{s['n']}] {s['title']} — {s['url']}" for s in srcs if not cited or s["n"] in cited]
         if b.tool == "make_slides":
             slides = []
             for s in args.get("slides") or []:
                 keep = [x for x in s.get("bullets") or [] if not cc.unsupported(str(x), b.allowed)]
                 removed += len(s.get("bullets") or []) - len(keep)
+                self.removed_log += [str(x) for x in s.get("bullets") or [] if x not in keep]
                 if keep:
                     slides.append({**s, "bullets": keep})
             slides = _fit_slides(slides, b.n_slides, args.get("title"))
@@ -1459,6 +1731,7 @@ class Crew:
                 parts = re.split(r"(?<=[.!?])\s+|\n", content)
                 keep = [p for p in parts if not self._bad(b, p)]
                 removed += sum(1 for p in parts if p.strip()) - sum(1 for p in keep if p.strip())
+                self.removed_log += [p for p in parts if p.strip() and p not in keep]
                 text = "\n".join(p for p in keep if p.strip()) if removed else content
                 if not text.strip():
                     text = self._clean_alt(b, s.get("heading"), alts)
@@ -1499,12 +1772,72 @@ class Crew:
                     parts = re.split(r"(?<=[.!?])\s+", ln)
                     keep = [p for p in parts if not cc.cost_claims(p, b.costs, b.blocks)]
                     removed += len(parts) - len(keep)
+                    self.removed_log += [p for p in parts if p not in keep]
                     if keep or not ln.strip():
                         lines.append(" ".join(keep))
                 args["body"] = "\n".join(lines)
             if src:
                 args["body"] = str(args.get("body") or "").rstrip() + "\n\nSources :\n" + "\n".join(src)
         return args, removed
+
+    def _clean_titles(self, b: Brief, args: dict) -> int:
+        """Titles and headings checked like the text (in place): an unsourced figure in « 37 % en télétravail » is
+        taken out of the title (« Télétravail »), so a figure removed from a bullet never stays on the slide above
+        it. Returns the titles changed; each one is listed on the card as removed."""
+        fr, n = self.lang == "fr", 0
+
+        def clean(title, fallback: str) -> str:
+            nonlocal n
+            title = str(title or "")
+            bad = self._bad(b, title)
+            if not bad:
+                return title
+            n += 1
+            self.removed_log.append(title)
+            return cc.drop_figures(title, bad) or fallback
+
+        if args.get("title"):
+            topic = cc.drop_figures(b.topic, self._bad(b, b.topic))
+            args["title"] = clean(args["title"], topic or ("Présentation" if b.tool == "make_slides" else "Document"))
+        for s in args.get("slides") or []:
+            if s.get("title"):
+                s["title"] = clean(s["title"], "Points clés" if fr else "Key points")
+        for s in args.get("sections") or []:
+            if s.get("heading"):
+                s["heading"] = clean(s["heading"], "Détails" if fr else "Details")
+        return n
+
+    @staticmethod
+    def _remap(b: Brief, m: dict) -> None:
+        """The brief's source numbers after ``cc.renumber`` (the final checks read the renumbered deliverable)."""
+        b.sources = sorted(({**x, "n": m.get(x["n"], x["n"])} for x in b.sources), key=lambda x: x["n"])
+        b.facts = [{**f, "n": m.get(f["n"], f["n"])} for f in b.facts]
+        b.extracts = [{**e, "n": m.get(e["n"], e["n"])} for e in b.extracts]
+        b.texts = {m.get(k, k): v for k, v in b.texts.items()}
+        b.allowed_by = {m.get(k, k): v for k, v in b.allowed_by.items()}
+
+    @staticmethod
+    def _without_sources(args: dict, gone: set) -> dict:
+        """Sentences that cite only excluded sources removed (a sentence citing another source too keeps it)."""
+        def keep(sent: str) -> bool:
+            ns = {int(x) for x in re.findall(r"\[(\d{1,2})\]", sent)}
+            return not ns or not ns <= gone
+
+        def strip(text: str) -> str:
+            text = re.sub(r" ?\[(\d{1,2})\]", lambda m: "" if int(m.group(1)) in gone else m.group(0), text)
+            return text
+
+        out = copy.deepcopy(args)
+        for sl in out.get("slides") or []:
+            sl["bullets"] = [strip(str(x)) for x in sl.get("bullets") or [] if keep(str(x))]
+        for sec in out.get("sections") or []:
+            lines = []
+            for ln in str(sec.get("content") or "").split("\n"):
+                lines.append(" ".join(strip(p) for p in re.split(r"(?<=[.!?])\s+", ln) if keep(p)))
+            sec["content"] = "\n".join(lines)
+        if out.get("body"):
+            out["body"] = strip(str(out["body"]))
+        return out
 
     @staticmethod
     def _recite(b: Brief, args: dict) -> int:
@@ -1649,6 +1982,7 @@ class Crew:
                 self.hooks.on_token(piece)
 
     def _finish(self, b: Brief) -> Run:
+        self._take_notes("drafts", b)
         shared = self._shared(b)
         drafts = [d for d in self._drafts(b, shared) if d.args]
         if not drafts:
@@ -1662,7 +1996,8 @@ class Crew:
             self._step(d.lane, "scored", "check", score=self._public(d.score), chosen=d is best)
         self._step("verificateur", "done", "check", detail=self._check_line(best.lane, best.score, True),
                    chosen=best.lane, score=self._public(best.score))  # fmt: skip
-        findings = self._findings(b, best.score)
+        self._take_notes("fix", b)
+        findings = self._findings(b, best.score) + [f for f in map(self._note_finding, self._late_findings) if f]
         fixed = False
         if (
             findings
@@ -1717,7 +2052,38 @@ class Crew:
                            + ", ".join(best.score["bad"][:6]))  # fmt: skip
         actx = self._answer_ctx(b, args)
         actx["team"] = self._team_lines(b)
+        self._emit_checks(b, args, final)
+        self._take_notes("end", b)  # what arrives now is too late for this deliverable: said in the feed
         return self._build(b.tool, args, actx, caveats, b.sources, chosen=kept_lane, fixed=fixed)
+
+    def _note_finding(self, n: cp.Note) -> str:
+        """A note about the writing that arrived after the drafts, as an instruction of the correction (a template
+        around the typed value)."""
+        fr = self.lang == "fr"
+        if n.kind == "add_section":
+            return (f"ajoute une section « {n.value} » à partir des faits ci-dessus" if fr
+                    else f"add a section “{n.value}” from the facts above")  # fmt: skip
+        if n.kind == "focus":
+            return f"mets l'accent sur « {n.value} »" if fr else f"put the emphasis on “{n.value}”"
+        line = cp.RENDER[self.lang][n.kind][n.value]
+        return (("adapte le texte : " if fr else "adapt the text: ") + line) if line else ""
+
+    def _emit_checks(self, b: Brief, args: dict, final: dict) -> None:
+        """The « Vérifications faites » card: every figure of the deliverable with its source line and status, from
+        the checks already run (code only)."""
+        computed = []
+        for r in (b.costs or {}).get("rows") or []:
+            computed += [r.get(k) for k in ("monthly", "annual", "year1", "term") if isinstance(r.get(k), int | float)]
+        led = cc.ledger(args, texts=b.texts, allowed_by=b.allowed_by, request=b.instr + "\n" + b.pasted,
+                        computed=computed, removed=self.removed_log, weak=final.get("weak") or [],
+                        sources=b.sources)  # fmt: skip
+        actions = [{"owner": a.get("owner", ""), "action": str(a.get("action", ""))[:140], "due": a.get("due", ""),
+                    "line": a.get("line")} for a in b.actions][:20]  # fmt: skip
+        self._emit({"type": "agent_checks", **led, "read_dropped": b.dropped, "actions": actions,
+                    "costs": len((b.costs or {}).get("rows") or []),
+                    "sources": [{"n": x["n"], "title": str(x.get("title") or "")[:120],
+                                 "site": urlsplit(str(x.get("url") or "")).netloc.removeprefix("www.")}
+                                for x in b.sources]})  # fmt: skip
 
     def _merge(self, b: Brief, best: Draft, drafts: list[Draft]) -> tuple[Draft, dict | None]:
         """When both versions are clean, the kept one completed with the best parts of the other instead of picking
@@ -1823,6 +2189,8 @@ class Crew:
             bits = ["chiffres contrôlés contre le texte et les sources" if fr else "figures checked against the text and sources"]
             if t.get("recited"):
                 bits.append(f"{t['recited']} citation(s) corrigée(s)" if fr else f"{t['recited']} citation(s) fixed")
+            if t.get("autocited"):
+                bits.append(f"{t['autocited']} citation(s) ajoutée(s)" if fr else f"{t['autocited']} citation(s) added")
             if t.get("fixed"):
                 bits.append("1 correction ciblée" if fr else "1 targeted fix")
             if t.get("removed"):
@@ -1833,9 +2201,21 @@ class Crew:
 
     def _build(self, tool, args, actx, caveats, sources, *, chosen=None, fixed=False, forced=None, carry=None) -> Run:
         self._step("assembleur", "running", "build")
+        if self.final_sources is not None:
+            sources = self.final_sources  # renumbered in the order the deliverable cites them
+        canvas = None
+        if forced is None and crew_canvas.available(tool):
+            try:  # the checked deliverable, section by section into the canvas model (the file is built too)
+                canvas = crew_canvas.Sink(self._emit, tool, self.lang).write(args, str(args.get("title") or ""))
+            except Exception as e:  # noqa: BLE001 - the canvas never costs the deliverable
+                self.agent.audit.log("crew_canvas_error", error=f"{type(e).__name__}: {str(e)[:120]}")
         index, step, result, ctx = self._tool("assembleur", tool, args, forced=forced)
         run = Run(lang=self.lang, flagged=self.flagged)
-        run.usage = list(self.usage)
+        if canvas:
+            run.canvas = canvas  # birds.web.canvas_web.ref reads it: the answer links to the canvas document
+        run.usage = (self.usage_carried if self.slice_n > 0 else []) + list(self.usage)
+        if self.slice_n > 0 and carry is None:  # the previous slices' calls ran in other requests
+            carry = {"gpu_union": self.carried_union, "seconds": self.carried_seconds}
         run.sources = [s["url"] for s in sources]
         run.source_titles = {s["url"]: str(s.get("title") or "") for s in sources if s.get("title")}
         run.images = list(self.images)
@@ -1848,7 +2228,8 @@ class Crew:
                      "index": index, "bytes": self.bytes, "chosen": chosen,
                      "agents": self.carried_agents if self.carried_agents is not None else self._agents(),
                      "steps": [_compact_step(i, s) for i, s in sorted(self.steps, key=lambda x: x[0])],
-                     "carry": {"seconds": round(time.monotonic() - self.t0, 2), "gpu_union": self._union()}}  # fmt: skip
+                     "carry": {"seconds": round(time.monotonic() - self.t0 + self.carried_seconds, 2),
+                               "gpu_union": self._union() + self.carried_union}}  # fmt: skip
             if len(json.dumps(state, ensure_ascii=False, default=str)) > STATE_CAP:
                 state["steps"] = [{**s, "arguments": {}, "result": ""} for s in state["steps"]]
             if len(json.dumps(state, ensure_ascii=False, default=str)) <= STATE_CAP:
@@ -1858,7 +2239,7 @@ class Crew:
                 self._step("assembleur", "queued", "build", detail="confirmation")
                 run.stop_reason, run.pending, run.state = "confirm", {"tool": tool, "arguments": args}, state
                 run.steps = [s for _, s in sorted(self.steps, key=lambda x: x[0])]
-                run.report = self._report(carry)
+                run.report = self._report(carry, extra_usage=self.usage_carried if self.slice_n > 0 else None)
                 return run
             index, step, result, ctx = self._tool("assembleur", tool, args, forced="denied_unconfirmed")
         ok = not step.error and not step.decision.startswith("denied")
@@ -1869,13 +2250,20 @@ class Crew:
         else:
             self._step("assembleur", "done" if ok else "error", "build", seconds=step.seconds,
                        detail=(ctx.files[0].rsplit("/", 1)[-1] if ctx.files else (step.error or "")[:80]))  # fmt: skip
+        if ok:
+            name = ctx.files[0].rsplit("/", 1)[-1] if ctx.files else ""
+            parts = args.get("slides") or args.get("sections") or []
+            self._emit({"type": "agent_deliverable", "tool": tool, "title": str(args.get("title") or args.get("subject")
+                        or "")[:200], "file": name, "parts": len(parts), "canvas": (canvas or {}).get("aid")})  # fmt: skip
         run.answer = self._answer(actx, step, caveats)
         self._stream(run.answer)
         run.stop_reason = "answer"
         run.steps = [s for _, s in sorted(self.steps, key=lambda x: x[0])]
         run.files, run.drafts = list(ctx.files), list(ctx.drafts)
         run.messages = [{"role": "assistant", "content": run.answer}]
-        run.report = self._report(carry)
+        run.report = self._report(carry, extra_usage=self.usage_carried if self.slice_n > 0 else None)
+        if self.slice_n > 0:
+            run.report["carried_seconds"] = self.carried_seconds
         done = self._done_event(ok, chosen, run.report, caveats, fixed=fixed)
         if refused:
             done["denied"] = True

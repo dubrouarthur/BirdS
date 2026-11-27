@@ -320,3 +320,120 @@ section 9 de la spécification (12 tâches, 60 requêtes) qui doit confirmer ou 
 coûts d'une offre plafonnée (« 16 € par poste au-delà de 90 ») restent mal décrits par l'analyste (15 672 € au lieu
 de 15 480 €), sans changer le verdict ; les touches de cache de préfixe ne sont pas vérifiables (l'endpoint ne
 renvoie pas `cached_tokens`).
+### 11 bis. Mode Agent, vague 2 : plan modifiable, consignes, vérifications, tâches longues, livrables
+
+Modules : `birds/harness/crew_plan.py` (plan typé, consignes typées, file des consignes), `crew_canvas.py` (adaptateur
+Canevas), `crew_checks.ledger` / `renumber` / `autocite` / `near_duplicate`, `birds/web/crew_web.py` (déroulé web),
+`static/agents.js` (carte de plan, activité, carte « Vérifications faites », « Livrables »).
+
+**Plan avant lancement.** L'application envoie `agent_flow: "plan"` : quand `crew.decide()` choisit une équipe, le
+serveur ne génère rien et renvoie `agent_plan {plan, token, auto_start, mode, reason}` (jeton signé, lié à la
+conversation). Le plan est construit en code : étapes de la recette, livrable, public (Grand public / Décideurs /
+Experts), longueur (Courte / Standard / Approfondie), nombre de diapositives (3 à 12), sections à couvrir (8 au plus,
+80 caractères), sites à privilégier ou exclure (noms de domaine validés), accent (100 caractères). « Modifier » ne
+change que ces champs ; le serveur revalide chaque valeur (`crew_plan.apply_edits`) et les rend dans le brief commun
+par des gabarits (« Public : décideurs (l'essentiel d'abord…) »), jamais le texte brut comme instruction. Les
+sections deviennent des points vérifiés comme les autres. En Auto, tout plan part après 5 s (compte à rebours
+visible, « Modifier » l'arrête) : Auto ne bloque jamais, comme avant la carte de plan ; la confiance (haute à partir
+de 3 signaux de charge) est notée sur le plan, pas dans le délai. Activé attend « Lancer » ; « Répondre sans
+l'équipe » renvoie la demande en mode simple. Un client API sans `agent_flow` lance l'équipe aussitôt, comme avant.
+
+**Consignes en cours de route.** « Ajouter une consigne » : `POST /api/agent/note {run, kind, value}` avec un type
+parmi exclure un site, privilégier un site, public, longueur, ajouter une section, mettre l'accent sur. La consigne
+part dans la file de la voie (`crew_plan.REGISTRY`, en mémoire du processus, 15 min au plus) et l'équipe la prend
+entre deux générations (avant la recherche, avant la lecture, avant les versions, avant la correction) : un site
+exclu n'est plus lu, et une page déjà lue sort du brief (faits, extraits, citations) ; une consigne d'écriture
+arrivée après les versions passe par la correction si elle peut encore tourner ; sinon, et toujours au moment du
+fichier, elle est dite « trop tard pour ce livrable ». Chaque consigne est acquittée (`agent_note {id, status:
+applied|late, stage}`). Sur Vercel, une autre instance peut recevoir la consigne : `delivered: false`, le navigateur
+la joint à la tranche suivante (`agent_notes`). « Arrêter » reste visible ; l'arrêt efface le point de reprise.
+
+**Activité en direct.** Repliée, une ligne au présent (« Lit 3 pages · 0:42 », « Rédige 2 versions en
+parallèle »), tirée des voies et des étapes d'outils, jamais du modèle ; dépliée, le plan avec l'étape en cours, les
+sous-questions de la recherche, les sites lus en puces qui arrivent, les voies, les consignes. À la fin, une ligne
+au passé (« Équipe : 5 agents · 3 pages lues · 14 chiffres vérifiés · 2 versions · 48 s ») et « Ce que l'équipe a
+fait » replié.
+
+**« Vérifications faites ».** `agent_checks` : chaque chiffre du livrable, titres et intertitres compris, avec son
+origine (la page qu'il cite et la ligne de cette page, votre texte, un calcul du harnais), les passages retirés faute
+de source, les chiffres à relire, les actions d'un compte rendu vérifiées ligne par ligne. « Vérifié » demande le
+chiffre écrit tel quel sur la page (`on_page`) : un chiffre seulement déduit de deux autres (37 depuis 40 et 3) est
+« à vérifier » (`why: derived`), sauf s'il vient d'un calcul du harnais ; une phrase qui cite [n] est jugée sur la
+page n seule (`why: cited` si n ne contient pas le chiffre, jamais une autre page à sa place) ; `why: claim` quand la
+page contient le chiffre mais pas l'essentiel de la phrase. Un chiffre non sourcé dans un titre en est retiré
+(`drop_figures`), comme d'une puce. Calculé par `crew_checks.ledger` à partir des contrôles déjà faits, sans modèle.
+
+**Qualité de l'équipe.** La recherche est planifiée par le modèle : une génération courte (`plan_search`, 260
+jetons) découpe la demande en 3 sous-questions avec chacune sa requête ; le code garde une requête de 2 à 10 mots,
+sans URL ni opérateur, qui reprend un mot de la demande, sans doublon, et complète avec les requêtes fixes. Pages
+lues : sites privilégiés, puis sources officielles, puis l'ordre du moteur ; forums, réseaux sociaux et vidéo en
+dernier ; un texte quasi identique sur un autre site (Jaccard des 6-grammes ≥ 0,7) compte une fois. Citations
+cohérentes : numérotées dans l'ordre où le livrable les cite (le fichier ne liste que les sources citées), et un
+chiffre écrit sans [n] reçoit le numéro de la page où il est écrit tel quel (`autocite` ; jamais pour un chiffre
+seulement déductible de la page ; vos propres chiffres et les tableaux restent tels quels).
+
+**Tâches longues en tranches.** Après le brief, si l'écriture ne tient plus dans la requête (moins de 110 s) ou si le
+plan est « Approfondie » (5 pages lues au lieu de 3, 20 Ko d'extraits), le serveur s'arrête et envoie
+`agent_slice {token, auto: true}` : état signé (brief, traces, usage, voies, consignes), porté par le navigateur,
+qui relance aussitôt avec `agent_slice`. Rien n'est relu ni régénéré ; le budget de générations est cumulé, temps et
+énergie aussi. Un point de reprise part après le brief : `auto: false` quand l'écriture suit dans la même requête,
+l'état de la tranche suivante lui-même pour une tâche longue. Il est gardé avec la conversation (avec son `exp`), et
+après un rechargement ou une coupure « Reprendre la tâche » repart de la rédaction (jeton valable 15 min) ; il est
+effacé à la fin réussie de la tâche, à l'arrêt ou à expiration. Un jeton de plan ou de tranche ne tourne qu'une fois
+à la fois et plus après une fin normale (409 `agent_state_used`, en mémoire du processus : au mieux sur plusieurs
+instances) ; une requête coupée le libère pour « Reprendre ». Fin de tâche onglet caché : « ✓ » dans le titre, et une notification si l'utilisateur l'a autorisée (« M'avertir
+à la fin »).
+
+**Agents qui construisent.** Pour une présentation ou un document, si le Canevas (`birds.canvas`) est installé et
+`BIRD_CREW_CANVAS` ≠ 0, le livrable vérifié est écrit dans son modèle de document section par section
+(`{"type": "canvas", "phase": "stream"|"final"}`, fonctions publiques `convert.from_tool`, `turn.finish_doc`,
+`turn.new_aid`), et le fichier est créé comme avant. Sans Canevas (branche non fusionnée ici), le chemin du fichier
+reste seul. `agent_deliverable` décrit le livrable ; « Livrables » (barre du haut) liste tous les fichiers de la
+conversation, du plus récent au plus ancien, avec « Voir dans la conversation » et le téléchargement.
+
+**Mesure live (27/11/2026, Bird S 4B, SearXNG, `scripts/agent_study_eval.py --set=all`, Mode Agent forcé, même
+client, avant = commit `d2899c1`, après = cette branche ; 1 passage par demande, une confirmation acceptée comme le
+ferait l'utilisateur).** Livrable produit, sections (hors Sources), citations valides ([n] présents et tous dans la
+liste des sources), phrases chiffrées citées ou tirées du texte collé, temps total :
+
+| Demande                        | Avant                                   | Après                            |
+| ------------------------------ | --------------------------------------- | -------------------------------- |
+| Étude comparative CRM          | oui · 4 sections · valides · 1/2 · 33 s | oui · 5 · valides · 1/1 · 38 s   |
+| Veille IA générative           | oui · 4 · **non** · 3/3 · 35 s          | oui · 5 · valides · 5/5 · 50 s   |
+| Rapport transition énergétique | oui · 5 · valides · 4/4 · 33 s          | oui · 5 · valides · 6/6 · 30 s ¹ |
+| Benchmark visioconférence      | oui · 5 · valides · 0/0 · 38 s          | oui · 7 · valides · 0/0 · 44 s ¹ |
+| Diapos télétravail             | oui · 6 · valides · 4/4 · 24 s          | oui · 6 · valides · 4/4 · 28 s   |
+| Diapos véhicules électriques   | oui · 6 · valides · 2/2 · 28 s          | oui · 6 · valides · 3/3 · 33 s   |
+| 3 offres + mail                | oui · 1 · valides · 2/3 · 12 s          | oui · 1 · valides · 3/4 · 12 s   |
+| Compte rendu + actions         | oui · 9 · valides · 4/4 · 15 s          | oui · 6 · valides · 3/3 · 24 s   |
+
+¹ Passage du code d'avant `autocite` (même recherche) : au second passage complet, SearXNG renvoyait 0 résultat
+(« google cse : Suspended: too many requests », duckduckgo en timeout) pour ces 4 demandes, ce qui ne mesure pas
+l'équipe.
+
+Ce qui change : la veille IA générative avait des citations invalides et passe à valides ; les requêtes ne sont plus
+la phrase de l'utilisateur plus « tendances » (« l'IA générative en entreprise en 2026 : tendances, chiffres, risques
+tendances ») mais des sous-questions (« marché IA générative entreprise 2026 chiffres », « tendances IA générative
+entreprise 2026 ») ; diapos véhicules électriques : 2 sources officielles au lieu d'1 ; la carte de vérification
+compte 2 à 15 chiffres vérifiés par livrable, 0 retiré, 0 à vérifier. Coût : + 1 génération (le plan de recherche),
+
+- 3 à 15 s sur les demandes recherchées. Le compte rendu est passé de 9 à 6 sections et de 15 à 24 s sur un passage
+  unique : à confirmer sur plusieurs passages (la recette ne change pas, seule la variance du modèle joue). Le plan de
+  recherche n'a pas toujours été valide (CRM, visioconférence : requêtes fixes gardées).
+
+Essais du déroulé complet (même jour) : carte de plan puis « Lancer » avec une consigne « Ajouter une section : Ce qui
+change pour les managers » envoyée 1 s après le départ : appliquée avant la lecture, le livrable a la section (le 4B
+l'a déclinée sur 3 diapositives). Rapport « Approfondie » + « Décideurs » : 2 requêtes (tranche de recherche, puis
+écriture), 110 s, 6 sections dont « Synthèse pour les décideurs » ; aucun [n] écrit par le modèle, d'où `autocite`
+(test dédié ; pas de nouveau passage live après ce correctif, faute de recherche disponible).
+Banc des déclenchements : 875/875 (inchangé, `crew.decide()` n'a pas bougé).
+
+**Événements SSE (vague 2)** : `agent_plan`, `agent_note`, `agent_checks {verified_n, removed_n, review_n, items[{value,
+sentence, status, origin, n, line, site}], actions, sources}`, `agent_slice {token, auto, slice, run}`,
+`agent_deliverable {tool, title, file, parts, canvas}`, `canvas` (si Canevas) ; `agent_start` gagne `run`, `plan`,
+`slice` ; `agent_step` du chercheur gagne `questions`.
+
+**Tests.** `tests/test_crew_w2.py` (plan typé et retouches, consignes appliquées / trop tard, site exclu en cours de
+route, plan de recherche validé, sources officielles et doublons, carte de vérification, tranches et reprise, Canevas
+simulé et absent, déroulé web complet, jetons falsifiés refusés), `tests/js/agents.test.mjs`, et
+`scripts/agent_ui_smoke.js wave2 autoStart` (démo, 360 et 1280 px, clair et sombre).

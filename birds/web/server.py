@@ -1,7 +1,9 @@
 """FastAPI app for the Bird web chat: static frontend + a small stateless API (see docs/WEB.md).
 
-Nothing is kept in memory between requests except a best-effort rate-limit window: the app runs unchanged on a
-long-lived local server (scripts/serve.py) and on serverless functions (app.py, Vercel).
+Nothing is kept in memory between requests except a best-effort rate-limit window and the note queues of the Mode
+Agent runs at work in this process (birds.harness.crew_plan.REGISTRY; a note that misses its run is carried by the
+browser into the next slice): the app runs unchanged on a long-lived local server (scripts/serve.py) and on
+serverless functions (app.py, Vercel).
 """
 
 from __future__ import annotations
@@ -15,13 +17,14 @@ import threading
 import time
 from collections import deque
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from . import endpoint as ep
 from . import tokens
@@ -73,10 +76,52 @@ class Attachment(BaseModel):
 BINARY_ATTACHMENTS = (".pdf", ".docx", ".xlsx", ".pptx")
 
 
+_Short = Annotated[str, Field(max_length=300)]
+
+
+class PlanEditsIn(BaseModel):
+    """The plan card's typed fields only (crew_plan.apply_edits re-validates each value: enums, 3–12 slides,
+    headings and domains cleaned). Unknown keys are dropped; a value of the wrong type is a 422, never a 500."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    audience: Literal["general", "decision", "experts"] | None = None
+    length: Literal["short", "standard", "long"] | None = None
+    n_slides: int | None = Field(default=None, ge=1, le=50)
+    sections: list[_Short] | None = Field(default=None, max_length=16)
+    prefer: list[_Short] | None = Field(default=None, max_length=12)
+    exclude: list[_Short] | None = Field(default=None, max_length=12)
+    focus: str | None = Field(default=None, max_length=400)
+
+
+class AgentPlanIn(BaseModel):
+    """« Lancer » on the plan card: the signed plan and the user's edits of its typed fields (crew_plan.apply_edits)."""
+
+    token: str = Field(min_length=16, max_length=60_000)
+    edits: PlanEditsIn = Field(default_factory=PlanEditsIn)
+
+
+class AgentNoteIn(BaseModel):
+    """A typed instruction added while the team works (crew_plan.parse_note validates the value for its kind)."""
+
+    kind: Literal["exclude_site", "prefer_site", "audience", "length", "add_section", "focus"]
+    value: str = Field(min_length=1, max_length=200)
+    id: str = Field(default="", max_length=24)
+
+
+class AgentNoteBody(AgentNoteIn):
+    run: str = Field(min_length=8, max_length=40, pattern=r"^[A-Za-z0-9_-]+$")
+
+
 class ChatBody(BaseModel):
     messages: list[Message] = Field(min_length=1)
     thinking: bool = False
     agent: Literal["auto", "on", "off"] = "auto"  # Mode Agent (birds.harness.crew): Auto, Activé, Désactivé
+    # Mode Agent, wave 2: "plan" asks for the plan card first (the app); omitted, a decided team starts at once (API)
+    agent_flow: Literal["plan"] | None = None
+    agent_plan: AgentPlanIn | None = None  # « Lancer »: the signed plan, edited
+    agent_slice: str | None = Field(default=None, max_length=600_000)  # the next slice of a long task (signed state)
+    agent_notes: list[AgentNoteIn] = Field(default_factory=list, max_length=12)  # notes not delivered live
     lang: Literal["fr", "en"] = "fr"
     attachments: list[Attachment] = Field(default_factory=list)
     images: list[ImageIn] = Field(default_factory=list, max_length=3)  # for the last user message only
@@ -589,6 +634,19 @@ def create_app(
             if not hmac.compare_digest(given.encode("utf-8"), s.access_code.encode("utf-8")):
                 raise ApiError(401, "access_code", "a valid access code is required")
 
+    @app.post("/api/agent/note")
+    def agent_note(body: AgentNoteBody, request: Request) -> dict:
+        """« Ajouter une consigne »: a typed instruction for a team at work in this process. Not here (another
+        instance, or between two slices): ``delivered`` is false and the browser sends it with the next slice."""
+        guard_request(request)
+        from birds.harness import crew_plan
+
+        note = crew_plan.parse_note(body.kind, body.value, body.id)
+        if note is None:
+            raise ApiError(422, "note_invalid", "this instruction is not valid for its kind")
+        return {"ok": True, "delivered": crew_plan.REGISTRY.deliver(body.run, note), "id": note.id,
+                "kind": note.kind, "value": note.value}  # fmt: skip
+
     @app.post("/api/export")
     def export(body: ExportBody, request: Request):
         """Any answer as a .docx (or .md): headings, lists and tables of its Markdown are kept. No model call."""
@@ -772,6 +830,39 @@ def create_app(
             if resume.get("conv") != conv or resume.get("bind") != binding:
                 raise ApiError(400, "confirm_invalid", "this confirmation belongs to another conversation or model")
             decision = bool(body.approved)
+        agent_plan = agent_slice = None
+        try:  # the plan card's « Lancer » and the next slice of a long task carry state signed by this server
+            if body.agent_plan is not None:
+                agent_plan = {"payload": tokens.verify(body.agent_plan.token, s.signing_secret),
+                              "edits": body.agent_plan.edits.model_dump(exclude_none=True)}  # fmt: skip
+                if agent_plan["payload"].get("k") != "crew_plan":
+                    raise tokens.TokenError("not a plan")
+            if body.agent_slice:
+                agent_slice = tokens.verify(body.agent_slice, s.signing_secret)
+                if agent_slice.get("k") != "crew_slice":
+                    raise tokens.TokenError("not a slice")
+        except tokens.TokenError as e:
+            raise ApiError(400, "agent_state_invalid", f"this agent state cannot be used: {e}") from None
+        for got in (agent_plan and agent_plan["payload"], agent_slice):
+            if got is not None and (got.get("conv") != conv or got.get("bind") != binding):
+                raise ApiError(400, "agent_state_invalid", "this agent state belongs to another conversation or model")
+        once = ticket = None  # a signed agent state runs once at a time, and not again once its run ended normally
+        if agent_slice is not None:
+            once = f"slice:{agent_slice.get('run')}:{agent_slice.get('slice')}"
+        elif agent_plan is not None:
+            once = "plan:" + tokens.digest(body.agent_plan.token)
+        if once is not None:
+            from birds.harness import crew_plan
+
+            ticket = crew_plan.ONCE.claim(once)
+            if ticket is None:
+                raise ApiError(409, "agent_state_used", "this agent step is already running or done")
+
+        def release(finished: bool) -> None:
+            if once is not None:  # cut or failed: the same state can be used again (« Reprendre »)
+                from birds.harness import crew_plan
+
+                crew_plan.ONCE.release(once, ticket, finished)
         chat_request = ChatRequest(
             messages,
             body.thinking,
@@ -784,6 +875,10 @@ def create_app(
             conversation_id=body.conversation_id,
             tz=str(widgets_mod.tz_or_default(body.tz)),
             agent=body.agent,
+            agent_flow=body.agent_flow,
+            agent_plan=agent_plan,
+            agent_slice=agent_slice,
+            agent_notes=[n.model_dump() for n in body.agent_notes],
         )
 
         loop = asyncio.get_running_loop()
@@ -817,8 +912,10 @@ def create_app(
             from birds.harness import guard
             from birds.harness.llm import EndpointError
 
+            finished = False
             try:
                 backend.run(chat_request, ctx)
+                finished = not cancel.is_set()
             except Cancelled:
                 pass
             except EndpointError as exc:  # the model endpoint, not the user: say it calmly, with a stable code
@@ -834,6 +931,7 @@ def create_app(
                     }
                 )
             finally:
+                release(finished)
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 
         async def stream():
@@ -852,6 +950,8 @@ def create_app(
                     yield _sse(apply_carbon(event, s.grid_intensity))
                 yield _sse({"type": "done"})
             finally:
+                if not cancel.is_set():  # the client left first: its state is free at once for « Reprendre »
+                    release(False)
                 cancel.set()  # client gone or run finished: unblock sleeps
 
         return StreamingResponse(
@@ -878,6 +978,14 @@ def create_app(
     async def http_error(request: Request, exc: HTTPException) -> JSONResponse:
         detail = exc.detail if isinstance(exc.detail, dict) else {"code": "http_error", "message": str(exc.detail)}
         return JSONResponse({"detail": detail}, status_code=exc.status_code)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_body(request: Request, exc: RequestValidationError) -> JSONResponse:
+        """FastAPI's 422, without echoing the input back: a value such as Infinity (valid for Python's json)
+        cannot be written as JSON, and a body is not to be repeated in an error anyway."""
+        errs = [{"loc": list(e.get("loc") or ()), "msg": str(e.get("msg") or "")[:200], "type": str(e.get("type") or "")}
+                for e in exc.errors()][:20]  # fmt: skip
+        return JSONResponse({"detail": errs}, status_code=422)
 
     @app.exception_handler(404)
     async def not_found(request: Request, exc: Exception) -> JSONResponse:

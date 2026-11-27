@@ -171,6 +171,10 @@ class ChatRequest:
     conversation_id: str | None = None  # random UUID from the client: cache salt and log id, never shown
     tz: str | None = None  # the browser's time zone (event card); validated, Europe/Paris otherwise
     agent: str = "auto"  # Mode Agent: "auto" | "on" | "off" (birds.harness.crew.decide)
+    agent_flow: str | None = None  # "plan": a decided team shows its plan card first (birds.web.crew_web)
+    agent_plan: dict | None = None  # {"payload": verified plan token, "edits": typed edits}: « Lancer »
+    agent_slice: dict | None = None  # verified state of the next slice of a long task
+    agent_notes: list[dict] = field(default_factory=list)  # typed instructions not delivered live
 
 
 @dataclass
@@ -2094,6 +2098,8 @@ class HarnessBackend:
                         tz=request.tz,
                     )
             ctx.check()
+            if run.stop_reason in ("plan", "slice"):  # the plan card, or a long task's slice: its events are sent
+                return
             report = run.report or {}
             previews = iter(
                 written_preview(s.tool, s.arguments, getattr(s, "info", None))
@@ -2109,6 +2115,7 @@ class HarnessBackend:
                 ):  # files made before a pause were already delivered with the confirm event
                     files.append(inline_file(path, preview, ctx.max_inline_file_bytes))
             seconds = float(carry.get("seconds") or 0.0) + (time.monotonic() - t0)
+            seconds += float(report.get("carried_seconds") or 0.0)  # the earlier slices of a long task
             energy, energy_kind = report.get("energy_wh"), report.get("energy_kind")
             energy_method, energy_basis = report.get("energy_method"), report.get("energy_basis")
             energy_source = report.get("energy_source")
