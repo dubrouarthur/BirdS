@@ -63,7 +63,8 @@ _SPLIT = re.compile(r"\s*;\s*|\s*,\s+|\s*,(?=\D)|\s+(?:et|and|puis|then)\s+|\s+&
 _ADDR_HEAD = re.compile(r"^(?:adresses?|address(?:es)?|lieux?|location|localisation|emplacement)$", re.I)
 _TOWN_HEAD = re.compile(r"^(?:villes?|city|cities|site|commune|town)$", re.I)
 _ORDER = re.compile(
-    r"\b(?:dans\s+quel\s+ordre|ordre\s+(?:de\s+visite|optimal|id[ée]al)|meilleur\s+ordre|optimi[sz]\w*|tourn[ée]e|"
+    r"\b(?:dans\s+quel\s+ordre|quel\s+(?:est\s+le\s+)?(?:meilleur\s+)?ordre|"
+    r"(?:le\s+)?plus\s+court\s+(?:chemin|trajet|itin[ée]raire|circuit)|shortest\s+(?:route|path|tour)|ordre\s+(?:de\s+visite|optimal|id[ée]al)|meilleur\s+ordre|optimi[sz]\w*|tourn[ée]e|"
     r"best\s+order|which\s+order|what\s+order|in\s+what\s+order|round\s+trip|circuit)\b",
     re.I,
 )
@@ -130,8 +131,29 @@ def _csv_column(lines: list[str]) -> list[str] | None:
     return None
 
 
+# the question around a list, never part of its first item: « quel ordre pour visiter (mes clients à) Lyon, … »,
+# « le plus court chemin pour visiter Rennes, … », « quelle est la distance en km entre … »
+_FRAME = re.compile(
+    r"^\W*(?:(?:dis-moi|dites-moi|peux-tu\s+me\s+dire|tell\s+me)\s+)?(?:"
+    r"(?:dans\s+)?quel(?:le)?\s+(?:est\s+(?:le\s+|la\s+)?)?(?:meilleur\s+|bon\s+)?ordre\s+(?:pour|de|à|a)\s+"
+    r"(?:visiter|voir|faire|relier|passer\s+(?:chez|par|à|a|voir)|aller\s+(?:chez|à|a|voir))|"
+    r"(?:quel\s+est\s+)?(?:le\s+)?(?:plus\s+court|meilleur)\s+(?:chemin|trajet|itin[ée]raire|circuit|parcours)\s+"
+    r"(?:pour\s+(?:visiter|voir|relier|passer\s+(?:par|chez)|aller\s+(?:à|a|chez))|entre|reliant|passant\s+par)|"
+    r"(?:quelle\s+est\s+)?(?:la\s+)?distances?(?:\s+en\s+(?:km|kilom[eè]tres))?\s+(?:entre|between)|"
+    r"what(?:'s|\s+is)\s+the\s+(?:best|shortest)\s+(?:order|route|path|way)\s+(?:to\s+visit|through|between|for)|"
+    r"in\s+(?:what|which)\s+order\s+(?:should\s+(?:i|we)\s+)?visit)\s+",
+    re.I,
+)
+
+
 def _items_of_line(text: str) -> list[str]:
     """The items of a one-line list once the ask words are removed (« les agences de Lyon, Marseille et Lille »)."""
+    from birds.harness.geo import looks_like_address
+
+    text = _FRAME.sub("", text, count=1)
+    parts = [p for p in re.split(r"\s*;\s*|\s*,\s+", text) if p.strip()]
+    if len(parts) >= 2 and all(looks_like_address(_clean_item(p)) for p in parts):
+        return parts  # postal addresses: « place », « marque » are street words here, never ask words
     t = _ASK_WORDS.sub(" ", text)
     t = " ".join(t.split()).strip(" :,.?!")
     # « (nos) agences de Lyon, Marseille et Lille »: the list noun and its preposition introduce the towns
@@ -186,8 +208,10 @@ def place_list(text: str) -> list[str] | None:
             return None
         if ";" not in line and len(find_address(line)) >= 0.5 * len(line):
             return None  # « 1 place du Capitole, Toulouse »: one address with a comma, not a list
-        m = re.match(r"^(?P<head>[^:]{1,160}):\s*(?P<list>.+)$", line)
-        if m and _cue(m.group("head")):
+        # « Je dois passer chez trois clients demain : 12 rue …, 3 cours …. Dans quel ordre ? »: what comes before
+        # the last colon is the lead-in, never the first place (when the line asks for a map, an order or a route)
+        m = re.match(r"^(?P<head>.{1,160}?):\s*(?P<list>[^:]+)$", line)
+        if m and (_cue(m.group("head")) or strong):
             items = (
                 [p for p in re.split(r"\s*;\s*", m.group("list"))]
                 if ";" in m.group("list")

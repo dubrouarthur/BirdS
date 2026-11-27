@@ -397,6 +397,17 @@ MAPS_HELDOUT: list[tuple[str, tuple]] = [
     ("ou est le pont du gard", (W, "pont du gard")),
     ("cherche un coworking pres de la gare de lille europe", (N, "coworking", "gare de lille europe")),
     ("distance lille paris", (R, "lille", "paris")),
+    # the lead-in and the question are never glued onto the first place (review of the maps branch)
+    (
+        "Je dois passer chez trois clients demain : 12 rue de la République Lyon, 3 cours Lafayette Lyon, "
+        "8 quai Saint-Antoine Lyon. Dans quel ordre ?",
+        (L, ["12 rue de la République Lyon", "3 cours Lafayette Lyon", "8 quai Saint-Antoine Lyon"]),
+    ),
+    ("Quel ordre pour visiter mes clients à Lyon, Villeurbanne et Bron ?", (L, ["Lyon", "Villeurbanne", "Bron"])),
+    (
+        "Quel est le plus court chemin pour visiter Rennes, Brest, Quimper, Vannes ?",
+        (L, ["Rennes", "Brest", "Quimper", "Vannes"]),
+    ),
 ]
 MAPS_HELDOUT_NO: list[str] = [
     "fais une carte des risques du projet",

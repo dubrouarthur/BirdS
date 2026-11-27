@@ -139,7 +139,16 @@ def test_bench_maps_family_is_complete():
      ("montre sur une carte : Lyon ; Grenoble ; Chambéry, dans quel ordre les visiter ?",
       {"query": "Lyon ; Grenoble ; Chambéry", "plan": "order"}),
      ("montre sur une carte : 3 rue du Circuit Magny-Cours ; 5 place Bellecour Lyon",
-      {"query": "3 rue du Circuit Magny-Cours ; 5 place Bellecour Lyon"})],
+      {"query": "3 rue du Circuit Magny-Cours ; 5 place Bellecour Lyon"}),
+     ("Je dois passer chez trois clients demain : 12 rue de la République Lyon, 3 cours Lafayette Lyon, "
+      "8 quai Saint-Antoine Lyon. Dans quel ordre ?",
+      {"query": "12 rue de la République Lyon ; 3 cours Lafayette Lyon ; 8 quai Saint-Antoine Lyon", "plan": "order"}),
+     ("Quel ordre pour visiter mes clients à Lyon, Villeurbanne et Bron ?",
+      {"query": "Lyon ; Villeurbanne ; Bron", "plan": "order"}),
+     ("Quel est le plus court chemin pour visiter Rennes, Brest, Quimper, Vannes ?",
+      {"query": "Rennes ; Brest ; Quimper ; Vannes", "plan": "order"}),
+     ("mets sur une carte : 1 place du Capitole Toulouse, 5 place Bellecour Lyon",
+      {"query": "1 place du Capitole Toulouse ; 5 place Bellecour Lyon"})],
 )  # fmt: skip
 def test_the_plan_is_an_argument_and_the_ask_is_not_a_place(text, args):
     got = [i for i in intents.detect(text) if i.tool == "find_places"]
