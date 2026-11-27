@@ -16,6 +16,8 @@ from birds.harness import geo, when
 
 from . import mapimg
 
+# cards the harness computes itself (birds.harness.calc, birds.harness.research), kept from ``extra`` as they are
+HARNESS_CARDS = ("calc", "research", "graph", "timeline", "matrix", "checklist")
 MAX_WIDGET_BYTES = 8_000
 MAX_TOTAL_BYTES = 24_000
 DEFAULT_TZ = "Europe/Paris"
@@ -172,7 +174,7 @@ def build_widgets(steps, request_text: str, lang: str, now: datetime, secret: by
             continue
         out.append(w)
     for w in extra or []:
-        if isinstance(w, dict) and w.get("type") == "clock":
+        if isinstance(w, dict) and (w.get("type") == "clock" or w.get("type") in HARNESS_CARDS):
             out.append(json.loads(json.dumps(w)))
     place = next((p for w in out if w["type"] == "places" for p in w.get("places", [])[:1]), None)
     ev = event_widget(request_text, now, lang, draft=draft, place=place, holidays=holidays)

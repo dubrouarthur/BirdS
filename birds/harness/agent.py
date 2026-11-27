@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from birds.harness import followup, guard, intents, meter
+from birds.harness import calc, followup, guard, intents, meter
 from birds.harness.config import Config, Context
 from birds.harness.llm import STOP, EndpointError, accepts
 from birds.harness.tools import TOOLS, make_search
@@ -731,6 +731,15 @@ class Agent:
         ctx.widgets.append(w)
         return clock.summary(w, lang)
 
+    @staticmethod
+    def _calc(req: str, lang: str, ctx: Context) -> str:
+        """Exact calculator card in the user's own words (VAT, margin, loan, percent, units): the card goes to
+        ``ctx.widgets``, the results for the model are returned, or ''."""
+        w, facts = calc.facts_for(req, lang)
+        if w:
+            ctx.widgets.append(w)
+        return facts
+
     def _allowed(self) -> set[str]:
         """Tools shown to the model: the deployment allowlist, minus what is switched off or not configured."""
         off = set() if self.cfg.allow_python else {"run_python"}
@@ -877,6 +886,17 @@ class Agent:
                 # network); the model only puts them in a sentence
                 routed |= {"web_search", "read_page"}
                 messages[-1]["content"] += CLOCK_NOTE["en" if run.lang == "en" else "fr"].format(facts=facts)
+            sums = (
+                ""
+                if prefill or facts or attached or not getattr(cfg, "widgets", True)
+                else self._calc(req, run.lang, ctx)
+            )
+            if sums:
+                # « mensualité d'un prêt de 200 000 € sur 20 ans à 3,5 % »: the harness computes exactly (calc.py);
+                # the model only puts the results in a sentence (a 4B model gets compound interest wrong)
+                routed |= {"web_search", "read_page"}
+                messages[-1]["content"] += calc.NOTE["en" if run.lang == "en" else "fr"].format(facts=sums)
+                facts = sums
             slot = "" if prefill or facts or _NEEDS_WEB.search(req) else _event_slot(req, run.lang)
             if slot:
                 # "cale un déjeuner le 25 décembre à midi": the UI shows an event card (.ics) built from these
