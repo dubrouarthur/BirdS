@@ -645,6 +645,11 @@ def create_app(
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    # ---- data analysis hook (birds/web/data_api.py): the data card's full table and one-click analyses
+    from .data_api import register as _data_routes
+
+    _data_routes(app, guard_request, check_access, ApiError)
+
     @app.get("/api/img")
     def web_image(request: Request):
         """A web image Bird credited in an answer, fetched by the server and re-encoded, so the browser never

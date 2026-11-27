@@ -530,6 +530,8 @@ class DemoBackend:
         if crew_web.demo_match(last, request):
             return crew_web.demo_crew(run)  # Mode Agent, scripted
         scenario = pick_scenario(last, bool(request.attachments))
+        if scenario in ("attachment", "plain", "chart") and run.data_prep() is not None:
+            scenario = "data"  # data analysis hook: a CSV / XLSX or a pasted table, computed by the harness
         if scenario == "plain" and not request.attachments:
             from birds.harness import followup
 
@@ -672,6 +674,62 @@ class _DemoRun:
         self.extra_completion += len(json.dumps(arguments, ensure_ascii=False)) // 4
         self.ctx.emit(step_event(index, tool, shown, "done", summary, time.monotonic() - start))
         return entry
+
+    # -- data analysis (birds/harness/analysis): the same harness code as the real backend, no model
+    def data_prep(self):
+        if hasattr(self, "_data"):
+            return self._data
+        from birds.harness.analysis import hooks as data_hooks
+
+        self._data = None
+        last = next((m["content"] for m in reversed(self.req.messages) if m["role"] == "user"), "")
+        words = own_words(last)
+        tmp = Path(tempfile.mkdtemp(prefix="bird-demo-data-"))
+        try:
+            names = []
+            for doc in self.req.attachments:
+                name = sanitize_filename(doc["name"])
+                if doc.get("encoding") == "base64":
+                    (tmp / name).write_bytes(base64.b64decode(doc["content"]))
+                else:
+                    (tmp / name).write_text(doc["content"], encoding="utf-8")
+                names.append(name)
+            self._data = data_hooks.prepare(tmp, list(reversed(names)), words, self.lang)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        return self._data
+
+    def scenario_data(self) -> None:
+        from birds.harness.analysis.card import explain
+
+        prep = self.data_prep()
+        t = self.t
+        if prep.card["origin"] == "attachment":
+            self.step("read_file", {"path": prep.name},
+                      t(f"{prep.frame.n} lignes × {len(prep.frame.columns)} colonnes lues",
+                        f"{prep.frame.n} rows × {len(prep.frame.columns)} columns read"), 0.6)  # fmt: skip
+        self.think(
+            "Le harnais a profilé le tableau et calculé le résultat : je n'ai qu'à l'expliquer.",
+            "The harness profiled the table and computed the result: I only have to explain it.",
+        )
+        if prep.result is not None:
+            text = explain(prep.result, self.lang) + t(
+                "\n\nLe calcul est fait par Bird sur le fichier, sans modèle ; le graphique et le tableau détaillé "
+                "sont juste en dessous. Cliquez sur une barre pour creuser.",
+                "\n\nBird computed this on the file itself, without a model; the chart and the detailed table are "
+                "right below. Click a bar to dig in.",
+            )
+            charts = [prep.chart]
+        else:
+            n = len(prep.card["suggestions"])
+            text = t(
+                f"J'ai lu **{prep.name}** : {prep.frame.n} lignes, {len(prep.frame.columns)} colonnes. La fiche "
+                f"ci-dessous montre chaque colonne, le tableau complet et {n} analyses prêtes en un clic.",
+                f"I read **{prep.name}**: {prep.frame.n} rows, {len(prep.frame.columns)} columns. The card below "
+                f"shows every column, the full table and {n} one-click analyses.",
+            )
+            charts = []
+        self.finish(text, charts=charts, widgets=[prep.card])
 
     # -- scenarios
     def scenario_image(self) -> None:
@@ -1529,6 +1587,9 @@ IMAGE_TEXT_CHARS = 6000  # hard cap of one image transcription (a dense A4 page)
 def own_words(content: str) -> str:
     """The user's own text of a turn, without the attachment notes and image transcriptions added to it (a
     regenerated turn comes back as the exact text sent before, notes included)."""
+    from birds.harness.analysis.hooks import strip_note
+
+    content = strip_note(content)  # the data analysis note (a computed result), when a table came with the turn
     cut = len(content)
     for note in (*_IMAGE_NOTE.values(), *_ATTACH_NOTE.values()):
         i = content.find("\n\n[" + note + " :")
@@ -1982,6 +2043,7 @@ class HarnessBackend:
         workspace = Path(tempfile.mkdtemp(prefix="bird-run-")) if ephemeral else self.workspace
         t0 = time.monotonic()
         image_texts, image_usage, hist_stats = [], [], None
+        data_prep = None  # data analysis hook (birds/harness/analysis/hooks.py): a table the harness computes on
         try:
             attach_dir = workspace if ephemeral else workspace / ATTACH_DIR
             names, already_read = [], set()
@@ -2072,6 +2134,13 @@ class HarnessBackend:
                     request.messages, conv, rl, names, image_texts, self.history_tokens, self.msg_cap_tokens
                 )
                 state_ui = len(kept) + 1  # index of this turn's user message in the agent's messages
+                # ---- data analysis hook: an attached CSV / XLSX (or a pasted table) is computed on by the harness;
+                # the model gets the result and only explains it (birds/harness/analysis/hooks.py)
+                from birds.harness.analysis import hooks as data_hooks
+
+                data_prep = data_hooks.prepare(workspace, names, words, rl)
+                if data_prep is not None:
+                    user_sent = data_hooks.strip_note(user_sent) + data_prep.note
                 ctx.emit({"type": "user", "content": user_sent})
                 if pure_ocr and (image_texts or names):
                     docs = [(Path(n).name, document_text(workspace / n, rl)) for n in names]
@@ -2093,6 +2162,8 @@ class HarnessBackend:
                         attached=bool(names or image_texts),
                         tz=request.tz,
                     )
+                if data_prep is not None:
+                    data_hooks.finish(run, data_prep, words)  # chart, data card, every number checked
             ctx.check()
             report = run.report or {}
             previews = iter(
@@ -2191,6 +2262,8 @@ class HarnessBackend:
             tidied = tidy(str(run.answer), run.stop_reason)
             content = hide_out_paths(strip_tool_echo(strip_memo(tidied.text)))
             widgets = self._widgets(run, request, ctx, lang, draft)
+            if data_prep is not None:
+                widgets = [data_prep.card, *widgets]  # data analysis hook: the data card first
             ctx.emit(
                 {
                     "type": "answer",
