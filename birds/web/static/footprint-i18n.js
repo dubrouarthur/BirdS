@@ -110,7 +110,7 @@ export const FOOTPRINT_STRINGS = {
     "footprint.s3.what.wh": "1 Wh",
     "footprint.s4.title": "Il dort quand personne ne s'en sert",
     "footprint.s4.p":
-      "Le serveur du modèle se met en veille après un délai sans requête : la carte graphique s'arrête au lieu de tourner à vide. Au réveil, la première réponse prend quelques secondes de plus.",
+      "Le serveur du modèle se met en veille après un délai sans requête : la carte graphique s'arrête au lieu de tourner à vide. Au réveil, la première réponse peut prendre de quelques dizaines de secondes à quelques minutes.",
     "footprint.s4.busy": "réponses",
     "footprint.s4.idle": "veille",
     "footprint.s5.title": "Spécialisé à moindre coût, pour chaque entreprise",
@@ -251,7 +251,7 @@ export const FOOTPRINT_STRINGS = {
     "footprint.s3.what.wh": "1 Wh",
     "footprint.s4.title": "It sleeps when nobody uses it",
     "footprint.s4.p":
-      "The model server goes to sleep after a while without requests: the graphics card stops instead of idling. On waking, the first answer takes a few seconds longer.",
+      "The model server goes to sleep after a while without requests: the graphics card stops instead of idling. On waking, the first answer can take from a few tens of seconds to a few minutes.",
     "footprint.s4.busy": "answers",
     "footprint.s4.idle": "asleep",
     "footprint.s5.title": "Specialised cheaply, for each company",
