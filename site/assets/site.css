@@ -3481,4 +3481,13 @@ thead .score {
   color: var(--muted);
   white-space: nowrap;
 }
+/* Héros : « Rejouer » reste dans la barre de la maquette, jamais à cheval sur son bord. */
+.scene-wrap {
+  position: relative;
+}
+.scene-wrap > .scene-replay {
+  top: 0.3rem;
+  right: 1rem;
+  background: var(--surface);
+}
 /* ===================== fin RSE & sobriété (fi-site) ===================== */
