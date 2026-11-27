@@ -162,6 +162,20 @@ def test_demo_never_invents_energy(client):
         assert usage["energy_wh"] is None and usage["energy_kind"] is None and usage["co2_g"] is None
 
 
+def test_demo_energy_is_opt_in_and_uses_the_token_formula():
+    """BIRD_DEMO_ENERGY: the scripted counts go through the real token estimate, still tagged scripted."""
+    with TestClient(create_app(settings(demo_energy=True))) as c:
+        usage = one(chat(c, "Bonjour"), "usage")
+    assert usage["tokens_kind"] == "scripted" and usage["energy_kind"] == "estimated"
+    assert usage["energy_method"] == "tokens" and usage["energy_source"].startswith("demo: ")
+    b = usage["energy_basis"]
+    expected = usage["prompt_tokens"] / 1000 * b["wh_per_1k_in"] + usage["completion_tokens"] / 1000 * b["wh_per_1k_out"]
+    assert usage["energy_wh"] == pytest.approx(expected, rel=1e-4)
+    assert b["low_wh"] < usage["energy_wh"] < b["high_wh"] and usage["busy_seconds"] > 0
+    assert usage["co2_g"] is None  # the server never picks a grid; the panel does, with its source
+    assert Settings.from_env({"BIRD_DEMO_ENERGY": "1"}).demo_energy and not Settings.from_env({}).demo_energy
+
+
 def test_demo_is_deterministic(client):
     def strip(events):
         return [{k: v for k, v in e.items() if k != "seconds"} for e in events]

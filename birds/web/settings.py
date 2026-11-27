@@ -145,6 +145,7 @@ class Settings:
     # workspace: None = a fresh temporary folder per request, deleted afterwards (serverless)
     workspace: str | None = None
     demo_delay: float = 1.0
+    demo_energy: bool = False  # demo answers carry a token estimate of energy (labelled démo); off by default
     local_llm: object | None = None  # scripts/serve.py --local
     local_tok: object | None = None
     tokenizer: str | None = None  # scripts/serve.py --tokenizer: real tokenizer instead of the vendored template
@@ -282,6 +283,7 @@ class Settings:
             signing_secret=key,
             signing=signing,
             demo_delay=_num(get("BIRD_DEMO_DELAY"), 1.0, float, 0.0),
+            demo_energy=_flag(get("BIRD_DEMO_ENERGY"), False),
             geo=_flag(get("BIRD_GEO"), default=True),
             geo_user_agent=get("BIRD_GEO_USER_AGENT") or "BirdHarness/0.1 (+geo)",
             nominatim_url=get("BIRD_NOMINATIM_URL"),
