@@ -853,4 +853,15 @@ scenario(
     expect={"lang": "fr", "contains": [r"terme fixé"], "max_gens": 1},
 )  # fmt: skip
 
+scenario(
+    id="ordinary_excel_formula", family="controls",
+    ask="Je cherche une formule Excel pour additionner une colonne si la cellule voisine vaut Oui.",
+    rules=lambda: [
+        R(first, "Utilisez SOMME.SI : =SOMME.SI(B:B;\"Oui\";A:A) additionne la colonne A quand la cellule voisine "
+          "de la colonne B vaut « Oui »."),
+        R(reminded("make_sheet"), call("make_sheet", title="Somme si", columns=["A", "B"], rows=[[1, "Oui"]])),
+    ],
+    expect={"lang": "fr", "contains": [r"SOMME\.SI"], "max_gens": 1},
+)  # fmt: skip
+
 SCENARIOS = S

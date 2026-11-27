@@ -589,6 +589,9 @@ OFFICE_NO = [  # ordinary office prompts: no rich content at all, alone or right
     "Je cherche à comprendre la différence entre CDD et CDI.",
     "Je recherche un stagiaire en marketing, rédige l'annonce.",
     "Je recherche les causes possibles d'une baisse de CA, donne-moi des pistes.",
+    # « une formule Excel » asks for a formula, not a spreadsheet; a how-to question asks for no file
+    "Je cherche une formule Excel pour additionner une colonne si la cellule voisine vaut Oui.",
+    "comment faire un tableau croisé dynamique ?",
 ]
 FOLLOWUP_NO = [(prev, q) for prev in (_W, _P, _PW, _F, _C, _CO, _CHART) for q in OFFICE_NO]
 IMAGES_YES = [  # (ask, the subject searched)

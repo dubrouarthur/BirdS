@@ -32,7 +32,24 @@ _INPUT_BEFORE = re.compile(
     r"votre|vos|notre|nos|your|our|my|joint|jointe|attached)\s+(?:(?:le|la|les|l['’]|the|ce|cette|ces)\s*)?)$",
     re.I,
 )
-_INDEF = re.compile(r"(?:\b(?:un|une|des|a|an|some|deux|trois|quatre|two|three)\s+(?:\w+\s+){0,2})$", re.I)
+_INDEF = re.compile(r"\b(?:un|une|des|a|an|some|deux|trois|quatre|two|three)\s+((?:[\w-]+\s+){0,2})$", re.I)
+# the article nearest to the noun, definite or not: the words between them must not be another noun
+_ARTICLE = re.compile(
+    r"(?:\b(?:un|une|des|le|la|les|a|an|the|some|deux|trois|quatre|two|three)\s+|\bl['’])((?:[\w-]+\s+){0,3})$",
+    re.I,
+)
+# words that may stand between an article and the deliverable without being the noun it governs (« un petit mail »)
+_ADJ = re.compile(
+    r"(?:petite?s?|courte?s?|brefs?|br[eè]ves?|nouve(?:au|aux|lle|lles|l)|belles?|beaux?|bon(?:ne)?s?|simples?|"
+    r"jolie?s?|grande?s?|gros(?:se)?s?|autres?|seule?s?|vraie?s?|premi[eè]re?s?|derni[eè]re?s?|rapides?|mini|"
+    r"claire?s?|soign[ée]e?s?|professionnel(?:le)?s?|formel(?:le)?s?|deuxi[eè]me|troisi[eè]me|seconde?|"
+    r"deux|trois|quatre|cinq|six|\d+|short|quick|new|simple|nice|small|brief|clean|final|other|first|second|"
+    r"two|three|four|five|professional|formal|polite|draft|petit-\w+)",
+    re.I,
+)
+# with a verb of making, « un fichier Excel », « un document Word », « un tableau Excel » make the file
+_FILE = re.compile(r"(?:fichiers?|documents?|feuilles?|tableaux?|files?|tables?)", re.I)
+_HOWTO = re.compile(r"\b(?:comment|how\s+(?:do|to|can|should|would))\b", re.I)
 _BREAK = re.compile(r"[.!?\n]")
 
 KINDS = {  # kind -> (noun pattern, tools that make it, FR label, EN label)
@@ -117,7 +134,10 @@ _COORD = re.compile(r"(?:\bet|\bpuis|\bainsi\s+qu['’]?e?|\band|\bthen|\bplus|\
 
 def _deliverable(text: str, start: int, kind: str) -> bool:
     """The noun at ``start`` is asked for: an indefinite article right before it, or a verb of making shortly
-    before it in the same sentence, and it is not introduced as an input (« de ce mail »). A verb that already
+    before it in the same sentence, and it is not introduced as an input (« de ce mail »). The article must govern
+    this noun: « une formule Excel », « une macro Excel » ask for a formula, not a spreadsheet; only adjectives
+    (« un petit mail ») or, after a verb, « fichier / document / tableau » (« crée un fichier Excel ») may stand
+    between them. A how-to question (« comment faire un tableau croisé ») asks for no deliverable. A verb that already
     governs another deliverable (« crée un tableur avec les colonnes nom, prénom, email ») needs « et / puis /
     avec » before this one; « envoie / envoyer » only makes a mail (« envoyer le compte rendu » sends a file)."""
     before = text[max(0, start - 70) : start]
@@ -125,7 +145,12 @@ def _deliverable(text: str, start: int, kind: str) -> bool:
     before = before[cut:]
     if _INPUT_BEFORE.search(before):
         return False
-    if _INDEF.search(before):
+    how = list(_HOWTO.finditer(before))
+    if how and not re.search(r"\b(?:et|puis|ensuite|and|then)\b", before[how[-1].end() :], re.I):
+        return False  # « comment faire un tableau croisé … », « how do I make a chart »: a question, not a deliverable
+    m = _INDEF.search(before)
+    made = re.search(r"\b" + _CREATE + r"\b", before, re.I)
+    if m and all(_ADJ.fullmatch(w) or (made and _FILE.fullmatch(w)) for w in m.group(1).split()):
         return True
     verbs = list(re.finditer(r"\b" + _CREATE + r"\b", before, re.I))
     if not verbs:
@@ -134,9 +159,10 @@ def _deliverable(text: str, start: int, kind: str) -> bool:
     if re.match(r"envo", verb.group(0), re.I) and kind != "mail":
         return False
     gap = before[verb.end() :]
-    if _ANY_NOUN.search(gap):
-        return bool(_COORD.search(gap))
-    return True
+    if _ANY_NOUN.search(gap) and not _COORD.search(gap):
+        return False
+    art = _ARTICLE.search(gap)  # « donne-moi une formule Excel »: Excel is not what is made, the formula is
+    return not art or all(_ADJ.fullmatch(w) or _FILE.fullmatch(w) for w in art.group(1).split())
 
 
 def extract(request: str, lang: str = "fr", message: str = "", chart: bool = False) -> list[Item]:

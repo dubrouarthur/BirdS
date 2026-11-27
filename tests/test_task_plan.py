@@ -38,6 +38,8 @@ def labels(text, lang="fr", message=""):
          ["document", "tableur", "totaux"]),
         ("Cherche le prix du kWh en France et fais un graphique.", ["recherche web", "graphique"]),
         ("Make a 3-slide deck about Q3 and draft an email to board@acme.com.", ["slides", "email"]),
+        ("Crée un fichier Excel des ventes et prépare un mail à a@b.fr.", ["tableur", "mail"]),
+        ("Fais un tableau Excel des congés puis un petit mail à rh@x.fr.", ["tableur", "mail"]),
     ],
 )  # fmt: skip
 def test_the_plan_lists_the_deliverables_in_the_order_asked(ask, want):
@@ -60,6 +62,11 @@ def test_the_plan_lists_the_deliverables_in_the_order_asked(ask, want):
         "Je recherche les causes possibles d'une baisse de CA, donne-moi des pistes.",
         "On cherche un nouveau local à Lyon, rédige une annonce.",
         "Cherche à joindre le client avant midi, c'est urgent : rédige-moi un SMS.",
+        "Je cherche une formule Excel pour additionner une colonne si la cellule voisine vaut Oui.",
+        "Donne-moi une macro Excel qui trie les lignes par date, et explique-la.",
+        "Comment faire un tableau croisé dynamique dans Excel ?",
+        "J'ai un fichier Excel de 3000 lignes, comment supprimer les doublons ?",
+        "How do I make a pivot table in a spreadsheet and then a chart?",
     ],
 )
 def test_inputs_and_one_thing_asks_make_no_active_plan(ask):
