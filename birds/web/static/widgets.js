@@ -827,7 +827,10 @@ function renderPlaces(w, turn) {
       sec.removeAttribute("aria-modal");
       document.removeEventListener("keydown", onKey, true);
       showAll(false);
-      back?.focus?.({ preventScroll: true });
+      // the button that opened it may be gone (the card was drawn again): this card's own button then
+      (back?.isConnected ? back : sec.querySelector(".map-full"))?.focus?.({
+        preventScroll: true,
+      });
     }
     frame?._place?.();
   }
@@ -866,7 +869,19 @@ function renderPlaces(w, turn) {
         h("span", { class: "muted", text: ` — ${t("places.incomplete")}` }),
     ),
   );
+  sec._full = toggleFull; // turns.js: a card drawn again hands its full screen over (moveFull)
   return sec;
+}
+
+/** A card list drawn again (the answer's cards replace the early ones): a map open in full screen in ``old`` is
+ * closed there, so the page is never left locked, and opened on the same card of ``next``. */
+export function moveFull(old, next) {
+  const cards = (root) => [...(root?.querySelectorAll?.(".widget-places") || [])];
+  const i = cards(old).findIndex((s) => s.classList.contains("is-full"));
+  if (i < 0) return;
+  cards(old)[i]._full?.(false);
+  const target = cards(next)[i];
+  if (target?._full) requestAnimationFrame(() => target.isConnected && target._full(true));
 }
 
 // ------------------------------------------------------------------ company

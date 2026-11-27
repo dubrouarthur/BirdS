@@ -5,7 +5,9 @@
 // Checks: a list of addresses draws one map with a numbered pin per place and its list; « introuvable » is said;
 // a visit order lists the cards in that order; a simulated model failure still shows the card and a short answer
 // (no error card); full screen opens and Escape closes it; no third-party request, no CSP or script error, no
-// horizontal scroll. Screenshots at 360 px and 1280 px, light and dark (look at them). ONLY=<config part> narrows.
+// horizontal scroll; full screen opened while the model writes is handed
+// over to the answer's card and never leaves the page locked. Screenshots at 360 px and 1280 px, light and dark
+// (look at them). ONLY=<config part> and ONLY_CASE=<case id | streaming> narrow.
 const { chromium } = require("playwright");
 const path = require("path");
 const fs = require("fs");
@@ -13,6 +15,7 @@ const fs = require("fs");
 const URL = process.env.BIRD_URL || "http://127.0.0.1:9337/";
 const OUT = process.env.SHOTS || path.join(__dirname, "shots");
 const ONLY = process.env.ONLY || "";
+const ONLY_CASE = process.env.ONLY_CASE || "";
 fs.mkdirSync(OUT, { recursive: true });
 // [id, prompt, pins expected, text the turn must contain]
 const CASES = [
@@ -116,7 +119,8 @@ async function send(page, text) {
         problems.push(`${name}: console ${m.type()}: ${m.text()}`);
     });
     page.on("response", (r) => {
-      if (r.status() >= 400) problems.push(`${name}: HTTP ${r.status()} ${r.url()}`);
+      if (r.status() >= 400)
+        problems.push(`${name}: HTTP ${r.status()} ${r.url()}`);
     });
     page.on("pageerror", (e) =>
       problems.push(`${name}: pageerror ${e.message}`),
@@ -124,6 +128,7 @@ async function send(page, text) {
     await page.goto(URL, { waitUntil: "networkidle" });
     await page.waitForTimeout(1200);
     for (const [id, prompt, pins, must] of CASES) {
+      if (ONLY_CASE && ONLY_CASE !== id) continue;
       const narrow = await page.evaluate(() => innerWidth < 900);
       await page.click(narrow ? "#btn-new-top" : "#btn-new").catch(() => {});
       await page.waitForTimeout(150);
@@ -158,6 +163,7 @@ async function send(page, text) {
       await page.waitForTimeout(150);
       if (id === "ten") {
         // full screen: the map and its list fill the window; Escape closes and gives the focus back
+        const inertBefore = await page.locator("[inert]").count(); // the closed drawer on a phone
         await card.locator(".map-full").click();
         await page.waitForTimeout(400);
         if (!(await card.evaluate((s) => s.classList.contains("is-full"))))
@@ -169,7 +175,65 @@ async function send(page, text) {
         await page.waitForTimeout(300);
         if (await card.evaluate((s) => s.classList.contains("is-full")))
           problems.push(`${name}/${id}: Escape did not close full screen`);
+        if ((await page.locator("[inert]").count()) !== inertBefore)
+          problems.push(`${name}/${id}: the page stayed inert after closing`);
       }
+    }
+    // full screen opened on the early card, while the model writes: the answer's cards take it over, and once
+    // closed the page scrolls again (no has-map-full left behind)
+    if (!ONLY_CASE || ONLY_CASE === "streaming") {
+      const narrow = await page.evaluate(() => innerWidth < 900);
+      await page.click(narrow ? "#btn-new-top" : "#btn-new").catch(() => {});
+      await page.waitForTimeout(150);
+      const inertBefore = await page.locator("[inert]").count();
+      const users = await page.locator(".turn-user").count();
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await page.fill("#composer-input", CASES[2][1]);
+        await page.press("#composer-input", "Enter");
+        await page.waitForTimeout(400);
+        if ((await page.locator(".turn-user").count()) > users) break;
+      }
+      const early = page
+        .locator(".turn-bird")
+        .last()
+        .locator(".widget-places .map-full");
+      await early.waitFor({ timeout: 30000 });
+      const streaming = await page.evaluate(
+        () => !!document.querySelector("#btn-send[hidden]"),
+      );
+      await early.click();
+      await page.waitForSelector("#btn-send:not([hidden])", { timeout: 60000 });
+      await page.waitForTimeout(800);
+      const st = await page.evaluate(() => ({
+        locked: document.documentElement.classList.contains("has-map-full"),
+        full: document.querySelectorAll(".widget-places.is-full").length,
+      }));
+      if (!streaming)
+        problems.push(
+          `${name}/streaming: the card came after the answer (nothing tested)`,
+        );
+      if (st.locked !== st.full > 0 || st.full > 1)
+        problems.push(
+          `${name}/streaming: has-map-full=${st.locked} with ${st.full} open cards`,
+        );
+      await page.screenshot({
+        path: path.join(OUT, `maps-full-streaming-${name}.png`),
+      });
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(300);
+      const after = await page.evaluate(() => ({
+        locked: document.documentElement.classList.contains("has-map-full"),
+        overflow: getComputedStyle(document.documentElement).overflow,
+        inert: document.querySelectorAll("[inert]").length,
+      }));
+      if (
+        after.locked ||
+        after.overflow === "hidden" ||
+        after.inert !== inertBefore
+      )
+        problems.push(
+          `${name}/streaming: page still locked after Escape ${JSON.stringify(after)}`,
+        );
     }
     await ctx.close();
   }
