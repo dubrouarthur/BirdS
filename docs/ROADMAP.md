@@ -17,6 +17,14 @@ Objectif : le niveau d'OpenAI dans les usages de bureau, porté par un petit mod
 1 bis. Mode Réflexion : réflexion adaptative (le modèle décide s'il réfléchit et combien, budget selon la tâche),
    résumé lisible de la réflexion, auto-vérification avant réponse (chiffres, demandes couvertes), reprise propre
    quand la réflexion tourne en rond ; mesuré avant / après sur un jeu fixe.
+   Niveaux de réflexion illustrés par des oiseaux (icônes SVG maison, petite animation de vol, clair/sombre) :
+   - **Colibri** · Instantané : pas de réflexion, réponse immédiate (questions simples, reformulations) ;
+   - **Hirondelle** · Rapide : réflexion courte (mails, résumés, la plupart des tâches) ;
+   - **Faucon** · Précis : réflexion standard avec vérification (calculs, comparaisons, code) ;
+   - **Chouette** · Approfondi : longue réflexion, auto-vérification et relecture (analyses, problèmes difficiles) ;
+   - **Albatros** · Endurance : tâches longues en Mode Agent et recherche approfondie (vole des heures sans se poser).
+   « Auto » laisse Bird choisir l'oiseau selon la demande ; le choix s'affiche dans la réponse (« Bird a pris son vol en
+   Faucon »).
 1 ter. Harnais : décisions par le modèle (routeur à sortie structurée, puis fine-tuning des outils), plan et
    vérification d'achèvement, mémoire des résultats, réparation des appels.
 2. Recherche approfondie, affichage dynamique et complet :
