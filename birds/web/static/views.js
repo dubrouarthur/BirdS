@@ -1516,6 +1516,8 @@ function renderStarters() {
   [...list.children].forEach((li, i) => li.style.setProperty("--i", i));
 }
 renderStarters();
+// the eco chip opens « Empreinte »
+$("fi-eco")?.addEventListener("click", () => $("nav-footprint")?.click());
 
 export function openShortcuts() {
   const mac = /Mac|iPhone|iPad/.test(navigator.platform || "");

@@ -7321,6 +7321,35 @@ ol.a4-list > li::before {
   color: var(--ink-2);
   text-wrap: pretty;
 }
+/* eco chip: opens « Empreinte » */
+.fi-eco {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-inline-size: 100%;
+  min-block-size: 36px;
+  margin-block-start: 16px;
+  padding: 6px 14px 6px 10px;
+  border: 1px solid color-mix(in srgb, var(--eco) 30%, transparent);
+  border-radius: 999px;
+  background: var(--eco-soft);
+  color: var(--eco);
+  font: 650 0.88rem/1.3 var(--sans);
+  text-align: start;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    transform 0.2s;
+}
+.fi-eco:hover {
+  border-color: var(--eco);
+  transform: translateY(-1px);
+}
+.fi-eco .icon {
+  flex: none;
+  inline-size: 18px;
+  block-size: 18px;
+}
 .empty .demo-note {
   margin-block-start: 16px;
 }
@@ -7361,9 +7390,6 @@ ol.a4-list > li::before {
 .starter:active {
   transform: scale(0.98);
 }
-.starter:focus-visible {
-  border-radius: 16px;
-}
 .starter-deck {
   --c: var(--series-2);
 }
@@ -7401,6 +7427,10 @@ ol.a4-list > li::before {
   display: grid;
   gap: 1px;
   min-inline-size: 0;
+}
+.starter-title {
+  overflow-wrap: anywhere;
+  hyphens: auto;
 }
 .starter-title {
   font-weight: 650;
@@ -7441,13 +7471,17 @@ ol.a4-list > li::before {
       fi-rise 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both,
       fi-float 6s ease-in-out 0.7s infinite;
   }
-  .fi-mark .mark-wing-back {
-    animation: fi-wing-b 6s ease-in-out 0.5s infinite;
+  .fi-mark :is(.mark-wing-back, .mark-wing-front) {
+    --wr: 18deg;
+    --ws: 0.55;
+    animation: fi-wing 6s ease-in-out 0.5s infinite;
   }
   .fi-mark .mark-wing-front {
-    animation: fi-wing-f 6s ease-in-out 0.5s infinite;
+    --wr: -16deg;
+    --ws: 0.6;
   }
   .empty-title,
+  .fi-eco,
   .empty-lead,
   .starters li,
   .fi-sign {
@@ -7455,6 +7489,9 @@ ol.a4-list > li::before {
   }
   .empty-title {
     animation-delay: 0.06s;
+  }
+  .fi-eco {
+    animation-delay: 0.09s;
   }
   .empty-lead {
     animation-delay: 0.12s;
@@ -7477,33 +7514,17 @@ ol.a4-list > li::before {
     transform: translateY(-4px);
   }
 }
-/* two wing beats, then a long glide */
-@keyframes fi-wing-b {
+/* two wing beats, then a glide */
+@keyframes fi-wing {
   0%,
+  7%,
   14%,
   100% {
     transform: none;
   }
   3.5%,
   10.5% {
-    transform: rotate(18deg) scaleY(0.55);
-  }
-  7% {
-    transform: none;
-  }
-}
-@keyframes fi-wing-f {
-  0%,
-  14%,
-  100% {
-    transform: none;
-  }
-  3.5%,
-  10.5% {
-    transform: rotate(-16deg) scaleY(0.6);
-  }
-  7% {
-    transform: none;
+    transform: rotate(var(--wr)) scaleY(var(--ws));
   }
 }
 /* short screens (phones, small laptops): a small mark, the title, the cards */
@@ -7519,8 +7540,12 @@ ol.a4-list > li::before {
     margin-block-start: 10px;
     font-size: clamp(1.55rem, 6.6vw, 2.2rem);
   }
+  /* the eco chip stays */
   .empty-lead {
     display: none;
+  }
+  .fi-eco {
+    margin-block-start: 12px;
   }
   .fi-try {
     margin-block: 18px 8px;
@@ -7550,6 +7575,22 @@ ol.a4-list > li::before {
   }
   .starter-desc {
     display: none;
+  }
+}
+@media (max-width: 380px) {
+  .starter {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+  .starter-icon {
+    inline-size: 30px;
+    block-size: 30px;
+  }
+  .starter-title {
+    font-size: 0.88rem;
+  }
+  .fi-eco {
+    font-size: 0.82rem;
   }
 }
 
@@ -7881,8 +7922,9 @@ ol.a4-list > li::before {
   }
 }
 @media (max-height: 700px) {
+  /* « Léger » keeps its line */
   .w-caps,
-  .w-value span:last-child {
+  .w-value:not(:first-child) span:last-child {
     display: none;
   }
   .w-value {
