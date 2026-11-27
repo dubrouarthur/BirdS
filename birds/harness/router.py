@@ -180,8 +180,10 @@ def grounded(value: str, *sources: str) -> bool:
         return False
 
     def seen(w: str) -> bool:
-        if w in pool or (w.isdigit() and w in "".join(pool)):
+        if w in pool:  # a number is a whole token too: « 202 » is not in « 2021 »
             return True
+        if w.isdigit():
+            return False
         # plural only (« koalas » / « koala »): never a cut-off word
         return len(w) >= 4 and any(p in (w + "s", w + "x") or w in (p + "s", p + "x") for p in pool)
 
@@ -192,9 +194,33 @@ def _digits(text: str) -> str:
     return re.sub(r"\D", "", text or "")
 
 
+_NUM = re.compile(r"\d[\d  ]*(?:[.,]\d+)*(?:\s*(?:k|md|mds|milliards?|billion|m|millions?)\b)?", re.I)
+
+
+def _amounts(*sources: str) -> set[float]:
+    """Every whole number written in ``sources``, read as the user wrote it (« 1 200 », « 1,5 M », « 12.50 »).
+    A number run is also read token by token, so « 20 et 30 » or « de 2 500 à 3 000 » keep each figure."""
+    from birds.harness import intents
+
+    out: set[float] = set()
+    for src in sources:
+        for m in _NUM.finditer(src or ""):
+            for piece in (m.group(0), *m.group(0).split()):
+                v = intents.parse_amount(piece)
+                if v is not None:
+                    out.add(v)
+    return out
+
+
+def _kinds(text: str) -> set[str]:
+    from birds.harness import intents
+
+    return {k for rx, k in intents.KINDS if re.search(rf"\b(?:{rx})\b", text or "", re.I)}
+
+
 def ground(call: Call, text: str, context: str, lang: str = "fr") -> str:
     """'' when the call's arguments come from the user's words (or the previous turn's context), else why not."""
-    from birds.harness import clock, intents
+    from birds.harness import clock
     from birds.harness.tools.places import _KIND_KEYS
 
     a = call.args
@@ -202,7 +228,8 @@ def ground(call: Call, text: str, context: str, lang: str = "fr") -> str:
         return "" if grounded(a["place"], text, context) else "place not in the user's words"
     if call.tool == "find_places":
         q = a["query"]
-        kind = q.lower() in _KIND_KEYS and (intents._kind_in(text) or intents._kind_in(context) or grounded(q, text))
+        # a kind key (« pharmacy ») is grounded only by that same kind in the user's words, not by any kind
+        kind = q.lower() in _KIND_KEYS and (q.lower() in _kinds(text) | _kinds(context) or grounded(q, text))
         if not (kind or grounded(q, text, context)):
             return "query not in the user's words"
         if a.get("near") and not grounded(a["near"], text, context):
@@ -211,14 +238,13 @@ def ground(call: Call, text: str, context: str, lang: str = "fr") -> str:
     if call.tool == "find_company":
         name = a["name"]
         if _digits(name) and len(_digits(name)) in (9, 14):
-            return "" if _digits(name) in _digits(text) else "SIREN not in the user's words"
+            sirens = {_digits(m.group(0)) for m in re.finditer(r"\d[\d  ]{7,}\d", text)}
+            return "" if _digits(name) in sirens else "SIREN not in the user's words"
         return "" if grounded(name, text, context) else "name not in the user's words"
     if call.tool == "convert_currency":
         if "amount" in a:
-            n = a["amount"]
-            whole = str(int(n)) if float(n).is_integer() else str(n).replace(".", "")
-            amounts = [intents.parse_amount(m.group(0)) for m in re.finditer(r"\d[\d\s  .,]*(?:\s*[kKmM]\b)?", text)]
-            if whole not in _digits(text) and n not in amounts and whole not in _digits(context):
+            # the same number as one the user wrote (or the previous turn's), never a piece of « 2025 »
+            if float(a["amount"]) not in _amounts(text, context):
                 return "amount not in the user's words"
         return ""
     if call.tool == "clock":

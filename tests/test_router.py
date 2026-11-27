@@ -177,6 +177,36 @@ def test_grounding_accepts_plurals_case_accents_and_the_previous_turn_only():
     assert not d.modules and dropped
 
 
+@pytest.mark.parametrize(
+    "call,text",
+    [
+        # a piece of a year is not an amount, a company name or a figure the user wrote
+        (("convert_currency", {"amount": 20, "from": "EUR", "to": "USD"}), "convertis le budget 2025 en dollars"),
+        (("find_company", {"name": "202"}), "le chiffre d affaires de la société en 2021"),
+        # one kind named (« restaurant ») does not ground another (« pharmacy »)
+        (("find_places", {"query": "pharmacy", "near": "Lyon"}), "un restaurant à Lyon"),
+    ],
+)
+def test_grounding_compares_whole_numbers_and_the_same_kind(call, text):
+    d, dropped, vetoed = R.validate({"modules": [{"tool": call[0], "args": call[1]}]}, text)
+    assert not d.modules and [t for t, _ in dropped] == [call[0]] and vetoed == []
+
+
+@pytest.mark.parametrize(
+    "call,text",
+    [
+        (("convert_currency", {"amount": 1200, "from": "EUR", "to": "USD"}), "convertis 1 200 € en dollars"),
+        (("convert_currency", {"amount": 1500000, "from": "EUR", "to": "USD"}), "1,5 M€ en dollars"),
+        (("convert_currency", {"amount": 12.5, "from": "EUR", "to": "USD"}), "12,50 € en dollars"),
+        (("find_company", {"name": "552100554"}), "fiche de la société SIREN 552 100 554"),
+        (("find_places", {"query": "restaurant", "near": "Lyon"}), "un resto à Lyon"),
+    ],
+)
+def test_grounding_keeps_numbers_and_kinds_the_user_wrote(call, text):
+    d, dropped, _ = R.validate({"modules": [{"tool": call[0], "args": call[1]}]}, text)
+    assert d.tools() == [call[0]] and not dropped
+
+
 # ---------------------------------------------------------------- veto: known false triggers only
 
 
