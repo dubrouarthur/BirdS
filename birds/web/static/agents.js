@@ -1249,8 +1249,8 @@ function checkRow(i) {
           : h("p", {
               class: "vc-why",
               text:
-                i.why === "claim"
-                  ? t("agent.check.why.claim", { n: i.n || "" })
+                i.why === "claim" || i.why === "derived"
+                  ? t(`agent.check.why.${i.why}`, { n: i.n || "" })
                   : [t(ORIGIN[i.origin]), i.line && `« ${i.line} »`]
                       .filter(Boolean)
                       .join(" : "),

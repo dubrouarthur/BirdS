@@ -62,10 +62,16 @@ def allowed_figures(*texts: str) -> set[float]:
     return out
 
 
+def on_page(v: float, allowed: set[float]) -> bool:
+    """The figure itself is in the set, as written (no difference or ratio of two others)."""
+    return any(abs(v - a) <= max(0.005, abs(a) * 1e-4) for a in allowed)
+
+
 def supported(v: float, allowed: set[float], tol: float = 0.05) -> bool:
     """In the allowed set, or a difference / ratio / percentage ratio of two allowed figures (within ``tol``).
-    « 14,8 points » from 19 and 4,2 is accepted; « 4,6 » with no such pair is not."""
-    if any(abs(v - a) <= max(0.005, abs(a) * 1e-4) for a in allowed):
+    « 14,8 points » from 19 and 4,2 is accepted; « 4,6 » with no such pair is not. Good enough to keep a figure in
+    a draft, never enough to say where it comes from: a citation or a « vérifié » needs ``on_page``."""
+    if on_page(v, allowed):
         return True
     vals = [a for a in allowed if a > 0][:400]
     for a in vals:
@@ -1132,18 +1138,23 @@ def ledger(args: dict, *, texts: dict, allowed_by: dict, request: str = "", comp
                 continue
             seen.add(key)
             item = {"value": _with_unit(raw, part), "sentence": plain[:180], "status": "verified"}
-            holder = next((n for n in cited if supported(v, allowed_by.get(n, set()), tol=0.0)), None)
-            if holder is None and not supported(v, req_allowed, tol=0.0):
-                holder = next((n for n in sorted(texts) if supported(v, allowed_by.get(n, set()), tol=0.0)), None)
+            in_req = on_page(v, req_allowed)
+            # a page « holds » a figure only when the figure is written on it: 37 is not on a page that says 40
+            # and 3, whatever 40 - 3 makes
+            holder = next((n for n in cited if on_page(v, allowed_by.get(n, set()))), None)
+            if holder is None and not in_req:
+                holder = next((n for n in sorted(texts) if on_page(v, allowed_by.get(n, set()))), None)
             if holder is not None:
                 src = titles.get(holder, {})
                 site = urlsplit(str(src.get("url") or "")).netloc.removeprefix("www.")
                 item.update(origin="source", n=holder, line=_line_with(raw, texts.get(holder, "")),
                             title=str(src.get("title") or "")[:120], site=site)  # fmt: skip
-            elif supported(v, req_allowed, tol=0.0):
+            elif in_req:
                 item.update(origin="request", line=_line_with(raw, request))
-            elif any(abs(v - c) <= max(0.5, abs(c) * 0.005) for c in comp) or supported(v, req_allowed | comp):
+            elif any(abs(v - c) <= max(0.5, abs(c) * 0.005) for c in comp):
                 item.update(origin="computed", line="")
+            elif any(supported(v, allowed_by.get(n, set()), tol=0.0) for n in texts) or supported(v, req_allowed | comp):
+                item.update(origin="none", status="review", why="derived", line="")  # worked out by the model
             else:
                 item.update(origin="none", status="review", line="")
             if is_weak and item["status"] == "verified" and item.get("origin") == "source":
@@ -1167,9 +1178,9 @@ def _cite_one(sent: str, by: dict, req: set) -> tuple[str, bool]:
     figs = figures(sent)
     if not figs or _CITES.search(sent) or re.search(r"https?://", sent):
         return sent, False
-    if any(supported(v, req, tol=0.0) for _, v in figs):
+    if any(on_page(v, req) for _, v in figs):
         return sent, False
-    holder = next((n for n in sorted(by) if all(supported(v, by[n], tol=0.0) for _, v in figs)), None)
+    holder = next((n for n in sorted(by) if all(on_page(v, by[n]) for _, v in figs)), None)
     if holder is None:
         return sent, False
     m = re.search(r"\s*([.!?;:])?\s*$", sent)
@@ -1178,8 +1189,8 @@ def _cite_one(sent: str, by: dict, req: set) -> tuple[str, bool]:
 
 
 def autocite(args: dict, allowed_by: dict, request: str = "") -> tuple[dict, int]:
-    """The deliverable's figures that carry no [n] get the number of the page that holds them (code, not the
-    model: true by construction). Figures of the user's own text stay uncited. Returns (args, citations added)."""
+    """The deliverable's figures that carry no [n] get the number of the page where they are written (code, not
+    the model: a figure the page only allows by arithmetic, 37 from 40 and 3, gets no citation). Figures of the user's own text stay uncited. Returns (args, citations added)."""
     if not isinstance(args, dict) or not allowed_by:
         return args, 0
     req = allowed_figures(request)

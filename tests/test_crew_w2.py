@@ -431,3 +431,27 @@ def test_a_figure_without_its_citation_gets_the_page_that_holds_it():
     text = out["sections"][0]["content"]
     assert k == 2 and "production [1]." in text and "1,1 % [2]." in text
     assert "9 000 €." in text and "24 % [2]." in text and text.endswith("| x | 24 % |")  # yours, cited, tables: as is
+
+
+# ------------------------------------------------------------------ review fixes: the card says only what is true
+
+PAGE_40 = "Le marché atteint 40 milliards en 2024, avec 3 acteurs majeurs et une croissance de 12 % sur 5 ans."
+SRC_1 = [{"n": 1, "title": "T", "url": "https://ex.org/a"}]
+
+
+def test_a_figure_the_page_only_allows_by_arithmetic_is_neither_cited_nor_verified():
+    by = {1: cc.allowed_figures(PAGE_40)}
+    args = {"sections": [{"heading": "Marché", "content": "Le marché progresse de 37 % par an. Il pèse 40 milliards."}]}
+    out, k = cc.autocite(args, by, "")
+    text = out["sections"][0]["content"]
+    assert k == 1 and "37 % par an." in text and "[1]" not in text.split(".")[0] and "40 milliards [1]." in text
+    led = cc.ledger(out, texts={1: PAGE_40}, allowed_by=by, sources=SRC_1)
+    v37 = next(i for i in led["items"] if i["value"].startswith("37"))
+    assert v37["status"] == "review" and v37["origin"] == "none" and v37["why"] == "derived" and "n" not in v37
+    v40 = next(i for i in led["items"] if i["value"].startswith("40"))
+    assert v40["status"] == "verified" and v40["n"] == 1 and "40 milliards" in v40["line"]
+    # a figure the harness computed itself stays « calculé »; one the model derived from the request is to check
+    led = cc.ledger({"body": "Écart de 1 200 €. Écart de 37 €."}, texts={}, allowed_by={}, request="40 € et 3 €",
+                    computed=[1200])  # fmt: skip
+    got = {i["value"]: (i["status"], i["origin"], i.get("why")) for i in led["items"]}
+    assert got == {"1 200 €": ("verified", "computed", None), "37 €": ("review", "none", "derived")}
