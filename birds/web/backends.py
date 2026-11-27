@@ -491,7 +491,7 @@ _DEMO_CHART = re.compile(
 DEMO_TOKENS_PER_SECOND = 40  # scripted decode speed, for the demo's GPU time only
 
 
-def demo_energy(cfg: dict | None, prompt: int, completion: int) -> dict:
+def demo_energy(cfg: dict | None, prompt: int, completion: int, seconds: float | None = None) -> dict:
     """The opt-in demo estimate: the real token formula on scripted counts (nothing when ``cfg`` is None)."""
     if not cfg or cfg.get("energy_method") != "tokens":
         return {}
@@ -512,7 +512,8 @@ def demo_energy(cfg: dict | None, prompt: int, completion: int) -> dict:
         "energy_source": "demo: " + est["energy_source"],
         "energy_method": "tokens",
         "energy_basis": est["energy_basis"],
-        "busy_seconds": round(completion / DEMO_TOKENS_PER_SECOND + prompt / 4000, 2),
+        # never longer than the scripted answer itself took
+        "busy_seconds": round(min(completion / DEMO_TOKENS_PER_SECOND + prompt / 4000, seconds or float("inf")), 2),
     }
 
 
@@ -663,17 +664,18 @@ class _DemoRun:
         prompt = 60 + sum(len(m["content"]) for m in self.req.messages) // 4 + self.extra_prompt
         prompt += sum(len(a["content"]) for a in self.req.attachments) // 4
         completion = len(content) // 4 + self.extra_completion
+        seconds = self.carry_seconds + time.monotonic() - self.t0
         self.ctx.emit(
             usage_event(
                 model=self.b.model,
                 thinking=self.req.thinking,
                 prompt_tokens=prompt,
                 completion_tokens=completion,
-                seconds=self.carry_seconds + time.monotonic() - self.t0,
+                seconds=seconds,
                 tool_calls=self.steps,
                 bytes_fetched=self.bytes,
                 tokens_kind="scripted",
-                **demo_energy(self.b.energy, prompt, completion),
+                **demo_energy(self.b.energy, prompt, completion, seconds),
             )
         )
 
