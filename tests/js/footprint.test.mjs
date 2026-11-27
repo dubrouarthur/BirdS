@@ -30,6 +30,7 @@ test("every grid, water, reference and equivalent carries a value, a year or dat
   assert.deepEqual(F.GRID_ORDER, ["fr", "eu", "world"]);
   assert.ok(F.GRIDS.fr.g_per_kwh < F.GRIDS.eu.g_per_kwh && F.GRIDS.eu.g_per_kwh < F.GRIDS.world.g_per_kwh);
   assert.ok(/^https:\/\//.test(F.WATER.url) && Math.abs(F.WATER.ml_per_wh - 0.26 / 0.24) < 1e-12);
+  assert.ok(F.FLOPS.per_param === 2 && /^https:\/\//.test(F.FLOPS.url) && F.FLOPS.source);
   assert.deepEqual(F.REFERENCES.map((r) => [r.key, r.wh]), [["published", 0.24], ["stated", 0.34]]);
   for (const e of F.EQUIVALENTS) {
     assert.ok(e.value > 0 && ["g", "wh"].includes(e.per) && ["hour", "km", "count"].includes(e.unit), e.key);

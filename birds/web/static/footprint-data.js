@@ -55,6 +55,15 @@ export const REFERENCES = [
   },
 ];
 
+/** Compute per generated token ≈ 2 × active parameters (forward pass), the basis of the story's « times less ». */
+export const FLOPS = {
+  per_param: 2,
+  year: 2020,
+  source: "Kaplan et al., Scaling Laws for Neural Language Models (2020)",
+  url: "https://arxiv.org/abs/2001.08361",
+  licence: "cite",
+};
+
 const IMPACT_CO2 = "ADEME, Impact CO2 (Base Empreinte), 2026"; // factors read on impactco2.fr in November 2026
 const IMPACT_CO2_LICENCE = "ademe"; // reuse with ADEME named as the source (impactco2.fr legal notice)
 

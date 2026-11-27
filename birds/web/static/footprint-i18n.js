@@ -88,10 +88,10 @@ export const FOOTPRINT_STRINGS = {
     "footprint.vs.source": "source",
     "footprint.story.title": "Pourquoi les petits modèles sont l'avenir",
     "footprint.story.lead":
-      "Bird est léger par conception. Cinq raisons, chiffres sourcés à l'appui.",
+      "Bird est léger par conception. Cinq raisons ; les chiffres d'énergie, d'eau et de réseau sont sourcés dans la méthode, en fin de page.",
     "footprint.s1.title": "Moins de calcul par mot",
     "footprint.s1.p":
-      "Bird S compte {b} milliards de paramètres, un grand modèle dense environ {big} milliards. À chaque mot écrit, il fait donc environ {x} fois moins de calcul.",
+      "Bird S compte {b} milliards de paramètres ; un grand modèle dense, de l'ordre de {big} milliards. Le calcul de chaque mot écrit croît avec le nombre de paramètres actifs (environ 2 opérations par paramètre) : Bird en fait de l'ordre de {x} fois moins.",
     "footprint.s1.legend": "1 carré = {b} milliards de paramètres",
     "footprint.s1.bird": "Bird S",
     "footprint.s1.big": "Grand modèle dense",
@@ -131,6 +131,8 @@ export const FOOTPRINT_STRINGS = {
     "footprint.method.ref.published": "Grand assistant (méthode publiée)",
     "footprint.method.ref.stated": "Grand assistant (sans méthode publiée)",
     "footprint.method.tokens.out": "Énergie par 1 000 tokens écrits",
+    "footprint.method.flops": "Calcul par token écrit",
+    "footprint.method.flops.value": "≈ 2 opérations par paramètre actif",
     "footprint.method.tokens.in": "Énergie par 1 000 tokens lus",
     "footprint.method.eq.streaming": "Streaming vidéo, 1 h",
     "footprint.method.eq.car": "Voiture thermique, 1 km",
@@ -230,10 +232,10 @@ export const FOOTPRINT_STRINGS = {
     "footprint.vs.source": "source",
     "footprint.story.title": "Why small models are the future",
     "footprint.story.lead":
-      "Bird is light by design. Five reasons, with sourced figures.",
+      "Bird is light by design. Five reasons; the energy, water and grid figures are sourced in the method, at the end of the page.",
     "footprint.s1.title": "Less computation per word",
     "footprint.s1.p":
-      "Bird S has {b} billion parameters, a large dense model about {big} billion. Each word it writes takes about {x} times less computation.",
+      "Bird S has {b} billion parameters; a large dense model, of the order of {big} billion. The computation of each word written grows with the active parameters (about 2 operations per parameter): Bird does of the order of {x} times less.",
     "footprint.s1.legend": "1 square = {b} billion parameters",
     "footprint.s1.bird": "Bird S",
     "footprint.s1.big": "Large dense model",
@@ -272,6 +274,8 @@ export const FOOTPRINT_STRINGS = {
     "footprint.method.ref.published": "Large assistant (published method)",
     "footprint.method.ref.stated": "Large assistant (no published method)",
     "footprint.method.tokens.out": "Energy per 1,000 tokens written",
+    "footprint.method.flops": "Computation per token written",
+    "footprint.method.flops.value": "≈ 2 operations per active parameter",
     "footprint.method.tokens.in": "Energy per 1,000 tokens read",
     "footprint.method.eq.streaming": "Video streaming, 1 h",
     "footprint.method.eq.car": "Combustion-engine car, 1 km",

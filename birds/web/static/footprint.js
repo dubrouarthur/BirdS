@@ -918,6 +918,13 @@ function methodTable() {
         tokSrc?.url,
         "cite",
       ),
+    row(
+      t("footprint.method.flops"),
+      t("footprint.method.flops.value"),
+      F.FLOPS.source,
+      F.FLOPS.url,
+      F.FLOPS.licence,
+    ),
     ...F.GRID_ORDER.map((k) => {
       const g = F.GRIDS[k];
       return row(
