@@ -511,3 +511,21 @@ def test_plan_edits_reject_infinite_and_untyped_values(tmp_path, monkeypatch):
                                                                                        "n_slides": 5}}})  # fmt: skip
     assert inf.status_code == 422 and "infinity to integer" not in inf.text and wrong.status_code == 422
     assert next(e for e in extra if e["type"] == "agent_start")["plan"]["n_slides"] == 5
+
+
+def test_a_slice_event_says_until_when_its_state_is_accepted(tmp_path, monkeypatch):
+    import time
+
+    from fastapi.testclient import TestClient
+
+    from birds.web import tokens
+
+    tok = tokens.sign({"k": "x"}, b"s" * 32, 900, now=1000)
+    assert tokens.expiry(tok) == 1900 and tokens.expiry("nope") is None and tokens.expiry("a.b") is None
+    llm = Script(deck_script())
+    body = {"messages": [{"role": "user", "content": ASK_DECK}], "agent_flow": "plan"}
+    with TestClient(_app(tmp_path, llm, monkeypatch)) as client:
+        card = next(e for e in _sse(client, body) if e["type"] == "agent_plan")
+        events = _sse(client, {**body, "agent_plan": {"token": card["token"], "edits": {}}})
+    sl = next(e for e in events if e["type"] == "agent_slice")
+    assert isinstance(sl["exp"], int) and 0 < sl["exp"] - time.time() <= 900 + 5

@@ -11,6 +11,7 @@ import secrets
 import time
 from pathlib import Path
 
+from birds.web import tokens
 from birds.web.backends import (
     ChatRequest,
     RunContext,
@@ -35,7 +36,8 @@ def on_agent(ctx: RunContext, lang: str, offset, step_end):
         elif kind == "slice":  # a long task's state, signed: the next slice (auto) or a checkpoint after a reload
             token = ctx.sign(_plain(ev["state"]))
             ctx.emit({"type": "agent_slice", "token": token, "final": not ev["auto"], "auto": bool(ev["auto"]),
-                      "slice": ev["state"].get("slice", 0), "run": ev["state"].get("run")})  # fmt: skip
+                      "slice": ev["state"].get("slice", 0), "run": ev["state"].get("run"),
+                      "exp": tokens.expiry(token)})  # fmt: skip  # the browser forgets it once expired
         else:
             ctx.check()
             ctx.emit(_plain(ev))

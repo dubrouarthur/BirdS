@@ -120,6 +120,7 @@ export function applyAgentEvent(turn, ev) {
       slice: Number(ev.slice) || 0,
       started: prev?.started || Date.now(),
       checkpoint: prev?.checkpoint || "",
+      checkpointExp: prev?.checkpointExp || 0,
       done: null,
     };
     if (turn.crewPlan) turn.crewPlan.status = "launched";
@@ -181,6 +182,8 @@ export function applyAgentEvent(turn, ev) {
     // kept with the conversation: « Reprendre » after a reload or a lost connection. The next slice's state is a
     // checkpoint too (a long task sends no other one): a reload during the writing keeps the research
     crew.checkpoint = ev.token;
+    // until when the server accepts it (seconds since 1970); without it, the server's default of 15 minutes
+    crew.checkpointExp = Number.isInteger(ev.exp) ? ev.exp : Math.floor(Date.now() / 1000) + 900;
     if (ev.auto) {
       crew.next = ev.token; // the browser continues the task in a new request (runTurn)
       return t("agent.slice.say");
@@ -209,6 +212,11 @@ export function applyAgentEvent(turn, ev) {
     }
     crew.done = ev;
     crew.next = "";
+    // the task is done: its signed state (pages read, the request) has no use left, and it is large
+    if (ev.ok) {
+      crew.checkpoint = "";
+      crew.checkpointExp = 0;
+    }
     for (const lane of crew.lanes) {
       // a lane still waiting when the team ends badly was needed but never ran: « non lancé », not « non nécessaire »
       if (lane.status === "queued")
@@ -1200,7 +1208,11 @@ export function renderAgents(turn, handlers) {
   });
   // the connection was lost after the research: the team resumes from its checkpoint (the pages are not read again)
   const resume =
-    crew.checkpoint && crew.done.dropped && turn.status !== "running" && handlers.onResume
+    crew.checkpoint &&
+    crew.done.dropped &&
+    turn.status !== "running" &&
+    handlers.onResume &&
+    !(crew.checkpointExp && crew.checkpointExp <= Date.now() / 1000) // the server would refuse an expired state
       ? h(
           "div",
           { class: "crew-resume" },

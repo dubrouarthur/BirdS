@@ -107,6 +107,10 @@ function slim(conv) {
       a.encoding === "base64" ? { ...a, content: null, lost: true } : a,
     ),
     turns: conv.turns
+      // a signed state the server no longer accepts is not kept (it holds the pages read: up to ~160 kB)
+      .map((turn) => (turn.crew?.checkpoint && !(turn.crew.checkpointExp > Date.now() / 1000)
+        ? { ...turn, crew: { ...turn.crew, checkpoint: "", next: "", checkpointExp: 0 } }
+        : turn))
       // a team at work is kept once it sent a checkpoint: after a reload, « Reprendre la tâche » continues it
       .filter((turn) => turn.role === "user" || turn.status !== "running" || turn.crew?.checkpoint)
       .map((turn) => {

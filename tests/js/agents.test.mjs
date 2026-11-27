@@ -157,6 +157,21 @@ test("a long task: the next slice token, then a checkpoint; the line says what t
   assert.equal(turn.crew.checkpoint, "next");
 });
 
+test("a finished task forgets its signed state; a stopped or dropped one keeps it until it expires", () => {
+  const turn = team();
+  applyAgentEvent(turn, { type: "agent_slice", token: "cp", auto: false, exp: 2_000_000_000 });
+  assert.equal(turn.crew.checkpoint, "cp");
+  assert.equal(turn.crew.checkpointExp, 2_000_000_000);
+  applyAgentEvent(turn, { type: "agent_done", ok: false, dropped: true, caveats: [] });
+  assert.equal(turn.crew.checkpoint, "cp");
+  const ok = team();
+  applyAgentEvent(ok, { type: "agent_slice", token: "next", auto: true });
+  assert.ok(ok.crew.checkpointExp > Date.now() / 1000); // no exp sent: the server's default of 15 minutes
+  applyAgentEvent(ok, { type: "agent_done", ok: true, caveats: [] });
+  assert.equal(ok.crew.checkpoint, "");
+  assert.equal(ok.crew.next, "");
+});
+
 test("« Livrables »: every file of the conversation, newest first", () => {
   const conv = {
     turns: [
