@@ -504,12 +504,13 @@ def previous_summary(history: list[dict] | None, lang: str = "fr") -> str:
 
 
 def messages(text: str, *, history=None, hints: Decision | None = None, lang: str = "fr", names=None) -> list[dict]:
-    """System = catalogue (static), then the fixed examples (static), then this turn: all the static part comes
-    first so the endpoint reuses it from its prefix cache."""
+    """[system, user]: the catalogue and the fixed examples (static: the endpoint reuses them from its prefix
+    cache), then this turn. The examples sit in the system message, not as earlier turns, so a training record
+    built from these messages (scripts/build_tools_mix.py) has a single assistant turn to learn."""
     lg = "en" if lang == "en" else "fr"
-    msgs = [{"role": "system", "content": catalog.text(lg, names)}]
-    for q, a in _FEW_SHOT[lg]:
-        msgs += [{"role": "user", "content": q}, {"role": "assistant", "content": a}]
+    shots = "\n".join(q.replace("\n", " / ") + " → " + a for q, a in _FEW_SHOT[lg])
+    head = "Examples:" if lg == "en" else "Exemples :"
+    msgs = [{"role": "system", "content": catalog.text(lg, names) + "\n" + head + "\n" + shots}]
     sep = ": " if lg == "en" else " : "
     turn = []
     prev = previous_summary(history, lg)
