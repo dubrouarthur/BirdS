@@ -178,11 +178,13 @@ export function applyAgentEvent(turn, ev) {
   }
   if (ev.type === "agent_slice") {
     if (!crew || typeof ev.token !== "string") return "";
+    // kept with the conversation: « Reprendre » after a reload or a lost connection. The next slice's state is a
+    // checkpoint too (a long task sends no other one): a reload during the writing keeps the research
+    crew.checkpoint = ev.token;
     if (ev.auto) {
       crew.next = ev.token; // the browser continues the task in a new request (runTurn)
       return t("agent.slice.say");
     }
-    crew.checkpoint = ev.token; // kept with the conversation: « Reprendre » after a reload or a lost connection
     return "";
   }
   if (ev.type === "agent_note") {

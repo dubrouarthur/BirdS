@@ -297,6 +297,69 @@ async function autoStart(browser) {
   await ctx.close();
 }
 
+/** « Approfondie »: the research ends in a slice, the writing slice is cut by a reload; « Reprendre la tâche »
+ * continues from the slice's state (the only checkpoint a long task sends). The demo has no slices: the two
+ * requests of the long task are scripted with page.route, the plan card comes from the demo. */
+async function sliceReload(browser) {
+  console.log("slice-reload (1280, light)");
+  const out = dir("slice-reload");
+  const { ctx, page } = await open(browser, { viewport: { width: 1280, height: 900 } });
+  await page.selectOption("#agent-mode", "on");
+  const sent = [];
+  const sse = (evs) => evs.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
+  const lanes = [
+    { id: "chercheur", role: "chercheur", label: "Recherche web", group: "research" },
+    { id: "redacteur_a", role: "redacteur", label: "Version A", group: "drafts" },
+  ];
+  await page.route("**/api/chat", async (route) => {
+    const body = JSON.parse(route.request().postData() || "{}");
+    if (!body.agent_plan && !body.agent_slice) return route.continue(); // the demo's plan card
+    sent.push(body);
+    if (body.agent_plan)
+      return route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: sse([
+          { type: "agent_start", recipe: "deck_research", reason: "présentation", mode: "on", forced: true, run: "runslice1", lanes },
+          { type: "agent_step", id: "chercheur", role: "chercheur", phase: "brief", status: "done", label: "Recherche web" },
+          { type: "agent_slice", token: "SLICE-TOKEN-1", auto: true, final: false, slice: 0, run: "runslice1" },
+          { type: "done" },
+        ]),
+      });
+    // the writing slice: the stream stays open (the reload cuts it)
+    return new Promise(() => {});
+  });
+  await send(page, DECK, { plan: "keep" });
+  await page.waitForSelector('[data-act="plan-edit"]', { timeout: 15000 });
+  await page.click('[data-act="plan-edit"]');
+  await page.click('.plan-seg-opt:has(input[value="long"])');
+  await page.click('[data-act="plan-edit"]');
+  await page.click('[data-act="plan-launch"]');
+  for (let i = 0; i < 40 && sent.length < 2; i++) await page.waitForTimeout(150);
+  check(sent[0]?.agent_plan?.edits?.length === "long", "« Approfondie » is sent with the plan");
+  check(sent[1]?.agent_slice === "SLICE-TOKEN-1", "the browser continues the long task with the slice's state");
+  const stored = await page.evaluate(() => {
+    const k = Object.keys(localStorage).find((x) => x.startsWith("bird.conv."));
+    return k ? localStorage.getItem(k) : "";
+  });
+  check(stored.includes("SLICE-TOKEN-1"), "the slice's state is saved with the conversation");
+  await page.reload(); // the writing slice's request is still open: the reload cuts it
+  await page.waitForTimeout(600);
+  const resume = await page.waitForSelector('[data-act="agent-resume"]', { timeout: 8000 }).catch(() => null);
+  check(!!resume, "after a reload during the writing slice: « Reprendre la tâche »");
+  await page.screenshot({ path: path.join(out, "1-resume.png") });
+  let resumed = null;
+  await page.route("**/api/chat", (route) => {
+    resumed = JSON.parse(route.request().postData() || "{}");
+    return route.fulfill({ status: 200, contentType: "text/event-stream", body: sse([{ type: "done" }]) });
+  });
+  if (resume) await resume.click();
+  for (let i = 0; i < 30 && !resumed; i++) await page.waitForTimeout(100);
+  check(resumed?.agent_slice === "SLICE-TOKEN-1", "« Reprendre » continues from the slice's state (no new research)");
+  check(page.errors.length === 0, `no page error (${page.errors.join(" | ")})`);
+  await ctx.close();
+}
+
 // ------------------------------------------------------------------ scripted failures (page.route over the demo stream)
 
 function frames(body) {
@@ -803,6 +866,7 @@ async function smallTouch(browser) {
         for (const scheme of ["light", "dark"]) await wave2(browsers.chromium, { width, scheme });
     },
     autoStart: () => autoStart(browsers.chromium),
+    sliceReload: () => sliceReload(browsers.chromium),
   };
   const only = process.argv.slice(2);
   for (const [name, fn] of Object.entries(all))

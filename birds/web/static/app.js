@@ -110,12 +110,13 @@ function slim(conv) {
       // a team at work is kept once it sent a checkpoint: after a reload, « Reprendre la tâche » continues it
       .filter((turn) => turn.role === "user" || turn.status !== "running" || turn.crew?.checkpoint)
       .map((turn) => {
-        if (turn.role === "assistant" && turn.status === "running")
+        // running, or between two slices of a long task: after a reload, the task resumes from its checkpoint
+        if (turn.role === "assistant" && (turn.status === "running" || turn.status === "slice"))
           turn = {
             ...turn,
             status: "error",
             error: { code: "dropped", message: t("error.dropped") },
-            crew: { ...turn.crew, done: { ok: false, dropped: true, caveats: [] } },
+            crew: { ...turn.crew, next: "", done: { ok: false, dropped: true, caveats: [] } },
           };
         if (turn.role === "user")
           return {
@@ -1312,7 +1313,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
       const said = applyAgentEvent(turn, event);
       if (event.type === "agent_start" && !turn.crew?.slice) announce(t("agent.chip"));
       else if (said) announce(said);
-      if (event.type === "agent_slice" && !event.auto) saveConv(conv); // the checkpoint survives a reload
+      if (event.type === "agent_slice") saveConv(conv); // the checkpoint survives a reload
       break;
     }
     case "error":

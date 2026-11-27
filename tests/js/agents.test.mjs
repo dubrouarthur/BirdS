@@ -153,7 +153,8 @@ test("a long task: the next slice token, then a checkpoint; the line says what t
   turn.crew.notes.push({ id: "q", kind: "focus", value: "x", status: "sent" });
   applyAgentEvent(turn, { type: "agent_start", recipe: "deck_research", lanes: LANES, slice: 1 });
   assert.equal(turn.crew.notes.length, 1);
-  assert.equal(turn.crew.checkpoint, "cp");
+  // the next slice's state is the latest checkpoint: a reload during the writing resumes from it
+  assert.equal(turn.crew.checkpoint, "next");
 });
 
 test("« Livrables »: every file of the conversation, newest first", () => {
