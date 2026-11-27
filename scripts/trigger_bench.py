@@ -545,6 +545,7 @@ FOLLOWUP_YES = [  # (previous context, follow-up, the call it must start)
 ]
 OFFICE_NO = [  # ordinary office prompts: no rich content at all, alone or right after a rich result
     "rédige un mail de relance pour la facture 2024-118",
+    "Ajoute 12 rue de la Paix à mon CV.",
     "résume ce compte rendu en 5 points",
     "traduis ce paragraphe en anglais",
     "quel est le délai de préavis pour une démission ?",

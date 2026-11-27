@@ -500,6 +500,25 @@ def _map_extras(text: str, t: str) -> Intent | None:
     return None
 
 
+# « Ajoute 12 rue de la Paix à mon CV », « corrige l'adresse 10 rue de Rivoli dans le courrier »: an address put in
+# a document is an edit, not an ask for where it is; with no where-is or map cue, the model chooses
+_EDIT_ASK = re.compile(
+    r"^\W*(?:(?:peux-tu|pouvez-vous|tu\s+peux|can\s+you|could\s+you|please)\s+)?(?:ajoute[rz]?|rajoute[rz]?|"
+    r"mets?\s+[àa]\s+jour|mettre\s+[àa]\s+jour|actualise[rz]?|r[ée]dige[rz]?|[ée]cri[st]|[ée]crire|corrige[rz]?|"
+    r"modifie[rz]?|remplace[rz]?|ins[èe]re[rz]?|change[rz]?|reformule[rz]?|traduis|update|add|write|fix|correct|"
+    r"insert|replace|edit|rewrite|translate)\b"
+    r"|\b(?:CV|curriculum|signature|lettre\s+de\s+motivation|en-t[êe]te|pied\s+de\s+page|r[ée]sum[ée]|resume|"
+    r"courrier|facture|devis|contrat|mail|e-mail|email|document|fichier|tableau|slide|diapo)\b",
+    re.I,
+)
+_WHERE_CUE = re.compile(
+    r"\b(?:o[uù]|where|cartes?|maps?|plan\s+d'acc[èe]s|itin[ée]raire|trajet|localise\w*|situe\w*|locate|"
+    r"comment\s+(?:aller|venir|se\s+rendre)|how\s+(?:do\s+i\s+|to\s+)?get|directions?|distances?|loin|far|"
+    r"autour|pr[eè]s\s+d|near|proches?)\b",
+    re.I,
+)
+
+
 def places(text: str, lang: str = "fr") -> Intent | None:
     raw = " ".join(_URL.sub(" ", text or "").split())
     if not raw or _NEVER.search(raw) or _NOT_A_MAP_CARD.search(raw) or _HOWTO.search(raw) or _PERSON_HOME.search(raw):
@@ -573,6 +592,8 @@ def places(text: str, lang: str = "fr") -> Intent | None:
     addr = find_address(raw)  # a typed postal address wins over "où est ..." (BAN geocodes it exactly)
     # a postal address typed alone (« 10 rue de Rivoli, 75001 Paris ») is an ask for where it is
     alone = addr and len(addr) >= 0.6 * len(t.strip(" ?!.")) and len(t) <= 160
+    if addr and _EDIT_ASK.search(raw) and not _WHERE_CUE.search(raw):
+        return None  # an address written into a CV, a signature, a letter: an edit; the model chooses
     if addr and (_PLACE_WORD.search(raw) or alone):
         addr = re.sub(r"\s+(?:à|a|in)\s+(?=[A-ZÀ-Ý])", " ", addr)
         return Intent("find_places", {"query": addr}, keep_web=False, mode="address")

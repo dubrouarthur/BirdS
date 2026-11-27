@@ -431,6 +431,11 @@ MAPS_HELDOUT_NO: list[str] = [
     "Quelle est la distance en km entre la Terre et la Lune ?",
     "how far is the Earth from the Moon?",
     "distance between Mars and Jupiter",
+    # an address written into a document is an edit, not a map ask
+    "Ajoute 12 rue de la Paix à mon CV.",
+    "Mets à jour ma signature : 5 rue de la République 69002 Lyon",
+    "Corrige l'adresse 10 rue de Rivoli Paris dans le courrier",
+    "add 10 Downing Street London to my resume",
 ]
 
 

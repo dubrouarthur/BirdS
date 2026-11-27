@@ -107,6 +107,23 @@ def test_a_distance_between_two_non_places_is_left_to_the_model(text):
 
 
 @pytest.mark.parametrize(
+    "text",
+    ["Ajoute 12 rue de la Paix à mon CV.", "Mets à jour ma signature : 5 rue de la République 69002 Lyon",
+     "Corrige l'adresse 10 rue de Rivoli Paris dans le courrier", "add 10 Downing Street London to my resume"],
+)  # fmt: skip
+def test_an_address_written_into_a_document_is_no_map_ask(text):
+    assert _call(text) is None
+
+
+@pytest.mark.parametrize(
+    "text,query",
+    [("où est le 12 rue de la Paix ?", "12 rue de la Paix"), ("10 rue de Rivoli, 75001 Paris", "10 rue de Rivoli, 75001 Paris")],
+)  # fmt: skip
+def test_an_address_alone_or_asked_where_is_still_looked_up(text, query):
+    assert _call(text) == ("address", {"query": query})
+
+
+@pytest.mark.parametrize(
     "text,pair",
     [("distance entre la gare de Lyon et Bercy", {"gare de Lyon", "Bercy"}),
      ("quelle est la distance entre la tour Eiffel et le Louvre ?", {"tour Eiffel", "Louvre"})],
