@@ -1,7 +1,9 @@
 """FastAPI app for the Bird web chat: static frontend + a small stateless API (see docs/WEB.md).
 
-Nothing is kept in memory between requests except a best-effort rate-limit window: the app runs unchanged on a
-long-lived local server (scripts/serve.py) and on serverless functions (app.py, Vercel).
+Nothing is kept in memory between requests except a best-effort rate-limit window and the note queues of the Mode
+Agent runs at work in this process (birds.harness.crew_plan.REGISTRY; a note that misses its run is carried by the
+browser into the next slice): the app runs unchanged on a long-lived local server (scripts/serve.py) and on
+serverless functions (app.py, Vercel).
 """
 
 from __future__ import annotations

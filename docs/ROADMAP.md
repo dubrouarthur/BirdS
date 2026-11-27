@@ -14,6 +14,8 @@ Objectif : le niveau d'OpenAI dans les usages de bureau, porté par un petit mod
 
 1. Mode Agent : plan affiché et modifiable avant lancement, « Ajouter une consigne » en cours de route,
    carte « Vérifications faites », agents qui agissent sur le Canevas, tâches longues en arrière-plan.
+   Fait sur la branche `agents-w2` (docs/HARNESS.md, section 11 bis) ; reste : brancher l'adaptateur Canevas une fois
+   `w1-canvas` fusionnée, mesurer sur plusieurs passages.
 1 bis. Mode Réflexion : réflexion adaptative (le modèle décide s'il réfléchit et combien, budget selon la tâche),
    résumé lisible de la réflexion, auto-vérification avant réponse (chiffres, demandes couvertes), reprise propre
    quand la réflexion tourne en rond ; mesuré avant / après sur un jeu fixe.
