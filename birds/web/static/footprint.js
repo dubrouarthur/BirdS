@@ -943,7 +943,11 @@ function methodTable() {
     ...F.EQUIVALENTS.map((e) =>
       row(
         t(`footprint.method.eq.${e.key}`),
-        e.per === "wh" ? wh(e.value) : grams(e.value),
+        e.per === "wh"
+          ? wh(e.value)
+          : e.made
+            ? `${grams(e.value)}, ${t("footprint.method.made", { g: grams(e.made) })}`
+            : grams(e.value),
         e.source,
         e.url,
         e.licence,

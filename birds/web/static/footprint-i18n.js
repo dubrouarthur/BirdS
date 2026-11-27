@@ -134,7 +134,8 @@ export const FOOTPRINT_STRINGS = {
     "footprint.method.eq.streaming": "Streaming vidéo, 1 h",
     "footprint.method.eq.car": "Voiture thermique, 1 km",
     "footprint.method.eq.search": "Recherche sur le web",
-    "footprint.method.eq.email": "E-mail",
+    "footprint.method.eq.email": "E-mail (étiquette moyenne ADEME)",
+    "footprint.method.made": "dont {g} de fabrication",
     "footprint.method.eq.phone": "Charge de smartphone",
     "footprint.method.tokens.source":
       "Mesures publiées de vLLM, ramenées à Bird S (détail : docs/WEB.md)",
@@ -273,7 +274,8 @@ export const FOOTPRINT_STRINGS = {
     "footprint.method.eq.streaming": "Video streaming, 1 h",
     "footprint.method.eq.car": "Combustion-engine car, 1 km",
     "footprint.method.eq.search": "Web search",
-    "footprint.method.eq.email": "Email",
+    "footprint.method.eq.email": "Email (ADEME average label)",
+    "footprint.method.made": "of which {g} manufacturing",
     "footprint.method.eq.phone": "Smartphone charge",
     "footprint.method.tokens.source":
       "Published vLLM measurements, scaled to Bird S (details: docs/WEB.md)",

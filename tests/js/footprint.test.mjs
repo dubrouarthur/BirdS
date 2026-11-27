@@ -35,6 +35,8 @@ test("every grid, water, reference and equivalent carries a value, a year or dat
     assert.ok(e.value > 0 && ["g", "wh"].includes(e.per) && ["hour", "km", "count"].includes(e.unit), e.key);
     assert.ok(e.source && /^https:\/\//.test(e.url) && FOOTPRINT_STRINGS.en[`footprint.licence.${e.licence}`], e.key);
     assert.ok(FOOTPRINT_STRINGS.fr[`footprint.method.eq.${e.key}`], e.key);
+    // life-cycle factors carry their manufacturing share, Bird's figure being electricity only
+    if (e.per === "g") assert.ok(e.made > 0 && e.made < e.value, e.key);
   }
 });
 

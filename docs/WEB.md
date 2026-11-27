@@ -131,13 +131,13 @@ Le reçu d'une réponse reste une ligne discrète ; ouvert, il montre l'impact d
 | Eau par Wh | 0,26 mL pour 0,24 Wh (1,08 mL/Wh) | 2025 | Google, *Measuring the environmental impact of AI inference* : <https://arxiv.org/abs/2508.15734> | citation avec la source |
 | Grand assistant, méthode publiée | 0,24 Wh par requête texte médiane | août 2025 | <https://cloud.google.com/blog/products/infrastructure/measuring-the-environmental-impact-of-ai-inference> | citation |
 | Grand assistant, sans méthode publiée | 0,34 Wh par requête moyenne | juin 2025 | <https://blog.samaltman.com/the-gentle-singularity> | citation |
-| Streaming vidéo, 1 h | 64 g CO₂e | 2026 | ADEME Impact CO2 (Base Empreinte) : <https://impactco2.fr/outils/usagenumerique/streamingvideo> | ADEME, réutilisation non commerciale avec mention de la source |
-| Voiture thermique, 1 km (hypothèse ADEME : moyenne, diesel ; construction comprise) | 142,3 g CO₂e | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/transport/voiturethermique> | ADEME, réutilisation non commerciale avec mention de la source |
-| Recherche sur le web | 1,23 g CO₂e | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/usagenumerique/rechercheweb> | ADEME, réutilisation non commerciale avec mention de la source |
-| E-mail | 2,46 g CO₂e | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/usagenumerique/email> | ADEME, réutilisation non commerciale avec mention de la source |
+| Streaming vidéo, 1 h | 64 g CO₂e, dont 33 g de fabrication | 2026 | ADEME Impact CO2 (Base Empreinte) : <https://impactco2.fr/outils/usagenumerique/streamingvideo> | ADEME, réutilisation non commerciale avec mention de la source |
+| Voiture thermique, 1 km (hypothèse ADEME : moyenne, diesel ; construction comprise) | 142,3 g CO₂e, dont 31,7 g de fabrication | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/transport/voiturethermique> | ADEME, réutilisation non commerciale avec mention de la source |
+| Recherche sur le web | 1,23 g CO₂e, dont 0,74 g de fabrication | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/usagenumerique/rechercheweb> | ADEME, réutilisation non commerciale avec mention de la source |
+| E-mail (étiquette « 1 e-mail » de la page, moyenne Base Empreinte ; le calculateur de la même page donne 0,11 g avec ses réglages) | 2,46 g CO₂e, dont 2,22 g de fabrication (0,24 g à l'usage) | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/usagenumerique/email> | ADEME, réutilisation non commerciale avec mention de la source |
 | Charge complète de smartphone | 0,019 kWh | 2026 | US EPA, Greenhouse Gas Equivalencies Calculator : <https://www.epa.gov/energy/greenhouse-gas-equivalencies-calculator-calculations-and-references> | domaine public |
 
-Les facteurs ADEME sont en cycle de vie (appareil, réseau, centres de données) ; ils ont été lus sur impactco2.fr (API v1) en novembre 2026. Les mentions légales d'impactco2.fr autorisent la réutilisation non commerciale et pédagogique avec mention de l'ADEME ; un usage commercial demande l'accord de l'ADEME : à vérifier avant une offre payante.
+Les facteurs ADEME sont en cycle de vie (appareil, réseau, centres de données), fabrication comprise, alors que le chiffre de Bird ne compte que l'électricité : la part de fabrication (champ `footprintDetail` de l'API) est affichée dans le tableau de la méthode et la note des équivalences le dit ; ils ont été lus sur impactco2.fr (API v1) en novembre 2026. Les mentions légales d'impactco2.fr autorisent la réutilisation non commerciale et pédagogique avec mention de l'ADEME ; un usage commercial demande l'accord de l'ADEME : à vérifier avant une offre payante.
 
 ## Ce qu'il ne montre pas
 

@@ -61,12 +61,15 @@ const IMPACT_CO2_LICENCE = "ademe"; // reuse with ADEME named as the source (imp
 /**
  * Everyday equivalents. `per`: "g" (g CO2e for one unit, life cycle: device, network, data centres) or "wh" (energy
  * for one unit, so independent of the grid). `unit` tells how an amount is written (duration, distance, count).
+ * `made`: the part of `value` due to manufacturing (impactco2 API v1 footprintDetail, read in November 2026), shown in
+ * the method table because Bird's own figure counts electricity only.
  */
 export const EQUIVALENTS = [
   {
     key: "streaming",
     per: "g",
     value: 64.0, // g CO2e for 1 hour
+    made: 32.97, // of which manufacturing: devices 32.74 + data centres 0.24 (API v1 footprintDetail)
     unit: "hour",
     source: IMPACT_CO2,
     url: "https://impactco2.fr/outils/usagenumerique/streamingvideo",
@@ -76,6 +79,7 @@ export const EQUIVALENTS = [
     key: "car",
     per: "g",
     value: 142.3, // g CO2e for 1 km, construction included (ADEME hypothesis: average, diesel)
+    made: 31.7, // of which manufacturing of the car
     unit: "km",
     source: IMPACT_CO2,
     url: "https://impactco2.fr/outils/transport/voiturethermique",
@@ -85,6 +89,7 @@ export const EQUIVALENTS = [
     key: "search",
     per: "g",
     value: 1.23, // g CO2e for 1 web search
+    made: 0.74, // of which manufacturing: devices 0.369 + data centres 0.340 + networks 0.030
     unit: "count",
     source: IMPACT_CO2,
     url: "https://impactco2.fr/outils/usagenumerique/rechercheweb",
@@ -93,7 +98,8 @@ export const EQUIVALENTS = [
   {
     key: "email",
     per: "g",
-    value: 2.46, // g CO2e for 1 email
+    value: 2.46, // g CO2e for 1 email: the page's « 1 email » label (Base Empreinte average), not its calculator
+    made: 2.22, // of which manufacturing: devices 1.286 + data centres 0.935; use only is 0.24 g
     unit: "count",
     source: IMPACT_CO2,
     url: "https://impactco2.fr/outils/usagenumerique/email",
