@@ -326,7 +326,7 @@ les familles de faux déclenchements connues du banc (« météo des marchés »
 marque », « heures de pointe »…), et seulement si l'analyseur de la famille ne se déclenche pas lui-même.
 
 **Réglage** `BIRD_ROUTER` : `model` (le routeur décide seul), `hybrid` (le routeur décide, et un appel sûr d'un
-analyseur d'une famille que le routeur a laissée de côté est ajouté), `regex` (aucun appel : comportement
+analyseur d'une famille que le routeur a laissée de côté est ajouté, sauf s'il ne vient que d'un texte collé), `regex` (aucun appel : comportement
 d'avant), `auto` (défaut) = **`hybrid`** pour un endpoint distant, `regex` pour un client local ou scripté.
 Journaux : métadonnées seulement (outils, noms d'arguments, durée, source, repli, veto), jamais le texte.
 Le champ `agent` de la décision est mesuré mais ne pilote pas encore le mode Agent (qui reste `crew.decide`).
@@ -373,6 +373,44 @@ et sombre, 8 tours) : « il fera quel temps demain du côté de Strasbourg ? »,
 (`hint_tools: []`), est routé vers `get_weather {place, day}` (0,85 à 1,16 s) et la fiche météo s'affiche ; « fais-moi
 la météo des marchés » ne déclenche aucun module (`needs_web: true`, 0,51 à 0,55 s), Bird cherche et cite sa source.
 Aucune requête vers un tiers, aucune erreur CSP, pas de défilement horizontal.
+
+**Texte collé : le modèle n'est plus contredit par les regex (27/11/2026).** En `hybrid`, un appel d'analyseur d'une
+famille que le routeur laissait de côté était toujours rajouté : « Résume ce mail : « … Météo à Lyon demain : pluie… »
+» relançait la fiche météo que le modèle avait, à raison, écartée. Désormais, pour une tâche sur un texte fourni
+(résume, corrige, traduis, reformule, analyse… suivi d'une citation ou de deux-points, `router.own_words`), seuls les
+appels que les analyseurs trouvent **dans la consigne elle-même** sont rajoutés (`merge(model, base, own)`), et le
+veto écarte un appel du routeur dont les arguments ne figurent que dans le texte collé (« only in the pasted text »).
+Nouvelle famille `pasted` dans `router_data.py` (8 « non », 3 « oui » : une consigne qui demande aussi un module) ;
+elle reste hors du banc des déclenchements, car les regex s'y trompent (connu, non corrigé côté regex).
+Mesure réelle, même graine (`--per-class 15 --seed 0`, 400 appels, résumé `docs/measures/router-eval-2026-11-27-pasted.json`) :
+
+| Jeu | routeur seul | hybride (nouveau) | hybride (ancien) | regex |
+| --- | --- | --- | --- | --- |
+| `pasted` (11) | 1,000 (0,545 avant le veto) | **1,000** | 0,273 | 0,273 |
+| familles de modules hors `pasted` (323) | 0,966 | 0,975 | 0,975 | 0,972 |
+| familles de modules (334) | 0,967 | **0,976** | 0,952 | 0,949 |
+
+Hors texte collé, rien ne change (mêmes décisions ; écart de 0,003 avec la mesure précédente : une reprise « et en
+livres ? » sans montant, bruit du tirage). Latence p50 0,64 s, p95 0,84 s ; JSON invalide 0,3 %.
+
+**Légendes et tableaux (27/11/2026).** Vus dans l'application avec le routeur : « rédige la légende d'une photo de la
+tour Eiffel » lançait une recherche d'images, « mets en forme ce tableau : Paris 12, Lyon 8, Marseille 5 » dessinait un
+graphique. Six tournures (FR/EN) rejoignent le banc comme négatifs (`IMAGES_NO`, `CHART_NO2` : 872/875 → 878/881) et
+`build_tools_mix.py` comme négatifs du routeur (gabarits `nt16`, `nt17`, `nte2`, `nte3`, plus `nt18` pour le texte
+collé). En attendant l'entraînement, le veto connaît deux familles de plus : légende / texte alternatif pour les
+images, tableau nommé sans mot de graphique pour `make_chart` (« tableau de bord » exclu). Réel, routeur sur les six
+négatifs : 3 faux déclenchements avant, 0 après ; les deux positifs témoins restent servis.
+
+**Ancrage des nombres et des types de lieux.** Un nombre est comparé en entier (`intents.parse_amount`), jamais comme
+morceau d'un autre : 20 n'est plus « dans » « 2025 », ni « 202 » dans « 2021 » ; un SIREN doit être écrit d'un seul
+tenant. Un type de lieu (`pharmacy`) n'est ancré que par ce même type dans les mots (« un restaurant » n'ancre plus
+une pharmacie).
+
+**Dans l'application** (même jour, port 9337, `BIRD_ROUTER` par défaut, 360 px et 1 280 px, clair et sombre, 12 tours) :
+« mets en forme ce tableau : Paris 12, Lyon 8, Marseille 5 » donne un tableau, aucun graphique (veto `make_chart`) ;
+« rédige la légende d'une photo de la tour Eiffel » donne une réponse écrite, aucune bande d'images (veto `images`) ;
+« Résume ce mail : « … Météo à Lyon demain… » » donne le résumé sans fiche météo (`hint_tools` `get_weather`, non
+rajouté). Aucun widget, aucune requête vers un tiers, aucune erreur CSP, pas de défilement horizontal.
 
 ### Apprentissage natif des modules
 
