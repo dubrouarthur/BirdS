@@ -391,10 +391,16 @@ class Geocoder:
         q = disambiguate(" ".join(str(q or "").split())[:160], str(getattr(self.ctx, "request", "") or ""))
         if not q:
             return []
+        # a provider that fails (busy queue, 5xx, timeout, blocked) is not an empty answer: when every provider
+        # asked failed, the error is raised, so that « not found » is only ever said on a real empty answer
+        errors: list[Exception] = []
+        answered = False
         if near is None and looks_like_address(q):
             try:
                 found = [p for p in self.ban(q) if p.importance >= 0.6]
-            except (ToolError, guard.Blocked):
+                answered = True
+            except (ToolError, guard.Blocked) as e:
+                errors.append(e)
                 found = []
             if found:
                 return found[:1]
@@ -406,24 +412,40 @@ class Geocoder:
                 box = (near.lon - dl, near.lat + d, near.lon + dl, near.lat - d)
                 try:
                     out = self.nominatim(q, limit=max(limit, 8), viewbox=box, lang=lang)
-                except ToolError:
+                    answered = True
+                except ToolError as e:
+                    errors.append(e)
                     out = []
                 if len(out) >= 3:
                     break
+            if errors and not answered:
+                raise _unavailable(errors)
             for p in out:
                 p.distance_m = distance_m(near.lat, near.lon, p.lat, p.lon)
             out.sort(key=lambda p: p.distance_m or 0)
             return out[:limit]
         try:
             found = self.nominatim(q, limit=limit, lang=lang)
-        except ToolError:
+            answered = True
+        except ToolError as e:
+            errors.append(e)
             found = []
         if not found:
             try:
                 found = self.photon(q, limit=limit, lang=lang)
-            except ToolError:
+                answered = True
+            except ToolError as e:
+                errors.append(e)
                 found = []
+        if not found and errors and not answered:
+            raise _unavailable(errors)
         return found[:limit]
+
+
+def _unavailable(errors: list[Exception]) -> ToolError:
+    """The error of a lookup no provider could answer (« busy » kept: it says to try again in a moment)."""
+    busy = next((e for e in errors if "busy" in str(e)), None)
+    return ToolError(str(busy) if busy else "the map service is unavailable right now, try again in a moment")
 
 
 # ---------------------------------------------------------------- Web-Mercator (mirrored in static/widgets.js)

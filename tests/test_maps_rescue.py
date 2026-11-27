@@ -13,6 +13,7 @@ pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient
 
 from birds.harness import Config, Context, FakeClient, followup, geo
+from birds.harness.guard import ToolError
 from birds.harness.llm import EndpointError
 from birds.harness.tools.places import find_places, itinerary_url, visit_order
 from birds.web import rescue
@@ -181,3 +182,65 @@ def test_near_me_asks_for_a_place_then_the_reply_searches_around_it():
     assert prev == {"tool": "find_places", "args": {"query": "pharmacy"}}
     got = followup.resolve("à la gare de Lyon", prev, "fr")
     assert (got.mode, got.args) == ("near", {"query": "pharmacy", "near": "gare de Lyon"})
+
+
+# --------------------------------------------------------------------------- a failed lookup is not « not found »
+
+
+def _failing(monkeypatch, fail):
+    """Provider answers from the recordings, except the URLs for which ``fail(url)`` raises."""
+
+    def get_json(ctx, url, **kw):
+        fail(url)
+        return recorded(url)
+
+    monkeypatch.setattr(geo, "get_json", get_json)
+
+
+def _http_503(url):
+    if "Inexistante" in url:
+        raise ToolError("HTTP 503")
+
+
+def test_a_503_is_reported_as_not_checked_never_as_not_found(monkeypatch):
+    _failing(monkeypatch, _http_503)
+    c = ctx("carte")
+    text = find_places({"query": "20 avenue de Ségur Paris ; 99 rue Inexistante Nullepart ; Lyon"}, c)
+    w = c.step_info["widget"]
+    assert len(w["places"]) == 2 and w["missing"] == [] and w["unchecked"] == ["99 rue Inexistante Nullepart"]
+    assert "Introuvables" not in text and "Non vérifiés (service de cartes indisponible" in text
+    lines = " ".join(rescue.places_lines(w, "fr"))
+    assert "1 lieu non vérifié (service de cartes indisponible) : 99 rue Inexistante Nullepart" in lines
+    assert "introuvable" not in lines
+
+
+def test_a_busy_queue_is_reported_as_not_checked(monkeypatch):
+    def busy(url):
+        if "nominatim" in url or "photon" in url:  # the 1.1 s queue of the OSMF services is past MAX_WAIT
+            geo.POLICY.next_at[geo.httpx_host(url)] = geo.POLICY.clock() + 60
+            geo.POLICY.wait_turn(geo.httpx_host(url))
+
+    _failing(monkeypatch, busy)
+    c = ctx("carte")
+    text = find_places({"query": "Lyon ; Musée Imaginaire du Quai"}, c)
+    w = c.step_info["widget"]
+    assert w["unchecked"] == ["Musée Imaginaire du Quai"] and w["missing"] == []
+    assert "Non vérifiés" in text and "Introuvables" not in text
+
+
+def test_when_nothing_could_be_checked_the_tool_says_the_service_failed(monkeypatch):
+    def down(url):
+        raise ToolError("HTTP 503")
+
+    _failing(monkeypatch, down)
+    with pytest.raises(ToolError, match="unavailable"):
+        find_places({"query": "Lyon ; Marseille"}, ctx("carte"))
+    with pytest.raises(ToolError, match="unavailable"):
+        find_places({"query": "tour Eiffel"}, ctx("où est la tour Eiffel"))
+
+
+def test_an_empty_answer_is_still_not_found(monkeypatch):
+    c = ctx("carte")
+    find_places({"query": "Lyon ; 99 rue Inexistante Nullepart"}, c)
+    assert c.step_info["widget"]["missing"] == ["99 rue Inexistante Nullepart"]
+    assert c.step_info["widget"]["unchecked"] == []

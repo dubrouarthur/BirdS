@@ -672,23 +672,30 @@ function planBlock(w, prefix) {
   );
 }
 
+// the places of a list that are not on the map, each kind said for what it is: not found (the provider answered
+// with nothing) or not checked (the map service failed or was busy: never shown as « not found »)
+const LEFT_OUT = [
+  ["missing", "places.missing"],
+  ["unchecked", "places.unchecked"],
+];
+
 function missingLine(w) {
-  const miss = (w.missing || []).map(String).filter(Boolean);
-  if (!miss.length) return null;
-  return h(
-    "p",
-    { class: "place-missing", role: "note" },
-    icon("alert"),
-    h("span", {
-      text: t(
-        miss.length === 1 ? "places.missing.one" : "places.missing.many",
-        {
-          n: miss.length,
-          list: miss.join(" ; "),
-        },
-      ),
-    }),
-  );
+  const lines = LEFT_OUT.map(([field, key]) => {
+    const names = (w[field] || []).map(String).filter(Boolean);
+    if (!names.length) return null;
+    return h(
+      "p",
+      { class: "place-missing", role: "note" },
+      icon("alert"),
+      h("span", {
+        text: t(names.length === 1 ? `${key}.one` : `${key}.many`, {
+          n: names.length,
+          list: names.join(" ; "),
+        }),
+      }),
+    );
+  }).filter(Boolean);
+  return lines.length ? lines : null;
 }
 
 function renderPlaces(w, turn) {

@@ -795,6 +795,10 @@ export const STRINGS = {
     "places.itinerary": "Itinéraire complet",
     "places.missing.one": "1 adresse introuvable : {list}",
     "places.missing.many": "{n} adresses introuvables : {list}",
+    "places.unchecked.one":
+      "1 lieu non vérifié (service de cartes indisponible) : {list}",
+    "places.unchecked.many":
+      "{n} lieux non vérifiés (service de cartes indisponible) : {list}",
     "company.title": "Fiche entreprise",
     "company.siren": "SIREN",
     "company.siret": "SIRET du siège",
@@ -1782,6 +1786,9 @@ export const STRINGS = {
     "places.itinerary": "Full route",
     "places.missing.one": "1 address not found: {list}",
     "places.missing.many": "{n} addresses not found: {list}",
+    "places.unchecked.one": "1 place not checked (map service unavailable): {list}",
+    "places.unchecked.many":
+      "{n} places not checked (map service unavailable): {list}",
     "company.title": "Company record",
     "company.siren": "SIREN",
     "company.siret": "Head office SIRET",

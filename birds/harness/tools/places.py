@@ -92,9 +92,11 @@ def visit_order(points: list[tuple[float, float]]) -> list[int]:
     return order
 
 
-def _lookup_list(g: geo.Geocoder, names: list[str], lang: str) -> list[geo.Place | None]:
-    """One place (or None) per name, in order. Addresses and town names go to BAN in parallel; the others (and the
-    addresses BAN does not know) to Nominatim / Photon one at a time, at most MAX_LIST_SLOW of them."""
+def _lookup_list(g: geo.Geocoder, names: list[str], lang: str) -> tuple[list[geo.Place | None], set[int]]:
+    """One place (or None) per name, in order, and the indices of the names that could not be checked. Addresses and
+    town names go to BAN in parallel; the others (and the addresses BAN does not know) to Nominatim / Photon one at a
+    time, at most MAX_LIST_SLOW of them. A name is « not found » only when a provider answered with nothing: a
+    lookup that failed (busy queue, 5xx, timeout, blocked) or never ran (over MAX_LIST_SLOW) is « not checked »."""
     from concurrent.futures import ThreadPoolExecutor
 
     from birds.harness.intents import known_place
@@ -109,22 +111,27 @@ def _lookup_list(g: geo.Geocoder, names: list[str], lang: str) -> list[geo.Place
             else:
                 return None
         except (ToolError, geo.guard.Blocked):
-            return None
+            return None  # BAN failed: Nominatim / Photon are asked next (geo.Geocoder.search)
         return hits[0] if hits else None
 
     with ThreadPoolExecutor(max_workers=LIST_WORKERS) as pool:
         found = list(pool.map(fast, names))
+    unchecked: set[int] = set()
     slow = 0
     for i, name in enumerate(names):
-        if found[i] is not None or slow >= MAX_LIST_SLOW:
+        if found[i] is not None:
+            continue
+        if slow >= MAX_LIST_SLOW:
+            unchecked.add(i)
             continue
         slow += 1
         try:
             hits = g.search(name, limit=1, lang=lang)
         except (ToolError, geo.guard.Blocked):
+            unchecked.add(i)
             hits = []
         found[i] = hits[0] if hits else None
-    return found
+    return found, unchecked
 
 
 def _fmt_dist(m: int | None, lang: str) -> str:
@@ -214,9 +221,10 @@ def find_places(args: dict, ctx) -> str:
         from birds.harness.mapwords import plan_of
 
         mode, names = "list", [x.strip() for x in query.split(";") if x.strip()][:MAX_LIST]
-        got = _lookup_list(geo.Geocoder(ctx, count=False), names, lang)
+        got, failed = _lookup_list(geo.Geocoder(ctx, count=False), names, lang)
         places = [p for p in got if p is not None]
-        missing = [n for n, p in zip(names, got, strict=True) if p is None]
+        missing = [n for i, (n, p) in enumerate(zip(names, got, strict=True)) if p is None and i not in failed]
+        unchecked = [names[i] for i in sorted(failed)]
         title = query
         # the model (or the reading of the ask) says what to compute; the user's words are the fallback
         asked = str(args.get("plan") or "").strip().lower()
@@ -249,8 +257,11 @@ def find_places(args: dict, ctx) -> str:
                 top = hits[0].importance or 0.0
                 hits = [hits[0]] + [h for h in hits[1:] if top and h.importance >= 0.5 * top]
             places = hits
-        missing = []
+        missing, unchecked = [], []
         title = query
+    if not places and unchecked:
+        # nothing could be checked: the service failed, the places may well exist
+        raise ToolError("the map service is unavailable right now; say so, never that these places do not exist")
     if not places:
         ctx.step_info = {"found": 0}
         return _none(near if near and center is None else query, lang)
@@ -289,6 +300,7 @@ def find_places(args: dict, ctx) -> str:
         ]
         widget.update(
             missing=missing,
+            unchecked=unchecked,
             plan=plan,
             order=[i + 1 for i in order],
             legs=legs if plan else [],
@@ -345,6 +357,16 @@ def find_places(args: dict, ctx) -> str:
     lines = [head] + ([] if mode == "route" else [_line(i, p, lang) for i, p in enumerate(shown, 1)])
     if missing:
         lines.append(("Introuvables (dis-le) : " if lang == "fr" else "Not found (say so): ") + " ; ".join(missing))
+    if unchecked:
+        lines.append(
+            (
+                "Non vérifiés (service de cartes indisponible ou trop sollicité ; dis-le, ne dis pas qu'ils "
+                "n'existent pas) : "
+                if lang == "fr"
+                else "Not checked (map service unavailable or busy; say so, never that they do not exist): "
+            )
+            + " ; ".join(unchecked)
+        )
     if mode == "list" and plan:
         lines.append(_plan_text(widget, lang))
     lines.append(_tail(lang) + (f" Source à citer : [{n_src}]." if lang == "fr" else f" Source to cite: [{n_src}]."))
