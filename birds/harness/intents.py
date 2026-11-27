@@ -437,6 +437,31 @@ def _placey_item(item: str) -> bool:
     return bool(_LANDMARK.search(item) or _placey(item))
 
 
+# « distance entre la Terre et la Lune », « how far is the Moon »: the sky and the planets are never geocoded (Mars is
+# also a commune, Jupiter a town in Florida); a known false trigger, left to the model
+_SKY = re.compile(
+    r"^(?:la\s+|le\s+|l'|the\s+|plan[eè]te\s+|planet\s+)?(?:terre|lune|soleil|mars|jupiter|v[ée]nus|saturne|mercure|"
+    r"neptune|uranus|pluton|earth|moon|sun|venus|saturn|mercury|pluto|voie\s+lact[ée]e|milky\s+way|"
+    r"galaxie|galaxy|androm[eè]de|andromeda|alpha\s+du\s+centaure|alpha\s+centauri|station\s+spatiale|iss)$",
+    re.I,
+)
+
+
+def _sure_place(q: str) -> bool:
+    """A place whatever the sentence: a postal address, a known town or a landmark noun (never a capital alone)."""
+    from birds.harness.geo import looks_like_address
+
+    return not _SKY.match(q.strip()) and bool(looks_like_address(q) or known_place(q) or _LANDMARK.search(q))
+
+
+def _pair_of_places(a: str, b: str) -> bool:
+    """Both ends of « distance entre A et B » are places: one surely, the other at least a proper noun. « la Terre et
+    le Soleil », « Mars et Jupiter »: not a map; the model chooses."""
+    if any(_SKY.match(x.strip()) for x in (a, b)):
+        return False
+    return all(_placey(x) or known_place(x) for x in (a, b)) and any(_sure_place(x) for x in (a, b))
+
+
 def _map_extras(text: str, t: str) -> Intent | None:
     """Lists of places, distances between two places and « autour de moi » (birds.harness.mapwords)."""
     from birds.harness import mapwords
@@ -448,7 +473,9 @@ def _map_extras(text: str, t: str) -> Intent | None:
     if items and len(items) == 2 and re.match(r"^(?:itin[ée]raire|trajet|route|directions?)\b", t, re.I):
         items = None  # « trajet lille bruxelles »: a route (start, then destination)
     if items:
-        good = [i for i in items if _placey_item(i)]
+        good = [i for i in items if _placey_item(i) and not _SKY.match(i)]
+        if not mapwords.map_cue(text) and not all(_sure_place(i) for i in items):
+            good = []  # « distance en km entre la Terre et la Lune »: a distance word alone needs sure places
         # place_list already asked for a map word (« carte », « situe »…) unless every item is a postal address
         if len(good) == len(items) and len(items) >= 2:
             args = {"query": " ; ".join(items)}
@@ -466,7 +493,7 @@ def _map_extras(text: str, t: str) -> Intent | None:
         a, b = (_clean_name(x) for x in d)
         if _ok(a) and _ok(b) and not _not_a_place(a) and not _not_a_place(b) and not _POSSESSIVE.match(a) \
                 and not _POSSESSIVE.match(b):  # fmt: skip
-            if all(_placey(x) or known_place(x) for x in (a, b)):
+            if _pair_of_places(a, b):
                 return Intent("find_places", {"query": b, "near": a}, keep_web=False, mode="route")
     if re.match(r"^comment\s+(?:venir|aller|se\s+rendre)\s+chez\s+(?:vous|toi|nous|eux)\b", t, re.I):
         return Intent("find_places", None, keep_web=True)  # « comment venir chez vous » : the place is not said

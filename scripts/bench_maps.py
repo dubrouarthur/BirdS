@@ -414,6 +414,12 @@ MAPS_HELDOUT_NO: list[str] = [
     "liste les clients de Lyon, Marseille et Lille",
     "écris un mail aux agences de Lyon et Marseille",
     "quelle est l'adresse de facturation ?",
+    # general knowledge with « distance entre » (review of the maps branch: map cards before the fix)
+    "Quelle est la distance entre la Terre et le Soleil ?",
+    "Quelle distance entre Mars et Jupiter ?",
+    "Quelle est la distance en km entre la Terre et la Lune ?",
+    "how far is the Earth from the Moon?",
+    "distance between Mars and Jupiter",
 ]
 
 

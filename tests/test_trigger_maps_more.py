@@ -93,6 +93,30 @@ def test_office_prompts_with_map_like_words_never_trigger(text):
 
 
 @pytest.mark.parametrize(
+    "text",
+    [
+        "Quelle est la distance entre la Terre et le Soleil ?",
+        "Quelle distance entre Mars et Jupiter ?",
+        "Quelle est la distance en km entre la Terre et la Lune ?",
+        "how far is the Earth from the Moon?",
+        "distance between Mars and Jupiter",
+    ],
+)
+def test_a_distance_between_two_non_places_is_left_to_the_model(text):
+    assert _call(text) is None
+
+
+@pytest.mark.parametrize(
+    "text,pair",
+    [("distance entre la gare de Lyon et Bercy", {"gare de Lyon", "Bercy"}),
+     ("quelle est la distance entre la tour Eiffel et le Louvre ?", {"tour Eiffel", "Louvre"})],
+)  # fmt: skip
+def test_a_distance_with_one_sure_place_is_still_a_route(text, pair):
+    mode, args = _call(text)
+    assert mode == "route" and {args["query"], args["near"]} == pair
+
+
+@pytest.mark.parametrize(
     "text,plan",
     [("dans quel ordre visiter : Lyon, Grenoble", "order"), ("optimise ma tournée", "order"),
      ("distances entre Paris, Lyon et Marseille", "distances"), ("carte : Lyon ; Lille", "")],

@@ -216,6 +216,14 @@ def list_cue(text: str) -> bool:
     return _cue(text)
 
 
+_DIST_WORDS = re.compile(r"\b(?:distances?|how\s+far|combien\s+de\s+(?:km|kilom[eè]tres))\b", re.I)
+
+
+def map_cue(text: str) -> bool:
+    """A map or list cue other than the word « distance » (« distance entre la Terre et la Lune » is no map ask)."""
+    return _cue(_DIST_WORDS.sub(" ", text or ""))
+
+
 # ---------------------------------------------------------------- distance between two places
 
 _A = r"(?P<a>[^?!\n]{2,80}?)"
