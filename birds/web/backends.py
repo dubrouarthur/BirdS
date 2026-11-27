@@ -2010,6 +2010,7 @@ class HarnessBackend:
                 on_status=lambda state, info: ctx.emit({"type": "status", "state": state, **(info or {})}),
                 cancel=ctx.cancel,  # stop closes the endpoint stream and ends the wake-up retries
                 on_agent=crew_web.on_agent(ctx, lang, lambda: offset, self._step_event),
+                on_plan=lambda plan: ctx.emit({"type": "plan", **_plain(plan)}),  # the task plan's live checklist
             )
             agent = Agent(
                 self.llm,
@@ -2181,6 +2182,8 @@ class HarnessBackend:
                 [r for s in run.steps for r in (getattr(s, "info", {}) or {}).get("results", [])],
                 list(getattr(run, "charts", []) or []),
                 context_of(run.steps, getattr(run, "widgets", None)),
+                figures=list(getattr(run, "figures", None) or []),  # task plan (w1-harness): totals read by tools
+                todo=list((getattr(run, "plan", None) or {}).get("missing") or []),
             )
             answer_text = hide_out_paths(strip_tool_echo(strip_memo(str(run.answer))))
             request_words = (
@@ -2217,6 +2220,7 @@ class HarnessBackend:
                     "code_checks": code_checks(content),
                     "tidy": tidied.repairs,
                     "images": [{"name": n, "text": t[:4000]} for n, t in image_texts],
+                    "plan": _plain(getattr(run, "plan", None)),  # final checklist (None for a one-thing request)
                 }
             )
             ctx.emit(

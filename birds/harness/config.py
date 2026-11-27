@@ -16,6 +16,7 @@ class Config:
     allow_python: bool = False  # run_python is NOT a sandbox: enable only inside a disposable container
     cache_salt: str | None = None  # vLLM prefix-cache isolation, one value per conversation (backends.cache_salt)
     route_tools: bool = True  # hide web tools for a plain "make me a file" request (agent.route)
+    task_plan: bool = True  # checklist of the deliverables asked, checked before the final answer (plan.py)
     # loop limits
     max_steps: int = 6  # model generations per run
     max_calls_per_step: int = 3

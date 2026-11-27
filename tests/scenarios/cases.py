@@ -337,7 +337,7 @@ scenario(
           rows=[["France", 0.2516], ["Germany", 0.3794], ["Spain", 0.2389]])),
         R(after("make_chart"), "Here is the chart: Germany is the most expensive at 0.3794 € per kWh, ahead of "
           "France and Spain. The prices are for households."),  # wrong language
-        R(reminded("fran"), "Voici le graphique : l'Allemagne est la plus chère (0,3794 €/kWh), devant la France "
+        R(reminded("french"), "Voici le graphique : l'Allemagne est la plus chère (0,3794 €/kWh), devant la France "
           "(0,2516 €) et l'Espagne (0,2389 €)."),
     ],
     expect={"tools": ["web_search", "make_chart"], "lang": "fr"},
@@ -563,7 +563,7 @@ scenario(
     ask="Envoie ces totaux par mail à compta@duval.fr.",
     history=OCR_TURN, workspace={"facture.jpg.txt": INVOICE},
     rules=lambda: [
-        R(lambda v: not v.done("draft_email"), lambda v: call("draft_email", to=["compta@duval.fr"],
+        R(lambda v: not v.done("draft_email") or "300,00" in v.tail, lambda v: call("draft_email", to=["compta@duval.fr"],
           subject="Totaux facture Duval", body="Bonjour,\n\nVoici les totaux de la facture de l'Imprimerie Duval." + (
               "\nTotal HT 250,00 € ; TVA 50,00 € ; total TTC 300,00 €." if "300,00" in v.tail else "")
           + "\n\nCordialement")),
@@ -580,7 +580,7 @@ scenario(
     rules=lambda: [
         R(first, call("read_file", path="facture.jpg")),
         R(after("read_file"), "Le total TTC de la facture est de 300,00 €."),  # forgets HT and VAT
-        R(figures_in_tail("250,00"), "Total HT : 250,00 € ; TVA : 50,00 € ; total TTC : 300,00 €."),
+        R(figures_in_tail("250,00"), "Le total HT est de 250,00 € et la TVA de 50,00 € (total TTC : 300,00 €)."),
     ],
     expect={"tools": ["read_file"], "figures": ["250,00", "50,00"], "lang": "fr"},
 )  # fmt: skip
@@ -634,7 +634,7 @@ scenario(
     rules=lambda: [
         R(lambda v: not v.done("make_sheet"), call("make_sheet", title="Totaux facture Duval",
           columns=["Ligne", "Montant"], rows=[["Cartes de visite", 60], ["Flyers A5", 100], ["Affiches A2", 90]])),
-        R(figures_in_tail("300"), call("make_sheet", title="Totaux facture Duval", columns=["Ligne", "Montant"],
+        R(figures_in_tail("300,00"), call("make_sheet", title="Totaux facture Duval", columns=["Ligne", "Montant"],
           rows=[["Total HT", 250], ["TVA", 50], ["Total TTC", 300]])),
         R(after("make_sheet"), "Le tableur est prêt."),
     ],
@@ -734,7 +734,7 @@ scenario(
     rules=lambda: [
         R(first, "Intra-community VAT is the system that applies to the trade of goods between businesses in "
           "different EU member states. The seller does not charge VAT; the buyer declares it in their country."),
-        R(reminded("fran"), "La TVA intracommunautaire est le régime qui s'applique aux échanges de biens entre "
+        R(reminded("french"), "La TVA intracommunautaire est le régime qui s'applique aux échanges de biens entre "
           "entreprises de pays différents de l'Union européenne : le vendeur facture hors taxe et l'acheteur "
           "déclare la TVA dans son pays."),
     ],
