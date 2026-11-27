@@ -60,6 +60,13 @@ def _near(words: str, noun: str, span: int = 60, lead: bool = True) -> bool:
     )
 
 
+_FILE_FORMAT = re.compile(
+    r"\b(?:pptx|docx|xlsx|\.ppt|fichier (?:powerpoint|word|excel|pptx|docx)|(?:en|au) format (?:powerpoint|word|pptx|"
+    r"docx)|document word|word document|un word|un powerpoint|a powerpoint|powerpoint file|word file)\b",
+    re.I,
+)
+
+
 def ask(words: str) -> str | None:
     """'deck' | 'doc' | 'code' | 'diagram' | None, from the user's own words."""
     w = (words or "").strip()
@@ -72,8 +79,8 @@ def ask(words: str) -> str | None:
         return "code"
     if re.search(_PY, head, re.I) and _MAKE_RX.search(head):
         return "code"
-    if _NOT.search(head):
-        return None
+    if _NOT.search(head) or _FILE_FORMAT.search(head):
+        return None  # a named file format (« une présentation pptx ») is a file: the trained tool makes it
     if _near(head, _DECK):
         return "deck"
     if _near(head, _DOC, 40, lead=False):

@@ -526,8 +526,13 @@ class DemoBackend:
         if request.images:
             run.scenario_image()
             return
-        from birds.web import crew_web
+        from birds.web import canvas_web, crew_web
 
+        cplan = canvas_web.plan_for(request, own_words(last), lang)  # the canvas, scripted (canvas_demo)
+        if cplan is not None and (cplan.mode != "create" or not crew_web.demo_match(last, request)):
+            from birds.web import canvas_demo
+
+            return canvas_demo.run(run, cplan, own_words(last))
         if crew_web.demo_match(last, request):
             return crew_web.demo_crew(run)  # Mode Agent, scripted
         scenario = pick_scenario(last, bool(request.attachments))
@@ -1861,8 +1866,14 @@ class HarnessBackend:
             [
                 {
                     k: u.get(k)
-                    for k in ("prompt_tokens", "completion_tokens", "cached_tokens", "seconds", "busy_seconds",
-                              "first_token_seconds")  # fmt: skip
+                    for k in (
+                        "prompt_tokens",
+                        "completion_tokens",
+                        "cached_tokens",
+                        "seconds",
+                        "busy_seconds",
+                        "first_token_seconds",
+                    )  # fmt: skip
                 }
                 for u in image_usage
             ],
@@ -2217,7 +2228,12 @@ class HarnessBackend:
                     "sources": enrich_sources(sources, run.steps, ctx.secret, icons=bool(ctx.secret)),
                     "charts": _plain(list(getattr(run, "charts", []) or [])),
                     "web_images": pick_web_images(
-                        run, answer_text, request_words, sources, ctx.sign_image, subject=_picture_subject(request_words)
+                        run,
+                        answer_text,
+                        request_words,
+                        sources,
+                        ctx.sign_image,
+                        subject=_picture_subject(request_words),
                     ),
                     "widgets": widgets,
                     "files": files,

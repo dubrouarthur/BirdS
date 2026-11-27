@@ -196,8 +196,8 @@ def test_search_scenario_steps_sources_citations(client):
 @pytest.mark.parametrize(
     ("prompt", "tool", "suffix", "kind"),
     [
-        ("Prépare une présentation de 5 diapositives", "make_slides", ".pptx", "slides"),
-        ("Rédige un document de synthèse", "make_document", ".docx", "document"),
+        ("Prépare une présentation pptx de 5 diapositives", "make_slides", ".pptx", "slides"),
+        ("Rédige un document Word de synthèse", "make_document", ".docx", "document"),
         ("Fais un tableur de budget", "make_sheet", ".xlsx", "sheet"),
     ],
 )
@@ -216,7 +216,7 @@ def test_generated_files_are_inline_with_a_preview(client, prompt, tool, suffix,
 def test_inline_file_size_cap():
     app = create_app(settings(max_inline_file_bytes=100))
     with TestClient(app) as client:
-        (file,) = one(chat(client, "Prépare des diapositives"), "answer")["files"]
+        (file,) = one(chat(client, "Prépare des diapositives pptx"), "answer")["files"]
     assert file["data"] is None and file["error"] == "too_large" and file["size"] > 100
 
 
