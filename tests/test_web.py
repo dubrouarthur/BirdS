@@ -639,7 +639,7 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
     assert "@import" not in css and css.count("@font-face") == 2
     for name in ("carlito-regular.woff2", "carlito-bold.woff2", "OFL.txt"):
         assert client.get(f"/static/fonts/{name}").status_code == 200
-    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "previews.js", "chart.js", "richcode.js", "widgets.js", "ics.js", "agents.js"]
+    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "previews.js", "chart.js", "richcode.js", "widgets.js", "ics.js", "agents.js", "editor.js"]
     brand = [
         "mark.svg",
         "mark-dark.svg",
@@ -667,8 +667,9 @@ def test_static_payload_budget():
     # budget, outside the page's
     assert sum(p.stat().st_size for p in fonts.iterdir()) < 400_000
     # raised step by step: images, attachments, previews, the P1 UX backlog, the file previews, the in-chat charts
-    # with web image cards, rich answer text, and the result widgets (maps, company, currency, event cards, .ics) and Mode Agent
-    assert total < 720_000, f"static payload is {total} bytes"  # well under 200 kB once gzipped
+    # with web image cards, rich answer text, the result widgets (maps, company, currency, event cards, .ics), Mode Agent
+    # and the office engine (pictures, charts and tables in the previews, the deck/document editor)
+    assert total < 750_000, f"static payload is {total} bytes"  # well under 200 kB once gzipped
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     assert demo < 400_000, f"demo maps weigh {demo} bytes"
 
@@ -680,7 +681,7 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     fr, en = set(key.findall(fr_block.split("fr: {", 1)[1])), set(key.findall(en_block.split("\n};", 1)[0]))
     assert fr and fr == en, fr ^ en
     used = set()
-    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js"]:
+    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))
     used |= set(re.findall(r'data-i18n(?:-aria|-placeholder)?="([\w.]+)"', (STATIC_DIR / "index.html").read_text()))
     assert not used - fr, sorted(used - fr)

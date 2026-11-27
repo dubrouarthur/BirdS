@@ -336,7 +336,7 @@ def test_docx_lists_tables_and_markdown_export(tmp_path):
         ],
     )
     d = docx.Document(str(tmp_path / "d.docx"))
-    assert stats == {"sections": 1, "tables": 1, "items": 2}
+    assert {k: stats[k] for k in ("sections", "tables", "items")} == {"sections": 1, "tables": 1, "items": 2}
     assert [p.style.name for p in d.paragraphs][:3] == ["Title", "Subtitle", "Heading 1"]
     assert d.tables[0].rows[1].cells[1].text == "1 200 €" and any(r.bold for r in d.paragraphs[3].runs)
     office.docx_from_markdown(tmp_path / "e.docx", "X", "# Réponse\n\n## Points\n1. un\n2. deux")
@@ -373,7 +373,7 @@ def test_docx_design_page_furniture_tables_lists_and_callouts(tmp_path):
     ]
     stats = office.build_docx(tmp_path / "d.docx", "Compte rendu", sections, "Comité")
     d = docx.Document(str(tmp_path / "d.docx"))
-    assert stats == {"sections": 2, "tables": 1, "items": 5}
+    assert {k: stats[k] for k in ("sections", "tables", "items")} == {"sections": 2, "tables": 1, "items": 5}
     sec = d.sections[0]
     assert round(sec.page_width.cm, 1) == 21.0 and round(sec.page_height.cm, 1) == 29.7  # A4
     assert d.core_properties.author == "" and d.core_properties.title == "Compte rendu"

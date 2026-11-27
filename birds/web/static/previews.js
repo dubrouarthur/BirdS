@@ -1,7 +1,179 @@
 // Previews of generated files, drawn from what the file really holds (the server reads the written file):
 // a deck as its slides (shapes on a 1280 x 720 canvas, scaled with container units), a document as an A4 page,
 // a sheet as its styled table. Model text only ever goes through textContent; geometry goes through the CSSOM.
-import { button, h, t } from "./core.js";
+import { b64ToBytes, button, h, t } from "./core.js";
+
+// ------------------------------------------------------------------ pictures, charts and tables of the file
+
+// thumbnails come as base64 JPEG in the preview (p.media); the CSP has no data: in img-src, so each becomes a
+// blob: URL once (cached by key: the same picture in the stage and the filmstrip is decoded once)
+const blobs = new Map();
+function mediaUrl(media, key) {
+  if (!media || typeof media[key] !== "string") return null;
+  if (!blobs.has(key)) {
+    try {
+      blobs.set(key, URL.createObjectURL(new Blob([b64ToBytes(media[key])], { type: "image/jpeg" })));
+    } catch {
+      return null;
+    }
+  }
+  return blobs.get(key);
+}
+
+const rgba = (hex, a) => {
+  if (!HEX.test(String(hex || ""))) return "transparent";
+  const n = parseInt(hex, 16);
+  return `rgb(${n >> 16} ${(n >> 8) & 255} ${n & 255} / ${Math.max(0, Math.min(1, num(a)))})`;
+};
+
+const SVG = "http://www.w3.org/2000/svg";
+function s(tag, attrs, text) {
+  const el = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, String(v));
+  if (text !== undefined) el.textContent = String(text);
+  return el;
+}
+
+const fmtValue = (v, unit) => {
+  if (!Number.isFinite(Number(v))) return "";
+  const lang = document.documentElement.lang === "en" ? "en-GB" : "fr-FR";
+  const out = new Intl.NumberFormat(lang, { maximumFractionDigits: 1 }).format(Number(v));
+  return unit ? `${out}\u00a0${unit}` : out;
+};
+
+/** A native chart of the deck, redrawn from its data: columns, bars, a line or a doughnut, in the theme colours. */
+export function chartSvg(ch, w, h) {
+  const W = Math.max(1, num(w));
+  const H = Math.max(1, num(h));
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, class: "sh-chart", "aria-hidden": "true" });
+  const cats = (Array.isArray(ch?.cats) ? ch.cats : []).map(String);
+  const ser = (Array.isArray(ch?.ser) ? ch.ser : []).filter((x) => x && Array.isArray(x.v));
+  const pal = (Array.isArray(ch?.pal) ? ch.pal : []).filter((c) => HEX.test(String(c)));
+  const col = (j) => `#${pal[j % Math.max(1, pal.length)] || "1e5bd8"}`;
+  const unit = String(ch?.u || "");
+  const fs = 17;
+  if (!cats.length || !ser.length) return svg;
+  const legend = ser.length > 1 || ch.t === "pie";
+  const legendItems = ch.t === "pie" ? cats : ser.map((x) => String(x.n || ""));
+  const plotH = H - (legend ? 40 : 0);
+  if (legend) {
+    let x = 0;
+    const g = s("g");
+    legendItems.forEach((name, j) => {
+      g.append(s("rect", { x, y: H - 26, width: 12, height: 12, fill: col(j) }));
+      g.append(s("text", { x: x + 18, y: H - 15, "font-size": fs, fill: "#121a2e" }, name.slice(0, 24)));
+      x += 30 + Math.min(24, name.length) * fs * 0.5;
+    });
+    g.setAttribute("transform", `translate(${Math.max(0, (W - x) / 2)} 0)`);
+    svg.append(g);
+  }
+  if (ch.t === "pie") {
+    const vals = ser[0].v.map((v) => Math.max(0, num(v)));
+    const total = vals.reduce((a, b) => a + b, 0) || 1;
+    const r = Math.min(W, plotH) / 2 - 10;
+    const cx = W / 2;
+    const cy = plotH / 2;
+    let a = -Math.PI / 2;
+    vals.forEach((v, j) => {
+      const sweep = (2 * Math.PI * v) / total;
+      const x1 = cx + r * Math.cos(a);
+      const y1 = cy + r * Math.sin(a);
+      const x2 = cx + r * Math.cos(a + sweep);
+      const y2 = cy + r * Math.sin(a + sweep);
+      const large = sweep > Math.PI ? 1 : 0;
+      svg.append(s("path", { d: `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2} Z`, fill: col(j),
+                             stroke: "#fff", "stroke-width": 3 }));
+      if (sweep > 0.35) {
+        const m = a + sweep / 2;
+        svg.append(s("text", { x: cx + r * 0.79 * Math.cos(m), y: cy + r * 0.79 * Math.sin(m) + 6,
+                               "text-anchor": "middle", "font-size": fs + 1, "font-weight": 700, fill: "#fff" },
+                     fmtValue(ser[0].v[j], unit)));
+      }
+      a += sweep;
+    });
+    svg.append(s("circle", { cx, cy, r: r * 0.58, fill: "#fff" }));
+    return svg;
+  }
+  const flat = ser.flatMap((x) => x.v.map(num));
+  const max = Math.max(...flat, 0) || 1;
+  const min = Math.min(...flat, 0);
+  const span = max - min || 1;
+  if (ch.t === "barh") {
+    const left = Math.min(W * 0.35, 12 + Math.max(...cats.map((c) => c.length)) * fs * 0.5);
+    const slot = plotH / cats.length;
+    const bh = (slot * 0.62) / ser.length;
+    cats.forEach((c, i) => {
+      svg.append(s("text", { x: left - 10, y: slot * (i + 0.5) + 6, "text-anchor": "end", "font-size": fs,
+                             fill: "#121a2e" }, c.slice(0, 32)));
+      ser.forEach((x, j) => {
+        const v = num(x.v[i]);
+        const bw = ((W - left - 70) * Math.max(0, v - Math.min(min, 0))) / span;
+        const y = slot * i + slot * 0.19 + j * bh;
+        svg.append(s("rect", { x: left, y, width: Math.max(0, bw), height: bh - 3, fill: col(j) }));
+        svg.append(s("text", { x: left + bw + 8, y: y + bh / 2 + 5, "font-size": fs, "font-weight": 700,
+                               fill: "#121a2e" }, fmtValue(x.v[i], unit)));
+      });
+    });
+    return svg;
+  }
+  const top = 34;
+  const bottom = plotH - 30;
+  const slot = W / cats.length;
+  const y = (v) => bottom - ((num(v) - Math.min(min, 0)) / span) * (bottom - top);
+  svg.append(s("line", { x1: 0, x2: W, y1: y(0), y2: y(0), stroke: "#d9dee8", "stroke-width": 1.5 }));
+  cats.forEach((c, i) =>
+    svg.append(s("text", { x: slot * (i + 0.5), y: plotH - 6, "text-anchor": "middle", "font-size": fs,
+                           fill: "#121a2e" }, c.slice(0, 18))),
+  );
+  if (ch.t === "line") {
+    ser.forEach((x, j) => {
+      const pts = x.v.map((v, i) => [slot * (i + 0.5), y(v)]);
+      svg.append(s("polyline", { points: pts.map((p) => p.join(",")).join(" "), fill: "none", stroke: col(j),
+                                 "stroke-width": 4, "stroke-linejoin": "round" }));
+      pts.forEach(([px2, py], i) => {
+        svg.append(s("circle", { cx: px2, cy: py, r: 6, fill: "#fff", stroke: col(j), "stroke-width": 3 }));
+        if (cats.length * ser.length <= 16)
+          svg.append(s("text", { x: px2, y: py - 14, "text-anchor": "middle", "font-size": fs, "font-weight": 700,
+                                 fill: "#121a2e" }, fmtValue(x.v[i], unit)));
+      });
+    });
+    return svg;
+  }
+  const bw = (slot * 0.64) / ser.length;
+  ser.forEach((x, j) =>
+    x.v.forEach((v, i) => {
+      const bx = slot * i + slot * 0.18 + j * bw;
+      const y0 = Math.min(y(v), y(0));
+      svg.append(s("rect", { x: bx, y: y0, width: bw - 4, height: Math.abs(y(0) - y(v)), fill: col(j) }));
+      if (cats.length * ser.length <= 16)
+        svg.append(s("text", { x: bx + (bw - 4) / 2, y: y0 - 8, "text-anchor": "middle", "font-size": fs,
+                               "font-weight": 700, fill: "#121a2e" }, fmtValue(v, unit)));
+    }),
+  );
+  return svg;
+}
+
+function tableGrid(tb) {
+  const rows = Array.isArray(tb?.rows) ? tb.rows : [];
+  const grid = h("div", { class: "sh-table", role: "table" });
+  const cw = (Array.isArray(tb.cw) ? tb.cw : []).map(num);
+  const rh = (Array.isArray(tb.rh) ? tb.rh : []).map(num);
+  grid.style.gridTemplateColumns = cw.map((w) => `calc(var(--px) * ${w})`).join(" ");
+  grid.style.gridTemplateRows = rh.map((v) => `calc(var(--px) * ${v})`).join(" ");
+  rows.forEach((row, i) =>
+    (Array.isArray(row) ? row : []).forEach((c) => {
+      const cell = h("div", { class: `sh-cell${c?.al === "r" ? " is-r" : ""}`, role: i ? "cell" : "columnheader",
+                              text: String(c?.t ?? "") });
+      cell.style.background = color(c?.f, "transparent");
+      cell.style.color = color(c?.c, "#121a2e");
+      cell.style.setProperty("font-size", `calc(var(--pt) * ${num(tb.s) || 16})`);
+      if (c?.b) cell.style.fontWeight = "700";
+      grid.append(cell);
+    }),
+  );
+  return grid;
+}
+
 
 const HEX = /^[0-9A-Fa-f]{6}$/;
 const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
@@ -55,9 +227,18 @@ function para(p, heading) {
 }
 
 /** One slide, drawn from its shapes. `live`: the big stage (real headings); thumbnails are decorative. */
-export function slideCanvas(slide, live) {
+export function slideCanvas(slide, live, media) {
   const canvas = h("div", { class: "slide-canvas" });
+  if (slide.bg) canvas.style.background = color(slide.bg, "#fff");
   for (const sh of Array.isArray(slide.shapes) ? slide.shapes : []) {
+    if (sh.img) {
+      const url = mediaUrl(media, sh.img);
+      if (!url) continue;
+      const img = h("img", { class: "sh sh-img", src: url, alt: live ? String(sh.alt || "") : "", decoding: "async" });
+      for (const k of ["left", "top", "width", "height"]) px(img, k, sh[k[0] === "l" ? "x" : k[0] === "t" ? "y" : k[0]]);
+      canvas.append(img);
+      continue;
+    }
     const el = h("div", {
       class: `sh sh-${sh.g === "o" ? "o" : sh.g === "rr" ? "rr" : "r"}`,
     });
@@ -65,7 +246,21 @@ export function slideCanvas(slide, live) {
     px(el, "top", sh.y);
     px(el, "width", sh.w);
     px(el, "height", sh.h);
-    if (sh.f) el.style.background = color(sh.f, "transparent");
+    if (sh.ch) {
+      el.append(chartSvg(sh.ch, sh.w, sh.h));
+      canvas.append(el);
+      continue;
+    }
+    if (sh.tb) {
+      el.append(tableGrid(sh.tb));
+      canvas.append(el);
+      continue;
+    }
+    if (sh.f) el.style.background = sh.o !== undefined ? rgba(sh.f, sh.o) : color(sh.f, "transparent");
+    if (sh.gr && Array.isArray(sh.gr.s))
+      el.style.background = `linear-gradient(${num(sh.gr.a) + 90}deg, ${sh.gr.s
+        .map((st) => `${rgba(st[1], st[2])} ${Math.round(num(st[0]) * 100)}%`)
+        .join(", ")})`;
     if (sh.g === "rr") px(el, "border-radius", num(sh.h) / 2);
     if (Array.isArray(sh.p)) {
       el.classList.add(`sh-a${sh.a === "m" ? "m" : sh.a === "b" ? "b" : "t"}`);
@@ -77,7 +272,7 @@ export function slideCanvas(slide, live) {
 }
 
 /** A deck: one big slide at a time, controls, counter, filmstrip of exact miniatures, full-screen view. */
-export function deckPreview(p, { onDownload, full = false } = {}) {
+export function deckPreview(p, { onDownload, onEdit, full = false } = {}) {
   const slides = (Array.isArray(p.slides) ? p.slides : []).filter(
     (s) => s && Array.isArray(s.shapes),
   );
@@ -130,7 +325,7 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
       h(
         "span",
         { class: "slide-frame", "aria-hidden": "true" },
-        slideCanvas(s, false),
+        slideCanvas(s, false, p.media),
       ),
       h("span", {
         class: "deck-thumb-n num",
@@ -168,7 +363,7 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
     at = Math.max(0, Math.min(last, i));
     const s = slides[at] || { n: `${slides.length + 1}–${total}`, title: moreText() };
     stage.replaceChildren(
-      slides[at] ? h("div", { class: "slide-frame" }, slideCanvas(s, true)) : endCard(),
+      slides[at] ? h("div", { class: "slide-frame" }, slideCanvas(s, true, p.media)) : endCard(),
     );
     stage.setAttribute(
       "aria-label",
@@ -238,6 +433,9 @@ export function deckPreview(p, { onDownload, full = false } = {}) {
       counter,
       next,
       h("span", { class: "deck-gap" }),
+      !full &&
+        onEdit &&
+        button("btn-ghost btn-small office-edit-btn", "edit", t("files.edit"), onEdit),
       !full &&
         button("btn-icon btn-ghost", "expand", t("files.deck.full"), () =>
           openFull(p, at, onDownload),
@@ -323,8 +521,8 @@ const runsOf = (el, runs) => {
   return el;
 };
 
-export function docPreview(p, { onDownload } = {}) {
-  const page = h("div", { class: "a4" });
+export function docPreview(p, { onDownload, onEdit } = {}) {
+  const page = h("div", { class: "a4", "data-office": ["modern", "warm"].includes(p.theme) ? p.theme : null });
   let list = null;
   for (const b of Array.isArray(p.blocks) ? p.blocks : []) {
     if (!b || typeof b !== "object") continue;
@@ -359,7 +557,7 @@ export function docPreview(p, { onDownload } = {}) {
       page.append(
         runsOf(
           h("p", {
-            class: `a4-callout a4-${b.c === "decision" ? "decision" : "action"}`,
+            class: `a4-callout a4-${b.c === "decision" ? "decision" : b.c === "warn" ? "warn" : "action"}`,
           }),
           b.r,
         ),
@@ -369,6 +567,18 @@ export function docPreview(p, { onDownload } = {}) {
     else if (b.k === "code")
       page.append(h("pre", { class: "a4-code", text: String(b.t || "") }));
     else if (b.k === "rule") page.append(h("hr", { class: "a4-rule" }));
+    else if (b.k === "img") {
+      const url = mediaUrl(p.media, b.m);
+      if (!url) continue;
+      const img = h("img", { src: url, alt: String(b.alt || ""), decoding: "async" });
+      if (num(b.w) > 0) img.style.inlineSize = `calc(var(--cm) * ${Math.min(16.2, num(b.w))})`;
+      page.append(h("figure", { class: "a4-fig" }, img));
+    } else if (b.k === "cap") page.append(runsOf(h("p", { class: "a4-cap" }), b.r));
+    else if (b.k === "toch") page.append(runsOf(h("p", { class: "a4-toch" }), b.r));
+    else if (b.k === "toc")
+      page.append(runsOf(h("p", { class: `a4-toc${num(b.l) > 1 ? " is-l2" : ""}` }), b.r));
+    else if (b.k === "pb") page.append(h("hr", { class: "a4-pb", "aria-hidden": "true" }));
+    else if (b.k === "src") page.append(runsOf(h("p", { class: "a4-p a4-src" }), b.r));
     else if (b.k === "table") page.append(docTable(b));
     else if (b.k === "p") page.append(runsOf(h("p", { class: "a4-p" }), b.r));
   }
@@ -405,6 +615,7 @@ export function docPreview(p, { onDownload } = {}) {
       "div",
       { class: "a4-bar" },
       less,
+      onEdit && button("btn-ghost btn-small office-edit-btn", "edit", t("files.edit"), onEdit),
       onDownload && button("btn-primary btn-small btn-icon", "download", t("files.download"), onDownload),
     ),
   );

@@ -883,7 +883,7 @@ def create_app(
     async def not_found(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse({"detail": {"code": "not_found", "message": "not found"}}, status_code=404)
 
-    from . import mapimg
+    from . import mapimg, office_edit
 
     def _geo_cfg():
         from birds.harness import Config
@@ -891,6 +891,7 @@ def create_app(
         return Config(workspace=Path(tempfile.gettempdir()), audit_file=None, **harness_config(s))
 
     app.include_router(mapimg.make_router(s, _geo_cfg))
+    app.include_router(office_edit.make_router(s, guard_request, check_access))  # the deck/document editor
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     if SITE_DIR.is_dir():
         import mimetypes
