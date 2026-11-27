@@ -21,6 +21,9 @@
   du site corporate comme de l'accueil du chat.
 - Interface claire et simple, au niveau de Claude ou ChatGPT : peu d'éléments à l'écran, beaucoup d'espace, la
   richesse apparaît quand elle sert (modules), jamais d'encombrement.
+- **Continuité des échanges.** Quand un échange fait évoluer un élément (document, diapos, site web, graphique, carte,
+  tableau…), chaque tour réaffiche l'élément à jour (nouvelle version visible, jamais seulement « c'est fait ») et propose
+  2-3 suites pertinentes et concrètes (puces cliquables) ; l'historique des versions reste accessible.
 - CSP stricte : le navigateur ne contacte aucun tiers ; tout passe côté serveur par le garde d'egress.
 - Français d'abord, parité anglaise.
 - Feuille de route et priorités : `docs/ROADMAP.md`.
