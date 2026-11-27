@@ -483,6 +483,15 @@ def pick_scenario(text: str, has_attachment: bool = False) -> str:
     return "plain"
 
 
+def demo_plan(text: str, lang: str) -> bool:
+    """The demo's task-plan scenario: one ask that names a deck AND a mail (« prépare une présentation … et un mail
+    … »), read by the harness's own plan extraction."""
+    from birds.harness import plan as taskplan
+
+    kinds = {i.kind for i in taskplan.extract(text, lang, text)}
+    return {"slides", "mail"} <= kinds
+
+
 _DEMO_CHART = re.compile(
     r"\b(?:graphiques?|graphes?|courbes?|diagrammes?|camemberts?|histogrammes?|charts?|graphs?|plots?)\b"
 )
@@ -530,6 +539,8 @@ class DemoBackend:
         if crew_web.demo_match(last, request):
             return crew_web.demo_crew(run)  # Mode Agent, scripted
         scenario = pick_scenario(last, bool(request.attachments))
+        if demo_plan(last, lang) and not request.attachments:
+            scenario = "plan"  # a deck and a mail in one ask: the task plan's checklist (w1-harness)
         if scenario == "plain" and not request.attachments:
             from birds.harness import followup
 
@@ -608,7 +619,8 @@ class _DemoRun:
             self.pause(0.035)
 
     def finish(
-        self, content: str, sources=None, files=None, draft_email=None, charts=None, web_images=None, widgets=None
+        self, content: str, sources=None, files=None, draft_email=None, charts=None, web_images=None, widgets=None,
+        plan=None,
     ) -> None:
         from .widgets import enrich_sources
 
@@ -627,6 +639,7 @@ class _DemoRun:
                 "code_checks": code_checks(content),
                 "widgets": widgets or [],
                 **({"memo": self._memo()} if self.context else {}),
+                **({"plan": plan} if plan else {}),
             }
         )
         prompt = 60 + sum(len(m["content"]) for m in self.req.messages) // 4 + self.extra_prompt
@@ -1127,6 +1140,70 @@ class _DemoRun:
                 "could you confirm the delivery time and the payment terms?\n\nKind regards,",
             ),
         }
+
+    # ---------------------------------------------------------------- task plan (w1-harness)
+
+    def scenario_plan(self) -> None:
+        """« Prépare une présentation … et un mail … »: the checklist of the request, ticked as the deck then the
+        draft are made; anything else the request named (a spreadsheet…) is left undone and said plainly, as the
+        harness does when the model forgets a deliverable after its one reminder."""
+        from birds.harness import plan as taskplan
+
+        t = self.t
+        last = next((m["content"] for m in reversed(self.req.messages) if m["role"] == "user"), "")
+        items = taskplan.extract(last, self.lang, last)
+        done: set[str] = set()
+
+        def emit(final: bool = False) -> dict:
+            statuses = [{"kind": i.kind, "label": i.label, "status": "done" if i.kind in done else "todo"}
+                        for i in items]  # fmt: skip
+            out = taskplan.to_dict(statuses, self.lang, final=final)
+            self.ctx.emit({"type": "plan", **out})
+            return out
+
+        emit()
+        self.think(
+            "Deux choses sont demandées : la présentation, puis le mail qui l'annonce.",
+            "Two things are asked: the deck, then the email announcing it.",
+        )
+        arguments = {
+            "title": t("Sobriété numérique : plan d'action", "Digital sobriety: action plan"),
+            "slides": [
+                {"title": t("Constat", "Finding"),
+                 "bullets": [t("La plupart des tâches de bureau sont simples", "Most office tasks are simple")]},
+                {"title": t("Proposition", "Proposal"),
+                 "bullets": [t("Petit modèle par défaut", "Small model by default")]},
+                {"title": t("Calendrier", "Timeline"), "bullets": [t("Pilote de quatre semaines", "Four-week pilot")]},
+            ],
+        }  # fmt: skip
+        entry = self.make_file("make_slides", arguments, t("3 diapositives", "3 slides"))
+        done.add("slides")
+        emit()
+        draft = {
+            "to": "equipe@example.org",
+            "subject": t("Présentation : sobriété numérique", "Deck: digital sobriety"),
+            "body": t(
+                "Bonjour à tous,\n\nVous trouverez ci-joint la présentation du plan de sobriété numérique : "
+                "constat, proposition et calendrier du pilote.\n\nBonne journée,",
+                "Hello all,\n\nPlease find attached the digital sobriety deck: finding, proposal and pilot "
+                "timeline.\n\nBest regards,",
+            ),
+        }
+        self.step("draft_email", {**draft, "to": [draft["to"]]}, t("Brouillon prêt (non envoyé)", "Draft ready (not sent)"),
+                  0.6)  # fmt: skip
+        done.add("mail")
+        final = emit(final=True)
+        self.finish(
+            t(
+                "La présentation (3 diapositives) et le brouillon de mail sont prêts, à relire ci-dessous.\n\n"
+                "Contenu d'exemple scripté : ajustez-le avant de l'utiliser.",
+                "The deck (3 slides) and the email draft are ready to review below.\n\n"
+                "Scripted example content: adjust it before use.",
+            ),
+            files=[entry],
+            draft_email=draft,
+            plan=final,
+        )
 
     def scenario_reply(self) -> None:
         """The first example: a reply written from what the user said, nothing read from outside, no approval."""

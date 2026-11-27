@@ -57,6 +57,7 @@ import {
   totals,
 } from "./views.js";
 import { applyAgentEvent } from "./agents.js";
+import { cleanPlan, planNews } from "./plan.js"; // task plan checklist (w1-harness)
 
 // Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
 const AGENT_MODES = ["auto", "on", "off"];
@@ -1270,10 +1271,19 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         code_checks: Array.isArray(event.code_checks) ? event.code_checks.slice(0, 50) : [], // syntax badges
         widgets: Array.isArray(event.widgets) ? event.widgets : [],
       };
+      if (event.plan !== undefined) turn.plan = cleanPlan(event.plan); // the final checklist, or none
       turn.files.push(...(event.files || []));
       turn.text = "";
       announce(t("live.answer"));
       break;
+    case "plan": {
+      // the task plan ticked from what really happened (birds/harness/plan.py); read out when an item is done
+      const next = cleanPlan(event);
+      const news = planNews(turn.plan, next);
+      turn.plan = next;
+      if (news) announce(news);
+      break;
+    }
     case "usage":
       turn.usage = event;
       break;

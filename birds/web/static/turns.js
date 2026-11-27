@@ -29,6 +29,7 @@ import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { renderWidgets, widgetsText } from "./widgets.js";
 import { renderAgents } from "./agents.js";
+import { renderPlan } from "./plan.js"; // task plan checklist (w1-harness)
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1526,6 +1527,7 @@ function fillAssistant(el, turn, isLast) {
   const children = [
     byline(entry, turn, mode),
     renderAgents(turn, handlers),
+    renderPlan(turn),
     renderSteps(turn.crew ? { ...turn, steps: turn.steps.filter((s) => !s.agent) } : turn), // crew steps sit in their lane
     turn.reasoning &&
       details(
