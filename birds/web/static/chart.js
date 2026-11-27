@@ -2,6 +2,8 @@
 // No library. Colours are CSS classes (series-1..6) so the theme switches live and the CSP stays strict;
 // the PNG export copies the computed colours into a standalone SVG before drawing it on a canvas.
 import { button, copyText, download, h, icon, t, toast } from "./core.js";
+// ---- data analysis extension: richer charts (spec v2) are drawn by charts2.js
+import { chartMarkdown2, renderChart2 } from "./charts2.js";
 
 const NS = "http://www.w3.org/2000/svg";
 // viewBox width = the plot's real width in CSS px, so 12px text is drawn at 12px on every screen (the chart is
@@ -755,6 +757,7 @@ let seq = 0;
 
 /** A chart card: title, plot (hover and keyboard), legend, data table and actions. ``onXlsx(spec)`` exports. */
 export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
+  if (spec && spec.v === 2) return renderChart2(spec, { lang }); // data analysis extension (charts2.js)
   if (
     !spec ||
     !Array.isArray(spec.rows) ||
@@ -1147,6 +1150,7 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
 
 /** Markdown table of a chart, for the conversation export. */
 export function chartMarkdown(spec, lang) {
+  if (spec && spec.v === 2) return chartMarkdown2(spec, lang); // data analysis extension (charts2.js)
   const fmt = formatter(lang, spec.unit);
   const cell = (v) => String(v).replace(/\|/g, "\\|");
   return [
