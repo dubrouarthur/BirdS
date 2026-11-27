@@ -278,9 +278,10 @@ class Plan:
     said: str = ""
 
 
-def plan(words: str, canvas: dict | None, lang: str, enabled: bool = True) -> Plan | None:
+def plan(words: str, canvas: dict | None, lang: str, enabled: bool = True, attached: bool = False) -> Plan | None:
     """The canvas plan for this turn, or None for an ordinary turn. ``canvas`` is what the browser sent of the
-    artifact it shows ({'aid', 'version', 'doc', 'target'}), already validated."""
+    artifact it shows ({'aid', 'version', 'doc', 'target'}), already validated. ``attached``: files came with the
+    message (a question about them is never a creation)."""
     if not enabled:
         return None
     if canvas and isinstance(canvas.get("doc"), dict):
@@ -304,7 +305,7 @@ def plan(words: str, canvas: dict | None, lang: str, enabled: bool = True) -> Pl
                         said = said.format(theme=name)
                     return Plan("direct", kind, aid, doc, ver, None, ops, said)
             return Plan("patch", kind, aid, doc, ver, target)
-    kind = intents.ask(words)
+    kind = intents.ask(words, attached=attached)
     if kind is None:
         return None
     return Plan("create", kind, new_aid())

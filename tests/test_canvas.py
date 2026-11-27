@@ -890,3 +890,31 @@ def test_xlsx_export_writes_excel_formulas_and_their_values():
     doc = convert.from_tool("make_sheet", {"title": "T", "columns": ["x", "y"], "rows": [[1, 2], [3, "=SUM(A2:A3)"]]})
     assert doc["sheet"]["rows"][1][1] == "=SUM(A1:A2)"
     assert sheetfx.to_ooxml('="A1;B2"&A1') == '="A1;B2"&A2'
+
+
+def test_canvas_bench_has_no_false_trigger():
+    """The trigger bench's canvas family: every creation ask opens the right canvas, no office prompt does."""
+    from scripts.trigger_bench import CANVAS_NO, CANVAS_YES, OFFICE_NO
+
+    assert [q for q, k in CANVAS_YES if intents.ask(q) != k] == []
+    assert [q for q in CANVAS_NO + OFFICE_NO if intents.ask(q)] == []
+
+
+@pytest.mark.parametrize(
+    "words,kind",
+    [
+        ("Fais une présentation à partir de ce document", "deck"),
+        ("À partir de ce rapport, rédige une note de synthèse pour la direction", "doc"),
+        ("Peux-tu me dire ce que contient ce document ?", None),
+        ("Une présentation sur ce rapport, 5 slides", None),  # with a file: a verb must lead
+        ("Le rapport joint est-il complet ? Fais une présentation sinon", None),
+    ],
+)
+def test_canvas_with_attached_files_needs_a_leading_creation_verb(words, kind):
+    assert intents.ask(words, attached=True) == kind
+
+
+def test_question_about_an_attached_file_stays_an_ordinary_turn():
+    p = turn.plan("Peux-tu me dire ce que contient ce document ?", None, "fr", attached=True)
+    assert p is None
+    assert turn.plan("Fais une présentation de ce document", None, "fr", attached=True).kind == "deck"

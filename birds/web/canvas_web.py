@@ -49,12 +49,12 @@ def canvas_in(raw) -> dict | None:
     return {"doc": doc, "aid": aid or turn.new_aid(), "version": ver, "target": target}
 
 
-def plan_for(request, words: str, lang: str, enabled: bool = True) -> turn.Plan | None:
+def plan_for(request, words: str, lang: str, enabled: bool = True, attached: bool = False) -> turn.Plan | None:
     """The canvas plan of this turn (None: an ordinary turn). Never on a resumed confirmation."""
     if not enabled or getattr(request, "resume", None) is not None:
         return None
     try:
-        return turn.plan(words, getattr(request, "canvas", None), lang)
+        return turn.plan(words, getattr(request, "canvas", None), lang, attached=attached)
     except Exception:  # noqa: BLE001 - the canvas must never break an ordinary turn
         return None
 

@@ -528,7 +528,7 @@ class DemoBackend:
             return
         from birds.web import canvas_web, crew_web
 
-        cplan = canvas_web.plan_for(request, own_words(last), lang)  # the canvas, scripted (canvas_demo)
+        cplan = canvas_web.plan_for(request, own_words(last), lang, attached=bool(request.attachments))  # scripted
         if cplan is not None and (cplan.mode != "create" or not crew_web.demo_match(last, request)):
             from birds.web import canvas_demo
 
@@ -2114,7 +2114,7 @@ class HarnessBackend:
                 else:
                     # the canvas (birds.canvas): a change to the open artifact comes first; a new deck, document or
                     # page is made after the Mode Agent declined it (its research decks stay the team's)
-                    cplan = canvas_web.plan_for(request, words, rl, self.canvas)
+                    cplan = canvas_web.plan_for(request, words, rl, self.canvas, attached=bool(names or image_texts))
                     canvas_kw = dict(user_sent=user_sent, words=words, system=system, history=kept, lang=rl,
                                      mode="server", attached=bool(names or image_texts))  # fmt: skip
                     if cplan is not None and cplan.mode != "create":

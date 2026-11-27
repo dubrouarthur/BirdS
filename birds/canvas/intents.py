@@ -9,19 +9,35 @@ from __future__ import annotations
 
 import re
 
+# Creation verbs only. A request opener (« peux-tu », « can you », « il me faut ») is not one: « peux-tu vérifier ce
+# rapport ? » asks about a document, it does not ask for one. A verb right after a determiner is a noun (« le code »).
 _MAKE = (
-    r"(?:fai[st]|faire|fais-moi|faites|cr[ée]e[rz]?|cr[ée]ation|pr[ée]pare[rz]?|g[ée]n[èe]re[rz]?|r[ée]dige[rz]?|"
-    r"[ée]cri[st]|[ée]crire|monte[rz]?|construi[st]|con[cç]oi[st]|produi[st]|d[ée]veloppe[rz]?|code[rz]?|"
-    r"programme[rz]?|dessine[rz]?|r[ée]alise[rz]?|propose[rz]?|mets?(?:-moi)? en forme|transforme[rz]?|"
-    r"make|create|build|prepare|draft|write|design|generate|code|turn|draw|"
-    r"j['’]ai besoin d['’]|il me faut|i need|we need|peux-tu|pourrais-tu|pouvez-vous|pourriez-vous|can you|could you)"
+    r"(?<![\w’'-])(?<!\ble )(?<!\bla )(?<!\bun )(?<!\bune )(?<!\bdu )(?<!\bce )(?<!\bmon )(?<!\bton )(?<!\bthe )"
+    r"(?<!\bmy )(?<!\ba )"
+    r"(?:fai[st]|faire|faites|cr[ée]e[rz]?|pr[ée]pare[rz]?|g[ée]n[èe]re[rz]?|r[ée]dige[rz]?|[ée]cri[st]|[ée]crire|"
+    r"[ée]crivez|monte[rz]?|construi[st]|con[cç]oi[st]|produi[st]|d[ée]veloppe[rz]?|code[rz]?|programme[rz]?|"
+    r"dessine[rz]?|r[ée]alise[rz]?|propose[rz]?|mets?(?:-moi|-nous)? en forme|transforme[rz]?|"
+    r"make|create|build|prepare|draft|write|design|generate|code|turn|draw)"
+    r"(?:-(?:moi|nous|lui|en|le|la|les))?"
+)
+# Between the verb and the noun: determiners, numbers, a few adjectives, « pour lundi » — never another noun
+# (« fais une LISTE des slides », « rédige une RÉPONSE au rapport », « prépare un DISCOURS de 2 minutes »).
+_FILL = (
+    r"(?:l['’]|(?:une?|des|du|le|la|les|mon|ma|mes|notre|nos|ton|ta|tes|votre|vos|ce|cet|cette|ces|a|an|the|my|"
+    r"our|this|some|moi|nous|me|m['’]|vite|rapidement|\d{1,3}|deux|trois|quatre|cinq|six|sept|huit|dix|"
+    r"petite?s?|courte?s?|nouvel(?:le)?s?|nouveaux?|belles?|beaux?|jolie?s?|vraie?s?|simples?|rapides?|"
+    r"compl[eè]te?s?|short|new|quick|nice|simple|full|small|pour (?:demain|lundi|mardi|mercredi|jeudi|vendredi|"
+    r"ce soir|la r[ée]union|le comit[ée])|for (?:tomorrow|monday|the meeting))\s+)"
 )
 _DECK = (r"(?:pr[ée]sentations?|diaporamas?|diapos?(?:itives?)?|slides?|decks?|pitch(?:\s+deck)?|keynote|"
          r"powerpoint|power\s?point|pptx|support(?:s)? de pr[ée]sentation|transparents|presentation)")  # fmt: skip
+# Nouns that name a written document. Ambiguous ones are left out (« un discours de 2 MINUTES », « la POLITIQUE de
+# remboursement en deux phrases », « un BRIEF pour le photographe en 3 lignes », « un DOSSIER de retraite »).
 _DOC = (r"(?:documents?(?:\s+word)?|rapports?|report|note de synth[èe]se|note d['’]information|notes? de cadrage|"
-        r"compte[- ]rendus?|comptes[- ]rendus|minutes|m[ée]mos?|memo|livre blanc|white ?paper|guide|proc[ée]dure|"
-        r"cahier des charges|proposition commerciale|business plan|plan d['’]action|dossier|fiche (?:projet|produit|"
-        r"de poste|technique|pratique)|charte|r[èe]glement|politique|brief|one[- ]pager|word|docx)")  # fmt: skip
+        r"compte[- ]rendus?|comptes[- ]rendus|m[ée]mos?|memo|livre blanc|white ?paper|guide (?:pratique|utilisateur|"
+        r"d['’]utilisation|de bonnes pratiques|d['’]accueil)|cahier des charges|proposition commerciale|"
+        r"business plan|plan d['’]action|dossier de presse|fiche (?:projet|produit|de poste|technique|pratique)|"
+        r"charte|r[èe]glement int[ée]rieur|one[- ]pager|word|docx)")  # fmt: skip
 _WEB = (r"(?:page (?:web|html|d['’]accueil)|landing(?: page)?|site (?:web|vitrine)|website|web ?page|html|css|"
         r"formulaire html|maquette (?:html|web)|prototype (?:html|web)|composant (?:html|web|react)|"
         r"svg|logo svg|ic[ôo]ne svg|animation css|mini[- ]jeu|jeu (?:en|html|javascript|js)|calculatrice|"
@@ -38,22 +54,47 @@ _HOWTO = re.compile(
     r"comment (?:faire|on|je|puis|peut|r[ée]ussir|ajouter|ins[ée]rer|cr[ée]er|mettre))\b",
     re.I,
 )
-_NOT = re.compile(
-    r"\b(?:r[ée]sume[rz]?|r[ée]sum[ée]|traduis|tradui[st]|traduction|translate|relis|relire|corrige ce|"
-    r"convertis|convertir|en pdf|lis ce|analyse ce|explique|mail|e-mail|email|courriel|lettre|post linkedin|tweet)\b",
+# A question anywhere in the sentence (« … des conseils pour le stress ? », « … dure combien de temps ? »).
+_QUESTION = re.compile(
+    r"\b(?:conseils?|astuces?|tips|advice|avis|combien|c['’]est quoi|qu['’]est-ce|est-ce que|est-il|est-elle|"
+    r"faut-il|dois-je|should i|what does|que dit|quels? sont|quelles? sont|(?<!sur )(?<!about )pourquoi|"
+    r"(?<!sur )(?<!about )comment (?:faire|on|je|puis|r[ée]ussir))\b",
     re.I,
 )
+_NOT = re.compile(
+    r"\b(?:r[ée]sume[rz]?|r[ée]sum[ée]|traduis|tradui[st]|traduction|translate|relis|relire|corrige ce|"
+    r"convertis|convertir|en pdf|lis ce|analyse ce|explique|mail|e-mail|email|courriel|lettre|post linkedin|tweet|"
+    r"message|r[ée]ponse (?:au|[àa] la|aux)|reply to|answer to|dire ce que|extrai[rst]e?|compare[rz]?|v[ée]rifie[rz]?|"
+    r"check|discours|speech|orale?|je dois (?:faire|pr[ée]senter|donner)|je vais (?:faire|pr[ée]senter)|"
+    r"i have to (?:give|make|present))\b",
+    re.I,
+)
+# A short text asked for (« en 3 lignes », « en deux phrases »): an answer in the chat, not a document.
+_SHORT = re.compile(r"\ben (?:\d{1,2}|une|deux|trois|quatre|cinq|quelques) (?:lignes?|phrases?|mots)\b|"
+                    r"\bin (?:\d{1,2}|one|two|three|a few) (?:lines?|sentences?|words)\b", re.I)  # fmt: skip
 _MAKE_RX = re.compile(_MAKE, re.I)
+# With files attached, the turn is about them unless it starts with a creation verb (« Fais une présentation de ce
+# rapport »), possibly after a polite opener or a first clause (« À partir de ce document, rédige une note … »).
+_LEADS = re.compile(
+    rf"(?:^|[,.;:]\s*)\W*(?:(?:peux-tu|pourrais-tu|pouvez-vous|pourriez-vous|tu peux|can you|could you|please|"
+    rf"merci de|stp)\s+(?:me\s+|m['’]|nous\s+)?)?{_MAKE}\b",
+    re.I,
+)
 
 
-def _near(words: str, noun: str, span: int = 60, lead: bool = True) -> bool:
-    """A creation verb before the noun, within ``span`` characters (« prépare-moi pour lundi une présentation »),
-    or the noun as the first words of the message (« Une présentation sur le télétravail, 5 slides »)."""
-    if re.search(rf"{_MAKE}.{{0,{span}}}?\b{noun}", words, re.I | re.S):
+def _near(words: str, noun: str, lead: bool = True) -> bool:
+    """A creation verb right before the noun, with only determiners, numbers and a few adjectives between
+    (« prépare-moi pour lundi une présentation »), or the noun as the first words of the message, then its subject
+    (« Une présentation sur le télétravail, 5 slides »). Several needs (« j'ai besoin d'une présentation sur … »)
+    name the noun right after."""
+    if re.search(rf"{_MAKE}\s+{_FILL}{{0,4}}{noun}\b", words, re.I):
+        return True
+    if re.search(rf"\b(?:j['’]ai besoin d['’]|il me faut|i need|we need)\s*(?:une?|a|an)\s+{noun}\b"
+                 rf"\s+(?:sur|de|about|on|pour|for)\s", words, re.I):  # fmt: skip
         return True
     return lead and bool(
         re.match(
-            rf"^\s*(?:une?|des|la|le|mon|ma|notre|a|an)?\s*{noun}\b.{{0,24}}?\b(?:sur|de|about|on|pour|for|:)\s",
+            rf"^\s*(?:une?|des|a|an)?\s*{noun}\b.{{0,24}}?\b(?:sur|about|on|pour|for|:)\s",
             words,
             re.I,
         )
@@ -67,15 +108,24 @@ _FILE_FORMAT = re.compile(
 )
 
 
-def ask(words: str) -> str | None:
-    """'deck' | 'doc' | 'code' | 'diagram' | None, from the user's own words."""
+def ask(words: str, attached: bool = False) -> str | None:
+    """'deck' | 'doc' | 'code' | 'diagram' | None, from the user's own words. A hint, never the last word: when it
+    says None the turn is an ordinary one, where the model may still call its trained make_slides / make_document
+    tool (the canvas adopts the file). ``attached``: files came with the message; the canvas then needs a creation
+    verb in the lead (« fais une présentation de ce rapport »), never a question about them."""
     w = (words or "").strip()
     if not w or len(w) > 4000 or _HOWTO.search(w[:160]):
         return None
     head = w[:400]
+    if _QUESTION.search(head) or _SHORT.search(head):
+        return None
+    if attached and not _LEADS.search(head[:160]):
+        return None
     if _near(head, _DIAGRAM):
         return "diagram"
-    if _near(head, _WEB) or re.search(r"\b(?:page|site)\b.{0,30}\b(?:html|css|javascript)\b", head, re.I):
+    if _near(head, _WEB) or (
+        _MAKE_RX.search(head) and re.search(r"\b(?:page|site)\b.{0,30}\b(?:html|css|javascript)\b", head, re.I)
+    ):
         return "code"
     if re.search(_PY, head, re.I) and _MAKE_RX.search(head):
         return "code"
@@ -83,7 +133,7 @@ def ask(words: str) -> str | None:
         return None  # a named file format (« une présentation pptx ») is a file: the trained tool makes it
     if _near(head, _DECK):
         return "deck"
-    if _near(head, _DOC, 40, lead=False):
+    if _near(head, _DOC, lead=False):
         return "doc"
     return None
 

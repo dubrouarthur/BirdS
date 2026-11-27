@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from datetime import datetime  # noqa: E402
 from zoneinfo import ZoneInfo  # noqa: E402
 
+from birds.canvas import intents as canvas_intents  # noqa: E402
 from birds.harness import clock, crew, followup, intents, when  # noqa: E402
 from birds.harness.agent import (  # noqa: E402
     _previous_answer,
@@ -715,6 +716,77 @@ STUDY_NO = [
     "Rédige le rapport annuel de l'association",
     "fais une synthèse de ce document",
 ]
+CANVAS_YES = [  # (ask, the canvas it must open): a creation ask, the content written beside the chat
+    ("Fais une présentation de 6 slides sur le télétravail", "deck"),
+    ("prépare des slides sur le marché du cloud", "deck"),
+    ("make a pitch deck for our startup", "deck"),
+    ("une présentation sur le vélo, 5 slides", "deck"),
+    ("Fais une présentation sur le plan vélo de l'entreprise", "deck"),
+    ("Peux-tu me faire une présentation sur la RSE pour le comité de lundi ?", "deck"),
+    ("prépare-moi pour lundi une présentation sur nos résultats", "deck"),
+    ("Crée un diaporama pour l'accueil des nouveaux arrivants", "deck"),
+    ("Can you make a short deck about our new product?", "deck"),
+    ("Rédige un rapport sur la sécurité informatique", "doc"),
+    ("Fais le compte rendu de cette réunion", "doc"),
+    ("Rédige une note de synthèse sur la sobriété numérique au bureau", "doc"),
+    ("Écris un cahier des charges pour la refonte de l'intranet", "doc"),
+    ("Write a report on remote work in small companies", "doc"),
+    ("Rédige une proposition commerciale pour un client dans la logistique", "doc"),
+    ("crée une landing page pour une boulangerie", "code"),
+    ("fais une page HTML avec un formulaire de contact", "code"),
+    ("fais un logo svg pour Bird", "code"),
+    ("écris un script python qui renomme des fichiers", "code"),
+    ("Code un mini-jeu de morpion en JavaScript", "code"),
+    ("dessine le schéma du processus de recrutement", "diagram"),
+    ("draw a flowchart of the onboarding process", "diagram"),
+    ("Fais un organigramme de l'équipe commerciale", "diagram"),
+]
+CANVAS_NO = [  # ordinary office prompts and questions about a document: never a canvas
+    "Peux-tu me dire ce que contient ce document ?",
+    "Je dois faire une présentation orale demain, des conseils pour le stress ?",
+    "Prépare un discours de 2 minutes pour le pot de départ de Marie",
+    "Fais une liste des documents à fournir pour un dossier de retraite",
+    "Prépare un brief pour le photographe en 3 lignes",
+    "Écris la politique de remboursement en deux phrases pour ma réponse au client",
+    "Peux-tu vérifier ce rapport ?",
+    "Peux-tu comparer ces deux documents ?",
+    "Peux-tu extraire les dates de ce document ?",
+    "Peux-tu reprendre les idées de ce document en 5 points ?",
+    "Peux-tu m aider avec ma présentation de demain ?",
+    "Fais une liste des slides à revoir",
+    "Rédige une réponse au rapport du CSE",
+    "Write a reply to the report from finance",
+    "Comment faire une bonne présentation ?",
+    "Comment ajouter une diapo dans PowerPoint ?",
+    "Présente-moi l'entreprise Airbus",
+    "résume ce document en 5 points",
+    "écris une fonction Python qui trie une liste",
+    "rédige un mail pour envoyer la présentation à Paul",
+    "traduis ce rapport en anglais",
+    "quelle est la différence entre un rapport et une note ?",
+    "Peux-tu relire mon rapport et corriger les fautes ?",
+    "Que dit ce document sur les congés ?",
+    "Dans ce rapport, quels sont les chiffres clés ?",
+    "Peux-tu me donner ton avis sur ma présentation ?",
+    "Ce document est-il conforme au RGPD ?",
+    "Est-ce que ce rapport mentionne le budget ?",
+    "J'ai besoin d'aide pour comprendre ce document",
+    "Il me faut le résumé de ce rapport pour ce soir",
+    "Can you check this report for typos?",
+    "Can you tell me what this document says about pricing?",
+    "Peux-tu lister les risques cités dans ce rapport ?",
+    "Pourrais-tu analyser cette présentation ?",
+    "Fais-moi un résumé du document joint",
+    "Ma présentation dure combien de temps idéalement ?",
+    "Quelle police utiliser pour un rapport professionnel ?",
+    "Prépare les minutes de la réunion en trois lignes",
+    "Écris un guide en une phrase pour se connecter au wifi",
+    "Rédige la procédure en deux lignes pour le client",
+    "Fais une liste de questions pour l'entretien",
+    "Peux-tu trouver les incohérences dans ce document ?",
+    "Le rapport de Paul est en retard, rédige-lui un message",
+    "Combien de slides pour une présentation de 10 minutes ?",
+]
 NOW = datetime(2026, 11, 23, 10, 0, tzinfo=ZoneInfo("Europe/Paris"))
 
 
@@ -862,6 +934,15 @@ def study_touched(q: str) -> bool:
     return crew.decide(q, mode="on").recipe == "doc_research" or bool(crew.decide(q, recipes=flipped).recipe)
 
 
+def canvas_opened(item) -> bool:
+    q, kind = item
+    return canvas_intents.ask(q) == kind
+
+
+def canvas_touched(q) -> bool:
+    return bool(canvas_intents.ask(q))
+
+
 def bench(name: str, yes: list[str], no: list[str], fn, touched=None) -> tuple[int, int]:
     miss = [q for q in yes if not fn(q)]
     false = [q for q in no if (touched or fn)(q)]
@@ -892,6 +973,7 @@ if __name__ == "__main__":
         ("realistic", REALISTIC_YES, OFFICE_NO, realistic_ok, anything),
         ("chart_howto", [], CHART_HOWTO_NO, chart_touched),
         ("agent_study", STUDY_YES, STUDY_NO, study_routed, study_touched),
+        ("canvas", CANVAS_YES, CANVAS_NO + OFFICE_NO, canvas_opened, canvas_touched),
     ):
         ok, n = bench(*args)
         total[0] += ok
