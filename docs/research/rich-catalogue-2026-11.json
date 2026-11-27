@@ -1,0 +1,1036 @@
+{
+ "design": {
+  "modules": [
+   {
+    "name": "Sommaire et sections repliables (réponses longues)",
+    "what": "For a long, finished answer, a sticky « Sommaire » listing its H2/H3 and pseudo-headings with jump links; each section can collapse, and « Tout replier / déplier » sits in the header. The text is never reordered or cut.",
+    "trigger": "Built after the stream ends (never while text is arriving): ≥3 headings (real ## or pseudoHeading()/leadHeading() from markdown.js) and ≥450 words, or ≥5 headings. Negatives: letter mode (ctx.letter), an answer that is mostly a code block (>60 % of lines in fences), a slide/doc preview turn (the outline is already in the preview), headings that are only « Sources » / « Conclusion ».",
+    "data_source": "Structure in the answer (the headings markdown.js already detects)",
+    "example_prompts": [
+     "Rédige une politique de télétravail complète pour une PME de 30 salariés",
+     "Explique le RGPD pour une TPE : obligations, registre, sanctions, étapes",
+     "Guide d'onboarding d'un nouveau commercial"
+    ],
+    "negatives": [
+     "Écris un mail de relance à Marc (letter mode)",
+     "Donne-moi 3 idées de titres",
+     "Corrige ce script Python (code dominant)"
+    ],
+    "ui": "360 px: a collapsed chip « Sommaire · 6 sections » above the answer opens a bottom sheet listing the sections; each H2 gets a chevron to fold it, and a folded section shows « 4 paragraphes masqués ». Desktop (≥1100 px): a sticky rail on the right holds the list, and the current section is highlighted by an IntersectionObserver.",
+    "value": 4,
+    "effort": 2,
+    "risks": "False triggers: pseudo-headings inside lists could inflate the count, so count only top-level ones. Folding must never hide a warning callout (callouts stay visible). No network. Collapsed state lives in turn.ui only."
+   },
+   {
+    "name": "Mode guidé pas à pas (stepper)",
+    "what": "Turns a procedure the page already renders as md-steps into an optional « Mode guidé » view: one step at a time, Précédent/Suivant, « Étape 3/7 », a progress rail, and the sub-items of each step shown in place.",
+    "trigger": "The ask is a how-to (comment / procédure / étapes / tutoriel / how do I / marche à suivre) and the answer has an ordered list of ≥3 items rendered as md-steps, ≥2 of which start with an imperative or infinitive verb (Ouvrez, Cliquez, Saisir, Vérifier… from a fixed verb list). Negatives: a ranking (« top 5 », « classement »), a list of nouns, an unordered list, a list of more than 15 steps (left as is).",
+    "data_source": "Structure in the answer",
+    "example_prompts": [
+     "Comment créer une facture dans Excel ?",
+     "Quelles sont les étapes pour déclarer la TVA en ligne ?",
+     "Procédure pour ajouter un utilisateur dans Microsoft 365"
+    ],
+    "negatives": [
+     "Top 5 des logiciels de compta",
+     "Liste des pièces à fournir pour un dossier de prêt",
+     "Les 4 étapes de la vente (concept, pas une procédure)"
+    ],
+    "ui": "360 px: a « Mode guidé » button under the list opens a full-width card with a large step number, the step title in bold and its body, big Précédent/Suivant buttons at thumb level, and a progress dot bar. Desktop: the card opens inline in place of the list, and ←/→ keys move between steps.",
+    "value": 3,
+    "effort": 2,
+    "risks": "Low. It reuses md-steps parsing and adds no text. It must not overlap the in-flight checklist: no persisted ticks, just navigation."
+   },
+   {
+    "name": "Encadré « Vérifier à la source officielle »",
+    "what": "Under answers on regulated subjects (droit du travail, fiscalité, social, RGPD, marchés publics), a small fixed card: « Règle susceptible d'évoluer : vérifier sur » plus 1-2 official links from a curated whitelist (service-public.fr, URSSAF, impots.gouv, CNIL, Légifrance, code du travail numérique). It shows no figure.",
+    "trigger": "A keyword table on the user's ask (licenciement, rupture conventionnelle, congés payés, SMIC, TVA, URSSAF, CFE, RGPD, DPO, mutuelle obligatoire, prud'hommes…) maps each domain to its whitelisted links. Negatives: a pure drafting task (« écris un mail à propos des congés »), a translation, code, a question about the user's own document, or a web answer that already cites that same official domain.",
+    "data_source": "Harness table (deterministic mapping) plus the user's words",
+    "example_prompts": [
+     "Combien de jours de congés payés pour un salarié à temps partiel ?",
+     "Quel taux de TVA pour une prestation de formation ?",
+     "Ai-je besoin d'un DPO ?"
+    ],
+    "negatives": [
+     "Rédige une note interne pour annoncer les congés d'été",
+     "Traduis cette clause RGPD en anglais",
+     "Résume ce PDF sur la TVA"
+    ],
+    "ui": "360 px: a slim bordered card with a shield icon, one sentence and full-width link buttons, each with a monogram (favicons come through /api/icon only). Desktop: the same card in one row with inline links.",
+    "value": 5,
+    "effort": 1,
+    "risks": "It adds trust without inventing anything. Too many triggers would become noise, so keep it to one card per turn and never more than 2 links. The links are plain anchors with rel=noopener and no prefetch, so the page makes no third-party request until the user clicks."
+   },
+   {
+    "name": "Carte de définition",
+    "what": "For « qu'est-ce que X / définition de X / c'est quoi X », a card at the top: the term, its category tag (sigle → developed form if the answer gives it), the answer's first defining sentence and « En savoir plus » when a search result exists.",
+    "trigger": "The ask matches _DEFINE in intents.py (or « que signifie », « définition », « what is ») with a short subject (≤5 words), and the answer's first sentence contains that subject followed by est|désigne|correspond à|signifie|is|refers to. Negatives: « qu'est-ce que je dois faire », a subject that is a person or place (left to the entity and place cards), an answer starting with a refusal or a question.",
+    "data_source": "Structure in the answer (the sentence itself, verbatim) plus a search tool result for the link",
+    "example_prompts": [
+     "C'est quoi un Kbis ?",
+     "Définition de l'EBITDA",
+     "Que signifie SLA ?"
+    ],
+    "negatives": [
+     "Qu'est-ce que je peux offrir à un client pour Noël ?",
+     "Qu'est-ce que tu en penses ?",
+     "C'est quoi la météo demain ?"
+    ],
+    "ui": "360 px: a full-width card with the term in large type, a small tag (« Sigle », « Notion comptable » only if the answer uses those words, otherwise no tag), the quoted sentence and a copy button. Desktop: max 640 px, with the term on the left and the sentence on the right.",
+    "value": 4,
+    "effort": 1,
+    "risks": "No invented text: the sentence is a verbatim span of the answer. The glossary tooltips in flight cover inline terms; this card covers the main subject only. No network."
+   },
+   {
+    "name": "FAQ en accordéon",
+    "what": "An answer written as a series of question → answer pairs becomes an accordion: each question is a row, the first is open, with « Tout ouvrir » and copy of a single Q/R.",
+    "trigger": "≥3 consecutive blocks where a line (bold, a heading or a bare line) ends with « ? » and is followed by ≥1 non-question paragraph, or the ask contains FAQ / foire aux questions / questions fréquentes. Negatives: closing offers (« Souhaitez-vous… ? », RE_OFFER), the model's own clarification questions at the end, rhetorical questions inside paragraphs, quiz content (handled by the quiz module).",
+    "data_source": "Structure in the answer",
+    "example_prompts": [
+     "Fais une FAQ pour nos clients sur la livraison",
+     "Questions fréquentes des salariés sur la mutuelle",
+     "FAQ interne sur le nouveau logiciel de notes de frais"
+    ],
+    "negatives": [
+     "Peux-tu me poser des questions pour préciser le besoin ?",
+     "Quiz de 5 questions sur la sécurité",
+     "Lettre de réponse à une réclamation"
+    ],
+    "ui": "360 px: full-width rows with the question in semi-bold and a chevron on the right, 44 px tap target; the answer opens below. Desktop: same, max 720 px, with a « Copier en Markdown / HTML » menu so the FAQ can be pasted into a website.",
+    "value": 4,
+    "effort": 2,
+    "risks": "Folding the answer could hide content: the first item is open, and everything opens when printed or copied. The pattern is fairly strong, so false triggers are rare."
+   },
+   {
+    "name": "Cartes d'options côte à côte",
+    "what": "When the answer describes 2-4 options under their own headings, each with the same keyed lines (Prix :, Délai :, Avantage :), they become cards side by side with the keys aligned row by row and differences highlighted.",
+    "trigger": "2-4 sibling headings or bold leads, each followed by keyed bullets (RE_KEYED), with ≥2 shared keys across all options, and the ask contains compare / quelle option / lequel choisir / vs / ou. Negatives: a markdown table (left to the in-flight comparison matrix), a single option, keys shared by fewer than 2 options.",
+    "data_source": "Structure in the answer",
+    "example_prompts": [
+     "Compare un leasing et un achat pour un véhicule de société",
+     "Freelance ou CDD pour ce poste ?",
+     "SARL ou SAS pour mon activité ?"
+    ],
+    "negatives": [
+     "Fais un tableau comparatif des 3 offres (table → matrix)",
+     "Présente notre offre Premium",
+     "Avantages et inconvénients du télétravail (pros/cons in flight)"
+    ],
+    "ui": "360 px: a horizontal scroll-snap carousel of cards (85 % width) with « 1/3 » dots; the keys are in the same order on every card. Desktop: a 2-4 column grid of equal height with each shared key on the same row and empty keys shown as « – ».",
+    "value": 3,
+    "effort": 3,
+    "risks": "Overlap with the in-flight comparison matrix: limit to prose/heading structure, never tables, and coordinate class names. It only moves the answer's own text, so nothing is invented."
+   },
+   {
+    "name": "Tableau triable et filtrable avec contrôle des totaux",
+    "what": "Markdown tables get a sortable header (click to sort, understanding French numbers « 1 234,5 € », dates and %), a filter box from 8 rows, sticky header, and copy as CSV/TSV. A row labelled Total / Sous-total / TOTAL is recomputed: if it differs from the sum of the column by more than rounding, it is flagged.",
+    "trigger": "Any table with ≥5 rows (sort) or ≥8 (filter) once complete (not while growing). The total check runs when the last or a bold row's first cell matches ^(sous-)?total|somme|ensemble$ and the column is ≥80 % numeric (RE_NUM_CELL). Negatives: a table inside a letter, a table inside code, a column of mixed units (€ and %) for totals, columns whose header is Moyenne / Taux / % (not summable).",
+    "data_source": "Structure in the answer (cell values) plus a local computation",
+    "example_prompts": [
+     "Fais un tableau des dépenses du trimestre par poste avec un total",
+     "Liste les 12 commerciaux avec leur CA",
+     "Tableau des stocks par référence"
+    ],
+    "negatives": [
+     "Tableau des taux de TVA en Europe (taux: no total)",
+     "Tableau de 3 lignes (no controls)",
+     "Planning de la semaine (text cells)"
+    ],
+    "ui": "360 px: the table-wrap scrolls horizontally with the first column sticky; header taps cycle sort ↑/↓/off; a small funnel icon opens the filter field; a mismatched total cell gets an amber outline and a footnote « Somme des lignes : 12 450 € (écart 200 €) ». Desktop: the same, with hover arrows on headers and the filter inline at top right.",
+    "value": 5,
+    "effort": 2,
+    "risks": "A wrong flag would hurt trust: sum only exact parsed numbers, tolerate ±0.5 % or the displayed rounding, and skip the check when any cell is unparseable. Sorting never changes the source text or the copy (copy has an « ordre d'origine » option)."
+   },
+   {
+    "name": "Sparklines dans les tableaux de séries",
+    "what": "A table whose columns are successive periods (Jan… Déc, T1… T4, S1/S2, 2021… 2025) gets an extra column with a tiny inline SVG sparkline per row, last value highlighted and the trend (↗ +12 %) computed from first to last.",
+    "trigger": "≥4 header cells parse as an ordered period sequence (month names, quarters, years in increasing order, ISO weeks), with those columns ≥80 % numeric and ≥2 rows. Negatives: a single data row (use the auto chart), periods out of order, cells that are percentages of different bases (header contains « part »), a table already turned into an auto chart for the same data (show either one).",
+    "data_source": "Structure in the answer or attached sheet rows (user data)",
+    "example_prompts": [
+     "Tableau des ventes mensuelles par magasin de janvier à juin",
+     "CA par trimestre pour nos 4 gammes",
+     "Effectifs par service de 2021 à 2025"
+    ],
+    "negatives": [
+     "Tableau du planning de janvier",
+     "Comparatif de prix de 3 fournisseurs",
+     "Une seule ligne de CA mensuel"
+    ],
+    "ui": "360 px: the sparkline column is 64×20 px, sticky on the right; tapping it opens the full line chart from chart.js. Desktop: 96×24 px with a hover tooltip on each point « Mars : 12 400 € ».",
+    "value": 3,
+    "effort": 2,
+    "risks": "Purely derived from the cells. It must not overlap the in-flight KPI tiles (those are single numbers). The trend is a computed difference, never wording like « croissance forte »."
+   },
+   {
+    "name": "Barres d'avancement",
+    "what": "Lists or table columns of progress figures (« Lot 1 : 80 % terminé », « 3/5 livrables ») drawn as labelled progress bars, with a global bar when all items are measured in the same way.",
+    "trigger": "≥2 list items or rows, each with exactly one value of the form N % (0-100) or N/M (N≤M≤100), in a list or column whose header or label uses avancement / progression / réalisé / terminé / atteint / complété / done / progress, or an ask about « état d'avancement ». Negatives: rates (TVA 20 %, croissance +12 %, marge 35 %), values above 100 %, negative values, shares of a whole (left to the breakdown module).",
+    "data_source": "Structure in the answer or the user's own status report (attachment)",
+    "example_prompts": [
+     "Fais le point d'avancement du projet ERP par lot",
+     "Résume l'avancement de nos objectifs trimestriels",
+     "Statut des 5 chantiers en cours"
+    ],
+    "negatives": [
+     "Quel est le taux de TVA ?",
+     "Notre marge est de 35 %, est-ce bien ?",
+     "Répartition du budget par poste"
+    ],
+    "ui": "360 px: one row per item with the label on top, then a 6 px bar with the value at its right and a colour band (<34 % neutral, otherwise accent, 100 % green check). Desktop: label, bar and value on one line in a 640 px card, with the global bar first.",
+    "value": 3,
+    "effort": 1,
+    "risks": "Rates detected as progress is the main false trigger, hence the vocabulary requirement. The bar shows the number as written; no interpolation."
+   },
+   {
+    "name": "Répartition et budget (donut avec contrôle)",
+    "what": "A list or table of parts of a whole (budget by item, share by channel) becomes a donut plus a stacked bar, a legend with amount and share, and a check: shares should total 100 % and amounts should match the stated total. A gap is shown as « Non affecté » or flagged.",
+    "trigger": "≥3 and ≤10 items with amounts sharing one unit (€, k€, h, jours) plus a stated Total / budget global / enveloppe, or ≥3 percentages whose sum is 95-105 %, under a label with répartition / ventilation / budget / part / allocation. Negatives: percentages summing far from 100 (independent rates), the same data already drawn by the auto chart (pie), negative amounts, more than 10 parts.",
+    "data_source": "Structure in the answer or the user's data (attachment, the user's own figures)",
+    "example_prompts": [
+     "Répartis un budget marketing de 40 000 € sur l'année",
+     "Ventilation de nos charges fixes",
+     "Part de chaque canal dans nos ventes"
+    ],
+    "negatives": [
+     "Les taux de conversion par canal",
+     "Évolution du CA sur 5 ans",
+     "Quelle part de TVA récupérer ?"
+    ],
+    "ui": "360 px: a 160 px donut centred with the total in the middle, then the legend as rows (swatch, label, amount, %), and an amber line when the sum differs « Total annoncé 40 000 €, somme 38 500 € ». Desktop: the donut on the left and the legend on the right, with the stacked 100 % bar below.",
+    "value": 4,
+    "effort": 2,
+    "risks": "Coordinate with the chart.js auto chart (draw one or the other). The sum check must tolerate rounding of shares (±1 point)."
+   },
+   {
+    "name": "Gantt simplifié",
+    "what": "Tasks with date ranges or week numbers become horizontal bars on a date axis: a today line, shaded weekends and public holidays (calendrier.api.gouv.fr, already used for events), overlaps visible, and export as .ics (one all-day event per task) or CSV.",
+    "trigger": "A list or table with ≥3 items, each with a parseable range: « du 3 au 14 mars », « 03/03 → 14/03 », « S12-S14 », « semaines 12 à 14 », ISO dates, or a start date plus « 5 jours ». Dates go through when.py. Negatives: single dates only (left to the in-flight timeline), ranges more than 3 years long, the past history of a company (« de 1990 à 2005 »), opening hours (« 9h-18h »).",
+    "data_source": "Structure in the answer, or the user's own words or attachment",
+    "example_prompts": [
+     "Planning du projet de déménagement des bureaux de mars à juin",
+     "Rétroplanning du salon du 15 mai",
+     "Organise les 4 phases du recrutement sur 8 semaines"
+    ],
+    "negatives": [
+     "Les dates clés de l'histoire de l'entreprise",
+     "Horaires d'ouverture du magasin",
+     "Quand a lieu le salon ?"
+    ],
+    "ui": "360 px: a vertical list where each task shows its label and a mini bar on a shared scale, with tap for the dates; the axis shows months only. Desktop: a classic grid with task labels on the left (200 px) and weekly columns, the today line in accent, holidays striped, and a tooltip with exact dates and working-day count.",
+    "value": 4,
+    "effort": 3,
+    "risks": "Ambiguous dates (no year, or 03/04 day-month) follow when.py rules, and the assumed year is written on the card. Relative ranges (« semaine prochaine ») are resolved to the turn's date and shown in absolute form."
+   },
+   {
+    "name": "Organigramme",
+    "what": "A hierarchy given as indented lists (« Directeur général > Directeur commercial > 2 commerciaux ») or a table with a Manager/Responsable column becomes a tree of role boxes, collapsible per branch, exportable as SVG/PNG.",
+    "trigger": "The ask contains organigramme / structure de l'équipe / hiérarchie / org chart, or the attachment is a sheet with columns (Nom|Poste) plus (Manager|N+1|Responsable). The answer has a nested list of ≥2 levels and ≥4 nodes, or the sheet has ≥4 rows with a single root. Negatives: nested lists of ideas, a plan of a document, cycles in the manager column (drawn as a list with a warning), more than 150 nodes.",
+    "data_source": "The user's data (attachment) or structure in the answer",
+    "example_prompts": [
+     "Propose un organigramme pour une PME de 25 personnes",
+     "Fais l'organigramme à partir de ce fichier RH",
+     "Structure type d'un service comptable"
+    ],
+    "negatives": [
+     "Plan de ma présentation",
+     "Arborescence du site web",
+     "Les rôles dans un projet Scrum (concepts)"
+    ],
+    "ui": "360 px: an indented tree with connector lines; tap a node to fold its branch, with a « 3 personnes » badge. Desktop: a top-down SVG tree with boxes 160×56 (role in bold, name below if given), pan and zoom by buttons, and PNG export through the chart.js exporter.",
+    "value": 3,
+    "effort": 3,
+    "risks": "Privacy: names only from the user's file or text, never sent to any service. Names the model invents (« Jean Dupont » placeholders) are shown as roles only: a name is drawn only if it appears in the user's input. Large files are capped."
+   },
+   {
+    "name": "Logigramme d'un processus",
+    "what": "An ordered procedure with branching sub-items (« Si oui… / Si non… ») becomes a flowchart: boxes for actions, diamonds for conditions, arrows; a linear procedure becomes a simple vertical flow. Exportable as SVG.",
+    "trigger": "The ask contains processus / workflow / logigramme / schéma / flux / diagramme, and the answer has an ordered list of ≥3 steps. A branch is detected when a step's text starts with « Si » or ends with « ? » and has sub-items starting with « Si oui | Si non | Oui | Non | Sinon ». Without the ask, only when ≥2 such branches exist. Negatives: a list without action verbs, more than 20 nodes, a branch that points to a step number that does not exist.",
+    "data_source": "Structure in the answer",
+    "example_prompts": [
+     "Fais le logigramme du traitement d'une réclamation client",
+     "Schéma du processus de validation des notes de frais",
+     "Workflow d'approbation d'un devis"
+    ],
+    "negatives": [
+     "Les étapes de création d'une entreprise (no schema asked, no branches)",
+     "Liste des tâches de la semaine",
+     "Histoire de l'entreprise"
+    ],
+    "ui": "360 px: a single vertical column, 100 % width boxes, diamonds as rotated labels with « Oui ↓ / Non → step 5 » chips (no horizontal sprawl). Desktop: a centred SVG with branches side by side, arrows labelled Oui/Non, max 900 px, and « Copier en Mermaid » for reuse elsewhere.",
+    "value": 4,
+    "effort": 3,
+    "risks": "A layout bug could misrepresent the process: when a « aller à l'étape N » target is missing or a cycle appears, fall back to the list. Labels are the answer's own words, truncated with a full-text tooltip."
+   },
+   {
+    "name": "Arbre de décision interactif",
+    "what": "A decision guide written as nested « Si … » / Oui / Non items becomes a questionnaire: the user answers each question with buttons and reaches the leaf recommendation, with a « Recommencer » button and the path shown as breadcrumbs.",
+    "trigger": "A nested list of depth ≥2 whose internal nodes are questions (ending with « ? » or starting with « Si / Est-ce que ») and each internal node has ≥2 children labelled Oui/Non or with a short choice before « : » or « → ». ≥2 questions in total. Negatives: questions without labelled children, a flowchart ask (logigramme takes precedence), the model's clarification questions.",
+    "data_source": "Structure in the answer",
+    "example_prompts": [
+     "Aide-moi à choisir entre CDD, CDI et intérim",
+     "Arbre de décision pour savoir si une dépense est une immobilisation",
+     "Faut-il déclarer cet incident à la CNIL ?"
+    ],
+    "negatives": [
+     "Pose-moi des questions pour mieux comprendre",
+     "Logigramme du processus achat",
+     "FAQ sur les contrats"
+    ],
+    "ui": "360 px: one card at a time with the question in large type, one full-width button per choice, the breadcrumb chips on top and the leaf shown as a « key » callout. Desktop: the card on the left plus a miniature of the whole tree on the right with the current path highlighted, and « Voir tout l'arbre » showing the original list.",
+    "value": 4,
+    "effort": 3,
+    "risks": "The tree is the model's reasoning: label it « d'après la réponse ». For regulated domains, combine it with the official-source box. An incomplete branch (no leaf) is shown as « Réponse non précisée »."
+   },
+   {
+    "name": "Matrice SWOT",
+    "what": "An answer with the four SWOT sections becomes a 2×2 grid: Forces / Faiblesses (interne) and Opportunités / Menaces (externe), colour-coded, item counts per quadrant, and copy/export as an image or slide.",
+    "trigger": "All four labels found as headings, bold leads or list parents: Forces|Strengths, Faiblesses|Weaknesses, Opportunités|Opportunities, Menaces|Threats (each with ≥1 item). Negatives: fewer than four found, « forces armées / forces de vente » in prose, a SWOT written as a single table (rendered as a table, with the grid offered via a button only).",
+    "data_source": "Structure in the answer",
+    "example_prompts": [
+     "Fais un SWOT de notre boulangerie",
+     "Analyse SWOT de l'ouverture d'une agence à Lyon",
+     "SWOT de notre nouvelle offre SaaS"
+    ],
+    "negatives": [
+     "Quelles sont les forces de notre équipe commerciale ?",
+     "Les menaces cyber pour une PME",
+     "Avantages et inconvénients du statut SAS"
+    ],
+    "ui": "360 px: a stack of four coloured cards (S, W, O, T) with a letter badge, the axis labels « Interne » / « Externe » as small headers. Desktop: a 2×2 grid with axis labels on the edges, max 860 px, equal heights, and « Exporter en diapo » reusing the slide preview pipeline.",
+    "value": 4,
+    "effort": 1,
+    "risks": "Very low: a strong, explicit structure. Items are moved, not rewritten."
+   },
+   {
+    "name": "Matrice RACI avec contrôles",
+    "what": "A table of activities × roles with R/A/C/I cells becomes a colour-coded matrix, with checks: exactly one A per activity, at least one R, and a role with no R anywhere is listed. Hover/tap explains each letter.",
+    "trigger": "The ask or a heading contains RACI, or a table where ≥70 % of non-first-column cells match ^(R|A|C|I|R\\/A|A\\/R|RA|-|–)?$ with ≥2 role columns and ≥3 rows. Negatives: tables with letter grades (A, B, C), any other single-letter codes without a RACI context (require the RACI word when a letter outside RACI appears).",
+    "data_source": "Structure in the answer, or the user's attached sheet",
+    "example_prompts": [
+     "Fais une matrice RACI pour le projet de migration CRM",
+     "RACI du processus de recrutement",
+     "Qui fait quoi pour la clôture mensuelle ? En RACI"
+    ],
+    "negatives": [
+     "Tableau des notes de satisfaction A/B/C",
+     "Classement des fournisseurs par catégorie",
+     "Organigramme du service"
+    ],
+    "ui": "360 px: a sticky first column (activity) with role columns as 40 px squares, the letter in a coloured chip, then warnings as a list below « Ligne 3 : aucun A ». Desktop: a full table with column headers rotated 45° when there are more than 6 roles, warning rows outlined amber, and a filter by role that highlights its letters.",
+    "value": 3,
+    "effort": 2,
+    "risks": "Low. The checks follow the method's definition, not the model's opinion. Letters must be parsed exactly; anything ambiguous is shown raw without a check."
+   },
+   {
+    "name": "Matrice d'Eisenhower (priorités)",
+    "what": "Tasks classed by urgency and importance are placed in a 2×2 grid: Faire, Planifier, Déléguer, Abandonner, each with its count and a « copier comme liste » action.",
+    "trigger": "The answer has ≥3 of the four quadrant labels (« urgent et important », « important mais pas urgent / non urgent », « urgent mais pas important », « ni urgent ni important », or the verbs Faire / Planifier / Déléguer / Éliminer as section labels) with items under them, and the ask mentions prioriser / priorités / Eisenhower / urgent. Negatives: a single « Urgent : » callout, a ranked list with no quadrants, project risk tables.",
+    "data_source": "Structure in the answer (the classification is the model's, from the user's list)",
+    "example_prompts": [
+     "Aide-moi à prioriser ma liste de tâches de la semaine avec Eisenhower",
+     "Classe ces 10 tâches par urgence et importance",
+     "Qu'est-ce que je dois faire en premier ?"
+    ],
+    "negatives": [
+     "C'est urgent : réponds à ce client",
+     "Classement des priorités stratégiques 2027",
+     "Risques du projet"
+    ],
+    "ui": "360 px: four stacked cards in order Faire → Planifier → Déléguer → Abandonner, with the quadrant name and its axis (« urgent · important ») as subtitle. Desktop: a 2×2 grid with the axes « Urgent → » across the top and « Important ↑ » down the side, items as chips; items can be dragged between quadrants (local only) and copied back as text.",
+    "value": 3,
+    "effort": 2,
+    "risks": "The classification is the model's opinion, so the card says « proposition ». Task text must match the user's tasks: chips whose text is not in the user's message get a dotted outline « ajouté par Bird »."
+   },
+   {
+    "name": "Carte de chaleur des risques",
+    "what": "A risk register with Probability and Impact (1-5, or faible/moyen/élevé/critique) becomes a 5×5 (or 3×3) heat map with risk IDs placed in their cell, criticality computed as P×I, and the list sorted by criticality.",
+    "trigger": "A table with a column matching probabilit[ée]|vraisemblance|likelihood|occurrence and one matching impact|gravit[ée]|s[ée]v[ée]rit[ée]|severity, whose values all map to one ordinal scale; ≥3 rows. Negatives: free-text columns (« possible si… »), mixed scales across rows, a table of financial impacts in euros (not an ordinal scale).",
+    "data_source": "Structure in the answer, or the user's own risk register (attachment)",
+    "example_prompts": [
+     "Fais une analyse des risques du projet de déménagement avec probabilité et impact",
+     "Cartographie des risques RGPD de notre PME",
+     "Registre des risques pour le lancement du produit"
+    ],
+    "negatives": [
+     "Quels sont les risques d'un CDD ?",
+     "Impact financier de la hausse des prix",
+     "Probabilité de pluie demain"
+    ],
+    "ui": "360 px: a compact 5×5 grid (52 px cells) with numbered dots, coloured green→red, and below it the sorted list with a criticality chip; tap a dot to scroll to its row. Desktop: a 320 px grid on the left and the sorted register on the right, with a hover link between dot and row.",
+    "value": 4,
+    "effort": 2,
+    "risks": "The P×I computation is local. Ordinal words are mapped by a fixed table (faible=1… critique=4 on a 4-point scale), and the mapping is written under the grid. Unknown values leave a row unplaced rather than guessing."
+   },
+   {
+    "name": "Aperçu d'e-mail rédigé dans la réponse",
+    "what": "An email written in the answer text (without the draft_email tool) gets the same card as the tool's draft: Objet, À (only addresses the user typed), the body as written, plus « Copier », « Copier l'objet » and « Ouvrir dans ma messagerie » (a mailto: link the user clicks; nothing is sent).",
+    "trigger": "The answer contains a line ^(Objet|Subject)\\s*: followed within 3 lines by a salutation (Bonjour|Madame|Monsieur|Cher|Chère|Hello|Dear) and ends with a sign-off (Cordialement|Bien à vous|Bien cordialement|Best regards…), or the ask contains mail / e-mail / courriel / message à and letter mode is on. Negatives: the draft_email tool already ran (its card is shown, so no duplicate), a letter on paper (« lettre recommandée », no Objet line → no mailto button, copy only), an email quoted from the user's attachment.",
+    "data_source": "Structure in the answer (subject, body); recipients only from the user's own words (recipients() in actions.py)",
+    "example_prompts": [
+     "Écris un mail de relance pour la facture impayée de Dupont SA",
+     "Mail pour décaler la réunion de jeudi à vendredi",
+     "Réponds à ce client mécontent par mail"
+    ],
+    "negatives": [
+     "Rédige une lettre de démission (paper letter: copy only)",
+     "Résume ce mail (attachment)",
+     "Comment écrire un bon objet de mail ?"
+    ],
+    "ui": "360 px: a card shaped like a mail header (À, Objet in bold) with the body in a light inset, buttons at the bottom as a 2-column grid (« Copier », « Ouvrir dans ma messagerie »), and the subject length shown when it is over 70 characters. Desktop: the same card at max 680 px, with the mailto button on the right and « Copier en HTML » for rich paste.",
+    "value": 5,
+    "effort": 1,
+    "risks": "Never put a name the model guessed into mailto (the recipients() rule). mailto is capped at about 1 900 characters (fall back to copy). It reuses the existing draft card, so no new surface."
+   },
+   {
+    "name": "Compte rendu de réunion (décisions, actions, responsables, échéances)",
+    "what": "Meeting minutes become a structured card: participants (from the user's notes), Décisions as checked items, Actions as a table Action | Responsable | Échéance with owner chips and relative due dates (« dans 3 j », « en retard »), plus « Exporter les échéances (.ics) » and « Copier en mail de suivi ».",
+    "trigger": "The ask contains compte rendu / CR / minutes / synthèse de réunion / notes de réunion, or the attachment or pasted text looks like a meeting transcript, and the answer has a section Décisions and/or Actions (heading, bold lead or the existing « decision » callout), with ≥2 action items. Owners are read from « Nom : tâche », « tâche (Nom) » or an « Responsable/Qui » column; dates go through when.py. Negatives: a template request without content (« modèle de CR »), a single decision, actions with no verb.",
+    "data_source": "Structure in the answer, with owners and dates checked against the user's notes or attachment (user data)",
+    "example_prompts": [
+     "Fais le compte rendu de cette réunion à partir de mes notes",
+     "Synthèse de la réunion commerciale avec les actions",
+     "Transforme cette transcription en CR avec qui fait quoi"
+    ],
+    "negatives": [
+     "Donne-moi un modèle de compte rendu",
+     "Comment animer une réunion efficace ?",
+     "Planifie une réunion avec Paul jeudi (event card)"
+    ],
+    "ui": "360 px: a stacked card with the header (date, participants count), Décisions as ✓ rows, and Actions as mini cards (task, owner chip, date chip coloured by urgency); export buttons at the bottom. Desktop: a two-column card with Décisions on the left and the Actions table on the right, sortable by owner or date, plus a « Copier pour Teams/Slack » option.",
+    "value": 5,
+    "effort": 3,
+    "risks": "Invention is the main risk: an owner or date that does not appear in the user's notes is shown in grey « à confirmer » instead of as a chip. Privacy: names stay in the page; .ics is built in the browser (no invitees, METHOD:PUBLISH, as ics.js does)."
+   },
+   {
+    "name": "Devis / facture avec vérification des totaux",
+    "what": "A quote or invoice table (Désignation, Qté, PU HT, Montant HT) with HT / TVA / TTC lines becomes a document card: lines recomputed (Qté × PU), the HT sum, TVA at the stated rate and TTC checked, mismatches flagged, and a checklist of mandatory French mentions that are missing (numéro, date, SIREN, échéance, pénalités de retard, indemnité forfaitaire 40 €) when the ask is a facture.",
+    "trigger": "A table with columns matching quantit[ée]|qt[ée] and (prix unitaire|PU|tarif) and (montant|total), or lines ^(Total )?HT, TVA( \\d+ ?%)?, TTC with amounts; plus ask words devis / facture / proforma / bon de commande. Negatives: a price comparison table without quantities, a payroll table, VAT questions without a document (« quel taux de TVA ? »).",
+    "data_source": "Structure in the answer or the user's attachment, with the computation done locally",
+    "example_prompts": [
+     "Fais un devis pour 3 jours de formation à 900 € HT par jour plus frais de déplacement",
+     "Vérifie cette facture fournisseur",
+     "Prépare une facture pour la prestation de novembre"
+    ],
+    "negatives": [
+     "Compare les prix de 3 fournisseurs",
+     "Quel est le taux de TVA sur la restauration ?",
+     "Calcule le salaire net"
+    ],
+    "ui": "360 px: a paper-like card with lines as rows (designation over Qté × PU = montant), totals at the bottom right in bold, an amber icon next to each wrong figure with « attendu 2 700,00 € », and the mentions checklist as a folded section. Desktop: an A4-like layout (max 760 px) with a 4-column table, totals block aligned right, and « Créer le document Word » handing off to the existing doc tool.",
+    "value": 5,
+    "effort": 3,
+    "risks": "Rounding rules: round each line to the cent, then the TVA on the HT total, and accept either per-line or global rounding (≤1 cent per line). The mentions checklist is a fixed legal list dated and linked to service-public.fr, never generated."
+   },
+   {
+    "name": "Clauses de contrat surlignées (citées et vérifiées)",
+    "what": "When the user attaches a contract and the answer cites articles or quotes clauses, each cited clause becomes a card: the article number and title, the exact text from the document (verified verbatim), the answer's comment next to it, and a tag from the answer's own words (« à négocier », « risque », « standard »).",
+    "trigger": "There is an attachment whose text has ≥3 headings matching ^(Article|Art\\.|Clause)\\s+\\d+ and the answer mentions « article N » or contains a quote (guillemets « … » or > blockquote) of ≥8 words. A quoted span is kept only if it is found in the attachment text after whitespace/typography normalisation. Negatives: no attachment, a quote not found (shown as normal text with « citation non retrouvée dans le document »), contract drafting from scratch.",
+    "data_source": "The user's attachment (verbatim text) plus structure in the answer",
+    "example_prompts": [
+     "Analyse ce contrat de prestation et relève les clauses à risque",
+     "Quelles clauses de ce bail commercial dois-je négocier ?",
+     "Y a-t-il une clause de non-concurrence dans ce contrat ?"
+    ],
+    "negatives": [
+     "Rédige un contrat de prestation",
+     "Qu'est-ce qu'une clause de non-concurrence ?",
+     "Résume ce PDF de présentation (no articles)"
+    ],
+    "ui": "360 px: a stack of clause cards with the article number as an eyebrow, the quoted text in a serif inset with a left border, the tag chip, and the answer's comment below; « Voir dans le document » opens the attachment text at the clause. Desktop: a two-column layout with the clause text on the left and the comment on the right, plus a filter by tag.",
+    "value": 5,
+    "effort": 3,
+    "risks": "The verbatim check is the whole point: never show a clause text not found in the document. Contracts are sensitive: nothing leaves the page or server, and no web search is triggered with contract text."
+   },
+   {
+    "name": "Fiche CV",
+    "what": "For an attached CV and an ask to analyse, summarise or compare it, a card shows the name and current title, experiences as a mini timeline (employer, role, dates), education, languages and skills as chips. Every field is a substring of the CV text.",
+    "trigger": "The attachment has CV cues (≥2 of: Expérience(s) professionnelle(s), Formation, Compétences, Langues, Centres d'intérêt, or the English equivalents), and the ask contains CV / candidat / profil / résumé / analyse / compare. Fields are extracted by a deterministic parser over the attachment (dates by when.py ranges). Negatives: the user asks to write a CV (no attachment), a job description, an attachment that is a cover letter only.",
+    "data_source": "The user's attachment",
+    "example_prompts": [
+     "Analyse ce CV pour le poste de comptable",
+     "Résume le profil de ce candidat",
+     "Compare ces deux CV"
+    ],
+    "negatives": [
+     "Rédige mon CV",
+     "Rédige une fiche de poste de comptable",
+     "Corrige ma lettre de motivation"
+    ],
+    "ui": "360 px: a header with initials in a monogram (never the photo), name, title, then sections as compact lists, and the timeline as vertical dots with years. Desktop: a two-column card (identity and skills on the left, timeline on the right); with two CVs, side by side with aligned sections.",
+    "value": 3,
+    "effort": 4,
+    "risks": "Personal data (RGPD): no photo, no address, no phone shown on the card (the phone is masked); nothing sent to third parties; not stored beyond the turn. CV layouts vary a lot, so a section the parser misses is omitted, never filled by the model."
+   },
+   {
+    "name": "Rendu de formules mathématiques (MathML maison)",
+    "what": "Formulas in $…$, \\( … \\), $$…$$ or a fenced math block are rendered with native MathML (fractions, square roots, exponents, indices, sums, Greek letters, ×, ≤), plus « Copier LaTeX ». Business formulas such as « TTC = HT × (1 + TVA) » are typeset too.",
+    "trigger": "Delimited math only ($…$ with no space after the opening $ and a non-digit after the closing one, so « 20 $ » stays text), \\( \\), \\[ \\], $$ blocks, or a fence named math/latex/tex. A small in-house LaTeX-subset parser, with escaping before tag generation as in markdown.js. Negatives: amounts in dollars (« 5 $ et 10 $ »), code blocks, an unsupported command (shown raw in a code span, never half-rendered), Excel formulas (left to richcode excel).",
+    "data_source": "Structure in the answer",
+    "example_prompts": [
+     "Formule du taux de marge et du taux de marque",
+     "Comment calculer la VAN d'un investissement ?",
+     "Explique les intérêts composés avec la formule"
+    ],
+    "negatives": [
+     "Ça coûte 20 $ ou 25 $ ?",
+     "Formule Excel pour une RECHERCHEV",
+     "Écris une fonction Python de calcul de TVA"
+    ],
+    "ui": "360 px: inline formulas in the line height, display formulas centred in a horizontally scrollable box with a « Copier » icon. Desktop: the same, with larger display size and the LaTeX source on hover.",
+    "value": 3,
+    "effort": 3,
+    "risks": "Dollar ambiguity is the main false trigger (strict delimiter rules). Native MathML needs no library and makes no requests (CSP-safe). Unknown commands fall back to raw text."
+   },
+   {
+    "name": "Popover de citation [n]",
+    "what": "Each [n] marker in a sourced answer becomes a button that opens a popover with the source's title, domain, date and the sentence of the search result that best matches the claim's words, plus « Ouvrir ». A marker with no matching source is greyed and flagged.",
+    "trigger": "The answer has [n] markers and the turn has sources (search results). The best excerpt is chosen by word overlap between the sentence that holds the marker and the result's snippet text. Negatives: [n] inside code or tables of numbers like [1, 2], footnotes the user pasted, n greater than the number of sources (flagged « source inexistante », never linked).",
+    "data_source": "Tool results (search results already on the turn)",
+    "example_prompts": [
+     "Quelles sont les nouvelles règles de facturation électronique en 2026 ?",
+     "Dernières aides à l'embauche pour les PME",
+     "Que dit la loi sur le droit à la déconnexion ?"
+    ],
+    "negatives": [
+     "Liste [1, 2, 3] en Python",
+     "Résume mon document (no sources)",
+     "Écris un poème"
+    ],
+    "ui": "360 px: tapping the marker opens a bottom sheet (no hover) with the favicon from /api/icon, the title, the excerpt with matching words in bold, and « Ouvrir la source ». Desktop: a 320 px popover anchored to the marker on hover/focus, keyboard reachable, Escape to close.",
+    "value": 5,
+    "effort": 2,
+    "risks": "It makes a small model's sourcing visible and checkable. If overlap is low, show « extrait correspondant non trouvé » rather than a random snippet. Icons through /api/icon only (no third-party request). Distinct from the in-flight source cards (those are a list; this is inline)."
+   },
+   {
+    "name": "Citation vérifiée",
+    "what": "A blockquote with an attribution (the RE_SOURCE pattern already detected) is checked against the turn's sources and attachments: when the quoted text is found, it becomes a quote card « Retrouvée dans [2] », with the source link; when it is not found, a discreet « citation non vérifiée » note appears.",
+    "trigger": "A quote block or « … » of ≥8 words with an attribution line (— Auteur, Source :), when the turn has search results or attachments to check against. Normalised substring match (quotes, apostrophes, spaces, case). Negatives: a quote the user wrote in their own message (it is theirs), proverbs with no attribution, a quote inside a letter.",
+    "data_source": "Tool results and attachments (user data) checked against structure in the answer",
+    "example_prompts": [
+     "Donne-moi une citation de Steve Jobs sur l'innovation avec la source",
+     "Que dit exactement l'article L1234-1 du code du travail ?",
+     "Cite le passage du rapport sur les coûts"
+    ],
+    "negatives": [
+     "Mets cette phrase entre guillemets",
+     "Écris un slogan",
+     "Cite trois avantages du télétravail"
+    ],
+    "ui": "360 px: a large quotation mark, the quote in serif, the author and the source below, a small green check « vérifiée dans la source [2] » or grey « non vérifiée ». Desktop: the same card at max 640 px, with a « Copier avec la source » button.",
+    "value": 4,
+    "effort": 2,
+    "risks": "Famous misattributed quotes are a known small-model failure: this exposes them without accusing (« non vérifiée », not « fausse »). No network: it uses only results already on the turn."
+   },
+   {
+    "name": "Fiche entité (résumé Wikipédia)",
+    "what": "For « qui est X / qu'est-ce que [organisation] / présente [entité] », a card with the page title, the first 2 sentences of the Wikipedia extract, the thumbnail (through the server image proxy), the page date and the « Wikipédia » link. The model's text stays below.",
+    "trigger": "The ask matches qui est|qui était|présente|c'est qui|qu'est-ce que l'|l'organisation with a capitalised subject of ≤5 words, the Wikipedia backend was called (or is called automatically for that pattern), and the top result's title matches the subject after normalisation (≥0.8 similarity). Negatives: a private person named by the user (no capitalised public entity in KNOWN lists and no Wikipedia match → no card), a company with a SIREN (company card instead), homonyms with « (homonymie) » pages (no card), internal names.",
+    "data_source": "Tool result (WikipediaBackend extract, MediaWiki API)",
+    "example_prompts": [
+     "Qui est Christine Lagarde ?",
+     "Qu'est-ce que l'AMF ?",
+     "Présente-moi l'ADEME"
+    ],
+    "negatives": [
+     "Qui est Marc dans mon équipe ?",
+     "Fiche de la société 552 100 554 (company card)",
+     "Qui est le meilleur fournisseur ?"
+    ],
+    "ui": "360 px: a card with a 64 px square thumbnail on the left (the monogram when there is none), the title and a 2-line description, the extract below, the attribution « Wikipédia, CC BY-SA » and the link. Desktop: the same, max 640 px, with a « Lire la suite » expanding to the full intro.",
+    "value": 4,
+    "effort": 2,
+    "risks": "Privacy: never call Wikipedia with names from attachments or names of colleagues; only for public-entity asks the user typed. Thumbnails go through /api/img (CSP img-src 'self'). The Wikimedia UA and rate rules are already handled in search.py. CC BY-SA attribution is required."
+   },
+   {
+    "name": "Fiche pays / ville (données embarquées)",
+    "what": "For « population de Lyon », « capitale du Canada », « monnaie au Japon », « indicatif de l'Allemagne », a fact card from a dataset shipped with Bird (countries: capital, currency + ISO code, languages, calling code, time zones from the clock table, EU/Schengen/euro zone membership, driving side; French communes: INSEE code, département, region, official population with its year). It links to the clock, FX and map cards.",
+    "trigger": "Ask patterns: (population|habitants|capitale|monnaie|devise|indicatif|fuseau|langue officielle) + (de|du|d'|en|au) + a name that matches exactly the bundled country or commune table (homonym communes: the most populated, the département written). Negatives: a person or company name, a restaurant (places), « la capitale de la mode », questions about history.",
+    "data_source": "Bundled static dataset (dated: INSEE population year, ISO 4217), no request at runtime",
+    "example_prompts": [
+     "Quelle est la monnaie au Maroc ?",
+     "Combien d'habitants à Rennes ?",
+     "Indicatif téléphonique du Portugal"
+    ],
+    "negatives": [
+     "Capitale de la mode ?",
+     "Population cible de notre offre",
+     "Monnaie de notre fournisseur ? (unknown entity)"
+    ],
+    "ui": "360 px: a card with the flag as an in-page SVG or emoji, the name and key facts as label/value rows, each with its source and year in small text, and chips « Heure locale », « Convertir », « Voir sur la carte ». Desktop: a 2-column fact grid at max 640 px.",
+    "value": 3,
+    "effort": 3,
+    "risks": "Stale data: the year is shown on each figure, and the dataset is regenerated by a script from INSEE/ISO sources. Homonym communes are resolved transparently. No third-party request."
+   },
+   {
+    "name": "Barèmes et indicateurs officiels du moment",
+    "what": "Instead of stock prices (excluded in WEB.md), a card for French reference figures that SMEs ask about all the time: SMIC horaire/mensuel, plafond de la Sécurité sociale (PASS/PMSS), taux d'intérêt légal, IRL/ILC/ILAT, indemnités kilométriques barème, taux de TVA, with the value, the effective date and the official link.",
+    "trigger": "The ask names one of the indicators from a fixed table (SMIC, PASS, plafond sécu, taux légal, IRL, ILC, barème kilométrique, taux de TVA réduit…). Values come from a dated JSON shipped with the release (updated by a script; a value past its validity date is shown with « à vérifier, valeur au … »). Negatives: a computation on the user's own salary (calculator in flight), predictions (« le SMIC en 2028 »), indicators not in the table.",
+    "data_source": "Bundled dated dataset from official publications (no request at runtime)",
+    "example_prompts": [
+     "Combien est le SMIC horaire brut ?",
+     "Quel est le plafond de la sécurité sociale cette année ?",
+     "Dernier indice IRL pour réviser un loyer"
+    ],
+    "negatives": [
+     "Calcule mon salaire net",
+     "Le SMIC va-t-il augmenter ?",
+     "Cours de l'action LVMH (excluded)"
+    ],
+    "ui": "360 px: a big value with its unit, then « en vigueur depuis le 1er janvier 2026 », the official source link and « Copier ». Desktop: the same card with a small history table of the last 4 values and a sparkline.",
+    "value": 5,
+    "effort": 2,
+    "risks": "Staleness is the main risk: each entry has valid_from/valid_to, and the card warns when today is past the last update. It keeps the model from inventing figures (the model receives the value as a tool result). No network."
+   },
+   {
+    "name": "Écart entre dates et jours ouvrés",
+    "what": "For « combien de jours entre le 3 mars et le 14 avril », « combien de jours ouvrés en mai », « quelle date dans 90 jours », a card with calendar days, working days (Monday-Friday minus public holidays of the zone) and weeks, a mini calendar, and the holidays inside the range listed.",
+    "trigger": "Patterns: combien de (jours|semaines|mois) (ouvrés|ouvrables|calendaires)? (entre|d'ici|avant|jusqu'au), jours ouvrés (en|de) <month>, (dans|à) N jours/semaines + quelle date, jours fériés <year>. Dates through when.py; holidays from calendrier.api.gouv.fr (BIRD_HOLIDAY_ZONE). Negatives: « combien de jours de congés ai-je ? » (personal entitlement), age questions, event creation.",
+    "data_source": "The user's words plus the official holiday API (already used) and local computation",
+    "example_prompts": [
+     "Combien de jours ouvrés entre le 1er et le 31 mai 2027 ?",
+     "Quelle date dans 90 jours ?",
+     "Jours fériés 2027"
+    ],
+    "negatives": [
+     "Combien de jours de congés me reste-t-il ?",
+     "Réunion dans 3 jours avec Paul (event card)",
+     "Combien de jours pour livrer ce projet ?"
+    ],
+    "ui": "360 px: three big tiles (jours calendaires / ouvrés / ouvrables), the dates below, and a collapsible list of holidays inside the range. Desktop: tiles on the left and a month calendar on the right with the range shaded, weekends grey and holidays marked; « Copier le résultat ».",
+    "value": 4,
+    "effort": 2,
+    "risks": "Definitions differ (ouvrés vs ouvrables), so both are shown with a one-line definition. Alsace-Moselle and DOM holidays follow the configured zone, which is written on the card. Inclusive/exclusive counting is stated."
+   },
+   {
+    "name": "Échéance de paiement (délais légaux)",
+    "what": "For « 45 jours fin de mois à partir du 12 mars » or « échéance d'une facture à 60 jours », the computed due date under both accepted methods (45 j fin de mois and fin de mois + 45 j), the late-payment penalty reminder (indemnité 40 €) and a link to the legal source.",
+    "trigger": "(\\d+) jours (fin de mois|net|date de facture|à réception) or échéance/délai de paiement with a date in the user's words; when.py parses the invoice date. Negatives: delivery delays, payment of a salary, a question about a specific supplier contract without a date.",
+    "data_source": "The user's words plus local computation and a fixed legal note",
+    "example_prompts": [
+     "Facture du 12 mars à 45 jours fin de mois, quelle échéance ?",
+     "Délai de paiement maximum légal pour une facture du 30 novembre",
+     "À quelle date relancer une facture à 30 jours émise le 5 janvier ?"
+    ],
+    "negatives": [
+     "Délai de livraison de la commande",
+     "Quand est versé le salaire ?",
+     "Rédige une relance (email card)"
+    ],
+    "ui": "360 px: the due date in large type with the weekday, then the method, the alternative method's date in smaller text when it differs, and a « Créer un rappel (.ics) » button. Desktop: a two-column comparison of both methods with a short legal note and a link to economie.gouv.fr.",
+    "value": 4,
+    "effort": 1,
+    "risks": "The two calculation methods give different dates and both are accepted, so both are shown. The legal mention is fixed text with its source and date, not model output."
+   },
+   {
+    "name": "Simulateur d'emprunt et curseurs what-if",
+    "what": "For a loan or lease (« mensualité d'un prêt de 50 000 € sur 5 ans à 4 % »), a card with the monthly payment, total interest and a yearly amortisation table, computed locally, with sliders for amount, rate and duration. For the answer's own computations (« marge = CA − coûts »), sliders on the named inputs recompute the result through a safe expression evaluator.",
+    "trigger": "Loan: (prêt|emprunt|crédit|leasing|LOA) + an amount + a rate (N %) + a duration (ans|mois) in the user's words. What-if: the answer has a line « Nom = a op b … = résultat » with ≥2 named numeric inputs, the ask is a simulation (« et si », « simule », « combien si »), and the evaluator reproduces the answer's result. Negatives: a missing rate or duration (the card asks via the form module instead of guessing), any non-arithmetic expression.",
+    "data_source": "The user's words (loan parameters) or structure in the answer, with a local computation",
+    "example_prompts": [
+     "Mensualité d'un prêt de 80 000 € sur 7 ans à 3,9 %",
+     "Simule ma marge si je baisse mes prix de 5 %",
+     "Et si on embauche 2 personnes à 3 000 € brut ?"
+    ],
+    "negatives": [
+     "Comment obtenir un prêt bancaire ?",
+     "Quel taux d'emprunt aujourd'hui ? (no source)",
+     "Calcule 12 × 7 (calculator in flight)"
+    ],
+    "ui": "360 px: the result in large type, then one slider per input (full width, with a numeric field), a collapsible amortisation table by year, and « Copier le tableau ». Desktop: sliders on the left and the result plus a stacked bar (capital / intérêts) and the table on the right.",
+    "value": 4,
+    "effort": 3,
+    "risks": "The rate convention (nominal annual rate, monthly payments) is written on the card. If the evaluator's result differs from the model's, the card shows both and the inline arithmetic check flags the text. Overlap with the in-flight calculator: this only covers loans and the answer's named formulas."
+   },
+   {
+    "name": "Vérification arithmétique en ligne",
+    "what": "Every simple computation written in the answer (« 1 200 × 12 = 14 400 », « 20 % de 3 500 € = 700 € », « HT 1 000 + TVA 200 = 1 200 TTC ») is recomputed. A correct one gets nothing (or a tiny check on hover); a wrong one gets a dotted amber underline and a tooltip « Le calcul donne 14 400 ».",
+    "trigger": "Regex over the rendered text (outside code): number (op number)+ = number with op in + − - × x * / ÷, and « N % de M = R ». French number parsing (spaces, commas). Negatives: equations with unknowns (x = …), dates (12/03 = …), version numbers, ratios written as « 3:1 », results the model marked as approximate (≈, environ) where it is checked with tolerance, code blocks.",
+    "data_source": "Structure in the answer with a local computation",
+    "example_prompts": [
+     "Calcule le coût annuel de 3 abonnements à 49 € par mois",
+     "Quel est le montant TTC de 2 450 € HT ?",
+     "Combien de jours de formation pour 8 personnes à 2 jours chacune ?"
+    ],
+    "negatives": [
+     "Résous l'équation 2x + 3 = 7",
+     "Python : x = 3 * 4",
+     "Le ratio est de 3:1"
+    ],
+    "ui": "360 px: the underline in the text, and a tap opens a small sheet « Calcul vérifié par Bird : 1 200 × 12 = 14 400 ». Desktop: a tooltip on hover/focus, and the header of the answer shows « 1 calcul à revoir » as a chip that scrolls to it.",
+    "value": 5,
+    "effort": 2,
+    "risks": "High value for a small model whose arithmetic slips. False flags from rounding: accept the result rounded to the precision it is written with. Precedence follows standard rules; anything unparsed is ignored, never flagged."
+   },
+   {
+    "name": "Diff avant / après (relecture d'un texte)",
+    "what": "When the user pastes a text and asks to correct, rephrase or shorten it, a diff view shows the changes word by word (deletions struck through, additions highlighted), with tabs Modifié / Original / Différences, the change count and the length delta, and « Copier la version corrigée ».",
+    "trigger": "The ask contains corrige / relis / reformule / améliore / raccourcis / rends plus professionnel / fix / proofread, the user's message (or text attachment) has a passage of ≥15 words, and the answer has a block whose word overlap with that passage is ≥40 % (the corrected version). Negatives: translation (different language), a summary (overlap <40 %), code (left to code checks), no user passage.",
+    "data_source": "The user's own text compared with structure in the answer (a local diff)",
+    "example_prompts": [
+     "Corrige les fautes de ce mail : …",
+     "Reformule ce paragraphe de façon plus professionnelle : …",
+     "Raccourcis ce texte pour LinkedIn : …"
+    ],
+    "negatives": [
+     "Traduis ce texte en anglais",
+     "Résume ce document",
+     "Écris un nouveau texte sur le même sujet"
+    ],
+    "ui": "360 px: a tabbed card (default « Modifié »), and « Différences » shows inline changes with a legend; the change count chip « 7 corrections ». Desktop: a side-by-side view with the original on the left and the result on the right, the changes aligned, and a toggle for an inline view.",
+    "value": 5,
+    "effort": 2,
+    "risks": "The diff is purely local and deterministic (word-level LCS). It reveals over-editing by the small model (rewrites when asked for corrections only), which is useful. It must not overlap the in-flight one-click transforms (this displays a result; it does not trigger a rewrite)."
+   },
+   {
+    "name": "Quiz / QCM de formation",
+    "what": "Training questions with lettered options and an answer key become an interactive quiz: one question at a time or all at once, click to answer, immediate feedback with the explanation the answer gives, a score at the end and « Recommencer » or « Copier pour Forms ».",
+    "trigger": "The ask contains quiz / QCM / questionnaire / teste mes connaissances / évaluation, and the answer has ≥2 numbered questions, each followed by ≥2 options ^[A-D][).]\\s or - [ ], plus an answer key per question (« Réponse : B », « Bonne réponse : B ») or a final « Corrigé : 1-B, 2-A ». Negatives: no key at all (options shown as a static list; Bird never decides the correct answer), survey questions without a right answer (shown as a poll with no score), FAQ.",
+    "data_source": "Structure in the answer",
+    "example_prompts": [
+     "Fais un quiz de 5 questions sur la cybersécurité pour nos salariés",
+     "QCM sur les règles RGPD avec corrigé",
+     "Teste mes connaissances sur la TVA"
+    ],
+    "negatives": [
+     "FAQ sur la sécurité",
+     "Pose-moi des questions pour clarifier mon besoin",
+     "Sondage de satisfaction (no key → poll, no score)"
+    ],
+    "ui": "360 px: one question per card with full-width option buttons; after a choice, green or red with the explanation, a progress bar on top and the score card at the end. Desktop: the same card centred at max 640 px, with keyboard shortcuts A-D and a « Mode liste » that shows all questions with answers hidden behind « Afficher la réponse ».",
+    "value": 4,
+    "effort": 2,
+    "risks": "A key the model got wrong would teach an error: when the answer has an explanation that contradicts the key, the card cannot know that, so it labels the quiz « généré par Bird, à relire » for trainers. No storage of scores beyond the page."
+   },
+   {
+    "name": "Fiches de révision (flashcards)",
+    "what": "Term → definition pairs under a revision ask become flip cards: tap to reveal, « Je sais / À revoir » piles, shuffle, and export as CSV (Anki/Quizlet import).",
+    "trigger": "The ask contains fiches de révision / flashcards / cartes mémoire / apprendre par cœur / vocabulaire, and the answer has ≥5 keyed lines « Terme : définition » (RE_PAIR/RE_KEYED) or a 2-column table Terme|Définition. Negatives: label/value rows of a document (Prix : 40 €), without the ask; glossary tooltips in flight cover inline terms.",
+    "data_source": "Structure in the answer",
+    "example_prompts": [
+     "Fais-moi des flashcards sur le vocabulaire comptable",
+     "Fiches de révision sur les termes du droit du travail",
+     "Cartes mémoire des 10 indicateurs commerciaux clés"
+    ],
+    "negatives": [
+     "Fiche produit de notre nouvel article",
+     "Liste des contacts : Nom : téléphone",
+     "Glossaire du document (glossary in flight)"
+    ],
+    "ui": "360 px: one card at a time, 3:2, with a flip animation (prefers-reduced-motion: a crossfade), swipe right for « Je sais » and left for « À revoir », and a counter « 4/12 ». Desktop: a grid of cards with click to flip, plus « Mode entraînement » for one at a time and « Exporter CSV ».",
+    "value": 3,
+    "effort": 2,
+    "risks": "Low. The content is the answer's own pairs. Progress is local (localStorage wrapped in try/catch) and optional."
+   },
+   {
+    "name": "Formulaire de précisions (réponse structurée)",
+    "what": "When Bird needs several pieces of information before acting (« Pour rédiger le contrat, j'ai besoin de : - nom du client - date de début - montant »), the list becomes a small form: typed fields (date picker, amount, email, free text), and « Envoyer » sends a structured message « Nom du client : …\\nDate de début : … » as the user's next turn.",
+    "trigger": "The answer ends with a lead-in (j'ai besoin de|pouvez-vous (me )?(préciser|indiquer|donner)|merci de préciser|could you provide) followed by a list of 2-8 noun-phrase items (no verbs at the start, each ≤60 characters, or each ending with « ? »). Field types come from keywords: date|jour → date, montant|prix|budget|€ → number with unit, e-mail|adresse mail → email, nombre|combien → integer. Negatives: lists of the model's suggestions, closing offers (RE_OFFER), the clarify chips in flight (single choice) when items are options rather than fields.",
+    "data_source": "Structure in the answer (field labels); the values are the user's own input",
+    "example_prompts": [
+     "Rédige un contrat de prestation (missing info)",
+     "Prépare une offre d'emploi",
+     "Fais un devis pour mon client"
+    ],
+    "negatives": [
+     "Voici 3 options : A, B ou C (clarify chips in flight)",
+     "Souhaitez-vous que je développe ?",
+     "Liste des pièces à fournir (information, not a request)"
+    ],
+    "ui": "360 px: full-width labelled fields stacked, native inputs (date, number with inputmode=decimal), « Envoyer » sticky at the bottom of the card, « Je préfère répondre librement » link. Desktop: a 2-column grid of fields at max 640 px with Enter to submit.",
+    "value": 5,
+    "effort": 2,
+    "risks": "The sent message is plain text the user sees in their own bubble before it is sent (editable). Inputs are never auto-filled from other data. A false trigger only shows a form the user can ignore."
+   },
+   {
+    "name": "Galerie d'images avec visionneuse",
+    "what": "Web images (up to 4, already shown) and the user's attached images open in a lightbox: full size within the viewport, ←/→ navigation, caption with the page title, host and [n], a « Voir la page » link and close on Escape or swipe down.",
+    "trigger": "Any turn with web_images or ≥1 image attachment in view; a click or Enter on a thumbnail opens it. Negatives: images that failed to load (already removed), demo badge images keep their badge in the lightbox, generated charts (they have their own export).",
+    "data_source": "Tool results (web_images via /api/img) and user attachments (blob: URLs)",
+    "example_prompts": [
+     "Montre-moi des photos de bureaux en open space",
+     "À quoi ressemble un chariot élévateur électrique ?",
+     "Analyse ces 3 photos du chantier (attachments)"
+    ],
+    "negatives": [
+     "Fais un graphique des ventes",
+     "Décris une image sans en joindre",
+     "Images de la carte des lieux (map has its own view)"
+    ],
+    "ui": "360 px: a full-screen overlay with a dark scrim, the image fitted, swipe left/right/down, caption and source at the bottom, 48 px close button at top right. Desktop: a centred modal up to 90vw × 85vh, arrow buttons on the sides, focus trapped, thumbnails strip at the bottom when there are 3 or more.",
+    "value": 3,
+    "effort": 2,
+    "risks": "CSP: same-origin /api/img and blob: only, so nothing new is fetched (the same signed URL as the thumbnail, or s=2 for HiDPI). Attached images stay in memory and are never uploaded again. Accessibility: role=dialog, focus restore."
+   },
+   {
+    "name": "Cartes vidéo",
+    "what": "Video links in search results or in the user's message (YouTube, Vimeo, Dailymotion, PeerTube, Canal-U) are shown as cards: thumbnail through the server proxy, title, channel, duration and date when the search result provides them, a play badge, and the link that opens the platform in a new tab. No embedded player.",
+    "trigger": "A URL from a tool result or the user's own message whose host and path match a fixed video pattern list (youtube.com/watch, youtu.be, vimeo.com/<id>, dailymotion.com/video). URLs written only by the model are not carded (they may be invented); they stay plain links. Negatives: channel or playlist pages (shown as links), shortened unknown URLs.",
+    "data_source": "Tool results (search results) or the user's own message",
+    "example_prompts": [
+     "Trouve une vidéo tutoriel sur les tableaux croisés dynamiques",
+     "Des vidéos de formation à la sécurité incendie",
+     "Résume cette vidéo : https://youtu.be/… (card for the link)"
+    ],
+    "negatives": [
+     "Comment faire une vidéo de présentation ?",
+     "Liens vers la documentation officielle",
+     "Lien inventé par le modèle"
+    ],
+    "ui": "360 px: a full-width card with a 16:9 thumbnail and play badge, title on 2 lines, « YouTube · 12:34 · 2025 ». Desktop: a horizontal card (thumbnail 240 px on the left), up to 3 in a row of results.",
+    "value": 2,
+    "effort": 2,
+    "risks": "CSP frame-src none: no iframe, so no third-party request from the page; thumbnails come through /api/img like web images (i.ytimg.com server-side, cached). Never fetch the video page just for metadata beyond what the search result gave."
+   },
+   {
+    "name": "Vignettes des pages de PDF joints",
+    "what": "An attached PDF shows a strip of page thumbnails (the first 6, then « +n »), and page references in the answer (« page 3 », « p. 12 ») become links that open the thumbnail of that page in the lightbox, with the matching text excerpt from the extraction.",
+    "trigger": "A PDF attachment (BINARY_EXT pdf) up to the existing 2 MB limit. Page links when the answer contains (page|p\\.)\\s?(\\d+) with N ≤ the page count. Negatives: scanned PDFs without text (thumbnails only, no excerpt), page numbers out of range (left as text), the model citing pages of a document that was not attached.",
+    "data_source": "The user's attachment (rendered server-side or in the browser)",
+    "example_prompts": [
+     "Résume ce rapport PDF et indique les pages clés",
+     "Où est la clause de résiliation dans ce PDF ?",
+     "Analyse le tableau page 4"
+    ],
+    "negatives": [
+     "Fais-moi un PDF du devis (generation)",
+     "Résume ce document Word (no PDF render; outline instead)",
+     "Page 3 d'un document non joint"
+    ],
+    "ui": "360 px: a horizontal scroll strip of 72×102 px thumbnails under the attachment chip; a page link opens the lightbox on that page with its excerpt below. Desktop: a 6-column grid in a collapsible « Aperçu du PDF » section, with hover zoom.",
+    "value": 3,
+    "effort": 4,
+    "risks": "Rendering: server-side with a local library (pypdfium2) returned as WebP data within the turn, or pdf.js vendored in static (script-src 'self'; worker-src falls back to script-src 'self'). Never upload to a third-party renderer. Thumbnails are not stored after the session. Memory and CPU caps for large PDFs."
+   },
+   {
+    "name": "Carte de contact (.vcf)",
+    "what": "A contact the user gave or that an answer drafted from the user's data (name, role, company, phone, email, address) becomes a contact card with click-to-call/email and « Ajouter aux contacts (.vcf) » built in the browser.",
+    "trigger": "The user's own message or attachment contains ≥2 of: a phone number (RE_PHONE), an email address, a name next to a role, and the ask contains contact / coordonnées / carte de visite / signature / ajoute. The answer's fields must all be substrings of the user's input. Negatives: contact details only in the model's text (possibly invented: no card), business directory results (company card instead), lists of more than 5 contacts (a table instead).",
+    "data_source": "The user's own words or attachment",
+    "example_prompts": [
+     "Fais une fiche contact avec : Julie Martin, acheteuse chez Alpha, 06 12 34 56 78, julie@alpha.fr",
+     "Extrais les coordonnées de cette signature de mail",
+     "Crée ma signature mail avec mes coordonnées"
+    ],
+    "negatives": [
+     "Trouve le numéro de la mairie de Lyon",
+     "Contacts des fournisseurs de papier",
+     "Qui contacter pour un litige ?"
+    ],
+    "ui": "360 px: a card with a monogram, name and role, then rows for phone (tel: link), email (mailto:) and address, and a full-width « Ajouter aux contacts » button. Desktop: a business-card shaped layout, max 420 px, with « Copier en signature HTML ».",
+    "value": 2,
+    "effort": 1,
+    "risks": "Privacy: the data never leaves the browser (the .vcf is built locally, no network). The invention guard requires every field to come from the user's text."
+   }
+  ]
+ },
+ "crit": {
+  "ranked": [
+   {
+    "name": "Encadré « Vérifier à la source officielle »",
+    "keep": true,
+    "priority": 1,
+    "why": "Value 5 for effort 1. It adds trust from a curated table and invents no figures. The page makes no request: the links are plain anchors and icons are monograms only (no /api/icon fetch for a domain that was never cited).",
+    "trigger_fix": "Server side, in a new birds/harness/officiel.py: the ask must be a question (ends with ? or starts with combien|quel|quelle|ai-je|dois-je|faut-il|est-ce que|comment) and must hit the keyword table. Never with an attachment. Never for letter mode, code, translation, résume/rédige/écris/traduis, or a turn with a slide or doc preview. Skip a link whose domain is already in the turn's sources. One card per turn, at most 2 links, each URL dated in the table and covered by a unit test that pins the whitelist."
+   },
+   {
+    "name": "Aperçu d'e-mail rédigé dans la réponse",
+    "keep": true,
+    "priority": 2,
+    "why": "Value 5 for effort 1. It reuses the existing draft_email card in turns.js. The subject and body are verbatim answer text, and recipients come only from recipients() in actions.py.",
+    "trigger_fix": "Require all three: an Objet:/Subject: line in the first 5 lines, a salutation within 3 lines after it, and a sign-off in the last 6 lines. Asking for a mail alone is not enough. Skip it if answer.draft_email exists or the matched block sits inside a blockquote or fence. Without an Objet line, show no card at all, because letter mode already renders the letter as written. Skip mailto above 1,900 characters, as the existing card does."
+   },
+   {
+    "name": "Matrice SWOT",
+    "keep": true,
+    "priority": 3,
+    "why": "Value 4 for effort 1. The structure is explicit and almost never fires falsely. Items are moved, not rewritten.",
+    "trigger_fix": "All four labels must be found at the same structural level (all ## headings, all bold leads, or all list parents), each with at least 1 item. The label must make up the whole heading or lead, optionally followed by (S)/(W)/(O)/(T) or :. Never in letter mode. The SWOT-as-table case gets a button only. The 'Exporter en diapo' step is postponed until the in-flight Canvas lands, to avoid touching previews.js."
+   },
+   {
+    "name": "Tableau triable et filtrable avec contrôle des totaux",
+    "keep": true,
+    "priority": 4,
+    "why": "Value 5 for effort 2. It helps on every table, and the total check is a real local computation the small model often gets wrong. Coordinate with the in-flight mini-sheet: this works on the inline table only, with no editing.",
+    "trigger_fix": "Attach only after the stream ends. Sort needs ≥5 body rows, the filter ≥10. Run the total check only when the row label matches ^\\**(sous-)?total( HT| TTC)?\\**$, every other cell in the column parses exactly as a number in one unit, the header does not match moyenne|taux|%|part|prix unitaire|PU, and the column has no sub-total rows. Allow ±0.5 % or the displayed rounding. On any parse doubt, run no check. A Total row is never sorted with the other rows (it stays pinned)."
+   },
+   {
+    "name": "Barres d'avancement",
+    "keep": true,
+    "priority": 5,
+    "why": "Value 3 for effort 1, and it is cheap. It is only acceptable with a strict vocabulary gate, because rates are the main false trigger.",
+    "trigger_fix": "The vocabulary word (avancement|progression|réalisé|terminé|complété|atteint|livré|done|progress) must be in the list's own heading, lead or column header. The ask alone is not enough. Every item needs exactly one value in [0,100] % or N/M with M≤100, and there must be ≥3 items. Reject it if any item contains TVA|taux|marge|croissance|hausse|baisse|part|+/− signs. Draw no global bar unless all items use the same form."
+   },
+   {
+    "name": "Sommaire et sections repliables (réponses longues)",
+    "keep": true,
+    "priority": 6,
+    "why": "Value 4 for effort 2. Long policies and guides are common in enterprise use, and on a phone the outline is the most useful thing to have. It is pure structure.",
+    "trigger_fix": "Count only top-level headings: real ## or ###, or pseudo or lead headings that are not inside a list. Exclude Sources, Conclusion, En résumé and Résumé from the count. Require ≥4 headings and ≥500 words. Skip letter mode, answers with >50 % of lines in fences, preview turns and quiz turns. Folding never hides a callout or a citation target (#anchor): opening a citation unfolds its section. The 'Tout replier' control appears only on desktop."
+   },
+   {
+    "name": "FAQ en accordéon",
+    "keep": true,
+    "priority": 7,
+    "why": "Value 4 for effort 2. FAQs for clients and staff are a frequent SME request, and the pattern is strong.",
+    "trigger_fix": "Require ≥3 consecutive Q blocks. Each Q is a heading, a bold lead or a standalone line ≤160 characters ending in ?, followed by ≥1 non-question paragraph. Exclude RE_OFFER lines and any question in the final 2 blocks that is not followed by an answer. Skip quiz asks. The ask word FAQ alone does not trigger it: the structure is always required. The first item is open, and print or copy opens all."
+   },
+   {
+    "name": "Carte de chaleur des risques",
+    "keep": true,
+    "priority": 8,
+    "why": "Value 4 for effort 2. A risk register is a recurring SME deliverable, P×I is a deterministic computation, and the scale mapping is shown under the grid.",
+    "trigger_fix": "The table needs headers matching probabilit|vraisemblance|likelihood|occurrence AND impact|gravit|sévérit|severity, ≥3 rows, and every value in both columns on a single scale: integers 1-3, 1-4 or 1-5, or one fixed ordinal word set. Reject the whole grid if values contain €, %, or text longer than 2 words. A row whose value is not recognised is left unplaced and listed. Never guess."
+   },
+   {
+    "name": "Répartition et budget (donut avec contrôle)",
+    "keep": true,
+    "priority": 9,
+    "why": "Value 4 for effort 2, but only as an extension of the chart.js auto chart (its pie mode plus a sum check), not as a second chart. Otherwise it duplicates the auto chart.",
+    "trigger_fix": "It replaces the auto pie for the same data and never adds a second chart. Require 3-10 parts in one unit, none negative, under a label with répartition|ventilation|budget|allocation|enveloppe. Run the check only when an explicit total line or a stated amount in the ask exists, or when all parts are % (accept a sum of 95-105, with ±1 point per part for rounding). Shares that do not sum close to 100 → no donut."
+   },
+   {
+    "name": "Devis / facture avec vérification des totaux",
+    "keep": true,
+    "priority": 10,
+    "why": "Value 5 for effort 3. Wrong totals are the small model's worst failure on business documents. The recomputation is local, and the legal mentions are a fixed list dated and linked to service-public.",
+    "trigger_fix": "The ask must contain devis|facture|proforma|bon de commande AND the answer or attachment must have a table with qté + (PU|prix unitaire) + (montant|total) columns, or the lines HT/TVA/TTC with amounts. Check a line only when Qté and PU both parse exactly. Accept per-line or global rounding (≤1 cent per line). Show the mentions checklist only for a facture the user asks to create or check, never for a devis. Skip 'quel taux de TVA' questions."
+   },
+   {
+    "name": "Compte rendu de réunion (décisions, actions, responsables, échéances)",
+    "keep": true,
+    "priority": 11,
+    "why": "Value 5 for effort 3. Meeting minutes are a top use case. Owners and dates are verified against the user's notes, and anything unverified is greyed out.",
+    "trigger_fix": "Require user content: pasted text ≥300 characters or an attachment. 'Modèle de CR' asks are excluded. The ask must contain compte rendu|CR|minutes|synthèse de réunion|notes de réunion, and the answer must have an Actions section with ≥2 items. An owner becomes a chip only if the string occurs in the user's input. A date becomes a chip only through when.py, and only if the date words occur in the input, otherwise it shows 'à confirmer'. The .ics is built in the browser via ics.js and holds only verified dates."
+   },
+   {
+    "name": "Clauses de contrat surlignées (citées et vérifiées)",
+    "keep": true,
+    "priority": 12,
+    "why": "Value 5 for effort 3. Verbatim checking against the attachment is high-trust and reduces hallucinated quotes. It needs a server-side check, because the attachment text lives there.",
+    "trigger_fix": "Require an attachment with ≥3 headings matching ^(Article|Art\\.|Clause)\\s+\\d+. Run the verbatim match in tidy.py: NFKC, typographic quotes and apostrophes and whitespace folded, the quote ≥8 words. Show a card only for matched spans, and for 'article N' only when that article exists in the document. Tags come only from words in the answer. Never send contract text to a search or any tool."
+   },
+   {
+    "name": "Matrice RACI avec contrôles",
+    "keep": true,
+    "priority": 13,
+    "why": "Value 3 for effort 2. The checks follow the method's definition. It is a niche but recurring project deliverable.",
+    "trigger_fix": "The word RACI must appear in the ask or in a heading. Do not use the 70 %-letter heuristic alone, because of letter grades. Each role cell must match ^(R|A|C|I|R/A|A/R|RA|-|–)?$ in ≥90 % of cells, with ≥2 role columns and ≥3 rows. Ambiguous cells stay raw and that row gets no check."
+   },
+   {
+    "name": "Mode guidé pas à pas (stepper)",
+    "keep": true,
+    "priority": 14,
+    "why": "Value 3 for effort 2. It is a low-risk view over the existing md-steps output and useful on mobile for procedures. It is navigation only, so it does not overlap the checklist.",
+    "trigger_fix": "The ask must be a how-to (_HOWTO in intents.py or a procédure|étapes|tutoriel|marche à suivre word). The list must be md-steps with 4-15 items, and ≥3 items must start with a verb from the fixed imperative or infinitive list. Skip it if a 'top|classement|meilleurs' word is in the ask. It is a button only and never opens automatically. It stores no state beyond turn.ui."
+   },
+   {
+    "name": "Gantt simplifié",
+    "keep": true,
+    "priority": 15,
+    "why": "Value 4 for effort 3. Project and retro-planning asks are common, and the in-flight timeline covers single dates only. Ranges and the assumed year are written on the card.",
+    "trigger_fix": "Require ≥3 items, and every item must have a range parsed by one shared JS port of when.py's rules (a mismatch with when.py fails a test). Accept 'du X au Y', 'S12-S14', ISO ranges, or a start date + N jours|semaines. Each range must be ≤18 months and start within ±2 years of the turn date. Exclude hour ranges (9h-18h). Holidays come from the existing server holiday data passed in the turn payload, never fetched by the page."
+   },
+   {
+    "name": "Logigramme d'un processus",
+    "keep": true,
+    "priority": 16,
+    "why": "Value 4 for effort 3. Process diagrams are a common enterprise ask. It absorbs the rejected decision tree, because Si oui / Si non branches are drawn here.",
+    "trigger_fix": "Require the ask word (logigramme|workflow|schéma du processus|diagramme de flux|processus de validation). Without it, nothing fires: drop the '≥2 branches' fallback. The answer needs an ordered list of 3-20 steps. Branch targets ('étape N') must exist and there must be no cycles, otherwise fall back to the list. The Mermaid copy is text only."
+   },
+   {
+    "name": "Rendu de formules mathématiques (MathML maison)",
+    "keep": true,
+    "priority": 17,
+    "why": "Value 3 for effort 3. Models often emit \\( \\) and $$ for finance formulas, and today the raw LaTeX shows. It needs a strict subset parser, and it must coexist with the existing md-formula and Excel chip.",
+    "trigger_fix": "Accept only \\( \\), \\[ \\], $$…$$ blocks and math/latex/tex fences. Drop single-$ inline math entirely, because of the euro and dollar amount risk. Any unsupported command → render the whole formula raw in a code span. Never inside code or letter mode. Plain 'TTC = HT × …' stays with the existing md-formula."
+   },
+   {
+    "name": "Organigramme",
+    "keep": true,
+    "priority": 18,
+    "why": "Value 3 for effort 3. It is useful mainly from the user's own HR sheet, and acceptable only with the rule that names come from user input.",
+    "trigger_fix": "The ask must contain organigramme|org chart|hiérarchie|structure de l'équipe. Source 1 is an attached sheet with (Nom|Poste) + (Manager|N+1|Responsable), ≥4 rows, one root, no cycle, ≤150 nodes. Source 2 is an answer nested list of 2-4 levels with ≥4 nodes, drawn as roles only: a person name is drawn only if it occurs in the user's input. Doc outlines ('plan', 'arborescence du site') are excluded."
+   },
+   {
+    "name": "Carte de définition",
+    "keep": false,
+    "priority": 0,
+    "why": "It repeats the answer's first sentence right above itself, which adds little. The tag rules are fragile, the 'En savoir plus' link needs a search that is not normally run, and the in-flight glossary tooltips already cover terms.",
+    "trigger_fix": "None (rejected). If it is revisited, it should be a light emphasis style on the lead sentence inside markdown.js, not a card."
+   },
+   {
+    "name": "FAQ / Cartes d'options côte à côte",
+    "keep": false,
+    "priority": 0,
+    "why": "This entry is the side-by-side option cards. They overlap the in-flight comparison matrix and pros/cons, the keyed-bullet alignment is fragile on a 4B model, and the effort is 3 for value 3.",
+    "trigger_fix": "None (rejected). Hand the 'keyed bullets under sibling headings' case to the comparison matrix team as an extra input shape."
+   },
+   {
+    "name": "Sparklines dans les tableaux de séries",
+    "keep": false,
+    "priority": 0,
+    "why": "The auto chart from tables already draws period series, and the KPI tiles are in flight. A tiny extra column adds little and competes with the auto chart ('show either one').",
+    "trigger_fix": "None (rejected). It could later become an option of the auto chart (a small multiples mode)."
+   },
+   {
+    "name": "Arbre de décision interactif",
+    "keep": false,
+    "priority": 0,
+    "why": "It turns the 4B model's reasoning into an authoritative-looking questionnaire, which is risky on regulated topics. Incomplete branches are common, and it overlaps the logigramme, which already draws Oui/Non branches.",
+    "trigger_fix": "None (rejected). The logigramme covers branched content."
+   },
+   {
+    "name": "Matrice d'Eisenhower (priorités)",
+    "keep": false,
+    "priority": 0,
+    "why": "The classification is the model's opinion, drag-and-drop with 'ajouté par Bird' tracking is heavy for little value, and it collides with the in-flight checklist.",
+    "trigger_fix": "None (rejected)."
+   },
+   {
+    "name": "Fiche CV",
+    "keep": false,
+    "priority": 0,
+    "why": "Effort 4 for value 3. CV layouts vary widely so the parser is brittle, the RGPD exposure from rendering personal data as a card is high, and the plain answer already summarises the profile.",
+    "trigger_fix": "None (rejected)."
+   }
+  ],
+  "batches": [
+   {
+    "title": "Batch A: Structure de la réponse (post-stream, pur texte)",
+    "modules": [
+     "Encadré « Vérifier à la source officielle »",
+     "Matrice SWOT",
+     "Sommaire et sections repliables (réponses longues)",
+     "FAQ en accordéon",
+     "Mode guidé pas à pas (stepper)",
+     "Barres d'avancement",
+     "Rendu de formules mathématiques (MathML maison)"
+    ],
+    "files": "Owns new birds/harness/officiel.py (curated table, dated links, tests), a one-hook call in birds/harness/intents.py detect(), new static/outline.js (sommaire, FAQ, stepper: DOM enhancers run once the stream is done), new static/blocks.js (SWOT, progress bars), new static/math.js (LaTeX-subset → MathML), and markdown.js (math delimiters only, plus data-* attributes on headings and md-steps for outline.js), plus new static/rich-a.css. Shared, append-only: an i18n.js 'outline.*/swot.*/math.*/officiel.*' block, one <link>/<script> line in index.html, docs/WEB.md section, tests/test_officiel.py and a separate cases file for scripts/trigger_bench.py."
+   },
+   {
+    "title": "Batch B: Tableaux, données et plannings",
+    "modules": [
+     "Tableau triable et filtrable avec contrôle des totaux",
+     "Répartition et budget (donut avec contrôle)",
+     "Carte de chaleur des risques",
+     "Matrice RACI avec contrôles",
+     "Gantt simplifié",
+     "Organigramme"
+    ],
+    "files": "Owns new static/tables.js (sort, filter, CSV/TSV, total check, RACI, risk grid, with a shared French number parser exported for C), chart.js (auto-chart pie → donut + sum check, SVG/PNG exporter reused by Gantt and org chart), new static/gantt.js (plus a JS range parser mirroring when.py, with cross-tests), new static/orgchart.js, birds/harness/when.py (range parsing additions only), the birds/web/widgets.py holiday payload for Gantt, and ics.js (adds a multi-event export function), plus new static/rich-b.css. Shared, append-only: an i18n.js 'table.*/raci.*/risk.*/gantt.*/org.*' block, one index.html line, docs/WEB.md section, and a separate cases file for trigger_bench."
+   },
+   {
+    "title": "Batch C: Documents métier vérifiés",
+    "modules": [
+     "Aperçu d'e-mail rédigé dans la réponse",
+     "Devis / facture avec vérification des totaux",
+     "Compte rendu de réunion (décisions, actions, responsables, échéances)",
+     "Clauses de contrat surlignées (citées et vérifiées)",
+     "Logigramme d'un processus"
+    ],
+    "files": "Owns turns.js (generalises the draft_email card to answer-text emails, plus the mount points for the invoice, minutes and clause cards), new static/business.js (invoice recompute and mentions checklist, minutes card, clause cards; imports the number parser from B's tables.js and the .ics builder from ics.js read-only), new static/flow.js (logigramme SVG + Mermaid copy), birds/web/tidy.py (clause verbatim verification against attachment text, plus owner/date presence checks against user input, emitted as turn metadata), and a birds/harness/actions.py recipients() reuse (read-only), plus new static/rich-c.css. Shared, append-only: an i18n.js 'biz.*/flow.*' block, one index.html line, docs/WEB.md section, and a separate cases file for trigger_bench. Batch C has 5 modules, because the official-source box moved to A to balance effort. C can build in parallel with B if B lands tables.js's parser first, or if C stubs it."
+   }
+  ]
+ }
+}
