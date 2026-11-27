@@ -13,6 +13,9 @@ export const FOOTPRINT_STRINGS = {
     "footprint.kind.measured": "mesuré",
     "footprint.kind.demo": "démo",
     "footprint.grid.label": "Électricité du réseau",
+    "footprint.grid.label.if": "Émissions si l'électricité vient du réseau",
+    "footprint.grid.undeclared":
+      "L'opérateur n'a pas déclaré le réseau électrique du serveur : le choix vous revient.",
     "footprint.grid.fr": "France",
     "footprint.grid.eu": "Europe",
     "footprint.grid.world": "Monde",
@@ -144,6 +147,9 @@ export const FOOTPRINT_STRINGS = {
     "footprint.kind.measured": "measured",
     "footprint.kind.demo": "demo",
     "footprint.grid.label": "Grid electricity",
+    "footprint.grid.label.if": "Emissions if the electricity comes from the grid of",
+    "footprint.grid.undeclared":
+      "The operator has not declared the server's grid: the choice is yours.",
     "footprint.grid.fr": "France",
     "footprint.grid.eu": "Europe",
     "footprint.grid.world": "World",

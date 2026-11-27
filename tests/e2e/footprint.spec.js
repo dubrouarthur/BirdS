@@ -138,6 +138,9 @@ async function noScroll(page, label, problems) {
     ])
       if (!text.includes(needle))
         problems.push(`${name}: the answer's impact misses « ${needle} »`);
+    // no grid declared by the operator: the grid is the reader's hypothesis, never « where Bird runs »
+    if (!/si l'électricité vient du réseau/.test(text) || !/pas déclaré/.test(text))
+      problems.push(`${name}: the default grid is not worded as a hypothesis`);
     const before = await fp.locator(".fp-fig-value").first().innerText();
     await fp.locator('[data-grid="world"]').click();
     await page.waitForTimeout(150);

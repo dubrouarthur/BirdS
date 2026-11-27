@@ -47,7 +47,7 @@ Sous chaque réponse, une ligne : tokens lus → écrits, durée, appels d'outil
 | Appels d'outils, données téléchargées | Comptés par le harnais.                                                                                                                                                                                        |
 | Énergie (Wh)                          | **Mesurée** (`nvidia-smi`, GPU seul, modèle sur la même machine : `--local` ou `--measure-gpu`) ; sinon **estimée** par votre étalonnage (`BIRD_WH_PER_1K_TOKENS`) ; sinon **estimée d'après les tokens** lus et écrits, avec des valeurs par token tirées de mesures publiées (voir ci-dessous). Toujours étiquetée. |
 | Premier mot                           | Temps entre l'envoi au modèle et son premier token, mesuré par le serveur Bird (hors réveil de l'endpoint). |
-| Émissions (g CO₂e)                    | Énergie × intensité carbone du réseau : celle que **vous** déclarez avec `--grid-intensity` / `BIRD_GRID_INTENSITY` (g CO₂e/kWh), sinon France (RTE 2025), au choix du lecteur France / Europe / Monde dans le panneau Empreinte (sources ci-dessous). Toujours étiquetées « estimé ». |
+| Émissions (g CO₂e)                    | Énergie × intensité carbone du réseau : celle que **vous** déclarez avec `--grid-intensity` / `BIRD_GRID_INTENSITY` (g CO₂e/kWh), sinon France (RTE 2025), au choix du lecteur France / Europe / Monde dans le panneau Empreinte (sources ci-dessous). Sans réseau déclaré, le panneau le formule comme une hypothèse (« Émissions si l'électricité vient du réseau : … ») et dit que l'opérateur ne l'a pas déclaré ; « Électricité du réseau » seul est réservé au réseau de l'opérateur. Toujours étiquetées « estimé ». |
 
 ## L'estimation d'énergie d'un modèle distant
 

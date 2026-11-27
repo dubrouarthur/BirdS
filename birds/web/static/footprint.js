@@ -85,20 +85,24 @@ export function recordFootprint(usage) {
 
 // ------------------------------------------------------------------ small pieces
 
+/** The grid switch. Only the operator's declared grid is « the » grid; every other one is the reader's hypothesis. */
 function gridChooser(onChange) {
   const current = grid().key;
   const keys = [
     ...(typeof operatorG() === "number" ? ["operator"] : []),
     ...F.GRID_ORDER,
   ];
+  const label = t(
+    current === "operator" ? "footprint.grid.label" : "footprint.grid.label.if",
+  );
   return h(
     "div",
     {
       class: "fp-grid",
       role: "radiogroup",
-      "aria-label": t("footprint.grid.label"),
+      "aria-label": label,
     },
-    h("span", { class: "fp-grid-label", text: t("footprint.grid.label") }),
+    h("span", { class: "fp-grid-label", text: label }),
     h(
       "span",
       { class: "segs fp-segs" },
@@ -137,6 +141,7 @@ function gridNote() {
     t("footprint.grid.value", { g: value }),
     " · ",
     link(g.url, g.source),
+    typeof operatorG() !== "number" && [" ", t("footprint.grid.undeclared")],
   );
 }
 
