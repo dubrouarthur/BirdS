@@ -29,6 +29,7 @@ import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { renderWidgets, widgetsText } from "./widgets.js";
 import { renderAgents } from "./agents.js";
+import { footprintAnswer } from "./footprint.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1027,6 +1028,8 @@ function fullReceipt(turn) {
       { class: "receipt-chips" },
       chips.map((c) => h("span", { text: c })),
     ),
+    // ---- footprint.js mount hook: the answer's emissions, water, graphics-card time and equivalents
+    footprintAnswer(u, state.conv, { onOpenPage: () => handlers.onOpenFootprint() }),
     details(
       "receipt-detail",
       turn.ui.meter ?? false,
