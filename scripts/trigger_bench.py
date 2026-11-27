@@ -811,6 +811,10 @@ CANVAS_NO = [  # ordinary office prompts and questions about a document: never a
     "Le rapport de Paul est en retard, rédige-lui un message",
     "Combien de slides pour une présentation de 10 minutes ?",
 ]
+# office prompts that ask for a script: no office file and no tool call to run (OFFICE_NO), but the code canvas is the
+# right place to write it, like « écris un script python qui renomme des fichiers » above
+CANVAS_CODE_FROM_OFFICE = [("Écris un script Python qui envoie un mail avec smtplib.", "code")]
+CANVAS_OFFICE_NO = [q for q in OFFICE_NO if q not in dict(CANVAS_CODE_FROM_OFFICE)]
 NOW = datetime(2026, 11, 23, 10, 0, tzinfo=ZoneInfo("Europe/Paris"))
 
 
@@ -999,7 +1003,7 @@ if __name__ == "__main__":
         ("agent_study", STUDY_YES, STUDY_NO, study_routed, study_touched),
         ("maps_real", bench_maps.MAPS_REAL, bench_maps.MAPS_OFFICE_NO, bench_maps.correct, bench_maps.detected),
         ("maps_heldout", bench_maps.MAPS_HELDOUT, bench_maps.MAPS_HELDOUT_NO, bench_maps.correct, bench_maps.detected),
-        ("canvas", CANVAS_YES, CANVAS_NO + OFFICE_NO, canvas_opened, canvas_touched),
+        ("canvas", CANVAS_YES + CANVAS_CODE_FROM_OFFICE, CANVAS_NO + CANVAS_OFFICE_NO, canvas_opened, canvas_touched),
     ):
         ok, n = bench(*args)
         total[0] += ok

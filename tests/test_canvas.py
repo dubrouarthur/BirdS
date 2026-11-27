@@ -331,7 +331,7 @@ def test_canvas_opens_on_creation_asks(words, kind):
 
 
 def test_canvas_never_opens_on_ordinary_office_prompts():
-    from scripts.trigger_bench import CHART_HOWTO_NO, CHART_NO, OFFICE_NO
+    from scripts.trigger_bench import CANVAS_OFFICE_NO, CHART_HOWTO_NO, CHART_NO
 
     extra = [
         "Comment faire une bonne présentation ?",
@@ -344,7 +344,7 @@ def test_canvas_never_opens_on_ordinary_office_prompts():
         "fais-moi un tableau des congés de l'équipe",
         "quelle est la différence entre un rapport et une note ?",
     ]
-    hits = [q for q in OFFICE_NO + CHART_NO + CHART_HOWTO_NO + extra if intents.ask(q)]
+    hits = [q for q in CANVAS_OFFICE_NO + CHART_NO + CHART_HOWTO_NO + extra if intents.ask(q)]
     assert hits == []
 
 
@@ -970,10 +970,10 @@ def test_xlsx_export_writes_excel_formulas_and_their_values():
 
 def test_canvas_bench_has_no_false_trigger():
     """The trigger bench's canvas family: every creation ask opens the right canvas, no office prompt does."""
-    from scripts.trigger_bench import CANVAS_NO, CANVAS_YES, OFFICE_NO
+    from scripts.trigger_bench import CANVAS_CODE_FROM_OFFICE, CANVAS_NO, CANVAS_OFFICE_NO, CANVAS_YES
 
-    assert [q for q, k in CANVAS_YES if intents.ask(q) != k] == []
-    assert [q for q in CANVAS_NO + OFFICE_NO if intents.ask(q)] == []
+    assert [q for q, k in CANVAS_YES + CANVAS_CODE_FROM_OFFICE if intents.ask(q) != k] == []
+    assert [q for q in CANVAS_NO + CANVAS_OFFICE_NO if intents.ask(q)] == []
 
 
 @pytest.mark.parametrize(

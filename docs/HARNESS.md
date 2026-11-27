@@ -387,7 +387,7 @@ instances) ; une requête coupée le libère pour « Reprendre ». Fin de tâche
 **Agents qui construisent.** Pour une présentation ou un document, si le Canevas (`birds.canvas`) est installé et
 `BIRD_CREW_CANVAS` ≠ 0, le livrable vérifié est écrit dans son modèle de document section par section
 (`{"type": "canvas", "phase": "stream"|"final"}`, fonctions publiques `convert.from_tool`, `turn.finish_doc`,
-`turn.new_aid`), et le fichier est créé comme avant. Sans Canevas (branche non fusionnée ici), le chemin du fichier
+`turn.new_aid`), et le fichier est créé comme avant. Sans Canevas (`BIRD_CREW_CANVAS=0` ou module absent), le chemin du fichier
 reste seul. `agent_deliverable` décrit le livrable ; « Livrables » (barre du haut) liste tous les fichiers de la
 conversation, du plus récent au plus ancien, avec « Voir dans la conversation » et le téléchargement.
 
