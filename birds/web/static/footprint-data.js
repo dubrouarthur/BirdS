@@ -87,7 +87,7 @@ export const EQUIVALENTS = [
     value: 1.23, // g CO2e for 1 web search
     unit: "count",
     source: IMPACT_CO2,
-    url: "https://impactco2.fr/outils/usagenumerique",
+    url: "https://impactco2.fr/outils/usagenumerique/rechercheweb",
     licence: IMPACT_CO2_LICENCE,
   },
   {

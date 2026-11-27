@@ -133,7 +133,7 @@ Le reçu d'une réponse reste une ligne discrète ; ouvert, il montre l'impact d
 | Grand assistant, sans méthode publiée | 0,34 Wh par requête moyenne | juin 2025 | <https://blog.samaltman.com/the-gentle-singularity> | citation |
 | Streaming vidéo, 1 h | 64 g CO₂e | 2026 | ADEME Impact CO2 (Base Empreinte) : <https://impactco2.fr/outils/usagenumerique/streamingvideo> | ADEME, réutilisation non commerciale avec mention de la source |
 | Voiture thermique, 1 km (hypothèse ADEME : moyenne, diesel ; construction comprise) | 142,3 g CO₂e | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/transport/voiturethermique> | ADEME, réutilisation non commerciale avec mention de la source |
-| Recherche sur le web | 1,23 g CO₂e | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/usagenumerique> | ADEME, réutilisation non commerciale avec mention de la source |
+| Recherche sur le web | 1,23 g CO₂e | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/usagenumerique/rechercheweb> | ADEME, réutilisation non commerciale avec mention de la source |
 | E-mail | 2,46 g CO₂e | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/usagenumerique/email> | ADEME, réutilisation non commerciale avec mention de la source |
 | Charge complète de smartphone | 0,019 kWh | 2026 | US EPA, Greenhouse Gas Equivalencies Calculator : <https://www.epa.gov/energy/greenhouse-gas-equivalencies-calculator-calculations-and-references> | domaine public |
 
