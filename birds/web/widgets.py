@@ -183,6 +183,11 @@ def build_widgets(steps, request_text: str, lang: str, now: datetime, secret: by
         if hint:
             ev["weather"] = hint
         out.append(ev)
+    # small modules of the user's own message: timeline, comparison matrix, checklist (birds.harness.modules)
+    from birds.harness.modules import from_words
+
+    have = {w.get("type") for w in out}
+    out += [w for w in from_words(request_text, lang) if w["type"] not in have]
     kept, total = [], 0
     for w in out:  # caps of the history: each widget <= 8 KB, all <= 24 KB
         n = _size(w)

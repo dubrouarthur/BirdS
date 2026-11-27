@@ -1739,7 +1739,16 @@ class Crew:
                            + ", ".join(best.score["bad"][:6]))  # fmt: skip
         actx = self._answer_ctx(b, args)
         actx["team"] = self._team_lines(b)
-        return self._build(b.tool, args, actx, caveats, b.sources, chosen=kept_lane, fixed=fixed)
+        run = self._build(b.tool, args, actx, caveats, b.sources, chosen=kept_lane, fixed=fixed)
+        run.widgets = self._modules(b)
+        return run
+
+    def _modules(self, b: Brief) -> list[dict]:
+        """Cards of what the harness computed or checked: the offers' matrix, the minutes' action items."""
+        from birds.harness import modules
+
+        out = [modules.matrix_from_costs(b.costs, self.lang), modules.checklist_from_actions(b.actions, self.lang)]
+        return [w for w in out if w]
 
     def _merge(self, b: Brief, best: Draft, drafts: list[Draft]) -> tuple[Draft, dict | None]:
         """When both versions are clean, the kept one completed with the best parts of the other instead of picking
