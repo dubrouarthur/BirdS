@@ -976,17 +976,17 @@ def test_deck_runs_in_parallel_within_the_limits(tmp_path):
     run, llm, events = run_deck(tmp_path, deck_script(), delay=0.3)
     wall = time.monotonic() - t0
     assert run.stop_reason == "answer" and run.files and run.files[0].endswith(".pptx")
-    assert len(llm.prompts) == 4 and 2 <= llm.peak <= crew_mod.MAX_CONCURRENT
-    assert wall < 4 * 0.3 * 0.8  # 2 extractors then 2 drafts: about 2 calls of wall time, not 4
+    assert len(llm.prompts) == 5 and 2 <= llm.peak <= crew_mod.MAX_CONCURRENT  # search plan + 2 readers + 2 versions
+    assert wall < 5 * 0.3 * 0.9  # search plan, then 2 extractors, then 2 drafts: about 3 calls of wall time, not 5
     assert run.sources == ["https://news.test/tt1", "https://news.test/tt2"]
     assert "6 diapositives, plus une diapositive Sources" in run.answer  # the Sources slide comes on top
     assert any("écarté" in c for c in events[-1]["caveats"])  # the invented 61 % was dropped and said so
 
 
 def test_the_generation_budget_is_never_exceeded(tmp_path, monkeypatch):
-    monkeypatch.setattr(crew_mod, "MAX_CALLS", 3)
+    monkeypatch.setattr(crew_mod, "MAX_CALLS", 4)
     run, llm, events = run_deck(tmp_path, deck_script(draft_b="pas un appel"), delay=0.01)
-    assert len(llm.prompts) == 3
+    assert len(llm.prompts) == 4  # search plan, 2 readers, 1 version: the 2nd is over budget
     assert any(e.get("status") == "skipped" and e.get("detail") == "budget" for e in events)
 
 
@@ -1050,10 +1050,10 @@ def test_a_hand_over_that_pauses_keeps_the_team_in_the_energy_report(tmp_path, m
 
     monkeypatch.setattr(Agent, "run", single)
     run, llm, events = run_deck(tmp_path, deck_script(facts=False), delay=0.05)
-    assert run.stop_reason == "confirm" and len(run.usage) == 3  # 2 extractors + the single agent's call
+    assert run.stop_reason == "confirm" and len(run.usage) == 4  # search plan, 2 extractors, the single agent
     team = run.state["usage"][0]
     assert team["role"] == "crew" and 0.05 <= team["busy_seconds"] < 0.2 and team["prompt_tokens"] > 0
-    assert run.report["gpu_seconds_union"] >= 2.0 and run.report["crew_calls"] == 3
+    assert run.report["gpu_seconds_union"] >= 2.0 and run.report["crew_calls"] == 4
 
 
 def test_without_time_left_the_answer_is_an_honest_abstention(tmp_path):
@@ -1089,7 +1089,7 @@ def test_events_are_ordered_and_steps_carry_their_lane(tmp_path):
     tools = [e for e in events if e.get("kind") == "tool_end"]
     assert {e["agent"] for e in tools} == {"chercheur", "assembleur"}
     report = run.report
-    assert {a["role"] for a in report["agents"]} == {"lecteur", "redacteur"}
+    assert {a["role"] for a in report["agents"]} == {"chercheur", "lecteur", "redacteur"}  # chercheur: the search plan
     assert report["gpu_seconds_union"] < report["busy_seconds_sum"]  # parallel calls share the GPU
     assert report["busy_seconds"] == pytest.approx(report["gpu_seconds_union"], abs=0.01)
 

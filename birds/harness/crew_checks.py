@@ -12,6 +12,7 @@ import json
 import operator
 import re
 import unicodedata
+from urllib.parse import urlsplit
 
 # ------------------------------------------------------------------ numbers
 
@@ -1050,3 +1051,160 @@ def requirement_lines(text: str) -> str:
     """The lines of a pasted text that state the buyer's own constraints (« Contrainte interne : … », « Besoin : … »),
     not the offers' terms: an offer's « contrat de 24 mois » is not a requirement."""
     return "\n".join(ln for ln in (text or "").split("\n") if _REQUIREMENT.search(ln) and not _OFFER_HEAD.match(ln))
+# ------------------------------------------------------------------ the verification card (« Vérifications faites »)
+
+_SOURCES_HEAD = re.compile(r"^\s*(?:sources?|références|references)\s*$", re.I)
+
+
+def _line_with(raw: str, text: str, width: int = 110) -> str:
+    """The words of ``text`` around the first occurrence of figure ``raw`` (spaces normalised), or ""."""
+    if not text or not raw:
+        return ""
+    flat = re.sub(r"[   ]", " ", text)
+    want = re.sub(r"[   ]", " ", raw).strip()
+    i = flat.find(want)
+    if i < 0:
+        digits = re.escape(want).replace(r"\ ", r"\s?")
+        m = re.search(r"(?<![\d,.])" + digits + r"(?![\d])", flat)
+        if not m:
+            return ""
+        i = m.start()
+    a, b = max(0, i - width), min(len(flat), i + len(want) + width)
+    a = max(a, flat.rfind("\n", 0, i) + 1)
+    nl = flat.find("\n", i)
+    b = min(b, nl) if nl >= 0 else b
+    out = " ".join(flat[a:b].split())
+    head = "… " if a > 0 and flat[a - 1] != "\n" else ""
+    tail = " …" if b < len(flat) and flat[b] != "\n" else ""
+    return head + out + tail
+
+
+_UNIT = re.compile(r"\s?(%|€|k€|M€|Md€|milliards?|millions?|points?|pts|heures?|h\b|ans?\b|To\b|Go\b)", re.I)
+
+
+def _with_unit(raw: str, text: str) -> str:
+    """« 26 % », « 1 450 € »: the figure as the reader sees it, with the unit written after it."""
+    flat = re.sub(r"[\u00a0\u202f\u2009]", " ", text or "")
+    raw = " ".join(re.sub(r"[\u00a0\u202f\u2009]", " ", raw).split())
+    i = flat.find(raw)
+    m = _UNIT.match(flat, i + len(raw)) if i >= 0 else None
+    return raw + (" " + m.group(1) if m else "")
+
+
+def deliverable_parts(args: dict) -> list[str]:
+    """The text pieces of a deliverable a reader sees, the Sources list excluded (slides: one bullet each)."""
+    out: list[str] = []
+    if not isinstance(args, dict):
+        return out
+    for s in args.get("slides") or []:
+        if not _SOURCES_HEAD.match(str(s.get("title") or "")):
+            out += [str(x) for x in s.get("bullets") or []]
+    for s in args.get("sections") or []:
+        if not _SOURCES_HEAD.match(str(s.get("heading") or "")):
+            out += sentences(str(s.get("content") or ""))
+    if args.get("body"):
+        body = re.split(r"\n\s*Sources\s*:", str(args["body"]))[0]
+        out += sentences(body)
+    return [p for p in out if p.strip()]
+
+
+def ledger(args: dict, *, texts: dict, allowed_by: dict, request: str = "", computed=(), removed=(), weak=(),
+           sources=(), cap: int = 60) -> dict:  # fmt: skip
+    """Every figure of the deliverable with where it was found: the page it cites (and the page's own line), the
+    request or the pasted text, or a computation of the harness; the passages removed for want of a source; the
+    claims that need a look. Code only, from what was read and checked: the « Vérifications faites » card.
+
+    ``computed``: figures the harness computed (costs, totals); ``removed``: passages taken out of the drafts
+    (text); ``weak``: sentences whose cited page does not hold most of their words."""
+    req_allowed = allowed_figures(request)
+    comp = {round(float(v), 6) for v in computed}
+    titles = {int(s["n"]): s for s in sources if isinstance(s, dict) and "n" in s}
+    weak_txt = [" ".join(str(w.get("sentence") if isinstance(w, dict) else w).split())[:60] for w in weak]
+    items, seen = [], set()
+    for part in deliverable_parts(args):
+        cited = [n for n in dict.fromkeys(int(x) for x in _CITES.findall(part)) if n in texts]
+        flat = " ".join(part.split())
+        plain = re.sub(r"\s+([.,;:!?])", r"\1", " ".join(_CITES.sub("", flat).split()))
+        is_weak = any(w and w in flat for w in weak_txt)
+        for raw, v in figures(part):
+            key = (round(v, 6), plain[:60])
+            if key in seen:
+                continue
+            seen.add(key)
+            item = {"value": _with_unit(raw, part), "sentence": plain[:180], "status": "verified"}
+            holder = next((n for n in cited if supported(v, allowed_by.get(n, set()), tol=0.0)), None)
+            if holder is None and not supported(v, req_allowed, tol=0.0):
+                holder = next((n for n in sorted(texts) if supported(v, allowed_by.get(n, set()), tol=0.0)), None)
+            if holder is not None:
+                src = titles.get(holder, {})
+                site = urlsplit(str(src.get("url") or "")).netloc.removeprefix("www.")
+                item.update(origin="source", n=holder, line=_line_with(raw, texts.get(holder, "")),
+                            title=str(src.get("title") or "")[:120], site=site)  # fmt: skip
+            elif supported(v, req_allowed, tol=0.0):
+                item.update(origin="request", line=_line_with(raw, request))
+            elif any(abs(v - c) <= max(0.5, abs(c) * 0.005) for c in comp) or supported(v, req_allowed | comp):
+                item.update(origin="computed", line="")
+            else:
+                item.update(origin="none", status="review", line="")
+            if is_weak and item["status"] == "verified" and item.get("origin") == "source":
+                item.update(status="review", why="claim")
+            items.append(item)
+    for p in removed:
+        p = " ".join(str(p).split())
+        for raw, _v in figures(p)[:2] or [("", 0.0)]:
+            items.append({"value": _with_unit(raw, p) if raw else "", "sentence": _CITES.sub("", p).strip()[:180],
+                          "status": "removed", "origin": "none", "line": ""})  # fmt: skip
+    counts = {k: sum(1 for i in items if i["status"] == k) for k in ("verified", "removed", "review")}
+    order = {"review": 0, "removed": 1, "verified": 2}
+    items.sort(key=lambda i: order[i["status"]])
+    return {"verified_n": counts["verified"], "removed_n": counts["removed"], "review_n": counts["review"],
+            "items": items[:cap], "more": max(0, len(items) - cap)}  # fmt: skip
+
+
+def renumber(args: dict, sources: list[dict]) -> tuple[dict, list[dict], dict]:
+    """Citations made consistent: sources numbered in the order the deliverable first cites them, [n] rewritten to
+    match, sources never cited after the cited ones. Returns (args, sources, old -> new)."""
+    order: list[int] = []
+    known = {int(s["n"]) for s in sources}
+    for part in deliverable_parts(args):
+        for x in _CITES.findall(part):
+            n = int(x)
+            if n in known and n not in order:
+                order.append(n)
+    order += [int(s["n"]) for s in sources if int(s["n"]) not in order]
+    mapping = {old: new for new, old in enumerate(order, 1)}
+    if all(k == v for k, v in mapping.items()):
+        return args, sources, mapping
+    by = {int(s["n"]): s for s in sources}
+    return apply_map(args, mapping), [{**by[old], "n": mapping[old]} for old in order], mapping
+
+
+def apply_map(args, mapping: dict):
+    """A deliverable's [n] marks rewritten with ``mapping`` (old -> new). A copy; None stays None."""
+    if not isinstance(args, dict) or not mapping:
+        return args
+
+    def fix(text: str) -> str:
+        return _CITES.sub(lambda m: f"[{mapping.get(int(m.group(1)), int(m.group(1)))}]", text)
+
+    out = json.loads(json.dumps(args, ensure_ascii=False))
+    for s in out.get("slides") or []:
+        s["bullets"] = [fix(str(x)) for x in s.get("bullets") or []]
+    for s in out.get("sections") or []:
+        s["content"] = fix(str(s.get("content") or ""))
+    if out.get("body"):
+        out["body"] = fix(str(out["body"]))
+    return out
+
+
+def near_duplicate(a: str, b: str, threshold: float = 0.7) -> bool:
+    """Two page extracts that are mostly the same text (a syndicated article, a mirror): 6-word shingles."""
+
+    def sh(t: str) -> set:
+        w = fold(t).split()
+        return {" ".join(w[i : i + 6]) for i in range(max(0, len(w) - 5))}
+
+    x, y = sh(a), sh(b)
+    if len(x) < 8 or len(y) < 8:
+        return False
+    return len(x & y) / len(x | y) >= threshold
