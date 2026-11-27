@@ -7256,9 +7256,9 @@ ol.a4-list > li::before {
   position: absolute;
   z-index: -1;
   inset: -60px 0 auto;
-  block-size: 420px;
+  block-size: 460px;
   background: radial-gradient(
-    circle 240px at 50% 150px,
+    circle min(240px, 46vw) at 50% 150px,
     color-mix(in srgb, var(--accent) 13%, transparent),
     transparent
   );
