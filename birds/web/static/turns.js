@@ -28,7 +28,7 @@ import { docCard, imageCard, kindOf, middle } from "./attach.js";
 import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { renderWidgets, widgetsText } from "./widgets.js";
-import { renderAgents } from "./agents.js";
+import { renderAgents, renderChecks } from "./agents.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1507,7 +1507,7 @@ function restoreFocus(el, key) {
   if (!key || el.contains(document.activeElement)) return;
   const all = el.querySelectorAll(key.sel);
   // the way out of a team that just finished is gone: its folded line takes the focus, never <body>
-  const next = all[key.rank] || all[0] || (key.crew && el.querySelector("[data-crew-summary]"));
+  const next = all[key.rank] || all[0] || (key.crew ? el.querySelector("[data-crew-summary]") : null);
   next?.focus({ preventScroll: true });
 }
 
@@ -1539,6 +1539,7 @@ function fillAssistant(el, turn, isLast) {
     renderCharts(turn),
     renderWebImages(turn),
     widgetsFor(turn, entry),
+    turn.crew?.done && renderChecks(turn), // « Vérifications faites »: the team's checks, figure by figure
     basedOn(turn),
     (!turn.crew || turn.crew.done || turn.live?.state === "waking") && liveLine(turn),
     renderConfirm(turn),

@@ -194,10 +194,59 @@ _FACTS = {
 }
 
 
+def _demo_decision(run):
+    from birds.harness.crew import REASONS, Decision
+
+    forced = getattr(run.req, "agent", "auto") == "on"
+    sig = {"deliverable": "make_slides", "figures": True, "web": True, "steps": True, "n_docs": 0, "pasted_chars": 0}
+    return Decision("deck_research", REASONS[run.lang]["deck_research"], "on" if forced else "auto", forced,
+                    "make_slides", sig)  # fmt: skip
+
+
+def demo_plan(run) -> None:
+    """The demo's plan card (agent_flow « plan »): the same typed plan as a real run, nothing generated."""
+    from birds.harness import crew_plan
+
+    d = _demo_decision(run)
+    last = next((m["content"] for m in reversed(run.req.messages) if m["role"] == "user"), "")
+    plan = crew_plan.make_plan(d, last, run.lang)
+    payload = {"k": "crew_plan", "recipe": d.recipe, "reason": d.reason, "mode": d.mode, "forced": d.forced,
+               "deliverable": d.deliverable, "signals": d.signals, "plan": plan.public(run.lang)}  # fmt: skip
+    run.ctx.emit({"type": "agent_plan", "plan": plan.public(run.lang), "token": run.ctx.sign(payload),
+                  "auto_start": crew_plan.auto_start(plan, d.mode), "mode": d.mode, "recipe": d.recipe,
+                  "reason": d.reason, "forced": d.forced, "demo": run.t("scénario de démonstration", "demo scenario")})  # fmt: skip
+
+
 def demo_crew(run) -> None:
     """The demo's scripted Mode Agent: realistic lanes and timings, labelled « scénario de démonstration »."""
+    from birds.harness import crew_plan
+
+    if getattr(run.req, "agent_flow", None) == "plan" and run.req.agent_plan is None:
+        return demo_plan(run)
     t, lang, ctx = run.t, run.lang, run.ctx
     forced = getattr(run.req, "agent", "auto") == "on"
+    plan = None
+    if run.req.agent_plan is not None:
+        plan = crew_plan.from_public(run.req.agent_plan["payload"].get("plan"))
+        if plan is not None:
+            plan, _ = crew_plan.apply_edits(plan, run.req.agent_plan.get("edits"))
+    run_id = secrets.token_urlsafe(12)
+    box = _open_notes(run_id, run.req, ctx)
+    try:
+        _demo_team(run, t, lang, ctx, forced, plan, run_id, box)
+    finally:
+        crew_plan.REGISTRY.close(run_id)
+
+
+def _demo_team(run, t, lang, ctx, forced, plan, run_id, box) -> None:
+    stages = {"brief": "read", "drafts": "drafts", "check": "fix", "fix": "fix", "build": "build"}
+
+    def notes(stage: str) -> None:  # the scripted team acknowledges the instructions as the real one does
+        for n in box.take() if stage != "end" else box.close():
+            late = stage in ("build", "end") or (n.kind == "prefer_site" and stage != "research")
+            ctx.emit({"type": "agent_note", "id": n.id, "kind": n.kind, "value": n.value,
+                      "status": "late" if late else "applied", "stage": stage})  # fmt: skip
+
     lanes = [
         ("chercheur", "chercheur", t("Recherche web", "Web search"), "research", ""),
         ("lecteur_1", "lecteur", t("Lecture page 1", "Reading page 1"), "brief", ""),
@@ -221,11 +270,15 @@ def demo_crew(run) -> None:
                 for i, r, lab, g, d in lanes
             ],
             "budget": {"max_calls": 7, "max_seconds": 240},
+            "run": run_id,
+            **({"plan": plan.public(lang)} if plan else {}),
         }
     )
     t0 = time.monotonic()
 
     def step(lane, role, phase, status, **extra):
+        if status == "running" and phase in stages:
+            notes(stages[phase])
         label = next(lab for i, _, lab, _, _ in lanes if i == lane)
         ctx.emit(
             {"type": "agent_step", "id": lane, "role": role, "phase": phase, "status": status, "label": label, **extra}
@@ -318,6 +371,20 @@ def demo_crew(run) -> None:
     finally:
         run.ctx = ctx
     step("assembleur", "assembleur", "build", "done", detail="pptx")
+    notes("end")
+    ctx.emit({"type": "agent_deliverable", "tool": "make_slides", "title": arguments["title"],
+              "file": entry.get("name", ""), "parts": len(slides), "canvas": None})  # fmt: skip
+    # the verification card: every figure of the scripted deck with the line of its (fictional) page
+    pages = {1: "example.org", 2: "example.org"}
+    items = [{"value": v, "sentence": f, "status": "verified", "origin": "source", "n": 1 if k < 2 else 2,
+              "line": f"… {f.lower()} …", "site": pages[1 if k < 2 else 2], "title": ""}
+             for k, (_, v, f) in enumerate(_FACTS[lang])]  # fmt: skip
+    items.insert(0, {"value": "37 %", "sentence": t("Le télétravail atteint 37 % des salariés",
+                                                    "Remote work reaches 37% of employees"),
+                     "status": "removed", "origin": "none", "line": ""})  # fmt: skip
+    ctx.emit({"type": "agent_checks", "verified_n": 4, "removed_n": 1, "review_n": 0, "items": items, "more": 0,
+              "read_dropped": 1, "actions": [], "costs": 0,
+              "sources": [{"n": 1, "title": "", "site": "example.org"}, {"n": 2, "title": "", "site": "example.org"}]})  # fmt: skip
     ctx.emit(
         {
             "type": "agent_done",
