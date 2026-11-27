@@ -705,6 +705,7 @@ class Crew:
             message=self.message,
             found=list(self.found),
             sources=[],
+            images=list(self.images),  # web pictures the research saw: a deck or document may use the free ones
         )
         sub = Run(lang=self.lang, flagged=self.flagged)
         clone = copy.copy(self.agent)

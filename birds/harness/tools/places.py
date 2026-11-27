@@ -299,6 +299,8 @@ def find_places(args: dict, ctx) -> str:
         widget.update(missing=missing, unchecked=unchecked, not_shown=not_shown, plan=plan)
         fit_list(widget, LIST_BYTES)
         places = places[: len(widget["places"])]
+    if isinstance(getattr(ctx, "places", None), list):  # a deck or document of the same run can show them on a map
+        ctx.places.extend({**c, "near": title} for c in cards if c.get("lat") is not None)
     ctx.step_info = {
         "widget": widget,
         "found": len(places),

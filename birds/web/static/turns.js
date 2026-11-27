@@ -26,11 +26,13 @@ import { renderBlocks, renderMarkdown, safeUrl, stabilize } from "./markdown.js"
 import { wrapPref } from "./richcode.js";
 import { docCard, imageCard, kindOf, middle } from "./attach.js";
 import { deckPreview, docPreview, sheetPreview } from "./previews.js";
+import { openEditor } from "./editor.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { moveFull, renderWidgets, widgetsText } from "./widgets.js";
 import { renderAgents, renderChecks } from "./agents.js";
 import { footprintAnswer } from "./footprint.js";
 import { renderPlan } from "./plan.js"; // task plan checklist (w1-harness)
+import { canvasCard } from "./canvas.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -536,15 +538,15 @@ function slideStrip(preview) {
   );
 }
 
-function filePreview(preview, onDownload) {
+function filePreview(preview, onDownload, onEdit = null) {
   if (!preview || typeof preview !== "object") return null;
   if (preview.v === 2) {
     // what the file really holds (read back by the server), drawn in the file's own design
     if (preview.kind === "slides") {
-      const deck = deckPreview(preview, { onDownload });
+      const deck = deckPreview(preview, { onDownload, onEdit });
       return deck && h("div", null, deck, preview.notes > 0 && h("p", { class: "hint", text: t("files.notes", { n: preview.notes }) }));
     }
-    if (preview.kind === "document") return docPreview(preview, { onDownload });
+    if (preview.kind === "document") return docPreview(preview, { onDownload, onEdit });
     if (preview.kind === "sheet") return sheetPreview(preview);
   }
   if (preview.kind === "slides") {
@@ -662,7 +664,9 @@ function renderFiles(turn) {
               new Blob([b64ToBytes(file.data)], { type: file.mime || "application/octet-stream" }),
             )
         : null;
-      const preview = filePreview(p, save);
+      // a deck or document Bird made carries its plan: it can be edited and rebuilt here (editor.js)
+      const edit = p.v === 2 && p.plan ? () => openEditor(file, { onDone: () => handlers.onChange?.(turn) }) : null;
+      const preview = filePreview(p, save, edit);
       return h(
         "section",
         { class: `card file-card${p.v === 2 ? ` file-${p.kind}` : ""}`, "data-file": name },
@@ -1564,6 +1568,7 @@ function fillAssistant(el, turn, isLast) {
     renderWebImages(turn),
     widgetsFor(turn, entry),
     turn.crew?.done && renderChecks(turn), // « Vérifications faites »: the team's checks, figure by figure
+    canvasCard(turn), // the deck, document, page or sheet of this turn, in the canvas
     basedOn(turn),
     (!turn.crew || turn.crew.done || turn.live?.state === "waking") && liveLine(turn),
     renderConfirm(turn),

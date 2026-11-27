@@ -37,6 +37,8 @@ SITE_DIR = Path(__file__).resolve().parents[2] / "site"  # corporate site, serve
 
 CSP = (
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; connect-src 'self'; "
+    "frame-src 'self'; "  # only the canvas preview frame (/canvas/frame, sandboxed, no network: see canvas_web)
+    
     "manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 )
 SECURITY_HEADERS = {
@@ -132,6 +134,7 @@ class ChatBody(BaseModel):
         default=None, pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     )
     tz: str | None = Field(default=None, max_length=64)  # Intl.DateTimeFormat().resolvedOptions().timeZone
+    canvas: dict | None = None  # the artifact open in the canvas ({aid, version, doc, target}): see canvas_web
 
 
 class TestBody(BaseModel):
@@ -230,7 +233,7 @@ def harness_config(s: Settings) -> dict:
 def build_server_backend(s: Settings) -> Backend | None:
     """The operator's model: an OpenAI-compatible endpoint, or a model loaded in this process (local use)."""
     if s.local_llm is not None:
-        return HarnessBackend(
+        local = HarnessBackend(
             s.local_llm,
             s.local_tok,
             kind="local",
@@ -241,6 +244,8 @@ def build_server_backend(s: Settings) -> Backend | None:
             msg_cap_tokens=s.history_msg_tokens,
             cache_isolation=s.cache_isolation,
         )
+        local.canvas = s.canvas
+        return local
     if not s.base_url:
         return None
     from birds.harness import CompletionsClient
@@ -251,7 +256,7 @@ def build_server_backend(s: Settings) -> Backend | None:
 
         tok = AutoTokenizer.from_pretrained(s.tokenizer)
     llm = CompletionsClient(s.base_url, s.model, s.api_key, timeout=s.max_seconds)
-    return HarnessBackend(
+    backend = HarnessBackend(
         llm,
         tok,
         kind="completions",
@@ -263,6 +268,8 @@ def build_server_backend(s: Settings) -> Backend | None:
         msg_cap_tokens=s.history_msg_tokens,
         cache_isolation=s.cache_isolation,
     )
+    backend.canvas = s.canvas
+    return backend
 
 
 def fetch_client(s: Settings):
@@ -465,6 +472,10 @@ def create_app(
             pass  # same-origin images: "private, max-age=86400" set by birds.web.mapimg
         elif path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
+        if path == "/canvas/frame":
+            from .canvas_web import frame_headers
+
+            frame_headers(response)  # the sandboxed preview frame has its own, stricter-on-network policy
         return response
 
     # ------------------------------------------------------------------ request guards
@@ -538,6 +549,7 @@ def create_app(
             msg_cap_tokens=s.history_msg_tokens,
             cache_isolation=s.cache_isolation,
         )
+        backend.canvas = s.canvas
         return backend, "user:" + tokens.digest([base, model])[:16]
 
     # ------------------------------------------------------------------ API
@@ -801,6 +813,13 @@ def create_app(
         if body.approved and body.denied:
             raise ApiError(422, "invalid_request", "approve or deny, not both")
 
+        canvas_in = None
+        if body.canvas is not None:
+            from . import canvas_web
+
+            if len(json.dumps(body.canvas, ensure_ascii=False)) > canvas_web.MAX_DOC_CHARS:
+                raise ApiError(413, "canvas_too_large", "the document open in the canvas is too large")
+            canvas_in = canvas_web.canvas_in(body.canvas)  # invalid: the turn runs without it
         images = [{"name": sanitize_filename(i.name), "url": check_image(i.url)} for i in body.images]
         messages = [m.model_dump(exclude_none=True) for m in body.messages]
         attachments = [
@@ -879,6 +898,7 @@ def create_app(
             agent_plan=agent_plan,
             agent_slice=agent_slice,
             agent_notes=[n.model_dump() for n in body.agent_notes],
+            canvas=canvas_in,
         )
 
         loop = asyncio.get_running_loop()
@@ -991,7 +1011,7 @@ def create_app(
     async def not_found(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse({"detail": {"code": "not_found", "message": "not found"}}, status_code=404)
 
-    from . import mapimg
+    from . import mapimg, office_edit
 
     def _geo_cfg():
         from birds.harness import Config
@@ -999,6 +1019,10 @@ def create_app(
         return Config(workspace=Path(tempfile.gettempdir()), audit_file=None, **harness_config(s))
 
     app.include_router(mapimg.make_router(s, _geo_cfg))
+    app.include_router(office_edit.make_router(s, guard_request, check_access))  # the deck/document editor
+    from . import canvas_web
+
+    app.include_router(canvas_web.make_router(s, guard_request, check_access, resolve_mode, image_client))
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     if SITE_DIR.is_dir():
         import mimetypes

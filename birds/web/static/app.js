@@ -58,6 +58,7 @@ import {
 } from "./views.js";
 import { addNote, applyAgentEvent, countdownText, deliverablesOf } from "./agents.js";
 import { cleanPlan, planNews } from "./plan.js"; // task plan checklist (w1-harness)
+import * as canvas from "./canvas.js"; // the canvas beside the chat (decks, documents, code, sheets)
 
 // Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
 const AGENT_MODES = ["auto", "on", "off"];
@@ -626,6 +627,7 @@ function renderEmpty() {
 }
 
 function renderChat() {
+  canvas.setConversation(state.conv); // the canvas follows the conversation shown
   renderEmpty();
   renderConversation();
   renderAttachments();
@@ -1299,8 +1301,10 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         code_checks: Array.isArray(event.code_checks) ? event.code_checks.slice(0, 50) : [], // syntax badges
         widgets: Array.isArray(event.widgets) ? event.widgets : [],
         fallback: event.fallback ? String(event.fallback) : "", // written from the results, not by the model
+        canvas: event.canvas?.aid ? { aid: event.canvas.aid, version: event.canvas.version, doc: !!event.canvas.doc } : null,
       };
       if (event.plan !== undefined) turn.plan = cleanPlan(event.plan); // the final checklist, or none
+      canvas.onAnswer(conv, turn, event.canvas);
       turn.files.push(...(event.files || []));
       turn.text = "";
       announce(t("live.answer"));
@@ -1325,6 +1329,11 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
       if (said) announce(said);
       break;
     }
+    case "canvas":
+    case "canvas_media":
+      if (!canvas.onEvent(conv, turn, event)) return;
+      if (event.type === "canvas" && event.phase === "final") saveConv(conv); // a reload keeps each version
+      break;
     case "agent_start":
     case "agent_step":
     case "agent_done":
@@ -1401,6 +1410,7 @@ async function runTurn(turn, extra = {}) {
         encoding: encoding || "text",
         ...(ocr && encoding === "base64" ? { ocr } : {}),
       })),
+      ...canvas.payload(conv), // the artifact open in the canvas, so « ajoute une slide » changes it
       ...extra,
     };
     const response = await fetch("/api/chat", {
@@ -2337,6 +2347,7 @@ function refreshAll() {
   updateTop();
 }
 
+let canvasClosedSide = false; // the canvas closed the sidebar: it opens again when the canvas closes
 async function init() {
   setHandlers({
     onConfirm: answerConfirm,
@@ -2368,6 +2379,34 @@ async function init() {
     onStop: stop,
     onResume: resumeTask,
     onNotify: askNotify,
+  });
+  canvas.setup({
+    send: (text) => send(text),
+    compose: (text) => {
+      input().value = text;
+      autosize();
+      input().focus();
+      input().setSelectionRange(text.length, text.length);
+    },
+    headers: requestHeaders,
+    save: (c) => saveConv(c),
+    busy: () => state.busy || !!pendingConfirm(),
+    mode: activeMode,
+    // on a laptop the canvas takes the sidebar's room while it is open; the saved preference is kept
+    onOpen: () => {
+      if (isNarrow() || window.innerWidth >= 1700 || !document.body.classList.contains("side-open")) return;
+      const keep = store.get("bird.side");
+      setSidebar(false);
+      store.set("bird.side", keep);
+      canvasClosedSide = true;
+    },
+    onClose: () => {
+      if (!canvasClosedSide || isNarrow()) return;
+      canvasClosedSide = false;
+      const keep = store.get("bird.side");
+      setSidebar(true);
+      store.set("bird.side", keep);
+    },
   });
   setViewHooks({
     onPrefs: () => {

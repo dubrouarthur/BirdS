@@ -176,6 +176,7 @@ class ChatRequest:
     agent_plan: dict | None = None  # {"payload": verified plan token, "edits": typed edits}: « Lancer »
     agent_slice: dict | None = None  # verified state of the next slice of a long task
     agent_notes: list[dict] = field(default_factory=list)  # typed instructions not delivered live
+    canvas: dict | None = None  # the artifact open in the canvas, validated (birds.web.canvas_web.canvas_in)
 
 
 @dataclass
@@ -571,8 +572,13 @@ class DemoBackend:
         if request.images:
             run.scenario_image()
             return
-        from birds.web import crew_web
+        from birds.web import canvas_web, crew_web
 
+        cplan = canvas_web.plan_for(request, own_words(last), lang, attached=bool(request.attachments))  # scripted
+        if cplan is not None and (cplan.mode != "create" or not crew_web.demo_match(last, request)):
+            from birds.web import canvas_demo
+
+            return canvas_demo.run(run, cplan, own_words(last))
         if crew_web.demo_match(last, request):
             return crew_web.demo_crew(run)  # Mode Agent, scripted
         scenario = pick_scenario(last, bool(request.attachments))
@@ -587,6 +593,21 @@ class DemoBackend:
             if again is not None and again.tool in names:
                 run.followup, scenario = again, names[again.tool]
         getattr(run, "scenario_" + scenario)()
+
+
+
+def canvas_ref(tool: str, arguments: dict, lang: str) -> dict | None:
+    """A demo file made by a trained tool, as the answer's canvas reference (« Ouvrir dans le canevas »)."""
+    from types import SimpleNamespace
+
+    from birds.web import canvas_web
+
+    try:
+        run = SimpleNamespace(steps=[SimpleNamespace(tool=tool, error=None, arguments=arguments)], canvas=None)
+        canvas_web.adopt_files(run, None, lang)
+        return canvas_web.ref(run)
+    except Exception:  # noqa: BLE001 - the demo answer never fails for the canvas
+        return None
 
 
 class _DemoRun:
@@ -677,6 +698,7 @@ class _DemoRun:
                 "widgets": widgets or [],
                 **({"memo": self._memo()} if self.context else {}),
                 **({"plan": plan} if plan else {}),
+                **({"canvas": self.adopted} if getattr(self, "adopted", None) else {}),  # the file, in the canvas too
             }
         )
         prompt = 60 + sum(len(m["content"]) for m in self.req.messages) // 4 + self.extra_prompt
@@ -721,6 +743,7 @@ class _DemoRun:
             entry = inline_file(tmp / hctx.files[0], preview, self.ctx.max_inline_file_bytes)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+        self.adopted = canvas_ref(tool, arguments, self.lang)  # the file is offered in the canvas too
         self.extra_completion += len(json.dumps(arguments, ensure_ascii=False)) // 4
         self.ctx.emit(step_event(index, tool, shown, "done", summary, time.monotonic() - start))
         return entry
@@ -1977,6 +2000,7 @@ class HarnessBackend:
             }
         )
         self.images = hasattr(llm, "chat")
+        self.canvas = True  # the canvas (birds.canvas): decks, documents and pages built beside the chat
 
     def _config(self, workspace: Path, request: ChatRequest, ctx: RunContext):
         from birds.harness import Config
@@ -2129,7 +2153,7 @@ class HarnessBackend:
         from birds.harness.followup import context_of
         from birds.harness.history import memo
         from birds.harness.meter import energy_options, estimate_power_time, estimate_tokens
-        from birds.web import crew_web
+        from birds.web import canvas_web, crew_web
 
         lang = "en" if request.lang == "en" else "fr"
         ephemeral = self.workspace is None
@@ -2218,6 +2242,10 @@ class HarnessBackend:
                         (workspace / (sanitize_filename(name) + ".txt")).write_text(
                             guard.truncate(text or "", IMAGE_TEXT_CHARS), encoding="utf-8"
                         )
+                if request.images:  # the pictures themselves, for a deck or a document made in this run
+                    from birds.harness.office_media import keep_user_images
+
+                    keep_user_images(workspace, request.images, dict(image_texts))
                 # Images from EARLIER messages are not sent again, but what was read in them is in the history:
                 # put it back so read_file("facture.jpg") still works on a follow-up (« reprends les totaux »).
                 for name, text in earlier_image_texts(request.messages[:-1]):
@@ -2244,10 +2272,20 @@ class HarnessBackend:
                     run = self._ocr_answer(image_texts + docs, image_usage, rl, cfg, time.monotonic() - t0)
                     image_usage = []  # already counted in run.report
                 else:
-                    decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
-                    run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
-                                            system=system, lang=rl, names=names, workspace=workspace,
-                                            history=kept)  # fmt: skip
+                    # the canvas (birds.canvas): a change to the open artifact comes first; a new deck, document or
+                    # page is made after the Mode Agent declined it (its research decks stay the team's)
+                    cplan = canvas_web.plan_for(request, words, rl, self.canvas, attached=bool(names or image_texts))
+                    canvas_kw = dict(user_sent=user_sent, words=words, system=system, history=kept, lang=rl,
+                                     mode="server", attached=bool(names or image_texts))  # fmt: skip
+                    if cplan is not None and cplan.mode != "create":
+                        run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
+                    else:
+                        decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
+                        run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
+                                                system=system, lang=rl, names=names, workspace=workspace,
+                                                history=kept)  # fmt: skip
+                        if run is None and cplan is not None:
+                            run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
                 if run is None:
                     from birds.harness.llm import EndpointError
 
@@ -2270,6 +2308,8 @@ class HarnessBackend:
             ctx.check()
             if run.stop_reason in ("plan", "slice"):  # the plan card, or a long task's slice: its events are sent
                 return
+            if run.stop_reason != "confirm":
+                canvas_web.adopt_files(run, ctx, run.lang or lang)  # a file a trained tool made: also in the canvas
             report = run.report or {}
             previews = iter(
                 written_preview(s.tool, s.arguments, getattr(s, "info", None))
@@ -2361,6 +2401,7 @@ class HarnessBackend:
                 figures=list(getattr(run, "figures", None) or []),  # task plan (w1-harness): totals read by tools
                 todo=list((getattr(run, "plan", None) or {}).get("missing") or []),
             )
+            turn_memo = canvas_web.memo_with_canvas(turn_memo, run, lang)
             answer_text = hide_out_paths(strip_tool_echo(strip_memo(str(run.answer))))
             request_words = (
                 str((request.resume or {}).get("state", {}).get("request", ""))
@@ -2410,6 +2451,7 @@ class HarnessBackend:
                     "tidy": tidied.repairs,
                     "images": [{"name": n, "text": t[:4000]} for n, t in image_texts],
                     "plan": _plain(getattr(run, "plan", None)),  # final checklist (None for a one-thing request)
+                    "canvas": canvas_web.ref(run),
                 }
             )
             ctx.emit(
@@ -2438,6 +2480,8 @@ class HarnessBackend:
         finally:
             if ephemeral:
                 shutil.rmtree(workspace, ignore_errors=True)
+            else:  # a persistent workspace keeps no copy of the pictures of one message
+                shutil.rmtree(workspace / ".bird_images", ignore_errors=True)
 
     # ---- rich results independent of the model (birds/web/rescue.py)
     @staticmethod

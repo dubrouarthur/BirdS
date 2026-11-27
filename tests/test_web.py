@@ -211,8 +211,8 @@ def test_search_scenario_steps_sources_citations(client):
 @pytest.mark.parametrize(
     ("prompt", "tool", "suffix", "kind"),
     [
-        ("Prépare une présentation de 5 diapositives", "make_slides", ".pptx", "slides"),
-        ("Rédige un document de synthèse", "make_document", ".docx", "document"),
+        ("Prépare une présentation pptx de 5 diapositives", "make_slides", ".pptx", "slides"),
+        ("Rédige un document Word de synthèse", "make_document", ".docx", "document"),
         ("Fais un tableur de budget", "make_sheet", ".xlsx", "sheet"),
     ],
 )
@@ -231,7 +231,7 @@ def test_generated_files_are_inline_with_a_preview(client, prompt, tool, suffix,
 def test_inline_file_size_cap():
     app = create_app(settings(max_inline_file_bytes=100))
     with TestClient(app) as client:
-        (file,) = one(chat(client, "Prépare des diapositives"), "answer")["files"]
+        (file,) = one(chat(client, "Prépare des diapositives pptx"), "answer")["files"]
     assert file["data"] is None and file["error"] == "too_large" and file["size"] > 100
 
 
@@ -654,7 +654,7 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
     assert "@import" not in css and css.count("@font-face") == 2
     for name in ("carlito-regular.woff2", "carlito-bold.woff2", "OFL.txt"):
         assert client.get(f"/static/fonts/{name}").status_code == 200
-    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "previews.js", "chart.js", "richcode.js", "widgets.js", "ics.js", "agents.js"]
+    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "previews.js", "chart.js", "richcode.js", "widgets.js", "ics.js", "agents.js", "editor.js"]
     brand = [
         "mark.svg",
         "mark-dark.svg",
@@ -684,8 +684,10 @@ def test_static_payload_budget():
     # raised step by step: images, attachments, previews, the P1 UX backlog, the file previews, the in-chat charts
     # with web image cards, rich answer text, the result widgets (maps, company, currency, event cards, .ics), Mode Agent
     # and its wave 2 (plan card, live activity, « Vérifications faites », « Livrables »), the footprint module (~65 kB),
-    # the task plan checklist, then the map card of lists (groups, full screen, visit order, distances)
-    assert total < 910_000, f"static payload is {total} bytes"  # about 200 kB once gzipped
+    # the task plan checklist, the map card of lists (groups, full screen, visit order, distances),
+    # the office engine (pictures, charts and tables in the previews, the deck/document editor)
+    # and the canvas (decks, documents, code preview, mini-sheet, flowcharts: +126 kB raw, +34 kB gzipped)
+    assert total < 1_070_000, f"static payload is {total} bytes"  # about 310 kB once gzipped
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     assert demo < 520_000, f"demo maps weigh {demo} bytes"  # + the maps of the scripted lists of places
 
@@ -697,7 +699,7 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     fr, en = set(key.findall(fr_block.split("fr: {", 1)[1])), set(key.findall(en_block.split("\n};", 1)[0]))
     assert fr and fr == en, fr ^ en
     used = set()
-    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js"]:
+    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))
     used |= set(re.findall(r'data-i18n(?:-aria|-placeholder)?="([\w.]+)"', (STATIC_DIR / "index.html").read_text()))
     assert not used - fr, sorted(used - fr)
