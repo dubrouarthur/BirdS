@@ -68,7 +68,9 @@ class _Search:
         return [r for r in self.results][:n]
 
 
-def run_one(sc: Scenario, workdir: Path):
+def run_one(sc: Scenario, workdir: Path, model=None, tok=None, config: dict | None = None):
+    """Play one scenario. ``model``/``tok`` default to the scripted policy and the JSON tokenizer; the live
+    evaluation (scripts/harness_eval.py) passes the real endpoint client and tokenizer instead."""
     from birds.harness import Agent, Config
 
     _patch_dns()
@@ -93,10 +95,10 @@ def run_one(sc: Scenario, workdir: Path):
         user += "\n\n" + "\n".join(f"[{note} : {n}]" for n in names)
     for name, text in sc.workspace.items():
         (ws / name).write_text(text, encoding="utf-8")
-    model = PolicyModel(sc.build_rules(), default=sc.default)
-    cfg = Config(workspace=ws, audit_file=None, **sc.config)
+    model = model if model is not None else PolicyModel(sc.build_rules(), default=sc.default)
+    cfg = Config(workspace=ws, audit_file=None, **{**sc.config, **(config or {})})
     search = _Search(sc.search, sc.search_fail)
-    agent = Agent(model, Tok(), cfg, confirm=lambda tool, args: True, search=search,
+    agent = Agent(model, tok or Tok(), cfg, confirm=lambda tool, args: True, search=search,
                   http=httpx.Client(transport=_transport(sc.pages)))  # fmt: skip
     from birds.harness import guard
 
@@ -179,7 +181,7 @@ def score(sc: Scenario, run, model) -> dict[str, bool]:
         missing = " ".join(str(i.get("label")) for i in plan.get("items", []) if i.get("status") != "done")
         checks["honest"] = bool(re.search(e["honest"], missing, re.I))
     if "max_gens" in e:
-        checks["gens"] = len(model.views) <= e["max_gens"]
+        checks["gens"] = len(run.usage) <= e["max_gens"]  # generations, the last-chance one included
     return checks
 
 
@@ -197,7 +199,7 @@ def run_all(only: str | None = None) -> list[dict]:
                 checks, model, secs, err, run = {"crash": False}, None, 0.0, f"{type(ex).__name__}: {ex}", None
             rows.append({
                 "id": sc.id, "family": sc.family, "checks": checks, "pass": all(checks.values()),
-                "gens": len(model.views) if model else 0, "seconds": round(secs, 3), "error": err,
+                "gens": len(run.usage) if run else 0, "seconds": round(secs, 3), "error": err,
                 "stop": getattr(run, "stop_reason", "") if run else "",
             })  # fmt: skip
     return rows
