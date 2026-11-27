@@ -344,8 +344,9 @@ def disambiguate(q: str, request: str = "") -> str:
 class Geocoder:
     """Search places for one run (``ctx``: http client, config, per-run counter, bytes meter)."""
 
-    def __init__(self, ctx):
-        self.ctx, self.cfg = ctx, ctx.config
+    def __init__(self, ctx, count: bool = True):
+        # count=False: the lookups of a list of places have their own cap (tools/places.py), not MAX_LOOKUPS_PER_RUN
+        self.ctx, self.cfg, self.count = ctx, ctx.config, count
 
     def _url(self, base: str, params: dict) -> str:
         return base + ("&" if "?" in base else "?") + urlencode(params)
@@ -361,23 +362,26 @@ class Geocoder:
         }
         if viewbox:
             params.update(viewbox=",".join(f"{v:.5f}" for v in viewbox), bounded=1)
-        data = get_json(self.ctx, self._url(self.cfg.nominatim_url, params))
+        data = get_json(self.ctx, self._url(self.cfg.nominatim_url, params), count=self.count)
         return [p for p in (from_nominatim(x) for x in (data if isinstance(data, list) else [])) if p]
 
     def photon(self, q: str, limit: int = 3, lang: str = "fr", near: Place | None = None) -> list[Place]:
         params = {"q": q, "limit": limit, "lang": lang if lang in ("fr", "en", "de", "it") else "default"}
         if near:
             params.update(lat=f"{near.lat:.5f}", lon=f"{near.lon:.5f}")
-        data = get_json(self.ctx, self._url(self.cfg.photon_url, params))
+        data = get_json(self.ctx, self._url(self.cfg.photon_url, params), count=self.count)
         feats = data.get("features", []) if isinstance(data, dict) else []
         return [p for p in (from_photon(f) for f in feats) if p]
 
-    def ban(self, q: str, limit: int = 1) -> list[Place]:
+    def ban(self, q: str, limit: int = 1, kind: str = "") -> list[Place]:
+        """``kind``: a BAN result type (« municipality » for a town name, « housenumber »…), or any."""
         base = self.cfg.ban_url
         params = {"q": q, "limit": limit}
         if "geopf" in base and "index=" not in base:
             params["index"] = "address"
-        data = get_json(self.ctx, self._url(base, params))
+        if kind:
+            params["type"] = kind
+        data = get_json(self.ctx, self._url(base, params), count=self.count)
         feats = data.get("features", []) if isinstance(data, dict) else []
         return [p for p in (from_ban(f) for f in feats) if p]
 

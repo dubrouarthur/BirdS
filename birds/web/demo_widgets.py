@@ -13,7 +13,12 @@ from urllib.parse import parse_qs, urlsplit
 
 DATA = Path(__file__).parent / "demo_data"
 MET_RECORDED = "2026-11-23T07:30:00+00:00"
-_MET = {(45.7578, 4.832): "lyon", (50.6366, 3.0635): "lille", (51.5074, -0.1278): "london", (47.2186, -1.5541): "nantes"}
+_MET = {
+    (45.7578, 4.832): "lyon",
+    (50.6366, 3.0635): "lille",
+    (51.5074, -0.1278): "london",
+    (47.2186, -1.5541): "nantes",
+}
 STATIC_DEMO = Path(__file__).parent / "static" / "demo"
 
 
@@ -34,6 +39,11 @@ def recorded(url: str):
     if host == "recherche-entreprises.api.gouv.fr":
         return _load("entreprises_siren.json") if text.isdigit() else _load("entreprises_airbus.json")
     if host == "data.geopf.fr" or host == "api-adresse.data.gouv.fr":
+        # lists of addresses and towns (« montre sur une carte : 10 rue de Rivoli Paris ; … »), recorded 2026-11-27
+        lists = _load("geopf_lists.json")
+        key = f"{text}|{q.get('type', '')}"
+        if key in lists:
+            return lists[key]
         return _load("geopf_segur.json") if "ségur" in text or "segur" in text else {"features": []}
     if host == "photon.komoot.io":
         return _load("photon_tour_eiffel.json") if "eiffel" in text else {"features": []}
