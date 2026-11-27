@@ -2588,16 +2588,10 @@ thead .score {
 
 /* ---------- Mouvement discret ---------- */
 @media (prefers-reduced-motion: no-preference) {
-  .js .reveal {
-    opacity: 0;
-    transform: translateY(18px);
-    transition:
-      opacity 0.8s cubic-bezier(0.2, 0.7, 0.2, 1),
-      transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
-  }
+  /* Visible par défaut : rien n'est masqué en attendant le script ni dans une capture pleine page.
+     site.js ajoute .is-in juste avant que l'élément n'entre à l'écran (par le bas) ; l'animation finit visible. */
   .js .reveal.is-in {
-    opacity: 1;
-    transform: none;
+    animation: lift 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   }
   .hero-copy > * {
     animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
@@ -2619,6 +2613,16 @@ thead .score {
   }
   .hero-copy > :nth-child(6) {
     animation-delay: 0.3s;
+  }
+}
+@keyframes lift {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 @keyframes rise {

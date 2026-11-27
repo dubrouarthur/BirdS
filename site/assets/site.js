@@ -120,22 +120,26 @@
 
     scenes();
 
-    // Apparitions discrètes (désactivées si mouvement réduit : voir CSS).
+    // Apparitions discrètes : le contenu est visible par défaut (CSS). L'animation ne se joue que pour un
+    // élément encore sous l'écran, quand il s'apprête à entrer ; déjà visible ou dépassé, il ne bouge pas.
     var items = document.querySelectorAll(".reveal");
-    if (!("IntersectionObserver" in window)) {
-      for (var j = 0; j < items.length; j++) items[j].classList.add("is-in");
+    if (
+      !items.length ||
+      !("IntersectionObserver" in window) ||
+      !window.matchMedia ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
       return;
-    }
     var io = new IntersectionObserver(
       function (entries) {
         entries.forEach(function (en) {
-          if (en.isIntersecting) {
+          if (!en.isIntersecting) return;
+          if (en.boundingClientRect.top >= window.innerHeight - 1)
             en.target.classList.add("is-in");
-            io.unobserve(en.target);
-          }
+          io.unobserve(en.target);
         });
       },
-      { rootMargin: "0px 0px -8% 0px", threshold: 0.05 },
+      { rootMargin: "0px 0px 25% 0px", threshold: 0 },
     );
     for (var k = 0; k < items.length; k++) io.observe(items[k]);
   }
