@@ -71,8 +71,71 @@
   </div>
 </section>
 
-<section class="stats-band" aria-label="Bird S 4B en chiffres">
-  <div class="wrap"><ul class="stats"><li class="stat"><span class="stat-v num">4 Md</span><span class="stat-k">de paramètres</span></li><li class="stat"><span class="stat-v num">≈ 100×</span><span class="stat-k">plus petit qu’un grand modèle dense<sup class="fn"><a href="#note-1" aria-label="note 1">1</a></sup></span></li><li class="stat"><span class="stat-v num">≈ 0,07 Wh</span><span class="stat-k">par requête courte<sup class="fn"><a href="#note-2" aria-label="note 2">2</a></sup></span></li><li class="stat"><span class="stat-v num">≈ 30×</span><span class="stat-k">moins d’eau par requête courte<sup class="fn"><a href="#note-2" aria-label="note 2">2</a></sup></span></li><li class="stat"><span class="stat-v num">Conçu en France</span><span class="stat-k">par une équipe française</span></li></ul></div>
+<section class="rse" id="rse" aria-labelledby="rse-h">
+  <div class="wrap">
+    <div class="rse-intro">
+      <div class="rse-copy">
+        <p class="eyebrow eyebrow-leaf rse-eyebrow"><span class="rse-leaf" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8 5-13 15-14-.5 9.5-5.5 14.5-13.5 14.5"/><path d="M5 19c3-4 6-6.5 10-8.5"/></g></svg></span>RSE · Sobriété</p>
+        <h2 class="h2 rse-h" id="rse-h">La sobriété, <em>par conception</em>.</h2>
+        <p class="rse-lede">Nous créons de tout petits modèles, performants et sobres, plutôt que toujours plus gros.</p>
+        <p class="section-sub">Un petit modèle calcule moins à chaque mot. Moins d’électricité, beaucoup moins d’eau, des réponses rapides : et chacune affiche ce qu’elle a coûté.</p>
+      </div>
+      <figure class="rse-scale-fig reveal">
+        <svg class="rse-scale" viewBox="0 0 360 270" role="img" aria-labelledby="rse-scale-t" focusable="false"><title id="rse-scale-t">À l’échelle : un grand modèle dense d’environ 400 milliards de paramètres, et Bird S 4B, 4 milliards, environ 100 fois plus petit.</title><circle class="rse-big" cx="132" cy="135" r="120"/><circle class="rse-orbit" cx="132" cy="135" r="120"/><text class="rse-t rse-t-big" x="132" y="128" text-anchor="middle">≈ 400 Md</text><text class="rse-t rse-t-k" x="132" y="152" text-anchor="middle">grand modèle dense</text><path class="rse-link" d="M232 200 C 268 222, 290 230, 312 228"/><g class="rse-small"><circle class="rse-halo" cx="322" cy="228" r="12"/><circle class="rse-dot" cx="322" cy="228" r="12"/></g><text class="rse-t rse-t-bird" x="322" y="196" text-anchor="middle">4 Md</text><text class="rse-t rse-t-k" x="322" y="262" text-anchor="middle">Bird S 4B</text></svg>
+        <figcaption>À l’échelle : la surface de chaque disque suit le nombre de paramètres.<sup class="fn"><a href="#note-1" aria-label="note 1">1</a></sup></figcaption>
+      </figure>
+    </div>
+
+    <ul class="rse-figs" aria-label="Une requête courte sur Bird S 4B, en chiffres">
+      <li class="rse-fig reveal"><p class="rse-fig-k"><span class="rse-ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M13 3L5 13.5h6L10 21l8.5-11H12.5z"/></svg></span>Électricité</p><p class="rse-big-n"><span class="rse-pre">plus de</span><span class="num">4×</span></p><p class="rse-fig-v">moins d’électricité qu’une requête ChatGPT moyenne</p><ul class="bars rse-bars" aria-hidden="true"><li class="bar-row them"><span class="bar-label">ChatGPT</span><span class="track"><i class="fill them w100"></i></span><span class="bar-val num">0,34 Wh</span></li><li class="bar-row bird"><span class="bar-label">Bird S 4B</span><span class="track"><i class="fill bird w21"></i></span><span class="bar-val num">≈ 0,07 Wh</span></li></ul><p class="rse-fig-f">≈ 0,07 Wh par requête courte, contre 0,34 Wh.<sup class="fn"><a href="#note-2" aria-label="note 2">2</a>,<a href="#note-3" aria-label="note 3">3</a></sup></p></li>
+      <li class="rse-fig rse-fig-water reveal"><p class="rse-fig-k"><span class="rse-ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M12 3.5c3.6 4.4 6 7.8 6 10.7a6 6 0 0 1-12 0c0-2.900 2.400-6.300 6-10.700z"/></svg></span>Eau</p><p class="rse-big-n"><span class="rse-pre">environ</span><span class="num">30×</span></p><p class="rse-fig-v">moins d’eau qu’une requête ChatGPT moyenne</p><ul class="bars rse-bars" aria-hidden="true"><li class="bar-row them"><span class="bar-label">ChatGPT</span><span class="track"><i class="fill them w100"></i></span><span class="bar-val num">0,32 mL</span></li><li class="bar-row bird"><span class="bar-label">Bird S 4B</span><span class="track"><i class="fill bird w3"></i></span><span class="bar-val num">≈ 0,011 mL</span></li></ul><p class="rse-fig-f">≈ 0,011 mL par requête courte : une goutte, littéralement.<sup class="fn"><a href="#note-2" aria-label="note 2">2</a>,<a href="#note-3" aria-label="note 3">3</a></sup></p></li>
+      <li class="rse-fig reveal"><p class="rse-fig-k"><span class="rse-ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="12" r="6.5"/><circle cx="19" cy="17" r="2.2"/></g></svg></span>Taille</p><p class="rse-big-n"><span class="rse-pre">environ</span><span class="num">100×</span></p><p class="rse-fig-v">plus petit qu’un grand modèle dense</p><ul class="bars rse-bars" aria-hidden="true"><li class="bar-row them"><span class="bar-label">Grand modèle dense</span><span class="track"><i class="fill them w100"></i></span><span class="bar-val num">≈ 400 Md</span></li><li class="bar-row bird"><span class="bar-label">Bird S 4B</span><span class="track"><i class="fill bird w1"></i></span><span class="bar-val num">4 Md</span></li></ul><p class="rse-fig-f">4 milliards de paramètres : en théorie, environ 100 fois moins de calcul par mot.<sup class="fn"><a href="#note-1" aria-label="note 1">1</a></sup></p></li>
+    </ul>
+
+    <div class="rse-story">
+      <article class="rse-card reveal">
+        <svg class="rse-ill" viewBox="0 0 200 112" aria-hidden="true" focusable="false"><defs><pattern id="rse-dots" width="9" height="9" patternUnits="userSpaceOnUse"><circle class="rse-dotc" cx="4.5" cy="4.5" r="2.2"/></pattern></defs><rect x="55" y="11" width="90" height="90" fill="url(#rse-dots)"/><circle class="rse-one-halo" cx="59.5" cy="15.5" r="4"/><circle class="rse-one" cx="59.5" cy="15.5" r="3.4"/></svg>
+        <h3 class="h3">Moins de calcul, à chaque mot.</h3>
+        <p>Le calcul suit la taille du modèle. Avec 4 milliards de paramètres, Bird fait en théorie environ 100 fois moins de calcul par mot qu’un grand modèle dense.</p>
+      </article>
+      <article class="rse-card reveal">
+        <svg class="rse-ill" viewBox="0 0 200 112" aria-hidden="true" focusable="false"><path class="rse-base" d="M14 86H186"/><path class="rse-pulse" d="M14 86H52c6 0 7-34 14-34s8 34 14 34h40c6 0 7-26 13-26s8 26 13 26h40"/><path class="rse-moon" d="M164 22a12 12 0 1 0 12 15 9.5 9.5 0 0 1-12-15z"/><g class="rse-z"><path d="M138 22h7l-7 8h7"/><path d="M148 12h5l-5 6h5"/></g></svg>
+        <h3 class="h3">Léger, par conception.</h3>
+        <p>Bird calcule quand vous lui écrivez, et se met en veille quand personne ne l’utilise : aucun calcul quand il n’y a rien à faire.</p>
+      </article>
+      <article class="rse-card reveal">
+        <svg class="rse-ill" viewBox="0 0 200 112" aria-hidden="true" focusable="false"><rect class="rse-paper" x="30" y="8" width="140" height="96" rx="10"/><path class="rse-text-l" d="M44 26h92M44 38h108M44 50h70"/><g class="rse-receipt"><path class="rse-sep" d="M44 66h112"/><rect class="rse-chip" x="44" y="76" width="34" height="14" rx="7"/><rect class="rse-chip" x="83" y="76" width="28" height="14" rx="7"/><rect class="rse-chip rse-chip-leaf" x="116" y="76" width="40" height="14" rx="7"/></g></svg>
+        <h3 class="h3">Chaque réponse montre son empreinte.</h3>
+        <p>Sous chaque réponse : tokens, temps de calcul et énergie estimée. L’écran Empreinte fait le total de vos conversations.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="rse-biz" aria-labelledby="rse-biz-h">
+  <div class="wrap">
+    <div class="rse-biz-head"><p class="eyebrow">Un avantage pour votre entreprise</p><h2 class="h2" id="rse-biz-h">Sobre, et <em>efficace</em>.</h2><p class="section-sub">La sobriété n’est pas un sacrifice : c’est ce qui rend Bird rapide, moins coûteux à spécialiser, et sous votre contrôle.</p></div>
+    <ul class="rse-adv">
+      <li class="reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><ellipse cx="12" cy="7" rx="7" ry="3"/><path d="M5 7v5c0 1.7 3.1 3 7 3s7-1.3 7-3V7M5 12v5c0 1.7 3.1 3 7 3s7-1.3 7-3v-5"/></g></svg></span><h3 class="h3">Coût</h3><p>Un petit modèle s’entraîne sur vos tâches pour un coût bien inférieur.</p></li>
+      <li class="reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M13 3L5 13.5h6L10 21l8.5-11H12.5z"/></svg></span><h3 class="h3">Vitesse</h3><p>Moins de calcul par mot : Bird répond vite, et vous lisez pendant qu’il écrit.</p></li>
+      <li class="reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/><path d="M8.8 12.2l2.2 2.2 4.3-4.4" stroke-linecap="round"/></g></svg></span><h3 class="h3">Souveraineté</h3><p>Conçu en France, par une équipe française. Vos données restent sous votre contrôle.</p></li>
+      <li class="reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></g></svg></span><h3 class="h3">Mesurable</h3><p>L’énergie estimée de chaque réponse, et le total de vos conversations, sous vos yeux.</p></li>
+    </ul>
+  </div>
+</section>
+
+<section class="pledge" id="engagements" aria-labelledby="pledge-h">
+  <div class="wrap pledge-grid">
+    <div class="pledge-head"><p class="eyebrow eyebrow-leaf">Nos engagements</p><h2 class="h2" id="pledge-h">Ce que nous tenons, <em>réponse après réponse</em>.</h2><p><a class="link-arrow" href="/empreinte">Notre démarche de sobriété <span aria-hidden="true">→</span></a></p></div>
+    <ol class="pledges">
+      <li class="reveal"><span class="pledge-n" aria-hidden="true">01</span><div><h3 class="h3">Rester petit.</h3><p>De tout petits modèles, performants et sobres, plutôt que toujours plus gros.</p></div></li>
+      <li class="reveal"><span class="pledge-n" aria-hidden="true">02</span><div><h3 class="h3">Afficher l’empreinte.</h3><p>Tokens, temps et énergie estimée, sous chaque réponse.</p></div></li>
+      <li class="reveal"><span class="pledge-n" aria-hidden="true">03</span><div><h3 class="h3">Publier nos chiffres.</h3><p>Sources, calculs et méthode, en clair, sur ce site.</p></div></li>
+      <li class="reveal"><span class="pledge-n" aria-hidden="true">04</span><div><h3 class="h3">Ne rien calculer pour rien.</h3><p>En veille quand personne ne l’utilise.</p></div></li>
+      <li class="reveal"><span class="pledge-n" aria-hidden="true">05</span><div><h3 class="h3">Garder vos données sous contrôle.</h3><p>Vos conversations restent dans votre navigateur.</p></div></li>
+      <li class="reveal"><span class="pledge-n" aria-hidden="true">06</span><div><h3 class="h3">Viser le 100 % renouvelable.</h3><p>Notre objectif : une électricité 100 % renouvelable pour chaque réponse, d’ici 2030.</p></div></li>
+    </ol>
+  </div>
 </section>
 
 <section class="section section-alt" id="fonctions" aria-labelledby="ft-h">
@@ -123,36 +186,7 @@
   </div>
 </section>
 
-<section class="section" id="comparaison" aria-labelledby="cmp-h">
-  <div class="wrap">
-    <div class="section-head center"><p class="eyebrow">Une requête, deux empreintes</p><h2 class="h2" id="cmp-h">Moins d’électricité. Beaucoup moins d’eau.</h2><p class="section-sub">Une requête courte sur Bird, face à une requête ChatGPT moyenne.<sup class="fn"><a href="#note-2" aria-label="note 2">2</a></sup></p></div>
-    <div class="cmp">
-      <article class="cmp-card">
-        <h3 class="cmp-k"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M13 3L5 13.5h6L10 21l8.5-11H12.5z"/></svg></span>Électricité</h3>
-        <p class="cmp-ratio"><span class="cmp-pre">plus de</span><span class="cmp-x num">4×</span><span class="cmp-post">moins d’électricité qu’une requête ChatGPT moyenne</span></p>
-        <ul class="bars"><li class="bar-row them"><span class="bar-label">ChatGPT · requête moyenne<sup class="fn"><a href="#note-3" aria-label="note 3">3</a></sup></span><span class="track" aria-hidden="true"><i class="fill them w100"></i></span><span class="bar-val num">0,34 Wh</span></li><li class="bar-row bird"><span class="bar-label">Bird S 4B</span><span class="track" aria-hidden="true"><i class="fill bird w21"></i></span><span class="bar-val num">≈ 0,07 Wh</span></li></ul>
-        <p class="cmp-foot">La même tâche, une fraction de l’énergie.</p>
-      </article>
-      <article class="cmp-card">
-        <h3 class="cmp-k"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8 5-13 15-14-.5 9.5-5.5 14.5-13.5 14.5"/><path d="M5 19c3-4 6-6.5 10-8.5"/></g></svg></span>Eau</h3>
-        <p class="cmp-ratio"><span class="cmp-pre">environ</span><span class="cmp-x num">30×</span><span class="cmp-post">moins d’eau qu’une requête ChatGPT moyenne</span></p>
-        <ul class="bars"><li class="bar-row them"><span class="bar-label">ChatGPT · requête moyenne<sup class="fn"><a href="#note-3" aria-label="note 3">3</a></sup></span><span class="track" aria-hidden="true"><i class="fill them w100"></i></span><span class="bar-val num">0,32 mL</span></li><li class="bar-row bird"><span class="bar-label">Bird S 4B</span><span class="track" aria-hidden="true"><i class="fill bird w3"></i></span><span class="bar-val num">≈ 0,011 mL</span></li></ul>
-        <p class="cmp-foot">Une goutte, littéralement.</p>
-      </article>
-    </div>
-    <p class="center-link"><a class="link-arrow" href="/empreinte">Tous nos chiffres <span aria-hidden="true">→</span></a></p>
-  </div>
-</section>
-
-
-<section class="section section-alt" id="pourquoi" aria-labelledby="why-h">
-  <div class="wrap">
-    <div class="section-head"><p class="eyebrow">Pourquoi petit</p><h2 class="h2" id="why-h">Petit, c’est plus malin.</h2></div>
-    <ul class="whys"><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19c0-8 5-13 15-14-.5 9.5-5.5 14.5-13.5 14.5"/><path d="M5 19c3-4 6-6.5 10-8.5"/></g></svg></span><h3 class="why-h">Sobre.</h3><p>Cent fois plus petit qu’un grand modèle dense : moins de calcul à chaque mot et, par requête courte, plus de 4 fois moins d’électricité qu’une requête ChatGPT moyenne.</p></li><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" d="M13 3L5 13.5h6L10 21l8.5-11H12.5z"/></svg></span><h3 class="why-h">Léger.</h3><p>En veille quand personne ne l’utilise : aucun calcul quand il n’y a rien à faire.</p></li><li class="why reveal"><span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><g fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" stroke-linejoin="round"/><circle cx="12" cy="12" r="3"/></g></svg></span><h3 class="why-h">Transparent.</h3><p>Sous chaque réponse, Bird affiche ses tokens, son temps de calcul et l’énergie estimée. Bird vous montre ce que chaque réponse a coûté.</p></li></ul>
-  </div>
-</section>
-
-<section class="section section-alt section-follow" id="objectifs" aria-labelledby="go-h">
+<section class="section section-alt" id="objectifs" aria-labelledby="go-h">
   <div class="wrap">
     <div class="section-head"><p class="eyebrow eyebrow-leaf">Nos objectifs</p><h2 class="h2" id="go-h">Petit par nature. Renouvelable demain.</h2><p class="section-sub">La sobriété commence par la taille du modèle. La suite se joue sur l’énergie qui l’alimente.</p></div>
     <ol class="goals"><li class="goal reveal"><p class="goal-k">Prochaine étape</p><h3 class="h3">Une énergie toujours plus bas carbone.</h3><p>Chaque réponse de Bird, alimentée par une électricité toujours plus propre.</p></li><li class="goal reveal"><p class="goal-k">Objectif 2030</p><h3 class="h3">100 % renouvelable.</h3><p>Une électricité 100 % renouvelable pour chaque réponse, d’ici 2030.</p></li><li class="goal reveal"><p class="goal-k">Objectif</p><h3 class="h3">Encore plus petit.</h3><p>Des modèles plus légers encore, dédiés aux tâches simples.</p></li><li class="goal reveal"><p class="goal-k">Objectif</p><h3 class="h3">Toujours avec vous.</h3><p>Un Bird si léger qu’il accompagne vos équipes partout.</p></li></ol>
