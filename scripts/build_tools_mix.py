@@ -681,8 +681,24 @@ def false_triggers(rng):
         gen.append(("nt15", f"traduis ce paragraphe en {x}", "", False))
     for x in ("CDD et CDI", "SAS et SARL", "brut et net", "HT et TTC"):
         gen.append(("nt15", f"explique la différence entre {x}", "", False))
+    for a, s in SUBJECTS[:10]:  # writing about a picture is a text task: no image search
+        de = _de(a, s) if a else "de " + s
+        for x in ("notre newsletter", "Instagram", "le site", "notre blog"):
+            gen.append(("nt16", f"rédige la légende d'une photo {de} pour {x}", "", False))
+        gen.append(("nt16", f"écris un texte alternatif pour la photo {de}", "", False))
+    figs = ["Paris 12, Lyon 8, Marseille 5", "Q1 40, Q2 55, Q3 61", "Nord 120, Sud 95, Est 80, Ouest 60"]
+    for fig in figs + ["janvier 14, février 18, mars 21"]:  # a table asked for: a table, never a chart
+        gen.append(("nt17", f"mets en forme ce tableau : {fig}", "", False))
+        gen.append(("nt17", f"fais un tableau propre avec ces chiffres : {fig}", "", False))
+        gen.append(("nt17", f"présente ces données sous forme de tableau : {fig}", "", False))
     for tid, text, kind, web in gen:
         yield tid, "fr", text, None, _lab([_m("office", kind=kind)] if kind else [], web=web)
+    for x in SUBJECTS_EN[:6]:
+        yield "nte2", "en", f"write a caption for a photo of {x}", None, _lab([])
+        yield "nte2", "en", f"suggest alt text for our picture of {x}", None, _lab([])
+    for fig in ("Berlin 7, Madrid 4, Rome 3", "Q1 40, Q2 55, Q3 61", "north 120, south 95, east 80"):
+        yield "nte3", "en", f"format this table: {fig}", None, _lab([])
+        yield "nte3", "en", f"put these figures in a table: {fig}", None, _lab([])
     for x in ("sales", "revenue", "demand"):
         for y in ("Q3", "next year", "2027"):
             yield "nte1", "en", f"{x} forecast for {y}", None, _lab([])

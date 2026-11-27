@@ -277,9 +277,13 @@ _CLOCK_NOT = re.compile(r"\bentre\s+\d{1,2}\s*h|\bbetween\s+\d{1,2}\s*(?:am|pm)?
                         re.I)  # fmt: skip
 _IMG_NOT = re.compile(
     r"\b(?:image de marque|droit à l'image|image (?:de|du) (?:l'entreprise|la soci[ée]t[ée]|service)|vaut mille mots|"
-    r"photos? de profil|images? de synth[èe]se|photo sur un cv)\b",
+    r"photos? de profil|images? de synth[èe]se|photo sur un cv)\b|"
+    # writing about a picture is a text task: « rédige la légende d'une photo », « write a caption for a photo »
+    r"\b(?:l[ée]gendes?|captions?|alt[- ]text|textes? alternatifs?)\b",
     re.I,
 )
+# A table, not a chart: « mets en forme ce tableau : Paris 12, Lyon 8 » (unless a chart word is there too)
+_TABLE = re.compile(r"\b(?:tableaux?(?!\s+de\s+bord)|tables?(?!\s+of\s+contents))\b", re.I)
 
 
 _CHART_FALSE = re.compile(  # trends and careers with no chart noun: « les tendances du marketing digital en 2026 »
@@ -343,7 +347,8 @@ def veto_reason(call: Call, text: str, *, attached: bool = False, lang: str = "f
         bad = clock._NOT_CLOCK.search(t) or _CLOCK_NOT.search(t)
         return "clock false trigger" if bad and not clock.detect(t) else ""
     if call.tool == "make_chart":
-        bad = A._NOT_CHART.search(t) or A.chart_howto(t) or (_CHART_FALSE.search(t) and not A._CHART_ASK.search(t))
+        bad = A._NOT_CHART.search(t) or A.chart_howto(t)
+        bad = bad or ((_CHART_FALSE.search(t) or _TABLE.search(t)) and not A._CHART_ASK.search(t))
         fires = "make_chart" not in A.route(t, attached)
         return "chart false trigger" if bad and not fires else ""
     if call.tool == "images":

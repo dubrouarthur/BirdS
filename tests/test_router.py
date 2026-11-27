@@ -227,10 +227,28 @@ def test_grounding_keeps_numbers_and_kinds_the_user_wrote(call, text):
         ("mets une photo de l'équipe dans le document", R.Call("get_weather", {"place": "document"})),
         ("dirigeants de PME : 5 conseils", R.Call("find_company", {"name": "PME"})),
         ("le prix est de 30 €/mois", R.Call("find_company", {"name": "mois"})),
+        # found in the app with the model router: a caption is text, a table is not a chart
+        ("Peux-tu rédiger la légende d une photo de la tour Eiffel pour notre newsletter ?",
+         R.Call("images", {"subject": "tour Eiffel"})),
+        ("write a caption for a photo of the Golden Gate Bridge", R.Call("images", {"subject": "Golden Gate Bridge"})),
+        ("Mets en forme ce tableau : Paris 12, Lyon 8, Marseille 5", R.Call("make_chart", {})),
+        ("format this table: Paris 12, Lyon 8, Marseille 5", R.Call("make_chart", {})),
     ],
-)
+)  # fmt: skip
 def test_veto_blocks_known_false_triggers(text, call):
     assert R.veto_reason(call, text)
+
+
+@pytest.mark.parametrize(
+    "text,call",
+    [
+        ("des photos de la tour Eiffel", R.Call("images", {"subject": "tour Eiffel"})),
+        ("un tableau et un graphique : Paris 12, Lyon 8", R.Call("make_chart", {})),
+        ("fais un tableau de bord des ventes : janvier 12, février 15", R.Call("make_chart", {})),
+    ],
+)
+def test_veto_keeps_pictures_and_charts_the_user_asked_for(text, call):
+    assert R.veto_reason(call, text) == ""
 
 
 def test_veto_never_blocks_what_the_parsers_start_on_the_bench():
