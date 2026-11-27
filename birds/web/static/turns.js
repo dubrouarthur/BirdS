@@ -30,6 +30,7 @@ import { openEditor } from "./editor.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { renderWidgets, widgetsText } from "./widgets.js";
 import { renderAgents } from "./agents.js";
+import { canvasCard } from "./canvas.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1542,6 +1543,7 @@ function fillAssistant(el, turn, isLast) {
     renderCharts(turn),
     renderWebImages(turn),
     widgetsFor(turn, entry),
+    canvasCard(turn), // the deck, document, page or sheet of this turn, in the canvas
     basedOn(turn),
     (!turn.crew || turn.crew.done || turn.live?.state === "waking") && liveLine(turn),
     renderConfirm(turn),

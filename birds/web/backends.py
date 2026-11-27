@@ -547,6 +547,21 @@ class DemoBackend:
         getattr(run, "scenario_" + scenario)()
 
 
+
+def canvas_ref(tool: str, arguments: dict, lang: str) -> dict | None:
+    """A demo file made by a trained tool, as the answer's canvas reference (« Ouvrir dans le canevas »)."""
+    from types import SimpleNamespace
+
+    from birds.web import canvas_web
+
+    try:
+        run = SimpleNamespace(steps=[SimpleNamespace(tool=tool, error=None, arguments=arguments)], canvas=None)
+        canvas_web.adopt_files(run, None, lang)
+        return canvas_web.ref(run)
+    except Exception:  # noqa: BLE001 - the demo answer never fails for the canvas
+        return None
+
+
 class _DemoRun:
     def __init__(self, backend: DemoBackend, request: ChatRequest, ctx: RunContext, lang: str) -> None:
         self.b, self.req, self.ctx, self.lang = backend, request, ctx, lang
@@ -633,6 +648,7 @@ class _DemoRun:
                 "code_checks": code_checks(content),
                 "widgets": widgets or [],
                 **({"memo": self._memo()} if self.context else {}),
+                **({"canvas": self.adopted} if getattr(self, "adopted", None) else {}),  # the file, in the canvas too
             }
         )
         prompt = 60 + sum(len(m["content"]) for m in self.req.messages) // 4 + self.extra_prompt
@@ -675,6 +691,7 @@ class _DemoRun:
             entry = inline_file(tmp / hctx.files[0], preview, self.ctx.max_inline_file_bytes)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+        self.adopted = canvas_ref(tool, arguments, self.lang)  # the file is offered in the canvas too
         self.extra_completion += len(json.dumps(arguments, ensure_ascii=False)) // 4
         self.ctx.emit(step_event(index, tool, shown, "done", summary, time.monotonic() - start))
         return entry
