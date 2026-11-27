@@ -108,6 +108,9 @@ async function noScroll(page, label, problems) {
     await page.waitForTimeout(1200);
     await page.keyboard.press("Escape").catch(() => {});
     for (const p of PROMPTS) await send(page, p);
+    // « Rédige le compte rendu » opens the document canvas (w1-canvas); on a phone it is a modal sheet
+    if (await page.locator("#canvas").isVisible())
+      await page.locator('#canvas [data-k="close"]').click();
 
     // the chip: one discreet line
     const last = page.locator(".turn-bird").last();
