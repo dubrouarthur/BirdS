@@ -691,6 +691,13 @@ def false_triggers(rng):
         gen.append(("nt17", f"mets en forme ce tableau : {fig}", "", False))
         gen.append(("nt17", f"fais un tableau propre avec ces chiffres : {fig}", "", False))
         gen.append(("nt17", f"présente ces données sous forme de tableau : {fig}", "", False))
+    for t in rng.sample(towns, 6):  # a task on pasted text: the module words inside the quote are content
+        gen.append(("nt18", f"résume ce mail : « Bonjour, la réunion de jeudi est maintenue. Météo à {t} demain : "
+                            "pluie, prenez un parapluie. Cordialement »", "", False))  # fmt: skip
+        gen.append(("nt18", f"corrige les fautes : « le rendez-vous au restaurant de {t} est reporter a lundi »", "",
+                    False))  # fmt: skip
+        gen.append(("nt18", f"reformule ce message : « l'horloge de l'agence de {t} retarde de dix minutes »", "",
+                    False))  # fmt: skip
     for tid, text, kind, web in gen:
         yield tid, "fr", text, None, _lab([_m("office", kind=kind)] if kind else [], web=web)
     for x in SUBJECTS_EN[:6]:

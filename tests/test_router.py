@@ -313,6 +313,46 @@ def test_model_mode_lets_the_model_say_no_and_hybrid_keeps_a_confident_parser_ca
     assert d.source == "hybrid" and d.tools() == ["get_weather"]
 
 
+@pytest.mark.parametrize(
+    "text,parser",
+    [
+        ("Résume ce mail : « Bonjour, la réunion de demain est maintenue. Météo à Lyon demain : pluie, prenez un "
+         "parapluie. Cordialement »", "get_weather"),
+        ("Analyse ce verbatim client : « l'horloge de la salle de réunion à New York retarde »", "find_places"),
+        ("Résume ce mail : Bonjour, la réunion de demain est maintenue. Météo à Lyon demain : pluie.", "get_weather"),
+        ("Translate into French: \"what time is it in Tokyo right now, asked the customer\"", "clock"),
+    ],
+)  # fmt: skip
+def test_hybrid_never_overrules_the_model_with_a_call_read_in_pasted_text(text, parser):
+    assert parser in R.regex_decision(text).tools()  # the parsers' known false trigger
+    d = R.decide(FakeClient([j([])]), TOK, text, mode="hybrid")
+    assert d.source == "hybrid" and parser not in d.tools() and parser in d.meta["not_merged"]
+
+
+@pytest.mark.parametrize(
+    "text,call",
+    [  # the live router's own false triggers on pasted text (router_eval, family « pasted »)
+        ("Analyse ce verbatim : « je cherche une pharmacie près de la gare de Lyon et rien n est indiqué »",
+         R.Call("find_places", {"query": "pharmacy", "near": "gare de Lyon"})),
+        ("Reformule ce message : « 100 euros en dollars, ça fait combien maintenant ? demande le client »",
+         R.Call("convert_currency", {"amount": 100, "from": "EUR", "to": "USD"})),
+        ("Résume ce compte rendu : « Point client chez Michelin, quelle heure est-il à Tokyo pour le call »",
+         R.Call("clock", {"cities": ["Tokyo"], "mode": "time"})),
+    ],
+)  # fmt: skip
+def test_veto_blocks_a_call_read_only_in_pasted_text(text, call):
+    assert R.veto_reason(call, text) == "only in the pasted text"
+    assert R.veto_reason(call, "Corrige : « on se voit demain au bureau » et " + text.split("« ", 1)[1]) == ""
+
+
+def test_hybrid_still_adds_a_parser_call_from_the_users_own_instruction():
+    text = "Corrige : « je vais au restaurant demain soir avec Paul » et trouve-moi un restaurant à Lyon"
+    assert R.own_words(text) is not None
+    d = R.decide(FakeClient([j([])]), TOK, text, mode="hybrid")
+    assert d.tools() == ["find_places"]
+    assert R.own_words("météo à Lyon demain") is None and R.own_words("Résume la réunion de 14:30 à Lyon") is None
+
+
 def test_the_router_prompt_carries_catalogue_examples_hints_previous_turn_and_words():
     llm = FakeClient([j([])])
     hist = [{"role": "user", "content": "météo à Lyon demain"},

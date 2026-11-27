@@ -323,6 +323,10 @@ def veto_reason(call: Call, text: str, *, attached: bool = False, lang: str = "f
     t = text or ""
     if _bad_place(call):
         return "not a place"
+    own = own_words(t)  # a task on pasted text: arguments read only inside that text are content, not a request
+    if own is not None and call.tool in _PLACE_ARGS | {"convert_currency": (), "find_company": ()}:
+        if ground(call, own, context, lang):
+            return "only in the pasted text"
     follow = bool(context) and f": {call.tool} " in context
     if call.tool == "get_weather":
         bad = intents._WX_NEVER.search(t) or intents._WX_FALSE_ASK.search(t)
@@ -659,15 +663,50 @@ def _fallback(base: Decision, why: str, meta: dict) -> Decision:
     return Decision(list(base.modules), base.agent, base.needs_web, "fallback", {**meta, "fallback": why})
 
 
-def merge(model: Decision, base: Decision) -> Decision:
-    """hybrid: the model's decision, plus a confident parser call of a family the model left out."""
+# A task on text the user hands over (« résume ce mail : « … » », « analyse ce verbatim : … »): what the parsers
+# read inside that text is content to work on, not a request.
+_TEXT_TASK = re.compile(
+    r"\b(?:r[ée]sum\w*|synth[ée]tis\w*|corrig\w*|tradui\w*|reformul\w*|r[ée][ée]cri\w*|relis|relire|relecture|"
+    r"analys\w*|am[ée]lior\w*|simplifi\w*|raccourci\w*|summari[sz]\w*|translat\w*|proofread\w*|rewrit\w*|"
+    r"rephras\w*|correct\b|fix the (?:typos|grammar)|analy[sz]e|improve|shorten|simplify|tl;?dr)\b",
+    re.I,
+)
+_QUOTED = re.compile(r"«[^»]{12,}»?|“[^”]{12,}”?|\"[^\"]{12,}\"?|```.{12,}?(?:```|$)", re.S)
+
+
+def own_words(text: str) -> str | None:
+    """The user's instruction without the text they hand over, when the request is a task on pasted text
+    (« résume ce mail : « … » »); None for any other request."""
+    t = text or ""
+    m = _QUOTED.search(t)
+    head = t[: m.start()] if m else t.split(":", 1)[0] if ":" in t else ""
+    rest = t[len(head) :]
+    if not head or len(rest.strip()) < 12 or not _TEXT_TASK.search(head):
+        return None
+    return (head + " " + (_QUOTED.sub(" ", rest) if m else "")).strip()
+
+
+def merge(model: Decision, base: Decision, own: Decision | None = None) -> Decision:
+    """hybrid: the model's decision, plus a confident parser call of a family the model left out. ``own`` is the
+    parsers' decision on the user's own instruction (``own_words``) for a task on pasted text: a parser call that
+    comes only from the pasted text is not added back over the model's choice."""
     mods = list(model.modules)
     fam = {catalog.BY_NAME[c.tool].family for c in mods}
     for c in base.modules:
-        if catalog.BY_NAME[c.tool].kind != catalog.HINT and catalog.BY_NAME[c.tool].family not in fam:
-            mods.append(c)
+        if catalog.BY_NAME[c.tool].kind == catalog.HINT or catalog.BY_NAME[c.tool].family in fam:
+            continue
+        if own is not None and own.get(c.tool) is None:
+            model.meta.setdefault("not_merged", []).append(c.tool)
+            continue
+        mods.append(c)
     return Decision(mods[: catalog.MAX_MODULES], model.agent, model.needs_web or base.needs_web, "hybrid",
                     dict(model.meta))  # fmt: skip
+
+
+def own_decision(text: str, **kw) -> Decision | None:
+    """The parsers' decision on the user's own instruction, for a task on pasted text; None otherwise."""
+    own = own_words(text)
+    return None if own is None else regex_decision(own, **kw)
 
 
 def decide(
@@ -724,7 +763,7 @@ def decide(
     meta.update({"dropped": dropped, "vetoed": [t for t, _ in vetoed], "repaired": not structured})
     d.meta = meta
     if mode == "hybrid":
-        d = merge(d, base)
+        d = merge(d, base, own_decision(text, history=history, attached=attached, lang=lang))
     d.meta.update({"tools": d.tools(), "arg_keys": {c.tool: sorted(c.args) for c in d.modules}, "agent": d.agent,
                    "needs_web": d.needs_web, "source": d.source})  # fmt: skip
     return d

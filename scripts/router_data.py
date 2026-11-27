@@ -28,6 +28,28 @@ RICH = tuple(m.name for m in catalog.MODULES if m.kind != catalog.HINT)
 _REALISTIC = {"chart": "make_chart", "event": "event"}
 
 
+# Tasks on pasted text: what the parsers read inside the quoted text is content, not a request. Router families only:
+# the parsers fire on most of the "no" items (a known limit of the regex path), so they stay off the trigger bench.
+PASTED_NO = [
+    "Résume ce mail : « Bonjour, la réunion de demain est maintenue. Météo à Lyon demain : pluie, prenez un "
+    "parapluie. Cordialement »",
+    "Analyse ce verbatim client : « l'horloge de la salle de réunion à New York retarde »",
+    "Traduis en anglais : « Rendez-vous jeudi à 14h au restaurant Le Florian à Lyon, il fera beau »",
+    "Corrige les fautes : « la reunion de lundi a Marseille est reporter, la météo a Marseille demain est mauvaise »",
+    "Reformule ce message : « 100 euros en dollars, ça fait combien maintenant ? demande le client »",
+    'Summarize this email: "Hi team, the weather in London tomorrow looks bad, so the offsite moves to Friday"',
+    "Résume ce compte rendu : « Point client chez Michelin à Clermont-Ferrand, quelle heure est-il à Tokyo pour le "
+    "call »",
+    "Analyse ce verbatim : « je cherche une pharmacie près de la gare de Lyon et rien n est indiqué »",
+]
+PASTED_YES = [  # (ask, the module its own instruction starts)
+    ("Corrige : « je vais au restaurant demain soir avec Paul » et trouve-moi un restaurant à Lyon", "find_places"),
+    ('Proofread: "see you at the office tomorrow morning, team" and show me restaurants near Gare du Nord',
+     "find_places"),
+    ("Corrige : « on se voit demain au bureau pour le point » et quelle heure est-il à Tokyo ?", "clock"),
+]  # fmt: skip
+
+
 def _history(prev) -> list[dict] | None:
     """The conversation a follow-up comes after: the previous turn's memo, as the server writes it."""
     if prev is None:
@@ -95,6 +117,8 @@ def items() -> list[dict]:
         tool = _REALISTIC.get(fam, fam)
         out.append(_item("realistic", q, "yes", [tool], {"tool": tool, "args": {}}))
     out += [_item("realistic", q, "no", RICH) for q in B.OFFICE_NO]
+    out += [_item("pasted", q, "yes", [t], {"tool": t, "args": {}}) for q, t in PASTED_YES]
+    out += [_item("pasted", q, "no", RICH) for q in PASTED_NO]
     for fam, yes, no in (("agent", B.AGENT_YES, B.AGENT_NO), ("office_agent", B.OFFICE_AGENT_YES, B.OFFICE_AGENT_NO),
                          ("agent_study", B.STUDY_YES, B.STUDY_NO)):  # fmt: skip
         out += [_item(fam, q, "yes", [], None, agent=True) for q in yes]

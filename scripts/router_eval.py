@@ -57,12 +57,16 @@ def run(llm, tok, data, *, mode: str, structured: str, budget: float, lang_of) -
         d = R.decide(llm, tok, it["text"], history=it["history"], lang=lang, mode=mode, structured=structured,
                      budget=budget, base=base)  # fmt: skip
         wall = time.monotonic() - t0
-        # hybrid is the same call, merged afterwards with the parsers: scored from this one call
-        h = d if d.source in ("fallback", "regex") or mode == "hybrid" else R.merge(d, base)
-        jm, jb, jh = D.judge(d, it), D.judge(base, it), D.judge(h, it)
+        # hybrid is the same call, merged afterwards with the parsers: scored from this one call. ``plain`` is the
+        # merge before own_words (every parser call of a family the model left out comes back), kept for comparison
+        own = R.own_decision(it["text"], history=it["history"], lang=lang)
+        h = d if d.source in ("fallback", "regex") or mode == "hybrid" else R.merge(d, base, own)
+        p = d if d.source in ("fallback", "regex") or mode == "hybrid" else R.merge(d, base)
+        jm, jb, jh, jp = D.judge(d, it), D.judge(base, it), D.judge(h, it), D.judge(p, it)
         rows.append({**{k: it[k] for k in ("family", "label", "text")}, "ok": jm["ok"], "pred": jm["pred"],
                      "regex_ok": jb["ok"], "regex_pred": jb["pred"],
-                     "hybrid_ok": jh["ok"], "hybrid_pred": jh["pred"], "source": d.source,
+                     "hybrid_ok": jh["ok"], "hybrid_pred": jh["pred"], "plain_ok": jp["ok"], "plain_pred": jp["pred"],
+                     "source": d.source,
                      "fallback": d.meta.get("fallback"), "invalid": bool(d.meta.get("invalid")),
                      "seconds": d.meta.get("seconds", round(wall, 3)), "router": d.as_dict(),
                      "regex": base.as_dict(), "dropped": d.meta.get("dropped", []),
@@ -76,18 +80,22 @@ def report(rows: list[dict]) -> dict:
     model = D.summarise(rows)
     regex = D.summarise([{**r, "ok": r["regex_ok"], "pred": r["regex_pred"]} for r in rows])
     hybrid = D.summarise([{**r, "ok": r["hybrid_ok"], "pred": r["hybrid_pred"]} for r in rows])
+    plain = D.summarise([{**r, "ok": r.get("plain_ok", r["hybrid_ok"]), "pred": r.get("plain_pred", r["hybrid_pred"])}
+                         for r in rows])  # fmt: skip
     fmt = lambda v: "  -  " if v is None else f"{v:.3f}"  # noqa: E731
     trio = lambda x: f"{fmt(x['accuracy'])} {fmt(x['precision'])} {fmt(x['recall'])}"  # noqa: E731
     print(f"{'family':14s} {'n':>4s}   {'router acc/prec/rec':>17s}   {'hybrid acc/prec/rec':>17s}   "
-          f"{'regex acc/prec/rec':>17s}  wrong args")  # fmt: skip
+          f"{'plain merge':>17s}   {'regex acc/prec/rec':>17s}  wrong args")  # fmt: skip
     for fam in sorted(model):
         m = model[fam]
-        print(f"{fam:14s} {m['n']:4d}   {trio(m)}   {trio(hybrid[fam])}   {trio(regex[fam])}  {m['wrong_args']}")
+        print(f"{fam:14s} {m['n']:4d}   {trio(m)}   {trio(hybrid[fam])}   {trio(plain[fam])}   {trio(regex[fam])}  "
+              f"{m['wrong_args']}")  # fmt: skip
     lat = [r["seconds"] for r in rows if r["seconds"] is not None and r["source"] != "regex"]
     out = {
         "items": len(rows),
         "router_accuracy": round(sum(r["ok"] for r in rows) / len(rows), 3),
         "hybrid_accuracy": round(sum(r["hybrid_ok"] for r in rows) / len(rows), 3),
+        "plain_merge_accuracy": round(sum(r.get("plain_ok", r["hybrid_ok"]) for r in rows) / len(rows), 3),
         "regex_accuracy": round(sum(r["regex_ok"] for r in rows) / len(rows), 3),
         "latency_p50": _pct(lat, 0.5),
         "latency_p95": _pct(lat, 0.95),
@@ -96,7 +104,7 @@ def report(rows: list[dict]) -> dict:
         "vetoed": sum(bool(r["vetoed"]) for r in rows),
         "router_only_right": sum(r["ok"] and not r["regex_ok"] for r in rows),
         "regex_only_right": sum(r["regex_ok"] and not r["ok"] for r in rows),
-        "families": {"router": model, "hybrid": hybrid, "regex": regex},
+        "families": {"router": model, "hybrid": hybrid, "plain_merge": plain, "regex": regex},
     }
     print(json.dumps({k: v for k, v in out.items() if k != "families"}))
     return out
