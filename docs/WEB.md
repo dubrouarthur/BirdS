@@ -128,7 +128,7 @@ Le reçu d'une réponse reste une ligne discrète ; ouvert, il montre l'impact d
 | Réseau France (cycle de vie) | 29 g CO₂e/kWh (19,6 g en émissions directes) | 2025 | RTE, Bilan électrique 2025 : <https://analysesetdonnees.rte-france.com/en/annual-review-2025/keyfindings> | citation avec la source |
 | Réseau Union européenne | 213 g CO₂e/kWh | 2024 | Ember, European Electricity Review 2025 : <https://ember-energy.org/latest-insights/european-electricity-review-2025/five-years-of-progress/> | CC BY 4.0 |
 | Réseau monde | 473 g CO₂e/kWh | 2024 | Ember, Global Electricity Review 2025 : <https://ember-energy.org/latest-insights/global-electricity-review-2025/global-electricity-trends/> | CC BY 4.0 |
-| Eau par Wh | 0,26 mL pour 0,24 Wh (1,08 mL/Wh) | 2025 | Google, *Measuring the environmental impact of AI inference* : <https://arxiv.org/abs/2508.15734> | citation avec la source |
+| Eau par Wh (ratio publié par un grand fournisseur pour ses centres de données ; celui qui héberge Bird n'est pas connu) | 0,26 mL pour 0,24 Wh (1,08 mL/Wh) | 2025 | Google, *Measuring the environmental impact of AI inference* : <https://arxiv.org/abs/2508.15734> | citation avec la source |
 | Grand assistant, méthode publiée | 0,24 Wh par requête texte médiane | août 2025 | <https://cloud.google.com/blog/products/infrastructure/measuring-the-environmental-impact-of-ai-inference> | citation |
 | Grand assistant, sans méthode publiée | 0,34 Wh par requête moyenne | juin 2025 | <https://blog.samaltman.com/the-gentle-singularity> | citation |
 | Streaming vidéo, 1 h | 64 g CO₂e, dont 33 g de fabrication | 2026 | ADEME Impact CO2 (Base Empreinte) : <https://impactco2.fr/outils/usagenumerique/streamingvideo> | ADEME, réutilisation non commerciale avec mention de la source |

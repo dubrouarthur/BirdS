@@ -268,7 +268,7 @@ export function footprintAnswer(u, conv, { onOpenPage } = {}) {
         t("footprint.emissions"),
         range(f.gLow, f.gHigh, grams),
       ),
-      fig(approx(F.fmtWater(f.ml, L)), t("footprint.water"), kind),
+      fig(approx(F.fmtWater(f.ml, L)), t("footprint.water"), t("footprint.water.ratio")),
       fig(
         F.fmtDuration(f.gpuS, L),
         t("footprint.gpu"),
@@ -385,7 +385,11 @@ function hero(scope, sum, since, demo, rerender) {
             high: grams(F.grams(sum.high, g.g_per_kwh)),
           }),
       ),
-      fig(approx(F.fmtWater(F.water(sum.wh), L)), t("footprint.water"), kind),
+      fig(
+        approx(F.fmtWater(F.water(sum.wh), L)),
+        t("footprint.water"),
+        t("footprint.water.ratio"),
+      ),
       fig(F.fmtDuration(sum.gpuS, L), t("footprint.gpu"), null),
     ),
     gridChooser(rerender),

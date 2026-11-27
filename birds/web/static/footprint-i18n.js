@@ -7,6 +7,7 @@ export const FOOTPRINT_STRINGS = {
     "footprint.energy": "Énergie",
     "footprint.emissions": "Émissions",
     "footprint.water": "Eau",
+    "footprint.water.ratio": "au ratio d'un grand centre de données",
     "footprint.gpu": "Carte graphique",
     "footprint.range": "de {low} à {high}",
     "footprint.kind.estimated": "estimé",
@@ -96,7 +97,7 @@ export const FOOTPRINT_STRINGS = {
     "footprint.s1.big": "Grand modèle dense",
     "footprint.s2.title": "Moins d'énergie et d'eau par réponse",
     "footprint.s2.p":
-      "Ici, une réponse de Bird demande en moyenne ≈ {wh} et ≈ {ml} d'eau de refroidissement. Une requête médiane à un grand assistant : {refwh} et {refml}.",
+      "Ici, une réponse de Bird demande en moyenne ≈ {wh} et ≈ {ml} d'eau, au ratio publié d'un grand centre de données. Une requête médiane à un grand assistant : {refwh} et {refml}.",
     "footprint.s2.p.none":
       "Bird demande environ {perk} pour 1 000 tokens écrits, service complet compris. Une requête médiane à un grand assistant : {refwh} et {refml} d'eau.",
     "footprint.s2.bird": "Bird, une réponse",
@@ -120,7 +121,7 @@ export const FOOTPRINT_STRINGS = {
       "Bird est un modèle français : léger, libre d'être installé où l'on veut, transparent sur ce qu'il consomme.",
     "footprint.method.title": "Méthode et sources",
     "footprint.method.p":
-      "Énergie : estimée d'après les tokens lus et écrits (valeurs par token tirées de mesures publiées, service complet), ou mesurée quand le modèle tourne sur la même machine. Émissions = énergie × intensité carbone du réseau choisi. Eau = énergie × le ratio publié (0,26 mL pour 0,24 Wh). Équivalences = impact ÷ facteur de la source. L'entraînement n'est pas compté.",
+      "Énergie : estimée d'après les tokens lus et écrits (valeurs par token tirées de mesures publiées, service complet), ou mesurée quand le modèle tourne sur la même machine. Émissions = énergie × intensité carbone du réseau choisi. Eau = énergie × le ratio publié par un grand fournisseur pour ses centres de données (0,26 mL pour 0,24 Wh) : celui du centre qui héberge Bird n'est pas connu. Équivalences = impact ÷ facteur de la source. L'entraînement n'est pas compté.",
     "footprint.method.col.what": "Donnée",
     "footprint.method.col.value": "Valeur",
     "footprint.method.col.source": "Source",
@@ -148,6 +149,7 @@ export const FOOTPRINT_STRINGS = {
     "footprint.energy": "Energy",
     "footprint.emissions": "Emissions",
     "footprint.water": "Water",
+    "footprint.water.ratio": "at a large data centre's ratio",
     "footprint.gpu": "Graphics card",
     "footprint.range": "{low} to {high}",
     "footprint.kind.estimated": "estimated",
@@ -237,7 +239,7 @@ export const FOOTPRINT_STRINGS = {
     "footprint.s1.big": "Large dense model",
     "footprint.s2.title": "Less energy and water per answer",
     "footprint.s2.p":
-      "Here, a Bird answer takes on average ≈ {wh} and ≈ {ml} of cooling water. A median prompt to a large assistant: {refwh} and {refml}.",
+      "Here, a Bird answer takes on average ≈ {wh} and ≈ {ml} of water, at a large data centre's published ratio. A median prompt to a large assistant: {refwh} and {refml}.",
     "footprint.s2.p.none":
       "Bird takes about {perk} per 1,000 tokens written, whole service included. A median prompt to a large assistant: {refwh} and {refml} of water.",
     "footprint.s2.bird": "Bird, one answer",
@@ -260,7 +262,7 @@ export const FOOTPRINT_STRINGS = {
       "Bird is a French model: light, free to be installed anywhere, open about what it uses.",
     "footprint.method.title": "Method and sources",
     "footprint.method.p":
-      "Energy: estimated from the tokens read and written (per-token values from published measurements, whole service), or measured when the model runs on the same machine. Emissions = energy × carbon intensity of the chosen grid. Water = energy × the published ratio (0.26 mL for 0.24 Wh). Equivalents = impact ÷ the source's factor. Training is not counted.",
+      "Energy: estimated from the tokens read and written (per-token values from published measurements, whole service), or measured when the model runs on the same machine. Emissions = energy × carbon intensity of the chosen grid. Water = energy × the ratio a large provider published for its data centres (0.26 mL for 0.24 Wh): that of the data centre hosting Bird is not known. Equivalents = impact ÷ the source's factor. Training is not counted.",
     "footprint.method.col.what": "Item",
     "footprint.method.col.value": "Value",
     "footprint.method.col.source": "Source",
