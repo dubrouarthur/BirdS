@@ -85,6 +85,7 @@ export function recordFootprint(usage) {
 
 // ------------------------------------------------------------------ small pieces
 
+let gridIds = 0;
 /** The grid switch. Only the operator's declared grid is « the » grid; every other one is the reader's hypothesis. */
 function gridChooser(onChange) {
   const current = grid().key;
@@ -95,14 +96,12 @@ function gridChooser(onChange) {
   const label = t(
     current === "operator" ? "footprint.grid.label" : "footprint.grid.label.if",
   );
+  const id = `fp-grid-${(gridIds += 1)}`;
+  // toggle buttons (aria-pressed), each reachable with Tab: the radio pattern would need arrow keys
   return h(
     "div",
-    {
-      class: "fp-grid",
-      role: "radiogroup",
-      "aria-label": label,
-    },
-    h("span", { class: "fp-grid-label", text: label }),
+    { class: "fp-grid", role: "group", "aria-labelledby": id },
+    h("span", { class: "fp-grid-label", id, text: label }),
     h(
       "span",
       { class: "segs fp-segs" },
@@ -110,8 +109,7 @@ function gridChooser(onChange) {
         h("button", {
           type: "button",
           class: `seg${key === current ? " is-on" : ""}`,
-          role: "radio",
-          "aria-checked": String(key === current),
+          "aria-pressed": String(key === current),
           "data-grid": key,
           text: t(`footprint.grid.${key}`),
           onclick: () => {
