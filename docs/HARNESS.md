@@ -333,8 +333,9 @@ Experts), longueur (Courte / Standard / Approfondie), nombre de diapositives (3 
 80 caractères), sites à privilégier ou exclure (noms de domaine validés), accent (100 caractères). « Modifier » ne
 change que ces champs ; le serveur revalide chaque valeur (`crew_plan.apply_edits`) et les rend dans le brief commun
 par des gabarits (« Public : décideurs (l'essentiel d'abord…) »), jamais le texte brut comme instruction. Les
-sections deviennent des points vérifiés comme les autres. En Auto, confiance haute (3 signaux de charge ou plus) :
-départ après 5 s, compte à rebours visible, « Modifier » l'arrête ; Activé attend « Lancer » ; « Répondre sans
+sections deviennent des points vérifiés comme les autres. En Auto, tout plan part après 5 s (compte à rebours
+visible, « Modifier » l'arrête) : Auto ne bloque jamais, comme avant la carte de plan ; la confiance (haute à partir
+de 3 signaux de charge) est notée sur le plan, pas dans le délai. Activé attend « Lancer » ; « Répondre sans
 l'équipe » renvoie la demande en mode simple. Un client API sans `agent_flow` lance l'équipe aussitôt, comme avant.
 
 **Consignes en cours de route.** « Ajouter une consigne » : `POST /api/agent/note {run, kind, value}` avec un type

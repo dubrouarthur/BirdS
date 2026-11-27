@@ -285,7 +285,7 @@ async function autoStart(browser) {
   const t0 = Date.now();
   await page.waitForSelector("[data-crew-now]", { timeout: 12000 });
   const waited = (Date.now() - t0) / 1000;
-  check(waited >= 3 && waited <= 8, `Auto, high confidence: starts after the countdown (${waited.toFixed(1)} s)`);
+  check(waited >= 3 && waited <= 8, `Auto: starts after the countdown (${waited.toFixed(1)} s)`);
   await idle(page);
   // a second request: « Modifier » stops the countdown
   await send(page, DECK, { plan: "keep" });

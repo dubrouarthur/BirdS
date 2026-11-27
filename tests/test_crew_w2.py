@@ -52,11 +52,13 @@ def test_the_plan_of_a_deck_is_typed_and_built_in_code():
         pub["labels"]["deliverable"] == "Présentation (.pptx)"
         and ["decision", "Décideurs"] in pub["choices"]["audience"]
     )
-    # Auto: started on load signals, so the card counts down; Activé waits for « Lancer »
-    assert (
-        cp.auto_start(p, "auto") in (5, None)
-        and cp.auto_start(cp.make_plan(decide(ASK_DECK, mode="on"), ASK_DECK), "on") is None
-    )
+    # Auto never blocks: every Auto plan counts down, whatever its confidence; Activé waits for « Lancer »
+    import dataclasses
+
+    assert p.confidence == "high" and cp.auto_start(p, "auto") == cp.AUTO_START_S == 5
+    assert cp.auto_start(dataclasses.replace(p, confidence="normal"), "auto") == 5
+    on = cp.make_plan(decide(ASK_DECK, mode="on"), ASK_DECK)
+    assert cp.auto_start(on, "on") is None and cp.auto_start(dataclasses.replace(on, confidence="high"), "on") is None
 
 
 def test_plan_edits_change_typed_fields_only_and_every_value_is_checked():

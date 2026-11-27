@@ -26,7 +26,7 @@ MAX_SECTIONS = 8
 MAX_HEADING = 80
 MAX_FOCUS = 100
 MAX_SITES = 6
-AUTO_START_S = 5  # Auto, high confidence: the team starts after this countdown unless the user edits the plan
+AUTO_START_S = 5  # Auto: the team starts after this countdown unless the user edits the plan (Auto never blocks)
 
 LABELS = {
     "fr": {
@@ -155,7 +155,7 @@ class Plan:
     exclude: list = field(default_factory=list)  # domains never read nor cited
     focus: str = ""
     web: bool = False  # the recipe searches the web (the sites fields apply)
-    confidence: str = "normal"  # "high": Auto may start after AUTO_START_S
+    confidence: str = "normal"  # "high": three load signals or more (recorded on the plan and in the evals)
     edited: bool = False
 
     def public(self, lang: str = "fr") -> dict:
@@ -222,14 +222,16 @@ def make_plan(decision, own: str = "", lang: str = "fr") -> Plan:
     elif re.search(r"\b(?:d[ée]taill[ée]e?|approfondie?|complet|complète|exhaustive?|in[- ]depth|detailed)\b",
                    own or "", re.I):  # fmt: skip
         p.length = "long"
-    # high confidence: started by Auto on at least three load signals (Activé always waits for « Lancer »)
+    # high confidence: at least three load signals (said on the plan; the countdown is the same in Auto)
     p.confidence = "high" if not decision.forced and heavy_count(sig) >= 3 else "normal"
     return p
 
 
 def auto_start(plan: Plan, mode: str) -> int | None:
-    """Seconds before an untouched plan starts by itself, or None (« Lancer » is needed)."""
-    return AUTO_START_S if mode == "auto" and plan.confidence == "high" else None
+    """Seconds before an untouched plan starts by itself, or None (« Lancer » is needed). Auto never blocks: the
+    model decided a team is worth it, so every Auto plan starts after the countdown (« Modifier » stops it), as
+    Auto started at once before the plan card existed. Activé waits for « Lancer »."""
+    return AUTO_START_S if mode == "auto" else None
 
 
 def apply_edits(plan: Plan, edits) -> tuple[Plan, list[str]]:
