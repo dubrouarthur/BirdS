@@ -1140,9 +1140,9 @@ def ledger(args: dict, *, texts: dict, allowed_by: dict, request: str = "", comp
             item = {"value": _with_unit(raw, part), "sentence": plain[:180], "status": "verified"}
             in_req = on_page(v, req_allowed)
             # a page « holds » a figure only when the figure is written on it: 37 is not on a page that says 40
-            # and 3, whatever 40 - 3 makes
+            # and 3, whatever 40 - 3 makes; a sentence that cites [n] is checked against n, never another page
             holder = next((n for n in cited if on_page(v, allowed_by.get(n, set()))), None)
-            if holder is None and not in_req:
+            if holder is None and not cited and not in_req:
                 holder = next((n for n in sorted(texts) if on_page(v, allowed_by.get(n, set()))), None)
             if holder is not None:
                 src = titles.get(holder, {})
@@ -1153,6 +1153,8 @@ def ledger(args: dict, *, texts: dict, allowed_by: dict, request: str = "", comp
                 item.update(origin="request", line=_line_with(raw, request))
             elif any(abs(v - c) <= max(0.5, abs(c) * 0.005) for c in comp):
                 item.update(origin="computed", line="")
+            elif cited:  # the page it cites does not hold it: said, not papered over with another page
+                item.update(origin="none", status="review", why="cited", n=cited[0], line="")
             elif any(supported(v, allowed_by.get(n, set()), tol=0.0) for n in texts) or supported(v, req_allowed | comp):
                 item.update(origin="none", status="review", why="derived", line="")  # worked out by the model
             else:

@@ -1249,7 +1249,7 @@ function checkRow(i) {
           : h("p", {
               class: "vc-why",
               text:
-                i.why === "claim" || i.why === "derived"
+                ["claim", "derived", "cited"].includes(i.why)
                   ? t(`agent.check.why.${i.why}`, { n: i.n || "" })
                   : [t(ORIGIN[i.origin]), i.line && `« ${i.line} »`]
                       .filter(Boolean)

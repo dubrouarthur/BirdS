@@ -455,3 +455,14 @@ def test_a_figure_the_page_only_allows_by_arithmetic_is_neither_cited_nor_verifi
                     computed=[1200])  # fmt: skip
     got = {i["value"]: (i["status"], i["origin"], i.get("why")) for i in led["items"]}
     assert got == {"1 200 €": ("verified", "computed", None), "37 €": ("review", "none", "derived")}
+
+
+def test_the_card_never_swaps_the_page_a_sentence_cites_for_another_one():
+    texts = {1: PAGE_40, 2: "Autre page, 7 items."}
+    by = {n: cc.allowed_figures(t) for n, t in texts.items()}
+    srcs = SRC_1 + [{"n": 2, "title": "U", "url": "https://other.org/b"}]
+    led = cc.ledger({"sections": [{"heading": "X", "content": "Le marché pèse 40 milliards [2]. Il pèse 40 milliards."}]},
+                    texts=texts, allowed_by=by, sources=srcs)  # fmt: skip
+    cited, plain = led["items"]  # review first
+    assert cited["status"] == "review" and cited["why"] == "cited" and cited["n"] == 2 and "site" not in cited
+    assert plain["status"] == "verified" and plain["n"] == 1 and plain["site"] == "ex.org"  # uncited: the page holding it
