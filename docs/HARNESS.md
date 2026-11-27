@@ -569,3 +569,121 @@ pour le jeu seul (7,15 M jetons), **≈ 2 h** avec un rappel du mélange v1 à p
 `--flavor` que `scripts/launch.py`), soit quelques dollars ; aucun prix n'est repris ici. Ensuite : `router_eval.py`
 sur `bench_heldout` et `eval.jsonl`, et banc complet, avant/après, chiffres notés ici. À valider d'abord par un essai
 court (`--max-steps 50`).
+
+## 13. Entre les actions : plan de tâche, réparations, mémoire des résultats
+
+Code : `birds/harness/plan.py`, `repair.py`, `facts.py` (branchés dans `agent.py`) · tests : `tests/test_task_plan.py`,
+`tests/scenarios/` · navigateur : `tests/e2e/plan_checklist.spec.js` · évaluation réelle : `scripts/harness_eval.py`.
+
+Un modèle de 4 Md enchaîne mal les demandes en plusieurs étapes : il fait le tableau et oublie les totaux et le
+mail, répond avant d'avoir lu la pièce jointe, appelle `google_search` ou `read_file(file=…)`, écrit l'appel en
+JSON, arrondit 1 284,37 € en « environ 1 284 € », répond en anglais à une question en français. Le harnais porte
+cette expérience, sans appel de modèle supplémentaire tant que rien ne manque, et au plus **un** rappel.
+
+**Plan de tâche** (`plan.extract`, mots de l'utilisateur seulement) : liste des livrables demandés — tableau,
+totaux, mail, présentation, document, tableur, graphique, synthèse, comparaison, recherche web, lecture de la page
+donnée, lecture du fichier joint — dans l'ordre de la demande. Un nom ne compte que précédé d'un verbe de
+fabrication ou d'un article indéfini (« prépare un mail », « et un tableur ») ; « résume ce mail », « d'après le
+tableau », « crée un tableur avec les colonnes nom, prénom, email », « envoyer le compte rendu » n'en sont pas.
+Le plan n'est **actif** qu'à partir de deux éléments : une note courte s'ajoute au message (« cette demande
+comporte 3 éléments : 1. tableau ; 2. totaux ; 3. mail »), une ligne « [Bird checklist …] » suit le dernier
+résultat de chaque étape, cochée d'après ce qui s'est réellement passé (outil réussi, texte de la réponse et des
+fichiers). Une demande ordinaire garde son invite octet pour octet (testé). Deux éléments valent même seuls,
+parce que répondre sans eux, c'est répondre avant le résultat : lire un fichier joint **dans ce tour** (pas un
+fichier joint plus tôt, que l'application renvoie à chaque requête), et une recherche explicite : « cherche … » à
+l'impératif en tête de proposition, « sur internet / en ligne », « fais une recherche » (satisfaite aussi par un
+outil de fiche : « cherche un garage à Versailles ») ; jamais « je cherche à comprendre », « je recherche un
+stagiaire ». L'article doit gouverner le livrable : « une formule Excel », « une macro Excel » ne demandent pas de
+tableur, une question « comment faire un tableau croisé » ne demande aucun fichier. Un lien n'est une page à lire
+que si la demande le dit (« lis / résume / que dit cette page », ou un lien seul) ; un lien à insérer (lien
+d'inscription, signature) est du contenu, et la lecture d'un lien n'est vérifiée que dans un plan actif. Banc de
+déclenchement : aucune des 52 demandes de bureau ordinaires n'active de plan ; 936/939 (les 3 mêmes manques).
+
+**Vérification finale** (une fois par requête, avant d'accepter la réponse) : élément manquant, fichier joint non
+lu, chiffres clés absents, mauvaise langue → **un seul** rappel qui liste tout (« Not done yet… mail: call
+draft_email ; totaux: write the totals with their exact figures from the results: Total HT : 250,00 € ; … »).
+Pas après une question de clarification, ni pour un graphique quand un fichier a été produit. Si le modèle ne
+complète pas, le plan final dit ce qui manque (`Run.plan.partial`, `missing`) : l'interface affiche « Partiellement
+fait : mail manque. », et le mémo du tour garde « reste à faire : mail ». La réponse donnée avant un rappel de
+livrable (« Voici le tableau : … ») est gardée devant la nouvelle ; jamais après un rappel de lecture, de recherche,
+de chiffres ou de langue (c'était elle le problème), ni quand la nouvelle réponse la reprend déjà (mêmes lignes de
+tableau au séparateur près, ou l'essentiel de ses mots) ; une phrase antérieure qui refusait le livrable ensuite
+fait (« je ne peux pas envoyer de mail… ») est retirée.
+
+**Chiffres clés** (`facts.key_figures`) : lignes qui commencent par un libellé de total (Total HT/TTC, TVA, montant,
+net à payer…), dernier montant de la ligne (« TVA 20 % : 50,00 € » donne 50,00 €). Vérifiés seulement si la
+demande parle de totaux, montants ou TVA, et seulement ceux qu'elle nomme (« le total TTC » : pas la TVA). Sources :
+résultats d'outils du tour et messages de l'utilisateur et de l'historique (la facture d'un tour précédent).
+**Langue** : réponse d'au moins 40 lettres dont les mots courants sont au moins 3 fois plus ceux de l'autre langue
+(code, citations, liens, tableaux et notes entre crochets ignorés). Pas de vérification quand la demande demande
+une traduction ou une autre langue (« traduis en anglais », « réponds en anglais à ce client », « write it in
+French »).
+
+**Réparations** (`repair.py`, notées sur l'étape comme celles de `coerce.py`) : appel au format JSON
+(`<tool_call>{"name", "arguments"}</tool_call>` suivi de texte), JSON nu ou en bloc de code dans la prose,
+`read_file(path="x")` ; seulement pour un outil proposé à ce tour, et seulement quand la sortie *est* l'appel (en
+tête, après au plus une courte ligne ; jamais dans un exemple de code, jamais depuis une ligne `search()` ou
+`plot()` générique). Quand la demande porte sur du code ou un exemple (`repair.CODE_ASK`), ou après une injection
+repérée dans le tour, seule la balise `<tool_call>` est lue : une page qui fait recopier un appel JSON au modèle
+n'obtient ni `read_page` ni `web_search`. Une phrase qui cite un outil n'est jamais exécutée. Noms inventés (`google_search`, `send_email`, `create_presentation`, `functions.read_file`) ; noms
+d'arguments (`q`, `link`, `file`, `recipient`, `headers`, `data`, `titre`…) ; objet enveloppe `{"arguments": …}` ;
+ton français (« formel ») ; objet de mail absent (première ligne utile du corps) ; requête vide (les mots de
+l'utilisateur) ; `https://` ajouté ; chemin d'un fichier joint mal écrit (même nom dans un autre dossier, ou
+orthographe proche et unique). Un fichier introuvable : l'erreur liste les fichiers présents.
+
+**Mémoire des résultats** : une note par résultat (`Run.notes` : « read_file « facture.jpg »: 412 characters read;
+figures: Total HT : 250,00 € ; … »). Rappelée quand le modèle répète un appel (comparé à la casse et aux espaces
+près), et dans la dernière chance après une boucle ratée ; les totaux lus vont dans le mémo du tour (« chiffres lus :
+… »), donc « envoie ces totaux par mail » les retrouve au tour suivant, et dans le résumé des tours retirés.
+
+**Interface** : `birds/web/static/plan.js`. Événements `plan {items:[{kind,label,status}], done, total, final,
+partial?, missing?}` et `answer.plan`. Liste compacte repliable (pastilles cochées), ouverte pendant le tour, repliée
+quand tout est fait, ouverte avec la ligne « Partiellement fait » sinon ; chaque élément coché est lu par la zone
+`aria-live` (« Fait : présentation »). Démo : « Prépare une présentation … et un mail … » (port 9243 dans
+`tests/e2e/plan_checklist.spec.js`).
+
+**Mesure** (suite de scénarios, `python -m tests.scenarios.runner`, modèle scripté qui reproduit les erreurs d'un
+4B et réagit à ce que le harnais lui rend ; « avant » = e23b517 avec la même suite) :
+
+| famille                               | scénarios | avant  | après  | contrôles avant / après |
+| ------------------------------------- | --------- | ------ | ------ | ----------------------- |
+| OCR → tableau → totaux → mail         | 7         | 1      | 7      | 28/38 → 39/39           |
+| recherche → comparaison → graphique   | 8         | 3      | 8      | 36/43 → 43/43           |
+| fichier → synthèse → présentation     | 8         | 2      | 8      | 34/45 → 45/45           |
+| plusieurs livrables                   | 7         | 2      | 7      | 30/37 → 39/39           |
+| relances sur des résultats antérieurs | 6         | 2      | 6      | 22/31 → 31/31           |
+| erreurs d'outil et reprises           | 7         | 2      | 7      | 21/28 → 26/26           |
+| garde-fous (doublons, langue)         | 3         | 2      | 3      | 10/11 → 11/11           |
+| demandes ordinaires (témoins)         | 6         | 6      | 6      | 26/26 → 26/26           |
+| **total**                             | **52**    | **20** | **52** | **207/259 → 260/260**   |
+
+Générations moyennes 2,38 → 2,65 (le rappel unique, seulement quand il manque quelque chose ; témoins : 1,33 = 1,33).
+Limite : la suite a été écrite en même temps que les correctifs, par la même personne ; elle mesure les modes
+d'échec connus, pas un modèle réel. L'évaluation réelle (20 tâches, même rubrique, bras `on`/`off`) reste à lancer
+quand l'endpoint sera de nouveau disponible : `scripts/harness_eval.py --base-url … --arms on,off`.
+
+**Faux déclenchements corrigés (27/11/2026).** Revue sur le modèle réel : une traduction correcte réécrite en
+français, « je cherche à comprendre … » renvoyé vers `web_search`, « une formule Excel » comptée comme tableur,
+un lien d'inscription pris pour une page à lire, un `draft_email(...)` d'exemple de code exécuté, un tableau
+répété affiché deux fois. Huit scénarios témoins (`ordinary_translate_en`, `ordinary_write_in_french`,
+`ordinary_je_cherche`, `ordinary_excel_formula`, `ordinary_mail_with_link`, `ordinary_signature_link`,
+`ordinary_code_with_call_line`, `ordinary_json_example`) échouent tous sur 78c0c7d et passent ; suite : 60/60.
+
+**Évaluation réelle** (27/11/2026, endpoint vLLM 0.32, Bird S 4B, `scripts/harness_eval.py`, 1 passage par
+tâche, 12 tâches : les 8 témoins ci-dessus, `ordinary_mail`, `ordinary_question`, `ocr_table_totals_mail`,
+`multi_slides_mail`). « Avant » = branche de base ccr-f7b26c02-9v78gg (46bb440, sans plan ni réparations), avec la
+même suite et la même rubrique ; « après » = cette branche, plan actif.
+
+| bras                       | tâches réussies | contrôles | générations moy. | secondes moy. |
+| -------------------------- | --------------- | --------- | ---------------- | ------------- |
+| avant (base 46bb440)       | 5/12            | 51/62     | 1,50             | 3,1           |
+| après (w1-harness)         | 7/12            | 54/62     | 1,67             | 3,5           |
+
+Sur les 8 témoins, le harnais n'ajoute plus aucun rappel : mêmes générations qu'avant sur chacun (le surcoût
+moyen vient de `multi_slides_mail`, 1 → 3 générations, où le plan fait faire la présentation et le mail que la base
+ne faisait pas). Les échecs restants sont du modèle, identiques dans les deux bras : la traduction et l'exemple JSON
+appellent `web_search`, « write it in French » produit un document (2 générations), « je cherche à comprendre »
+et la signature reçoivent un refus prudent. Un passage par tâche, modèle échantillonné : l'écart avant / après sur
+`ocr_table_totals_mail` (TVA 50,00 € absente avant) peut tenir du tirage. Pour les témoins, la rubrique « contient »
+est générale (« welcom », « SOMME.SI | SUMIF », « linkedin.com/in/test ») ; la base a été re-notée sur ses réponses
+enregistrées après cet assouplissement (aucune génération de plus).

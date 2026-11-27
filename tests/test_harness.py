@@ -147,7 +147,7 @@ def test_search_read_cited_answer(tmp_path):
 
 
 def test_malformed_call_then_recovery(tmp_path):
-    agent, llm = make(tmp_path, [call("web_search", q="rates"), call("web_search", query="rates"), "Done."])
+    agent, llm = make(tmp_path, [call("web_search", foo="rates"), call("web_search", query="rates"), "Done."])
     run = agent.run("Find the rates")
     assert (
         run.stop_reason == "answer"
@@ -160,7 +160,7 @@ def test_malformed_call_then_recovery(tmp_path):
 
 def test_invalid_calls_stop_after_one_retry(tmp_path):
     agent, llm = make(
-        tmp_path, [call("web_search", q="a"), call("web_search", q="b"), call("web_search", q="c"), "never"]
+        tmp_path, [call("web_search", foo="a"), call("web_search", foo="b"), call("web_search", foo="c"), "never"]
     )
     run = agent.run("Find the rates")
     assert run.stop_reason == "invalid_tool_calls" and len(run.usage) == 3 and run.answer == agent_fallback("en")  # + the empty last answer

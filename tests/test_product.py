@@ -781,7 +781,8 @@ def test_scanned_pdf_read_once_per_conversation(tmp_path, monkeypatch):
     monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
     pages = ["Page un : facture 7.", "Page deux : total 1 250 €.", "Page trois : IBAN FR76."]
     tool = "<tool_call>\n<function=read_file>\n<parameter=path>\nscan.pdf\n</parameter>\n</function>\n</tool_call>"
-    llm = FakeClient([*pages, "Voici le résumé.", tool, "Le total est 1 250 €."])
+    # the first turn reads the PDF before summing it up (a summary without reading is reminded: plan.py)
+    llm = FakeClient([*pages, tool, "Voici le résumé.", tool, "Le total est 1 250 €."])
     app = create_app(Settings(rate_limit=0, demo_delay=0), server_backend=HarnessBackend(llm, _Tok()))
     doc = {"name": "scan.pdf", "content": _scanned_pdf(3), "encoding": "base64"}
     with TestClient(app) as c:

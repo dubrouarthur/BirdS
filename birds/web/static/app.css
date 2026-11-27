@@ -8483,3 +8483,124 @@ ol.a4-list > li::before {
   white-space: nowrap;
 }
 /* ==================================================================== footprint.js (end) */
+/* ------------------------------------------------------------------ task plan (plan.js, w1-harness) */
+.plan-wrap {
+  display: grid;
+  gap: 6px;
+}
+.plan {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.plan > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 40px;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.plan-title {
+  font-weight: 600;
+}
+.plan-count {
+  margin-inline-start: auto;
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.plan-head-icon {
+  color: var(--eco);
+}
+.plan-partial .plan-head-icon {
+  color: var(--warn-ink);
+}
+.plan-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin: 0;
+  padding: 0 12px 10px;
+  list-style: none;
+  counter-reset: plan;
+}
+.plan-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 30px;
+  max-inline-size: 100%;
+  padding: 3px 10px 3px 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 0.84rem;
+  color: var(--ink-2);
+  counter-increment: plan;
+}
+.plan-label {
+  overflow-wrap: anywhere;
+}
+.plan-label::before {
+  content: counter(plan) ". ";
+  color: var(--muted);
+}
+.plan-mark {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--control-line);
+  flex: none;
+}
+.plan-mark .icon {
+  inline-size: 14px;
+  block-size: 14px;
+}
+.plan-item.is-done .plan-mark {
+  border-color: var(--eco);
+  background: var(--eco-soft);
+  color: var(--eco);
+}
+.plan-item.is-failed {
+  border-color: var(--danger-line);
+}
+.plan-item.is-failed .plan-mark {
+  border-color: var(--danger-ink);
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+.plan-item.is-unavailable {
+  color: var(--muted);
+}
+.plan-item.is-todo .plan-mark {
+  border-style: dashed;
+}
+.plan.plan-partial {
+  border-color: var(--warn-line);
+}
+.plan-missing {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  font-size: 0.86rem;
+}
+.plan-missing .icon {
+  flex: none;
+  margin-block-start: 2px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .plan-item.is-done .plan-mark {
+    transition:
+      background-color 0.2s,
+      border-color 0.2s;
+  }
+}
