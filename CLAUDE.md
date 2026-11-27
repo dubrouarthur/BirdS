@@ -10,7 +10,7 @@
 - Best practices : chaque changement de prompt, de routage ou de modèle est mesuré avant / après sur un jeu fixe
   (banc, évaluations live) et les chiffres sont notés ; sorties du modèle toujours validées ; sécurité (injection,
   egress) et confidentialité par défaut.
-- Le harnais exécute et vérifie ; Les widgets viennent des résultats
+- Le harnais exécute et vérifie ; les widgets viennent des résultats
   d'outils ou des données de l'utilisateur, jamais du texte du modèle. Rien n'est inventé.
 - Ton promotionnel et confiant ; jamais d'auto-dépréciation en avant. Jamais de nombre de GPU ni de matériel, jamais
   l'énergie d'entraînement, jamais le modèle de base, jamais où le modèle tourne.
