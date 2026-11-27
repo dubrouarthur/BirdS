@@ -171,7 +171,8 @@ def test_demo_energy_is_opt_in_and_uses_the_token_formula():
     b = usage["energy_basis"]
     expected = usage["prompt_tokens"] / 1000 * b["wh_per_1k_in"] + usage["completion_tokens"] / 1000 * b["wh_per_1k_out"]
     assert usage["energy_wh"] == pytest.approx(expected, rel=1e-4)
-    assert b["low_wh"] < usage["energy_wh"] < b["high_wh"] and usage["busy_seconds"] > 0
+    assert b["low_wh"] < usage["energy_wh"] < b["high_wh"]
+    assert 0 <= usage["busy_seconds"] <= usage["seconds"] + 0.01  # the card never works longer than the answer
     assert usage["co2_g"] is None  # the server never picks a grid; the panel does, with its source
     assert Settings.from_env({"BIRD_DEMO_ENERGY": "1"}).demo_energy and not Settings.from_env({}).demo_energy
 
@@ -682,7 +683,8 @@ def test_static_payload_budget():
     assert sum(p.stat().st_size for p in fonts.iterdir()) < 400_000
     # raised step by step: images, attachments, previews, the P1 UX backlog, the file previews, the in-chat charts
     # with web image cards, rich answer text, and the result widgets (maps, company, currency, event cards, .ics) and Mode Agent
-    assert total < 720_000, f"static payload is {total} bytes"  # well under 200 kB once gzipped
+    # ... and the footprint module (answer impact, totals, « why small models » story: ~65 kB)
+    assert total < 790_000, f"static payload is {total} bytes"  # well under 220 kB once gzipped
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     assert demo < 400_000, f"demo maps weigh {demo} bytes"
 
@@ -898,6 +900,20 @@ def test_agent_state_node_unit_tests():
         pytest.skip("Node not installed")
     result = subprocess.run(
         ["node", "--test", str(Path(__file__).parent / "js" / "agents.test.mjs")],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={**os.environ, "CI": "1"},
+    )
+    assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-1000:]
+
+
+def test_footprint_node_unit_tests():
+    """tests/js/footprint.test.mjs: sourced constants, emissions, equivalents, totals, fr/en units, string parity."""
+    if shutil.which("node") is None:
+        pytest.skip("Node not installed")
+    result = subprocess.run(
+        ["node", "--test", str(Path(__file__).parent / "js" / "footprint.test.mjs")],
         capture_output=True,
         text=True,
         timeout=60,
