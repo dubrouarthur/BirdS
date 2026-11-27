@@ -34,7 +34,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=float,
         default=None,
         metavar="G_PER_KWH",
-        help="grid carbon intensity in g CO2e/kWh; without it no CO2 figure is shown",
+        help="grid carbon intensity of the server, in g CO2e/kWh (fills co2_g and the panel's « this server » grid); "
+        "without it the Empreinte panel lets the reader pick France, Europe or World as a stated hypothesis",
     )
     p.add_argument(
         "--demo-energy",

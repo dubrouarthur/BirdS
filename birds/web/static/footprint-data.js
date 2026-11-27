@@ -2,7 +2,10 @@
 // Pure module (no DOM, no storage of its own): footprint.js draws it, tests/js/footprint.test.mjs checks it.
 // Every constant carries its source, year and licence; nothing here is a guess. See docs/WEB.md, « Empreinte ».
 
-/** Grid carbon intensity, g CO2e per kWh, life cycle (the same scope for all three). */
+/**
+ * Grid carbon intensity, g CO2e per kWh. RTE states a life-cycle figure for France; Ember's figures are given as
+ * published (g CO2/kWh of generation, scope as in Ember's methodology): labelled with their source, never re-scoped.
+ */
 export const GRIDS = {
   fr: {
     g_per_kwh: 29.0,
