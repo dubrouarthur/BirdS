@@ -106,3 +106,17 @@ def test_bench_maps_family_is_complete():
     missed = [t for t, s in bench_maps.MAPS_REAL if not bench_maps.correct((t, s))]
     false = [t for t in bench_maps.MAPS_OFFICE_NO if bench_maps.detected(t)]
     assert not missed and not false
+
+
+@pytest.mark.parametrize(
+    "text,args",
+    [("dans quel ordre visiter Lyon, Grenoble, Annecy et Chambéry ?",
+      {"query": "Lyon ; Grenoble ; Annecy ; Chambéry", "plan": "order"}),
+     ("montre sur une carte : Lyon ; Grenoble ; Chambéry, dans quel ordre les visiter ?",
+      {"query": "Lyon ; Grenoble ; Chambéry", "plan": "order"}),
+     ("montre sur une carte : 3 rue du Circuit Magny-Cours ; 5 place Bellecour Lyon",
+      {"query": "3 rue du Circuit Magny-Cours ; 5 place Bellecour Lyon"})],
+)  # fmt: skip
+def test_the_plan_is_an_argument_and_the_ask_is_not_a_place(text, args):
+    got = [i for i in intents.detect(text) if i.tool == "find_places"]
+    assert got and got[0].args == args

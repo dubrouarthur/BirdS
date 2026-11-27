@@ -451,7 +451,13 @@ def _map_extras(text: str, t: str) -> Intent | None:
         good = [i for i in items if _placey_item(i)]
         # place_list already asked for a map word (« carte », « situe »…) unless every item is a postal address
         if len(good) == len(items) and len(items) >= 2:
-            return Intent("find_places", {"query": " ; ".join(items)}, keep_web=False, mode="list")
+            args = {"query": " ; ".join(items)}
+            rest = t
+            for i in items:  # « rue du Circuit » is a place, not an ask for a visit order
+                rest = rest.replace(i, " ")
+            if plan := mapwords.plan_of(rest):
+                args["plan"] = plan
+            return Intent("find_places", args, keep_web=False, mode="list")
     if _kind_in(t) and mapwords.near_me(t):
         return Intent("find_places", None, keep_web=False, mode="ask")
     if d == "here":

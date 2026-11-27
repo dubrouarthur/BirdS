@@ -218,7 +218,13 @@ def find_places(args: dict, ctx) -> str:
         places = [p for p in got if p is not None]
         missing = [n for n, p in zip(names, got, strict=True) if p is None]
         title = query
-        plan = plan_of(getattr(ctx, "request", "") or "") if len(places) >= 2 else ""
+        # the model (or the reading of the ask) says what to compute; the user's words are the fallback
+        asked = str(args.get("plan") or "").strip().lower()
+        said = getattr(ctx, "request", "") or ""
+        for n in names:  # the words of the places themselves (« rue du Circuit ») never ask for a plan
+            said = said.replace(n, " ")
+        plan = asked if asked in ("order", "distances") else plan_of(said)
+        plan = plan if len(places) >= 2 else ""
     else:
         if near:
             # « aix »: several towns match; the most important one (a city before villages) is the likely meaning

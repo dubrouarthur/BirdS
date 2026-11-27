@@ -111,6 +111,16 @@ def test_distances_plan_gives_a_matrix_for_a_few_places():
     assert w["plan"] == "distances" and len(w["matrix"]) == 3 and w["matrix"][0][0] == 0
 
 
+def test_the_plan_argument_is_read_and_checked():
+    # the model (or the reading of the ask) passes the plan: no need for the words to be in the request
+    c = ctx("montre-les")
+    find_places({"query": "Lyon ; Grenoble ; Annecy", "plan": "order"}, c)
+    assert c.step_info["widget"]["plan"] == "order"
+    c = ctx("montre-les")
+    find_places({"query": "Lyon ; Grenoble ; Annecy", "plan": "itinerary"}, c)  # not in the enum: ignored
+    assert c.step_info["widget"]["plan"] == ""
+
+
 # --------------------------------------------------------------------------- independent of the model
 
 

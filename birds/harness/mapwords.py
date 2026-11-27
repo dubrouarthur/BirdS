@@ -84,6 +84,16 @@ def plan_of(text: str) -> str:
 
 def _clean_item(item: str) -> str:
     t = _BULLET.sub("", item.strip())
+    # « … ; Chambéry, dans quel ordre les visiter ? »: the ask that follows the last place is not part of it
+    # (after a comma or a colon; with no separator only « dans quel ordre »: « rue du Circuit » stays whole)
+    tail = re.search(
+        r"\s*[,:–-]\s*(?=(?:" + _ORDER.pattern + r"|" + _MATRIX.pattern + r"))"
+        r"|\s+(?=\b(?:dans\s+quel\s+ordre|in\s+(?:what|which)\s+order)\b)",
+        t,
+        re.I,
+    )
+    if tail and tail.start() > 0:
+        t = t[: tail.start()]
     t = re.sub(r"^\*\*(.+)\*\*$", r"\1", t)
     t = " ".join(t.split()).strip(" .:?!\"'«»“”")
     import unicodedata
