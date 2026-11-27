@@ -24,6 +24,32 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+BASE_DECK = """---
+title: Le télétravail dans une PME
+subtitle: Organisation, outils, résultats
+---
+# Pourquoi le télétravail
+- Attentes des salariés
+- Recrutement plus large
+- Moins de trajets
+# Organisation
+- Deux jours par semaine
+- Une journée d'équipe commune
+- Des règles de disponibilité
+# Outils
+- Messagerie et visioconférence
+- Documents partagés
+- Accès sécurisé (VPN)
+# Résultats attendus
+::: chart type=bar unit="%"
+Satisfaction: 78
+Absentéisme: 4
+:::
+# Prochaines étapes
+- Pilote de trois mois
+- Bilan avec les équipes
+- Décision en comité
+"""
 CASES = [
     {"id": "deck", "ask": "Fais une présentation de 5 diapositives sur le télétravail dans une PME"},
     {"id": "deck_add", "after": "deck", "ask": "ajoute une slide sur les risques"},
@@ -46,16 +72,37 @@ def main() -> int:
 
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="out/canvas_eval.json")
+    ap.add_argument("--only", default="", help="comma-separated case ids (a case's 'after' must be listed too)")
+    ap.add_argument("--base-deck", action="store_true", help="patch cases start from BASE_DECK (fixed)")
     args = ap.parse_args()
+    only = {x for x in args.only.split(",") if x}
+    from birds.canvas import dsl
+
+    docs: dict = {}
+    from birds.web import canvas_web
+
+    seen: list[dict] = []
+    real = canvas_web.run_canvas
+
+    def spy(*a, **kw):  # the harness's own record of how the document came out (repairs, path)
+        run = real(*a, **kw)
+        seen.append(dict(getattr(run, "canvas", None) or {}))
+        return run
+
+    canvas_web.run_canvas = spy
     if not os.environ.get("BIRD_BASE_URL"):
         print("set BIRD_BASE_URL (and BIRD_MODEL, BIRD_API_KEY): this script calls the real endpoint")
         return 2
-    app = create_app_from_env()
-    if os.environ.get("BIRD_CANVAS_OFF") == "1":
-        app.state.server_backend.canvas = False
-    results, docs = [], {}
+    app = create_app_from_env()  # BIRD_CANVAS_OFF=1 is read by the settings (the deployment's gate)
+    if args.base_deck:  # the patch cases on a fixed deck, without generating one first
+        docs["deck"] = docs["deck_add"] = docs["deck_short"] = {"aid": "a0000000000e1", "version": 1,
+                                                              "doc": dsl.parse(BASE_DECK, "deck", "fr")}  # fmt: skip
+    results = []
     with TestClient(app) as client:
         for case in CASES:
+            if only and case["id"] not in only:
+                continue
+            seen.clear()
             body = {"messages": [{"role": "user", "content": case["ask"]}], "lang": "fr"}
             prev = docs.get(case.get("after"))
             if prev:
@@ -78,6 +125,14 @@ def main() -> int:
                    "tokens": [usage.get("prompt_tokens"), usage.get("completion_tokens")],
                    "steps": [s.get("tool") for s in events if s.get("type") == "step" and s.get("status") != "running"],
                    "chat": str(answer.get("content") or "")[:300]}  # fmt: skip
+            got = seen[-1] if seen else {}
+            row["repairs"] = got.get("repairs") or []
+            row["raw"] = got.get("raw") or ""
+            row["path"] = ("none" if not doc else "adopted_tool" if (answer.get("canvas") or {}).get("doc") and not finals
+                           else "captured_tool" if any("model called" in x for x in row["repairs"])
+                           else "json_text" if any("JSON" in x for x in row["repairs"])
+                           else "direct" if case.get("after") and not row["tokens"][1]
+                           else "patch_ops" if case.get("after") else "text_format")  # fmt: skip
             if doc:
                 kinds = {}
                 for b in doc.get("blocks") or []:

@@ -994,3 +994,12 @@ def test_question_about_an_attached_file_stays_an_ordinary_turn():
     p = turn.plan("Peux-tu me dire ce que contient ce document ?", None, "fr", attached=True)
     assert p is None
     assert turn.plan("Fais une présentation de ce document", None, "fr", attached=True).kind == "deck"
+
+
+def test_canvas_gate_is_a_deployment_setting():
+    from birds.web.server import build_server_backend
+    from birds.web.settings import Settings
+
+    assert Settings.from_env({}).canvas is True
+    s = Settings.from_env({"BIRD_CANVAS_OFF": "1", "BIRD_BASE_URL": "https://model.example/v1", "BIRD_MODEL": "m"})
+    assert s.canvas is False and build_server_backend(s).canvas is False

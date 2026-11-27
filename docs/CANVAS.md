@@ -151,10 +151,36 @@ allow-scripts` — **aucune requête réseau**. La CSP de l'application n'autori
 
 ## 7. Ce qui reste à vérifier
 
-- **Le vrai modèle** (endpoint en pause pendant ce travail) : le 4B suit-il le format texte, ou appelle-t-il quand même
-  `make_slides` (rattrapé) ? Écrit-il des opérations `@replace` exploitables ? `scripts/canvas_eval.py` mesure les deux
-  modes (défaut, et `BIRD_CANVAS_OFF=1` : chemin entraîné seul). Si le format texte rate trop, passer le canevas en
-  « mode outil » (garder le bloc d'outils, adopter les arguments) est une option simple côté harnais.
+- **Le vrai modèle** : mesuré le 27/11/2026 (Bird S 4B, vLLM, `scripts/canvas_eval.py`, 16 générations en tout),
+  voir § 8. Le format texte est suivi ; les opérations de modification copiaient l'exemple du format (corrigé, à
+  re-mesurer en direct).
 - La recherche d'images Commons n'a été testée qu'avec un faux client (pas de réseau ici).
 - L'impression PDF repose sur les pages nommées CSS (Chromium) ; Firefox imprime en portrait.
 - L'édition sur place utilise `contenteditable="plaintext-only"` (repli sur `true` ailleurs).
+
+## 8. Le canevas, interrupteur mesuré (`BIRD_CANVAS_OFF`)
+
+`BIRD_CANVAS_OFF=1` (réglage du déploiement, `Settings.canvas`) : chaque tour est ordinaire, les outils entraînés
+`make_slides` / `make_document` / `make_sheet` font le fichier, et le canevas l'adopte seulement (« Ouvrir dans le
+canevas »). Par défaut (activé) : une demande de création claire est écrite au format texte à côté du chat ; tout ce
+qui n'est pas clairement une création reste un tour ordinaire, où le modèle choisit lui-même son outil entraîné.
+
+Mesure en direct, 27/11/2026, Bird S 4B (endpoint de production, mêmes cas que `canvas_eval.py`) :
+
+| Cas                                   | Canevas activé (format texte)                                   | `BIRD_CANVAS_OFF=1` (outil entraîné adopté)        |
+| ------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------- |
+| Présentation 5 diapositives           | ✔ 5 diapositives, kpi + graphique + frise + citation, 1 réparation (bloc non fermé) | ✔ 5 diapositives, listes seules ; le chat recopie tout le contenu |
+| Note de synthèse                      | ✔ 5 sections, encadré, 351 jetons, 7 s                          | ✔ 5 sections, 373 jetons                           |
+| Page web                              | ✔ HTML complet (après une recherche web)                        | —                                                  |
+| Schéma                                | ✔ Mermaid, 123 jetons                                           | —                                                  |
+| **Format suivi (création)**           | **4/4**                                                         | 2/2 par l'outil (sans blocs riches)                |
+| Bloc ciblé (« Demander à Bird »)      | ✔ réécrit, 6/6 identifiants gardés                              | —                                                  |
+| « ajoute une slide sur les risques »  | ✘ 2/2 : l'exemple du format recopié (`@replace b3`, `@delete b2`) : une diapositive perdue | —                         |
+| « plus court »                        | ✘ 2/2 : même recopie, le deck s'allonge                         | —                                                  |
+| « passe en thème chaleureux »         | ✘ non reconnu comme modification (corrigé : `passe` est un verbe d'édition, appliqué sans modèle) | —           |
+| **Modifications réussies**            | **1/6** avant correction                                        | —                                                  |
+
+Décision : le canevas reste activé pour la création (le format est suivi et plus riche que le chemin entraîné).
+Les modifications libres sont réparées côté harnais (exemple sans identifiants réels, opérations non demandées
+écartées, voir le commit suivant) ; à re-mesurer en direct avant toute autre décision. Si elles restent sous 5/6,
+`BIRD_CANVAS_OFF=1` reste le repli.

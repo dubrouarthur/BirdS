@@ -224,7 +224,7 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
                                 cut=run.stop_reason == "length", verb="create" if p.mode == "create" else "patch")  # fmt: skip
     run.stop_reason = "answer"
     run.canvas = {"aid": p.aid, "version": (p.version + 1) if p.mode != "create" else 1, "doc": doc,
-                  "repairs": repairs}  # fmt: skip
+                  "repairs": repairs, "raw": text[:8000]}  # fmt: skip  # raw: for evaluations, never sent
     return run
 
 

@@ -188,7 +188,7 @@ def harness_config(s: Settings) -> dict:
 def build_server_backend(s: Settings) -> Backend | None:
     """The operator's model: an OpenAI-compatible endpoint, or a model loaded in this process (local use)."""
     if s.local_llm is not None:
-        return HarnessBackend(
+        local = HarnessBackend(
             s.local_llm,
             s.local_tok,
             kind="local",
@@ -199,6 +199,8 @@ def build_server_backend(s: Settings) -> Backend | None:
             msg_cap_tokens=s.history_msg_tokens,
             cache_isolation=s.cache_isolation,
         )
+        local.canvas = s.canvas
+        return local
     if not s.base_url:
         return None
     from birds.harness import CompletionsClient
@@ -209,7 +211,7 @@ def build_server_backend(s: Settings) -> Backend | None:
 
         tok = AutoTokenizer.from_pretrained(s.tokenizer)
     llm = CompletionsClient(s.base_url, s.model, s.api_key, timeout=s.max_seconds)
-    return HarnessBackend(
+    backend = HarnessBackend(
         llm,
         tok,
         kind="completions",
@@ -221,6 +223,8 @@ def build_server_backend(s: Settings) -> Backend | None:
         msg_cap_tokens=s.history_msg_tokens,
         cache_isolation=s.cache_isolation,
     )
+    backend.canvas = s.canvas
+    return backend
 
 
 def fetch_client(s: Settings):
@@ -500,6 +504,7 @@ def create_app(
             msg_cap_tokens=s.history_msg_tokens,
             cache_isolation=s.cache_isolation,
         )
+        backend.canvas = s.canvas
         return backend, "user:" + tokens.digest([base, model])[:16]
 
     # ------------------------------------------------------------------ API
