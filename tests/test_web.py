@@ -162,6 +162,21 @@ def test_demo_never_invents_energy(client):
         assert usage["energy_wh"] is None and usage["energy_kind"] is None and usage["co2_g"] is None
 
 
+def test_demo_energy_is_opt_in_and_uses_the_token_formula():
+    """BIRD_DEMO_ENERGY: the scripted counts go through the real token estimate, still tagged scripted."""
+    with TestClient(create_app(settings(demo_energy=True))) as c:
+        usage = one(chat(c, "Bonjour"), "usage")
+    assert usage["tokens_kind"] == "scripted" and usage["energy_kind"] == "estimated"
+    assert usage["energy_method"] == "tokens" and usage["energy_source"].startswith("demo: ")
+    b = usage["energy_basis"]
+    expected = usage["prompt_tokens"] / 1000 * b["wh_per_1k_in"] + usage["completion_tokens"] / 1000 * b["wh_per_1k_out"]
+    assert usage["energy_wh"] == pytest.approx(expected, rel=1e-4)
+    assert b["low_wh"] < usage["energy_wh"] < b["high_wh"]
+    assert 0 <= usage["busy_seconds"] <= usage["seconds"] + 0.01  # the card never works longer than the answer
+    assert usage["co2_g"] is None  # the server never picks a grid; the panel does, with its source
+    assert Settings.from_env({"BIRD_DEMO_ENERGY": "1"}).demo_energy and not Settings.from_env({}).demo_energy
+
+
 def test_demo_is_deterministic(client):
     def strip(events):
         return [{k: v for k, v in e.items() if k != "seconds"} for e in events]
@@ -668,8 +683,8 @@ def test_static_payload_budget():
     assert sum(p.stat().st_size for p in fonts.iterdir()) < 400_000
     # raised step by step: images, attachments, previews, the P1 UX backlog, the file previews, the in-chat charts
     # with web image cards, rich answer text, the result widgets (maps, company, currency, event cards, .ics), Mode Agent
-    # and its wave 2 (plan card, live activity, « Vérifications faites », « Livrables »)
-    assert total < 820_000, f"static payload is {total} bytes"  # about 200 kB once gzipped
+    # and its wave 2 (plan card, live activity, « Vérifications faites », « Livrables »), the footprint module (~65 kB)
+    assert total < 880_000, f"static payload is {total} bytes"  # about 200 kB once gzipped
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     assert demo < 400_000, f"demo maps weigh {demo} bytes"
 
@@ -885,6 +900,20 @@ def test_agent_state_node_unit_tests():
         pytest.skip("Node not installed")
     result = subprocess.run(
         ["node", "--test", str(Path(__file__).parent / "js" / "agents.test.mjs")],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={**os.environ, "CI": "1"},
+    )
+    assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-1000:]
+
+
+def test_footprint_node_unit_tests():
+    """tests/js/footprint.test.mjs: sourced constants, emissions, equivalents, totals, fr/en units, string parity."""
+    if shutil.which("node") is None:
+        pytest.skip("Node not installed")
+    result = subprocess.run(
+        ["node", "--test", str(Path(__file__).parent / "js" / "footprint.test.mjs")],
         capture_output=True,
         text=True,
         timeout=60,

@@ -47,7 +47,7 @@ Sous chaque réponse, une ligne : tokens lus → écrits, durée, appels d'outil
 | Appels d'outils, données téléchargées | Comptés par le harnais.                                                                                                                                                                                        |
 | Énergie (Wh)                          | **Mesurée** (`nvidia-smi`, GPU seul, modèle sur la même machine : `--local` ou `--measure-gpu`) ; sinon **estimée** par votre étalonnage (`BIRD_WH_PER_1K_TOKENS`) ; sinon **estimée d'après les tokens** lus et écrits, avec des valeurs par token tirées de mesures publiées (voir ci-dessous). Toujours étiquetée. |
 | Premier mot                           | Temps entre l'envoi au modèle et son premier token, mesuré par le serveur Bird (hors réveil de l'endpoint). |
-| Émissions (g CO₂e)                    | Énergie × intensité carbone que **vous** déclarez avec `--grid-intensity` (g CO₂e/kWh). Toujours étiquetées « estimé ».                                                                                        |
+| Émissions (g CO₂e)                    | Énergie × intensité carbone du réseau : celle que **vous** déclarez avec `--grid-intensity` / `BIRD_GRID_INTENSITY` (g CO₂e/kWh), sinon France (RTE 2025), au choix du lecteur France / Europe / Monde dans le panneau Empreinte (sources ci-dessous). Sans réseau déclaré, le panneau le formule comme une hypothèse (« Émissions si l'électricité vient du réseau : … ») et dit que l'opérateur ne l'a pas déclaré ; « Électricité du réseau » seul est réservé au réseau de l'opérateur. Toujours étiquetées « estimé ». |
 
 ## L'estimation d'énergie d'un modèle distant
 
@@ -65,7 +65,7 @@ Sur Vercel il n'y a pas de GPU, et celui de l'Inference Endpoint (vLLM, 1 × NVI
 - **Réglages** : `BIRD_WH_PER_1K_OUT`, `BIRD_WH_PER_1K_IN` (la fourchette suit) ; `BIRD_ENERGY_METHOD=off` masque l'estimation.
 - **Priorités** : mesure `nvidia-smi` > étalonnage explicite (`BIRD_WH_PER_1K_TOKENS` + `BIRD_CALIBRATION_SOURCE`) > estimation d'après les tokens.
 - **Ancienne méthode, sur demande seulement** : `BIRD_ENERGY_METHOD=power_time` rétablit « puissance nominale du GPU (`BIRD_GPU_WATTS`, 72 W) × durée du flux HTTP × `BIRD_PUE` ». Elle comptait la latence réseau, l'attente et le temps jusqu'au premier token comme du calcul, et attribuait toute la carte à une seule requête alors que vLLM en sert plusieurs à la fois : jusqu'à 5 à 15 fois trop haut quand le serveur regroupe les requêtes (0,40 Wh au lieu de ~0,06 Wh pour 1 500 tokens lus et 500 écrits en 20 s) ; environ 1,5 fois quand la carte ne sert qu'une requête (elle tire moins que sa puissance nominale, et le premier token arrive en ~0,6 s sur ~10 s).
-- **CO₂** : seulement si `BIRD_GRID_INTENSITY` est fixée.
+- **CO₂** : le champ `co2_g` du flux reste rempli seulement si `BIRD_GRID_INTENSITY` est fixée ; le panneau Empreinte calcule les émissions dans le navigateur avec le réseau choisi (par défaut celui de l'opérateur, sinon la France), sourcé.
 - **Repères mesurés chez nous** (lots de calcul, **pas** des requêtes interactives isolées) : 0,36 Wh pour 1 000 tokens générés sur 1 × A10G (1 369 réponses en lot, `nvidia-smi`, GPU seul) ; entraînement : 1,8 kWh (GPU seul).
 
 ## Le compte rendu « Empreinte » : ce que Bird économise
@@ -112,9 +112,37 @@ Une demande d'images (« montre-moi une photo de X », « à quoi ressemble X »
 - **Progression** : la ligne d'état dit ce que fait Bird, avec le temps écoulé, le moteur de recherche interrogé, et l'attente de réveil de l'endpoint.
 - **Petits téléphones** : en écrivant, les notes sous le compositeur s'effacent (classe `.dock.is-typing`, posée en JS) ; elles ne reviennent qu'après le clic d'un toucher dans la conversation, pour que le dock ne grandisse pas sous le doigt (iPhone SE 320/375 × 568 : « Réessayer », « Revenir au mode simple » et le pli de l'équipe étaient perdus). Test : `node scripts/agent_ui_smoke.js smallTouch`.
 
+## Le panneau Empreinte (footprint.js) : émissions, eau, carte graphique, équivalences
+
+Le reçu d'une réponse reste une ligne discrète ; ouvert, il montre l'impact de la réponse (module `static/footprint.js`, données et calculs purs dans `static/footprint-data.js`, textes `footprint.*` dans `static/footprint-i18n.js`) :
+
+- **Émissions** = énergie × intensité carbone du réseau choisi (France par défaut, ou celle de l'opérateur), avec la fourchette de l'estimation d'énergie ; **eau** = énergie × 0,26 mL / 0,24 Wh (seul ratio publié avec sa méthode) ; **carte graphique** : « Bird a tourné sur une carte graphique pendant X s » (temps des flux de génération, `busy_seconds`), avec une explication simple de ce qu'est un GPU. Jamais de nombre ni de modèle de carte.
+- **Équivalences** calculées exactement (impact ÷ facteur), chacune avec sa source : secondes de streaming, distance en voiture thermique, recherches web, e-mails, charges de smartphone.
+- **Conversation et appareil** : cumul de la conversation (petit graphique), totaux de l'appareil conservés dans `localStorage` (`bird.footprint.totals`, réponses réelles et de démo séparées, au-delà des 400 dernières réponses du registre local).
+- **« Si vous aviez utilisé un grand assistant »** : même nombre de réponses × chiffre par requête, au même périmètre (service complet) ; économie = différence, avec la fourchette de Bird ; le pire cas est écrit s'il dépasse la référence.
+- La page Empreinte devient un récit, « Pourquoi les petits modèles sont l'avenir » (calcul par mot, énergie et eau, une carte graphique modeste installable près d'énergies propres, mise en veille, spécialisation, conçu en France), illustrations SVG maison ; les anciens chiffres détaillés sont repliés sous « Tous les chiffres de la période » ; méthode et sources repliées en fin de page.
+- Démo : `scripts/serve.py --demo --demo-energy` (ou `BIRD_DEMO_ENERGY=1`) passe les tokens écrits à l'avance dans la vraie formule d'estimation, pour voir le panneau avec des chiffres ; tout reste étiqueté « démo ». Désactivé par défaut. Test navigateur : `tests/e2e/footprint.spec.js`.
+
+| Donnée | Valeur | Année | Source | Licence |
+| --- | --- | --- | --- | --- |
+| Réseau France (cycle de vie) | 29 g CO₂e/kWh (19,6 g en émissions directes) | 2025 | RTE, Bilan électrique 2025 : <https://analysesetdonnees.rte-france.com/en/annual-review-2025/keyfindings> | citation avec la source |
+| Réseau Union européenne | 213 g CO₂e/kWh | 2024 | Ember, European Electricity Review 2025 : <https://ember-energy.org/latest-insights/european-electricity-review-2025/five-years-of-progress/> | CC BY 4.0 |
+| Réseau monde | 473 g CO₂e/kWh | 2024 | Ember, Global Electricity Review 2025 : <https://ember-energy.org/latest-insights/global-electricity-review-2025/global-electricity-trends/> | CC BY 4.0 |
+| Calcul par token écrit | ≈ 2 opérations par paramètre actif (base du « de l'ordre de 100 fois moins » face à un grand modèle dense, classe de l'ordre de 400 milliards de paramètres, `DEFAULT_COMPARE`, formulée comme un ordre de grandeur) | 2020 | Kaplan et al., *Scaling Laws for Neural Language Models* : <https://arxiv.org/abs/2001.08361> | citation avec la source |
+| Eau par Wh (ratio publié par un grand fournisseur pour ses centres de données ; celui qui héberge Bird n'est pas connu) | 0,26 mL pour 0,24 Wh (1,08 mL/Wh) | 2025 | Google, *Measuring the environmental impact of AI inference* : <https://arxiv.org/abs/2508.15734> | citation avec la source |
+| Grand assistant, méthode publiée | 0,24 Wh par requête texte médiane | août 2025 | <https://cloud.google.com/blog/products/infrastructure/measuring-the-environmental-impact-of-ai-inference> | citation |
+| Grand assistant, sans méthode publiée | 0,34 Wh par requête moyenne | juin 2025 | <https://blog.samaltman.com/the-gentle-singularity> | citation |
+| Streaming vidéo, 1 h | 64 g CO₂e, dont 33 g de fabrication | 2026 | ADEME Impact CO2 (Base Empreinte) : <https://impactco2.fr/outils/usagenumerique/streamingvideo> | ADEME, réutilisation non commerciale avec mention de la source |
+| Voiture thermique, 1 km (hypothèse ADEME : moyenne, diesel ; construction comprise) | 142,3 g CO₂e, dont 31,7 g de fabrication | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/transport/voiturethermique> | ADEME, réutilisation non commerciale avec mention de la source |
+| Recherche sur le web | 1,23 g CO₂e, dont 0,74 g de fabrication | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/usagenumerique/rechercheweb> | ADEME, réutilisation non commerciale avec mention de la source |
+| E-mail (étiquette « 1 e-mail » de la page, moyenne Base Empreinte ; le calculateur de la même page donne 0,11 g avec ses réglages) | 2,46 g CO₂e, dont 2,22 g de fabrication (0,24 g à l'usage) | 2026 | ADEME Impact CO2 : <https://impactco2.fr/outils/usagenumerique/email> | ADEME, réutilisation non commerciale avec mention de la source |
+| Charge complète de smartphone | 0,019 kWh | 2026 | US EPA, Greenhouse Gas Equivalencies Calculator : <https://www.epa.gov/energy/greenhouse-gas-equivalencies-calculator-calculations-and-references> | domaine public |
+
+Les facteurs ADEME sont en cycle de vie (appareil, réseau, centres de données), fabrication comprise, alors que le chiffre de Bird ne compte que l'électricité : la part de fabrication (champ `footprintDetail` de l'API) est affichée dans le tableau de la méthode et la note des équivalences le dit ; ils ont été lus sur impactco2.fr (API v1) en novembre 2026. Les mentions légales d'impactco2.fr autorisent la réutilisation non commerciale et pédagogique avec mention de l'ADEME ; un usage commercial demande l'accord de l'ADEME : à vérifier avant une offre payante.
+
 ## Ce qu'il ne montre pas
 
-- **Pas de chiffre inventé.** Sans mesure ni étalonnage, l'interface écrit « énergie non mesurée sur ce serveur », jamais zéro. Sans `--grid-intensity`, aucune émission n'est affichée : il n'y a pas de valeur « typique » dans le code.
+- **Pas de chiffre inventé.** Sans mesure ni étalonnage, l'interface écrit « énergie non mesurée sur ce serveur », jamais zéro. Les émissions utilisent l'intensité déclarée par l'opérateur, sinon une valeur annuelle publiée et sourcée (France, Europe, Monde : tableau ci-dessus), choisie par le lecteur et toujours affichée avec sa source et son année.
 - La mesure GPU ne compte ni le processeur, ni la mémoire, ni le refroidissement, ni le réseau, ni la fabrication du matériel. Elle couvre le GPU entier, autres processus compris.
 - L'intensité carbone est une valeur fixe donnée au lancement, pas celle du réseau à l'instant de la requête.
 - Pas de coût en euros, pas de tableau de bord par organisation (prévus au cadrage, non faits). La comparaison avec de grands modèles est théorique (calcul par token) ou appuyée sur un chiffre publié et sourcé, jamais sur une estimation maison.

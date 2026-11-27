@@ -437,7 +437,7 @@ def create_app(
     s = settings or Settings()
     if s.grid_intensity is not None and s.grid_intensity < 0:
         raise ValueError("grid_intensity must be >= 0")
-    demo = demo or DemoBackend(delay=s.demo_delay)
+    demo = demo or DemoBackend(delay=s.demo_delay, energy=s.energy_config if s.demo_energy else None)
     server = server_backend if server_backend is not None else build_server_backend(s)
     limiter = RateLimiter(s.rate_limit)
     img_limiter = RateLimiter(s.img_rate_limit)

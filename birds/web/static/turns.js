@@ -29,6 +29,7 @@ import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { renderWidgets, widgetsText } from "./widgets.js";
 import { renderAgents, renderChecks } from "./agents.js";
+import { footprintAnswer } from "./footprint.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -871,7 +872,7 @@ function energyWhy(usage) {
   if (usage.energy_method === "power_time")
     return [
       "why.energy.power",
-      { gpu: b.gpu || "GPU", s: fmtSig(b.busy_seconds || 0), pue: fmtSig(b.pue || 1) },
+      { s: fmtSig(b.busy_seconds || 0), pue: fmtSig(b.pue || 1) },
     ];
   if (usage.energy_method === "tokens") {
     const range =
@@ -1027,6 +1028,8 @@ function fullReceipt(turn) {
       { class: "receipt-chips" },
       chips.map((c) => h("span", { text: c })),
     ),
+    // ---- footprint.js mount hook: the answer's emissions, water, graphics-card time and equivalents
+    footprintAnswer(u, state.conv, { onOpenPage: () => handlers.onOpenFootprint() }),
     details(
       "receipt-detail",
       turn.ui.meter ?? false,
