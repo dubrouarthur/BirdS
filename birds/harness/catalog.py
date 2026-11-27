@@ -264,8 +264,10 @@ def _clean_str(v) -> str | None:
         v = str(v)
     if not isinstance(v, str):
         return None
+    if _BAD_CHARS.search(v):  # a line break or markup: a paste or an injection, never a name
+        return None
     v = " ".join(v.split()).strip(" ?!.,;:'")
-    if not v or len(v) > MAX_STR or _BAD_CHARS.search(v):
+    if not v or len(v) > MAX_STR:
         return None
     return v
 
