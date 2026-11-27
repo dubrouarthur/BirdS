@@ -179,7 +179,8 @@ test("brand rules on every UI string: no card model, no card count (the receipt 
       .filter(([k]) => k !== "about.built.p")
       .map(([k, v]) => `${k}: ${v}`);
   for (const line of [...shown("fr"), ...shown("en")]) {
-    assert.doesNotMatch(line, /\b(L4|L40S?|A10G?|A100|H100|H200|T4|NVIDIA|Qwen|Llama)\b/i, line);
+    // « T4 210 » is a quarter in a chart starter, not the T4 card
+    assert.doesNotMatch(line, /\b(L4|L40S?|A10G?|A100|H100|H200|T4(?! \d)|NVIDIA|Qwen|Llama)\b/i, line);
     assert.doesNotMatch(line, /\b(deux|trois|two|three|\d+) (cartes|GPUs?|graphics cards)\b/i, line);
   }
 });
