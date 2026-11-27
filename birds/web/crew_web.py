@@ -59,7 +59,7 @@ def run_crew(
 ):
     """The crew run for this request, or None when the single agent answers (no recipe, mode off...).
     Activé with nothing to split up: an agent_done event tells the chip, then the single agent answers."""
-    from birds.harness.crew import Crew
+    from birds.harness.crew import team
 
     if decision.recipe is None:
         if decision.no_deliverable:
@@ -67,7 +67,7 @@ def run_crew(
                       "message": decision.reason, "calls": 0, "caveats": []})  # fmt: skip
         return None
     docs = [(Path(n).name, document_text(Path(workspace) / n, lang)) for n in names]
-    crew = Crew(
+    crew = team(
         agent,
         decision,
         system=system,

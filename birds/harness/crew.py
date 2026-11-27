@@ -132,6 +132,7 @@ RECIPES = {
     "minutes_actions": {"auto": True, "tool": "make_document"},
     "doc_research": {"auto": False, "tool": "make_document"},  # studies, monitoring, reports with sources
     "sheet_pasted": {"auto": False, "tool": "make_sheet"},
+    "deep_research": {"auto": True, "tool": None},  # explicit asks only (birds.harness.research.ask)
     "generic": {"auto": False, "tool": None},
 }
 REASONS = {
@@ -142,6 +143,7 @@ REASONS = {
         "doc_research": "document avec chiffres à sourcer",
         "sheet_pasted": "tableur à partir de données collées",
         "generic": "plan, puis deux versions comparées",
+        "deep_research": "recherche approfondie : plan, sources, vérification",
         "no_deliverable": "Rien à répartir : réponse en mode simple",
     },
     "en": {
@@ -151,6 +153,7 @@ REASONS = {
         "doc_research": "a document with figures to source",
         "sheet_pasted": "a spreadsheet from pasted data",
         "generic": "a plan, then two versions compared",
+        "deep_research": "deep research: plan, sources, checks",
         "no_deliverable": "Nothing to split up: answered in simple mode",
     },
 }
@@ -297,6 +300,16 @@ def decide(
         return Decision(None, mode=mode)
     instr, pasted = split_request(own)
     sig = signals(instr, pasted, attachments)
+    # ---- deep research (birds.harness.research): an explicit ask, or Activé on an informational question
+    from birds.harness import research
+
+    deep = research.ask(instr)
+    if deep and not images and sig["deliverable"] in (None, "make_document") and recipes.get("deep_research"):
+        if mode == "on" or recipes["deep_research"].get("auto"):
+            return Decision("deep_research", research.REASON[lang][deep], mode, mode == "on", None, sig)
+    if (mode == "on" and not images and not sig["deliverable"] and not _match(sig) and research.question(instr)
+            and recipes.get("deep_research")):  # fmt: skip
+        return Decision("deep_research", research.REASON[lang]["deep"], mode, True, None, sig)
     recipe = _match(sig)
     reason = REASONS[lang].get(recipe or "", "").format(n=max(2, len(sig["offers"]) or sig["n_docs"]))
     if mode == "on":
@@ -341,6 +354,15 @@ def standalone(instr: str, sig: dict) -> bool:
     if _LEANS.search(instr):
         return False
     return bool(sig["pasted"] or _TOPIC.search(instr))
+
+
+def team(agent, decision: Decision, **kw):
+    """The team for this decision: deep research has its own recipe class (birds.harness.research)."""
+    if decision.recipe == "deep_research":
+        from birds.harness.research import Research
+
+        return Research(agent, decision, **kw)
+    return Crew(agent, decision, **kw)
 
 
 # ------------------------------------------------------------------ the team
