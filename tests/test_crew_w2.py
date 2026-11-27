@@ -421,3 +421,13 @@ def test_api_clients_without_the_plan_flow_start_at_once(tmp_path, monkeypatch):
 
 
 _ = (PAGES, httpx, make_agent, crew_mod)  # shared fixtures, imported for their side effects on the stubs
+def test_a_figure_without_its_citation_gets_the_page_that_holds_it():
+    by = {1: cc.allowed_figures("Les renouvelables font 24 % de la production en 2025."),
+          2: cc.allowed_figures("La facture a baissé de 21 % ; la consommation de 1,1 %.")}  # fmt: skip
+    args = {"sections": [{"heading": "A", "content": "Elles font 24 % de la production. La facture baisse de 21 % et "
+                          "la consommation de 1,1 %. Votre budget : 9 000 €. Déjà cité 24 % [2].\n| x | 24 % |"},
+                         {"heading": "Sources", "content": "[1] a — u"}]}  # fmt: skip
+    out, k = cc.autocite(args, by, "budget de 9 000 €")
+    text = out["sections"][0]["content"]
+    assert k == 2 and "production [1]." in text and "1,1 % [2]." in text
+    assert "9 000 €." in text and "24 % [2]." in text and text.endswith("| x | 24 % |")  # yours, cited, tables: as is

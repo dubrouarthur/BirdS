@@ -1161,6 +1161,58 @@ def ledger(args: dict, *, texts: dict, allowed_by: dict, request: str = "", comp
             "items": items[:cap], "more": max(0, len(items) - cap)}  # fmt: skip
 
 
+def _cite_one(sent: str, by: dict, req: set) -> tuple[str, bool]:
+    """« … 24 % de la production en 2025. » -> « … 24 % de la production en 2025 [1]. » when every figure of the
+    sentence is on page 1 (the first page that holds them all) and none comes from the user's own text."""
+    figs = figures(sent)
+    if not figs or _CITES.search(sent) or re.search(r"https?://", sent):
+        return sent, False
+    if any(supported(v, req, tol=0.0) for _, v in figs):
+        return sent, False
+    holder = next((n for n in sorted(by) if all(supported(v, by[n], tol=0.0) for _, v in figs)), None)
+    if holder is None:
+        return sent, False
+    m = re.search(r"\s*([.!?;:])?\s*$", sent)
+    cut = m.start() if m else len(sent)
+    return sent[:cut].rstrip() + f" [{holder}]" + (m.group(1) or "" if m else "") + sent[len(sent.rstrip()):], True
+
+
+def autocite(args: dict, allowed_by: dict, request: str = "") -> tuple[dict, int]:
+    """The deliverable's figures that carry no [n] get the number of the page that holds them (code, not the
+    model: true by construction). Figures of the user's own text stay uncited. Returns (args, citations added)."""
+    if not isinstance(args, dict) or not allowed_by:
+        return args, 0
+    req = allowed_figures(request)
+    out = json.loads(json.dumps(args, ensure_ascii=False))
+    added = 0
+    for s in out.get("slides") or []:
+        if _SOURCES_HEAD.match(str(s.get("title") or "")):
+            continue
+        bullets = []
+        for x in s.get("bullets") or []:
+            x, k = _cite_one(str(x), allowed_by, req)
+            bullets.append(x)
+            added += k
+        s["bullets"] = bullets
+    for s in out.get("sections") or []:
+        if _SOURCES_HEAD.match(str(s.get("heading") or "")):
+            continue
+        lines = []
+        for ln in str(s.get("content") or "").split("\n"):
+            if ln.lstrip().startswith("|"):  # a table row: left as written
+                lines.append(ln)
+                continue
+            parts = re.split(r"(?<=[.!?])\s+", ln)
+            fixed = []
+            for p in parts:
+                p, k = _cite_one(p, allowed_by, req)
+                fixed.append(p)
+                added += k
+            lines.append(" ".join(fixed))
+        s["content"] = "\n".join(lines)
+    return out, added
+
+
 def renumber(args: dict, sources: list[dict]) -> tuple[dict, list[dict], dict]:
     """Citations made consistent: sources numbered in the order the deliverable first cites them, [n] rewritten to
     match, sources never cited after the cited ones. Returns (args, sources, old -> new)."""

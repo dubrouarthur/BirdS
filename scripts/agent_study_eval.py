@@ -2,7 +2,7 @@
 
 usage:
   .venv/bin/python -I scripts/agent_study_eval.py PORT OUTDIR [index...] [--arms=on,off] [--set=study|office|all]
-                                                  [--plan] [--note=KIND:VALUE]
+                                                  [--plan] [--edits=JSON] [--note=KIND:VALUE]
   .venv/bin/python -I scripts/agent_study_eval.py --table OUTDIR [OUTDIR2]
 
 Writes OUTDIR/<i>-<arm>.json with the answer, the file's arguments, sources, usage, checks and wall time.
@@ -95,7 +95,7 @@ def _note(base: str, run: str, kind: str, value: str) -> None:
         print("note failed:", e, flush=True)
 
 
-def run_one(base: str, prompt: str, arm: str, plan: bool, note: str | None) -> dict:
+def run_one(base: str, prompt: str, arm: str, plan: bool, note: str | None, edits: dict | None = None) -> dict:
     body = {"messages": [{"role": "user", "content": prompt}], "agent": arm, "lang": "fr"}
     t0 = time.monotonic()
     events: list[dict] = []
@@ -105,7 +105,7 @@ def run_one(base: str, prompt: str, arm: str, plan: bool, note: str | None) -> d
         events += first
         card = next((e for e in first if e.get("type") == "agent_plan"), None)
         if card:  # « Lancer », the plan unchanged
-            body = {**body, "agent_plan": {"token": card["token"], "edits": {}}}
+            body = {**body, "agent_plan": {"token": card["token"], "edits": edits or {}}}
     sent = {"done": False}
 
     def on_event(ev):
@@ -116,10 +116,17 @@ def run_one(base: str, prompt: str, arm: str, plan: bool, note: str | None) -> d
 
     events += _post(base, body, on_event)
     for _ in range(3):  # a long task continues in slices: the client carries the signed state
-        sl = next((e for e in reversed(events) if e.get("type") == "agent_slice" and e.get("final") is False), None)
-        if not sl or any(e.get("type") == "answer" for e in events):
+        sl = next((e for e in reversed(events) if e.get("type") == "agent_slice" and e.get("auto") and not e.get("used")), None)
+        if not sl or any(e.get("type") in ("answer", "confirm") for e in events):
             break
-        events += _post(base, {**body, "agent_plan": None, "agent_slice": sl["token"]}, on_event)
+        nxt = {k: v for k, v in body.items() if k != "agent_plan"}
+        events += _post(base, {**nxt, "agent_slice": sl["token"]}, on_event)
+        sl["used"] = True
+    confirm = next((e for e in events if e.get("type") == "confirm"), None)
+    if confirm and not any(e.get("type") == "answer" for e in events):
+        # a page looked like an injection and the file waits for a confirmation: « Autoriser », as a user would
+        plain = {k: v for k, v in body.items() if k not in ("agent_plan", "agent_flow")}
+        events += _post(base, {**plain, "approved": [confirm["token"]]}, on_event)
     wall = round(time.monotonic() - t0, 1)
     files = [e for e in events if e.get("type") in ("step", "tool_start")
              and e.get("tool") in ("make_document", "make_slides", "draft_email")]  # fmt: skip
@@ -133,7 +140,8 @@ def run_one(base: str, prompt: str, arm: str, plan: bool, note: str | None) -> d
         "agent_done": next((e for e in events if e.get("type") == "agent_done"), None),
         "checks": next((e for e in events if e.get("type") == "agent_checks"), None),
         "notes": [e for e in events if e.get("type") == "agent_note"],
-        "slices": sum(1 for e in events if e.get("type") == "agent_slice"),
+        "slices": sum(1 for e in events if e.get("type") == "agent_slice" and e.get("auto")),
+        "confirmed": confirm is not None,
         "file_args": [f.get("arguments") for f in files if f.get("arguments")],
         "tools": [
             (e.get("tool"), (e.get("arguments") or {}).get("query") or (e.get("arguments") or {}).get("url"))
@@ -218,12 +226,14 @@ def main() -> None:
         print(table(sys.argv[2:]))
         return
     port, out = sys.argv[1], sys.argv[2]
-    arms, idx, plan, note, prompts = ["on", "off"], [], False, None, PROMPTS
+    arms, idx, plan, note, prompts, edits = ["on", "off"], [], False, None, PROMPTS, None
     for a in sys.argv[3:]:
         if a.startswith("--arms="):
             arms = a.split("=", 1)[1].split(",")
         elif a.startswith("--set="):
             prompts = SETS[a.split("=", 1)[1]]
+        elif a.startswith("--edits="):
+            edits = json.loads(a.split("=", 1)[1])
         elif a == "--plan":
             plan = True
         elif a.startswith("--note="):
@@ -233,7 +243,7 @@ def main() -> None:
     base = f"http://127.0.0.1:{port}"
     for i in idx or list(range(len(prompts))):
         for arm in arms:
-            rec = run_one(base, prompts[i], arm, plan, note)
+            rec = run_one(base, prompts[i], arm, plan, note, edits)
             with open(f"{out}/{i}-{arm}.json", "w") as f:
                 json.dump(rec, f, ensure_ascii=False, indent=1)
             print(i, arm, json.dumps(score(rec), ensure_ascii=False), "err", rec["errors"][:1], flush=True)

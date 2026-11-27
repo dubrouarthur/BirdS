@@ -1693,6 +1693,9 @@ class Crew:
         self.trace["recited"] = self.trace.get("recited", 0) + self._recite(b, args)
         if self.excluded_n:  # a site excluded after the drafts: the sentences that cite only it go
             args = self._without_sources(args, self.excluded_n)
+        if b.texts:  # a figure written without its [n] gets the number of the page that holds it (code, not model)
+            args, k = cc.autocite(args, b.allowed_by, b.instr + "\n" + b.pasted)
+            self.trace["autocited"] = self.trace.get("autocited", 0) + k
         if not b.sources:  # no source was read: a « [3] » would point at nothing (seen live in a mail)
             args = json.loads(re.sub(r" ?\[\d{1,2}\]", "", json.dumps(args, ensure_ascii=False)))
         # citations made consistent: numbered in the order they first appear, the file lists the cited ones
@@ -2157,6 +2160,8 @@ class Crew:
             bits = ["chiffres contrôlés contre le texte et les sources" if fr else "figures checked against the text and sources"]
             if t.get("recited"):
                 bits.append(f"{t['recited']} citation(s) corrigée(s)" if fr else f"{t['recited']} citation(s) fixed")
+            if t.get("autocited"):
+                bits.append(f"{t['autocited']} citation(s) ajoutée(s)" if fr else f"{t['autocited']} citation(s) added")
             if t.get("fixed"):
                 bits.append("1 correction ciblée" if fr else "1 targeted fix")
             if t.get("removed"):
