@@ -184,3 +184,11 @@ Décision : le canevas reste activé pour la création (le format est suivi et p
 Les modifications libres sont réparées côté harnais (exemple sans identifiants réels, opérations non demandées
 écartées, voir le commit suivant) ; à re-mesurer en direct avant toute autre décision. Si elles restent sous 5/6,
 `BIRD_CANVAS_OFF=1` reste le repli.
+
+Réparations du harnais après cette mesure (rejouées hors ligne sur les réponses réelles, `tests/test_canvas.py`
+`LIVE_ADD` / `LIVE_SHORT`) : l'exemple du format n'a plus d'identifiant réel (`@after <repère>`) ; une opération que
+les mots de la personne ne demandent pas est écartée (`patch.fit` : suppression, thème ou déplacement non demandés, un
+remplacement à côté du bloc demandé en ajout, un ajout ou un bloc rallongé sur « plus court ») ; si rien ne reste, le
+chat le dit au lieu d'afficher les opérations. Sur les deux réponses réelles : « ajoute une slide » donne 6 diapositives
+sur 6 attendues, toutes gardées ; « plus court » ne casse plus rien. L'effet du nouvel exemple sur le modèle reste à
+mesurer en direct (budget de générations atteint).

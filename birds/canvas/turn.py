@@ -102,17 +102,21 @@ SPEC = {
 PATCH = {
     "fr": (
         "[Canevas] Le document ouvert (les repères [b1], [b2]… identifient ses blocs) :\n{outline}\n"
-        "Écris seulement les changements demandés, chacun annoncé par une ligne d'opération :\n"
-        "@replace b3   puis le nouveau bloc complet (# Titre, puis son contenu)\n"
-        "@after b4     puis le bloc à insérer\n@delete b2\n@theme warm (ou modern, corporate)\n"
-        "Même format que le document. N'écris pas les blocs qui ne changent pas."
+        "Écris seulement le changement demandé, une ligne d'opération avant chaque bloc (remplace <repère> par "
+        "celui du bloc visé) :\n"
+        "@after <repère>    puis le nouveau bloc (# Titre, puis son contenu) : pour ajouter\n"
+        "@replace <repère>  puis le bloc complet réécrit : pour modifier, raccourcir ou développer\n"
+        "@delete <repère>   seulement si la demande dit de supprimer\n"
+        "Même format que le document. N'écris aucun bloc qui ne change pas."
     ),
     "en": (
         "[Canvas] The open document (the tags [b1], [b2]… identify its blocks):\n{outline}\n"
-        "Write only the requested changes, each announced by an operation line:\n"
-        "@replace b3   then the complete new block (# Title, then its content)\n"
-        "@after b4     then the block to insert\n@delete b2\n@theme warm (or modern, corporate)\n"
-        "Same format as the document. Do not write the blocks that do not change."
+        "Write only the requested change, one operation line before each block (put the tag of the block in "
+        "place of <tag>):\n"
+        "@after <tag>    then the new block (# Title, then its content): to add\n"
+        "@replace <tag>  then the complete rewritten block: to change, shorten or expand\n"
+        "@delete <tag>   only if the request says to delete\n"
+        "Same format as the document. Write no block that does not change."
     ),
 }
 TARGET = {
@@ -214,9 +218,10 @@ def chat_text(kind: str, doc: dict, lang: str, before: str = "", after: str = ""
                 else f"{name[:1].upper() + name[1:]} est dans le canevas : {what}." if fr
                 else f"{name[:1].upper() + name[1:]} \"{title}\" is in the canvas: {what}." if title
                 else f"{name[:1].upper() + name[1:]} is in the canvas: {what}.")  # fmt: skip
-        tip = ("Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », "
+        unit = ("une diapositive" if fr else "a slide") if kind == "deck" else ("une section" if fr else "a section")
+        tip = (f"Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute {unit} sur… », "
                "« plus court »)." if fr else
-               "Click a block to edit it, or ask me for a change (\"add a slide on…\", \"shorter\").")  # fmt: skip
+               f"Click a block to edit it, or ask me for a change (\"add {unit} on…\", \"shorter\").")  # fmt: skip
         if kind == "code":
             tip = ("L'onglet Aperçu l'exécute à part, sans accès au réseau." if fr
                    else "The Preview tab runs it apart, with no network access.")  # fmt: skip
@@ -233,8 +238,14 @@ def chat_text(kind: str, doc: dict, lang: str, before: str = "", after: str = ""
                      else "The answer was cut by the length limit: the end may be missing.")  # fmt: skip
     lead = before if before and len(before) <= 300 and not re.match(r"(?i)^\s*(voici|here is|here's|bien s[uû]r|"
                                                                      r"d'accord|ok)\b", before) else ""  # fmt: skip
+    if _EXCUSE.search(lead):
+        lead = ""  # « je n'ai pas accès à vos données… » before a deck that is right there: the content speaks
     tail = after if after and len(after) <= 300 else ""
     return "\n\n".join(x for x in [lead, " ".join(parts), tail] if x)
+
+
+_EXCUSE = re.compile(r"(?i)\b(?:je n['’]ai pas (?:acc[èe]s|les donn[ée]es)|je ne (?:peux|suis) pas|"
+                     r"je ne dispose pas|i (?:don['’]t|do not) have access|i cannot|i can['’]t)\b")
 
 
 def memo_line(info: dict | None, lang: str = "fr") -> str:

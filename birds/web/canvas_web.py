@@ -210,6 +210,13 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
     if doc is None:
         if stream.doc is not None:
             emit_doc(ctx, p, None, "abort", lang)
+        if p.mode == "patch" and text and any(patch._is_op_line(ln) for ln in text.split("\n")):
+            # operations, none of them asked for: say so plainly rather than show them
+            name = turn.NAMES.get((p.base or {}).get("kind") or "doc", turn.NAMES["doc"])[turn._lang2(lang)]
+            run.answer = _t(lang, f"Je n'ai pas modifié {name} : précisez le bloc à changer (« raccourcis la "
+                                  "diapositive 3 ») ou cliquez sur un bloc, puis « Demander à Bird ».",
+                            f"I left {name} as it was: say which block to change (\"shorten slide 3\") or click "
+                            "a block, then \"Ask Bird\".")  # fmt: skip
         return run  # the chat shows the model's answer as is (no canvas this time)
     kind = doc.get("kind")
     if p.mode == "create" and kind in ("deck", "doc"):

@@ -481,6 +481,7 @@ def parse_patch(text: str, doc: dict, words: str = "", target: str | None = None
                 b.pop("id", None)
                 ops.append({"op": "insert", "after": after, "block": b})
                 after = "__last__"
+        ops = fit(ops, words, doc, repairs)
         return _resolve_last(ops), "ops" if ops else "none"
     new = dsl.parse(content, kind, doc.get("lang") or "fr", repairs)
     blocks = new["blocks"]
@@ -508,6 +509,57 @@ def parse_patch(text: str, doc: dict, words: str = "", target: str | None = None
         ops.append({"op": "insert", "after": after, "block": b})
         after = "__last__"
     return _resolve_last(ops), "insert"
+
+
+_ADD_ASK = re.compile(r"\b(?:ajoute[rz]?|rajoute[rz]?|ins[èe]re[rz]?|add|insert|append)\b", re.I)
+_CHANGE_ASK = re.compile(
+    r"\b(?:remplace[rz]?|modifie[rz]?|change[rz]?|reformule[rz]?|r[ée][ée]cri[st]|retravaille[rz]?|am[ée]liore[rz]?|"
+    r"corrige[rz]?|compl[èe]te[rz]?|enrichi[st]|d[ée]veloppe[rz]?|replace|change|rewrite|improve|fix|expand|"
+    r"mets? [àa] jour|update)\b",
+    re.I,
+)
+_SHORT_ASK = re.compile(r"\b(?:raccourci[srt]?|r[ée]dui[st]|all[èe]ge[rz]?|condense[rz]?|r[ée]sume[rz]?|simplifie[rz]?|"
+                        r"plus (?:court|concis|bref|simple)e?s?|moins (?:long|de texte)|shorter|shorten|trim|"
+                        r"simplify)\b", re.I)  # fmt: skip
+
+
+def _size(block: dict) -> int:
+    return len(dsl.block_dsl(block, ids=False))
+
+
+def fit(ops: list[dict], words: str, doc: dict, repairs: list[str]) -> list[dict]:
+    """The operations the user's words asked for, the others set aside: a 4B model tends to copy the format's
+    examples (a delete nobody asked for, a replace next to the slide it was asked to add). Without the user's words
+    (tests, internal calls) nothing is set aside."""
+    w = words or ""
+    if not w.strip():
+        return ops
+    add, change, short = bool(_ADD_ASK.search(w)), bool(_CHANGE_ASK.search(w)), bool(_SHORT_ASK.search(w))
+    out = []
+    for op in ops:
+        kind = op.get("op")
+        if kind == "delete" and not _DELETE.search(w):
+            repairs.append(f"delete of {op.get('id')} not asked: ignored")
+            continue
+        if kind == "theme" and not _THEME_WORD.search(w):
+            repairs.append("theme not asked: ignored")
+            continue
+        if kind == "move" and not _MOVE.search(w) and not _SWAP.search(w):
+            repairs.append(f"move of {op.get('id')} not asked: ignored")
+            continue
+        if kind == "replace" and add and not change and not short and any(o.get("op") == "insert" for o in ops):
+            repairs.append(f"replace of {op.get('id')} next to the block asked for: ignored")
+            continue
+        if kind == "insert" and short and not add:
+            repairs.append("insert on a shortening ask: ignored")
+            continue
+        if kind == "replace" and short and not add:
+            j = _index(doc, op.get("id"))
+            if j >= 0 and _size(op["block"]) > _size(doc["blocks"][j]):
+                repairs.append(f"replace of {op.get('id')} longer than the original on a shortening ask: ignored")
+                continue
+        out.append(op)
+    return out
 
 
 def _tag_of(content: str, block: dict) -> str | None:

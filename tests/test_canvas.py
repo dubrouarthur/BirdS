@@ -1003,3 +1003,65 @@ def test_canvas_gate_is_a_deployment_setting():
     assert Settings.from_env({}).canvas is True
     s = Settings.from_env({"BIRD_CANVAS_OFF": "1", "BIRD_BASE_URL": "https://model.example/v1", "BIRD_MODEL": "m"})
     assert s.canvas is False and build_server_backend(s).canvas is False
+
+
+# Real answers of Bird S 4B on a patch turn (live, 27/11/2026, scripts/canvas_eval.py --base-deck): the model
+# copied the format's example operations. The harness keeps only what the user's words asked for.
+LIVE_ADD = ("@replace b3\n# Outils\n- Messagerie et visioconférence\n- Documents partagés\n- Accès sécurisé (VPN)\n"
+            "- Gestion des risques (cybersécurité, continuité d'activité)\n@after b4\n# [b6] Risques\n"
+            "- Perte de productivité\n- Isolement des équipes\n- Vulnérabilité numérique\n@delete b2")  # fmt: skip
+LIVE_SHORT = ("@replace b3   # Outils\n- Messagerie et visioconférence\n- Documents partagés\n- Accès sécurisé (VPN)\n"
+              "- Gestion des risques (cybersécurité, continuité d'activité)\n- Formation aux outils numériques\n"
+              "@after b4   ## [b4.5] Indicateurs clés\n- Taux de satisfaction : 78 %\n- Taux d'absentéisme : 4 %\n"
+              "@delete b2")  # fmt: skip
+
+
+def _base_deck():
+    from scripts.canvas_eval import BASE_DECK
+
+    return dsl.parse(BASE_DECK, "deck", "fr")
+
+
+def test_live_add_answer_keeps_every_slide_and_adds_the_one_asked():
+    base = _base_deck()
+    repairs = []
+    ops, how = patch.parse_patch(LIVE_ADD, base, "ajoute une slide sur les risques", None, repairs)
+    doc = patch.apply_all(base, ops)[0]
+    assert [b["id"] for b in doc["blocks"]][:4] == ["b1", "b2", "b3", "b4"] and len(doc["blocks"]) == 6
+    assert doc["blocks"][4]["title"] == "Risques" and doc["blocks"][2] == base["blocks"][2]
+    assert any("delete of b2 not asked" in r for r in repairs) and any("replace of b3" in r for r in repairs)
+
+
+def test_live_shortening_answer_that_lengthens_changes_nothing_and_says_so(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    base = _base_deck()
+    assert patch.parse_patch(LIVE_SHORT, base, "plus court")[0] == []
+    _no_network(monkeypatch)
+    app, _ = _app([LIVE_SHORT])
+    with TestClient(app) as client:
+        events = _chat(client, "plus court", canvas=_canvas_body(base))
+    assert not [e for e in events if e["type"] == "canvas" and e["phase"] == "final"]
+    said = next(e for e in events if e["type"] == "answer")["content"]
+    assert "@replace" not in said and "Je n'ai pas modifié la présentation" in said
+
+
+def test_fit_keeps_asked_operations():
+    base = _base_deck()
+    ops = [{"op": "delete", "id": "b2"}, {"op": "theme", "theme": "warm"}]
+    assert patch.fit(ops, "supprime la slide 2 et passe en thème chaleureux", base, []) == ops
+    short = {"op": "replace", "id": "b2", "block": {"id": "b2", "title": "Organisation", "parts": [
+        {"t": "list", "items": ["Deux jours par semaine"]}]}}  # fmt: skip
+    assert patch.fit([short], "plus court", base, []) == [short]
+
+
+def test_patch_spec_has_no_real_block_id_to_copy():
+    for lg in ("fr", "en"):
+        assert not re.search(r"@(?:replace|after|delete)\s+b\d", turn.PATCH[lg])
+
+
+def test_chat_text_drops_an_excuse_before_the_deck():
+    d = dsl.parse(DECK, "deck")
+    text = turn.chat_text("deck", d, "fr", before="Je n'ai pas accès à vos données internes ni à l'outil web.")
+    assert "accès" not in text
+    assert "ajoute une section" in turn.chat_text("doc", dsl.parse("# A\nx\n# B\ny", "doc"), "fr")
