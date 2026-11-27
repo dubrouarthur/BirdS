@@ -114,7 +114,7 @@ def run_crew(
     try:
         return crew.run(user_sent, words, docs=docs, history=history)
     finally:
-        crew_plan.REGISTRY.close(run_id)
+        crew_plan.REGISTRY.close(run_id, box)
 
 
 def _open_notes(run_id: str, request: ChatRequest, ctx: RunContext):
@@ -140,7 +140,7 @@ def _continue_slice(agent, request: ChatRequest, ctx: RunContext, history):
         crew = Crew.from_slice(agent, state, deadline=ctx.deadline - 10, notes=box, history=history)
         return crew.continue_()
     finally:
-        crew_plan.REGISTRY.close(run_id)
+        crew_plan.REGISTRY.close(run_id, box)
 
 
 def resume_crew(agent, request: ChatRequest, ctx: RunContext):
@@ -237,7 +237,7 @@ def demo_crew(run) -> None:
     try:
         _demo_team(run, t, lang, ctx, forced, plan, run_id, box)
     finally:
-        crew_plan.REGISTRY.close(run_id)
+        crew_plan.REGISTRY.close(run_id, box)
 
 
 def _demo_team(run, t, lang, ctx, forced, plan, run_id, box) -> None:

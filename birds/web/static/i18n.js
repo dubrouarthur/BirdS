@@ -465,6 +465,8 @@ export const STRINGS = {
     "confirm.deny": "Refuser",
     "confirm.expired":
       "Cette demande a expiré ou ne correspond plus à la conversation. Relancez la demande.",
+    "agent.used":
+      "Cette étape de l'équipe est déjà en cours ou terminée (dans un autre onglet, par exemple).",
     "confirm.allowed": "Vous avez autorisé cette action.",
     "confirm.denied": "Vous avez refusé cette action.",
     "meter.label": "Empreinte de cette réponse",
@@ -1591,6 +1593,8 @@ export const STRINGS = {
     "confirm.deny": "Deny",
     "confirm.expired":
       "This request has expired or no longer matches the conversation. Ask again.",
+    "agent.used":
+      "This step of the team is already running or done (in another tab, for instance).",
     "confirm.allowed": "You allowed this action.",
     "confirm.denied": "You denied this action.",
     "meter.label": "Footprint of this answer",

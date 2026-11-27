@@ -403,10 +403,57 @@ class Registry:
             got = self._boxes.get(run_id)
         return bool(got) and got[1].put(note)
 
-    def close(self, run_id: str) -> list[Note]:
+    def close(self, run_id: str, box: NoteBox | None = None) -> list[Note]:
+        """The run's box closed. With ``box``: only if it is still the one registered (a second request for the same
+        run, e.g. two tabs, opened its own; the first to end must not take the other's away)."""
         with self._lock:
-            got = self._boxes.pop(run_id, None)
+            got = self._boxes.get(run_id)
+            if got is None or (box is not None and got[1] is not box):
+                got = None
+            else:
+                self._boxes.pop(run_id)
+        if box is not None and got is None:
+            return box.close()
         return got[1].close() if got else []
 
 
 REGISTRY = Registry()
+
+
+class Once:
+    """Signed agent states used once per process: a plan token « Lancé », a slice (run, slice) continued. Refuses a
+    second request while the first runs (two tabs, a replayed request) or after it ended normally; a run that was
+    cut (client gone, error) frees its key, so « Reprendre » can use the same state. Best effort: another serverless
+    instance does not see this set (the token's own expiry is the bound there)."""
+
+    TTL = 900.0  # the tokens' own lifetime (confirm_ttl): a key is not kept longer than its token is valid
+    RUNNING_MAX = 900.0  # a claim whose request never started its run is not held for ever
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._running: dict[str, tuple[float, object]] = {}
+        self._done: dict[str, float] = {}
+
+    def claim(self, key: str) -> object | None:
+        """A ticket for ``key``, or None when it is running or done."""
+        now = time.monotonic()
+        with self._lock:
+            self._done = {k: t for k, t in self._done.items() if now - t < self.TTL}
+            self._running = {k: v for k, v in self._running.items() if now - v[0] < self.RUNNING_MAX}
+            if key in self._running or key in self._done:
+                return None
+            ticket = object()
+            self._running[key] = (now, ticket)
+            return ticket
+
+    def release(self, key: str, ticket: object, finished: bool) -> None:
+        """Ends the claim ``ticket`` (twice is harmless: the stream frees it when the client leaves, the run when
+        it ends). A later claim of the same key is never released by an earlier ticket."""
+        with self._lock:
+            if self._running.get(key, (0, None))[1] is ticket:
+                self._running.pop(key)
+                if finished:
+                    self._done[key] = time.monotonic()
+
+
+ONCE = Once()

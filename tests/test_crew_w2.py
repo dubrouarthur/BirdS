@@ -36,6 +36,7 @@ from birds.harness.tools import StaticBackend
 @pytest.fixture(autouse=True)
 def dns(monkeypatch):
     monkeypatch.setattr(guard, "resolve", lambda host: ["93.184.216.34"])
+    monkeypatch.setattr(cp, "ONCE", cp.Once())  # each test starts with no agent state used
 
 
 # ------------------------------------------------------------------ 1. the plan, in code
@@ -529,3 +530,38 @@ def test_a_slice_event_says_until_when_its_state_is_accepted(tmp_path, monkeypat
         events = _sse(client, {**body, "agent_plan": {"token": card["token"], "edits": {}}})
     sl = next(e for e in events if e["type"] == "agent_slice")
     assert isinstance(sl["exp"], int) and 0 < sl["exp"] - time.time() <= 900 + 5
+
+
+def test_a_signed_agent_state_runs_once_and_a_second_box_survives_the_first(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    once = cp.Once()
+    first = once.claim("slice:r:0")
+    assert first is not None and once.claim("slice:r:0") is None  # two tabs: the second waits its turn
+    once.release("slice:r:0", first, finished=False)
+    again = once.claim("slice:r:0")  # the first was cut: « Reprendre » may use the same state
+    once.release("slice:r:0", first, finished=True)  # the cut run ending late frees nothing of the new claim
+    assert again is not None and once.claim("slice:r:0") is None
+    once.release("slice:r:0", again, finished=True)
+    assert once.claim("slice:r:0") is None  # done: never twice
+    # two requests for the same run: the first to end leaves the other's note box in place
+    reg = cp.Registry()
+    a, b = reg.open("run-x"), reg.open("run-x")
+    note = cp.parse_note("focus", "les PME", "n1")
+    reg.close("run-x", a)
+    assert reg.deliver("run-x", note) and b.take() == [note]
+    reg.close("run-x", b)
+    assert not reg.deliver("run-x", note)
+    # over the web: a plan launched twice, a slice continued twice
+    llm = Script(deck_script())
+    body = {"messages": [{"role": "user", "content": ASK_DECK}], "agent_flow": "plan"}
+    with TestClient(_app(tmp_path, llm, monkeypatch)) as client:
+        card = next(e for e in _sse(client, body) if e["type"] == "agent_plan")
+        launch = {**body, "agent_plan": {"token": card["token"], "edits": {"length": "long"}}}
+        sl = next(e for e in _sse(client, launch) if e["type"] == "agent_slice")
+        again = client.post("/api/chat", json=launch)
+        n = len(llm.prompts)
+        assert any(e["type"] == "answer" for e in _sse(client, {**body, "agent_slice": sl["token"]}))
+        twice = client.post("/api/chat", json={**body, "agent_slice": sl["token"]})
+    assert again.status_code == 409 and twice.status_code == 409
+    assert again.json()["detail"]["code"] == "agent_state_used" and len(llm.prompts) > n

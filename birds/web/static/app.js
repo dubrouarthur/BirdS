@@ -1184,6 +1184,7 @@ function httpMessage(status, detail) {
   if (code === "access_code") return t("error.access");
   if (code === "rate_limited") return t("error.rate");
   if (code === "confirm_invalid") return t("confirm.expired");
+  if (code === "agent_state_used") return t("agent.used");
   if (status === 413) return t("error.toolong");
   if (detail?.message) return detail.message;
   // a gateway or a cold start answers 502/503/504 with an HTML page: say it in words; the status goes in the details

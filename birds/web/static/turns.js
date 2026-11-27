@@ -1256,7 +1256,8 @@ function moreMenu(items) {
 // anything else ("internal", or a code this page does not know) is shown as a plain sentence, the raw text folded away
 const FRIENDLY_ERRORS = new Set(
   (
-    "waking endpoint_down network offline dropped stopped access_code rate_limited confirm_invalid unauthorized wrong_route " +
+    "waking endpoint_down network offline dropped stopped access_code rate_limited confirm_invalid agent_state_used " +
+    "unauthorized wrong_route " +
     "unknown_model blocked disabled not_configured host_not_allowed https_only invalid_url address bad_request " +
     "demo invalid_model invalid_token port server timeout unreachable attachment_invalid attachment_too_long " +
     "attachment_type cross_origin image_invalid image_too_large image_too_small image_type invalid_mode " +

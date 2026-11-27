@@ -846,6 +846,23 @@ def create_app(
         for got in (agent_plan and agent_plan["payload"], agent_slice):
             if got is not None and (got.get("conv") != conv or got.get("bind") != binding):
                 raise ApiError(400, "agent_state_invalid", "this agent state belongs to another conversation or model")
+        once = ticket = None  # a signed agent state runs once at a time, and not again once its run ended normally
+        if agent_slice is not None:
+            once = f"slice:{agent_slice.get('run')}:{agent_slice.get('slice')}"
+        elif agent_plan is not None:
+            once = "plan:" + tokens.digest(body.agent_plan.token)
+        if once is not None:
+            from birds.harness import crew_plan
+
+            ticket = crew_plan.ONCE.claim(once)
+            if ticket is None:
+                raise ApiError(409, "agent_state_used", "this agent step is already running or done")
+
+        def release(finished: bool) -> None:
+            if once is not None:  # cut or failed: the same state can be used again (« Reprendre »)
+                from birds.harness import crew_plan
+
+                crew_plan.ONCE.release(once, ticket, finished)
         chat_request = ChatRequest(
             messages,
             body.thinking,
@@ -895,8 +912,10 @@ def create_app(
             from birds.harness import guard
             from birds.harness.llm import EndpointError
 
+            finished = False
             try:
                 backend.run(chat_request, ctx)
+                finished = not cancel.is_set()
             except Cancelled:
                 pass
             except EndpointError as exc:  # the model endpoint, not the user: say it calmly, with a stable code
@@ -912,6 +931,7 @@ def create_app(
                     }
                 )
             finally:
+                release(finished)
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 
         async def stream():
@@ -930,6 +950,8 @@ def create_app(
                     yield _sse(apply_carbon(event, s.grid_intensity))
                 yield _sse({"type": "done"})
             finally:
+                if not cancel.is_set():  # the client left first: its state is free at once for « Reprendre »
+                    release(False)
                 cancel.set()  # client gone or run finished: unblock sleeps
 
         return StreamingResponse(
