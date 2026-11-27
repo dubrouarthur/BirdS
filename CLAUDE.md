@@ -7,6 +7,8 @@
   d'outils ou des données de l'utilisateur, jamais du texte du modèle. Rien n'est inventé.
 - Ton promotionnel et confiant ; jamais d'auto-dépréciation en avant. Jamais de nombre de GPU ni de matériel, jamais
   l'énergie d'entraînement, jamais le modèle de base, jamais où le modèle tourne.
+  Exception voulue : dans le panneau Consommation / Empreinte du chat, on explique que Bird tourne sur une carte
+  graphique (GPU) et on détaille énergie et émissions, sourcées ; sans en faire un argument de nombre de cartes.
 - Message de marque : Bird, c'est avant tout la **légèreté** et la **liberté d'installer nos modèles** où l'on veut, sur
   des sources d'énergie variées ; toujours mettre en avant le **modèle français** (« conçu en France »). C'est l'introduction
   du site corporate comme de l'accueil du chat.
