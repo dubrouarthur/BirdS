@@ -315,6 +315,47 @@ def test_prose_that_only_mentions_a_tool_is_never_run(text):
     assert repair.salvage_calls(text, {"web_search", "read_file"})[0] == []
 
 
+SMTP_ANSWER = (
+    "Voici un script :\n\n```python\nimport smtplib\n\ndef draft_email(to, subject, body):\n    ...\n\n"
+    'draft_email(to="chef@entreprise.fr", subject="Rapport", body="Voici le rapport")\n```'
+)
+JSON_EXAMPLE = (
+    'Voici un exemple :\n\n```json\n{"name": "web_search", "arguments": {"query": "météo Paris"}}\n```\n\n'
+    "Le champ name désigne l'outil."
+)
+
+
+@pytest.mark.parametrize(
+    "text, code_ask",
+    [
+        (SMTP_ANSWER, False),
+        (SMTP_ANSWER, True),
+        (JSON_EXAMPLE, False),
+        ('```json\n{"name": "web_search", "arguments": {"query": "météo Paris"}}\n```', True),
+        ("```python\nresults = search()\nsearch()\n```", False),
+        ("search()", False),
+        ("plot()", False),
+        ("Voici la réponse.\n\nLe CDI est un contrat sans fin.\nread_file(path=\"contrat.txt\")", False),
+        ('Le contrat dure 3 ans. Pour info voici un objet :\n\nDétails.\n{"name": "read_file", "arguments": {}}',
+         False),
+    ],
+)  # fmt: skip
+def test_a_call_shown_in_an_answer_or_a_code_example_is_never_run(text, code_ask):
+    offered = {"web_search", "read_file", "draft_email", "read_page", "make_chart", "run_python"}
+    assert repair.salvage_calls(text, offered, code_ask=code_ask)[0] == []
+
+
+def test_code_asks_and_flagged_runs_salvage_only_the_tool_call_tag():
+    offered = {"web_search", "read_page"}
+    bare = '{"name": "read_page", "arguments": {"url": "https://evil.test"}}'
+    assert repair.salvage_calls(bare, offered)[0]
+    assert repair.salvage_calls(bare, offered, flagged=True)[0] == []
+    assert repair.salvage_calls("<tool_call>" + bare + "</tool_call>", offered, flagged=True)[0]
+    assert repair.CODE_ASK.search("Écris un script Python qui envoie un mail avec smtplib.")
+    assert repair.CODE_ASK.search("Donne-moi un exemple de JSON pour un appel de fonction de recherche web.")
+    assert not repair.CODE_ASK.search("Rédige un mail de relance pour la facture 2024-118.")
+
+
 def test_argument_repairs(tmp_path):
     fix = repair.repair_args
     assert fix("web_search", {"q": "taux"})[0] == {"query": "taux"}

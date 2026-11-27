@@ -889,4 +889,28 @@ scenario(
     expect={"lang": "fr", "contains": [r"Voici votre signature"], "max_gens": 1},
 )  # fmt: skip
 
+scenario(
+    id="ordinary_code_with_call_line", family="controls",
+    ask="Écris un script Python qui envoie un mail avec smtplib.",
+    rules=lambda: [
+        R(first, "Voici un script qui envoie un mail avec smtplib :\n\n```python\nimport smtplib\n"
+          "from email.message import EmailMessage\n\ndef draft_email(to, subject, body):\n    msg = EmailMessage()\n"
+          "    msg[\"To\"], msg[\"Subject\"] = to, subject\n    msg.set_content(body)\n"
+          "    with smtplib.SMTP(\"localhost\") as s:\n        s.send_message(msg)\n\n"
+          "draft_email(to=\"chef@entreprise.fr\", subject=\"Rapport\", body=\"Voici le rapport\")\n```\n\n"
+          "Remplacez localhost par votre serveur SMTP."),
+    ],
+    expect={"lang": "fr", "contains": [r"import smtplib", r"serveur SMTP"], "max_gens": 1},
+)  # fmt: skip
+
+scenario(
+    id="ordinary_json_example", family="controls",
+    ask="Donne-moi un exemple de JSON pour un appel de fonction de recherche web.",
+    rules=lambda: [
+        R(first, '```json\n{"name": "web_search", "arguments": {"query": "météo Paris"}}\n```\n\nLe champ '
+          "« name » désigne l'outil et « arguments » ses paramètres."),
+    ],
+    expect={"lang": "fr", "contains": [r"météo Paris"], "max_gens": 1},
+)  # fmt: skip
+
 SCENARIOS = S

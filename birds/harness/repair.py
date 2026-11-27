@@ -4,8 +4,9 @@ Three layers, all deterministic, none calls the model:
 
 * ``salvage_calls``: a call the trained parser (birds.parse) cannot read. The JSON form a small model falls back to
   (``<tool_call>{"name": …, "arguments": …}</tool_call>``, sometimes followed by text), a bare JSON call or a
-  fenced one written inside prose, or a Python-style ``read_file(path="x")`` line. Only names of tools offered on
-  this turn are taken, so a sentence that merely mentions a tool is never run.
+  fenced one, or a Python-style ``read_file(path="x")`` line, when the output is essentially that call (never a
+  code example in an answer, never when the request asks for code). Only names of tools offered on this turn are
+  taken, so a sentence that merely mentions a tool is never run.
 * ``resolve_tool``: an invented tool name with an obvious meaning (``google_search``, ``send_email``,
   ``create_presentation``) becomes the offered tool; anything else stays unknown and is refused as before.
 * ``repair_args``: argument names a model uses instead of the trained ones (``q``, ``link``, ``file``, ``recipient``,
@@ -67,8 +68,29 @@ def resolve_tool(name: object, offered: set[str]) -> tuple[str, str | None]:
 # ---------------------------------------------------------------- calls the trained parser cannot read
 
 _JSON_IN_TAG = re.compile(r"<tool_call>\s*(\{.*?\})\s*(?:</tool_call>|$)", re.S)
-_FENCE = re.compile(r"```(?:json|tool_call|tool)?\s*(\{.*?\})\s*```", re.S)
+# a fence that holds nothing but one JSON object (no language other than json / tool_call)
+_FENCE = re.compile(r"```(?:json|tool_call|tool)?[ \t]*\n?\s*(\{.*?\})\s*```", re.S)
 _PY_CALL = re.compile(r"(?m)^\s*`?(?P<name>[a-z_]{4,30})\((?P<args>[^()\n]*)\)`?\s*$")
+# aliases too generic to be read as a call from a line of code (« search() », « plot() » in a code example)
+_GENERIC = {"search", "read", "fetch", "browse", "scrape", "mail", "email", "plot", "chart", "python", "document",
+            "presentation", "slides", "excel", "spreadsheet", "powerpoint", "recherche", "chercher"}  # fmt: skip
+# the request asks for code or an example: a call written in the answer is the answer, never run
+CODE_ASK = re.compile(
+    r"\b(?:code|scripts?|json|python|javascript|typescript|sql|bash|snippets?|regex|yaml|xml|curl|sdk|"
+    r"pseudo-?code|macros?|vba|appels?\s+de\s+fonctions?|function\s+call(?:s|ing)?)\b",
+    re.I,
+)
+
+
+def _lead_ok(before: str) -> bool:
+    """The text before a call is nothing, or one short line of prose (« Je lis le fichier. »): the output is
+    essentially a call, not an answer that shows one."""
+    b = before.strip()
+    return not b or ("\n" not in b and len(b) <= 120 and "`" not in b and "{" not in b)
+
+
+def _in_fence(text: str, pos: int) -> bool:
+    return text[:pos].count("```") % 2 == 1
 
 
 def _json_call(blob: str) -> tuple[str, dict] | None:
@@ -140,9 +162,17 @@ def _py_args(text: str) -> dict | None:
     return out
 
 
-def salvage_calls(text: str, offered: set[str]) -> tuple[list[dict], str, str]:
+def salvage_calls(
+    text: str, offered: set[str], *, code_ask: bool = False, flagged: bool = False
+) -> tuple[list[dict], str, str]:
     """Tool calls in an output the trained parser found none in: ([{"name", "arguments"}], text before the first
-    call, note). Empty list when there is nothing safe to run."""
+    call, note). Empty list when there is nothing safe to run.
+
+    Only an output that is essentially a call is read: a ``<tool_call>`` tag anywhere; otherwise the call must come
+    first, after at most one short line of prose, and stand alone (a fence holding only the JSON object, a bare
+    object, a ``read_file(path=…)`` line outside any code block). Never when the request asks for code or an
+    example (``code_ask``: the call written is the answer), and only the tag form after an injection was seen in
+    this run (``flagged``: a page that makes the model echo a JSON call must not get it run)."""
     text = text or ""
     calls, cut = [], None
     for m in _JSON_IN_TAG.finditer(text):
@@ -152,31 +182,38 @@ def salvage_calls(text: str, offered: set[str]) -> tuple[list[dict], str, str]:
             cut = m.start() if cut is None else cut
     if calls:
         return calls, text[:cut].strip(), "tool call written as JSON read"
-    for m in _FENCE.finditer(text):
+    if code_ask or flagged:
+        return [], text, ""
+    m = _FENCE.search(text)
+    tagged = bool(m and re.match(r"```[a-z_]", m.group(0)))
+    lead = text[: m.start()] if m else ""
+    if m and (not lead.strip() or (not tagged and _lead_ok(lead))) and _lead_ok(text[m.end() :]):
         got = _json_call(m.group(1))
         if got and resolve_tool(got[0], offered)[0] in offered:
+            return [{"name": got[0], "arguments": got[1]}], text[: m.start()].strip(), (
+                "tool call written in a code block read"
+            )
+    objs = [(a, b) for a, b in _objects(text) if not _in_fence(text, a)]
+    if objs and _lead_ok(text[: objs[0][0]]):
+        prev = None
+        for a, b in objs:
+            if prev is not None and text[prev:a].strip(" \t\n,;"):
+                break  # only calls that follow each other, not an object further down the answer
+            blob = text[a:b]
+            got = _json_call(blob) if ('"name"' in blob or '"tool"' in blob) else None
+            if not (got and resolve_tool(got[0], offered)[0] in offered and ("arguments" in blob or "parameters" in blob)):
+                break
             calls.append({"name": got[0], "arguments": got[1]})
-            cut = m.start() if cut is None else cut
-    if calls:
-        return calls, text[:cut].strip(), "tool call written in a code block read"
-    for a, b in _objects(text):
-        blob = text[a:b]
-        if '"name"' not in blob and '"tool"' not in blob:
-            continue
-        got = _json_call(blob)
-        if got and resolve_tool(got[0], offered)[0] in offered and ("arguments" in blob or "parameters" in blob):
-            calls.append({"name": got[0], "arguments": got[1]})
-            cut = a if cut is None else cut
+            cut, prev = (a if cut is None else cut), b
     if calls:
         return calls, text[:cut].strip(), "tool call written as JSON in the text read"
-    for m in _PY_CALL.finditer(text):
-        name = resolve_tool(m.group("name"), offered)[0]
+    m = next((m for m in _PY_CALL.finditer(text) if not _in_fence(text, m.start())), None)
+    if m and _lead_ok(text[: m.start()]):
+        raw = m.group("name")
+        name = resolve_tool(raw, offered)[0]
         args = _py_args(m.group("args"))
-        if name in offered and args is not None and (args or m.group("args").strip() == ""):
-            calls.append({"name": m.group("name"), "arguments": args})
-            cut = m.start() if cut is None else cut
-    if calls:
-        return calls, text[:cut].strip(), "tool call written as code read"
+        if name in offered and raw not in _GENERIC and args is not None and (args or m.group("args").strip() == ""):
+            return [{"name": raw, "arguments": args}], text[: m.start()].strip(), "tool call written as code read"
     return [], text, ""
 
 

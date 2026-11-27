@@ -594,6 +594,9 @@ OFFICE_NO = [  # ordinary office prompts: no rich content at all, alone or right
     "comment faire un tableau croisé dynamique ?",
     # a link to include is content, not a page to read
     "Ajoute ce lien à ma signature de mail : https://www.linkedin.com/in/test",
+    # a code example that shows a call is the answer, not a call
+    "Écris un script Python qui envoie un mail avec smtplib.",
+    "Donne-moi un exemple de JSON pour un appel de fonction de recherche web.",
 ]
 FOLLOWUP_NO = [(prev, q) for prev in (_W, _P, _PW, _F, _C, _CO, _CHART) for q in OFFICE_NO]
 IMAGES_YES = [  # (ask, the subject searched)

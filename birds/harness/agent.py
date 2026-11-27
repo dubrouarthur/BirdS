@@ -1124,7 +1124,12 @@ class Agent:
                 if not calls and parsed["content"]:
                     # « <tool_call>{"name": …, "arguments": …}</tool_call> », a bare JSON call or « read_file(path=…) »
                     # in the text: the trained parser reads none of them (repair.salvage_calls)
-                    got, before, salvage_note = repair.salvage_calls(parsed["content"], offered_names)
+                    got, before, salvage_note = repair.salvage_calls(
+                        parsed["content"],
+                        offered_names,
+                        code_ask=bool(repair.CODE_ASK.search(ctx.request or "")),
+                        flagged=run.flagged,
+                    )
                     if got:
                         calls = got[: cfg.max_calls_per_step]
                         parsed = {**parsed, "content": before}
