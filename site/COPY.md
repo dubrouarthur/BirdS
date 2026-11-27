@@ -672,3 +672,17 @@ This page weighs **[XXX] KB**. Measured, not estimated. No trackers, no external
 *(Replace [XXX] with the real measured weight of the home page.)*
 
 Philosophy · Our approach · Footprint · Contact · Français
+
+---
+
+## RSE & sobriété — blocs publiés (novembre 2026)
+
+Textes en ligne (accueil FR/EN, juste après le héros ; repris sur Sobriété / Frugality). Aucun chiffre nouveau : uniquement les chiffres par token déjà publiés et leurs notes.
+
+- Héros, preuves : « Plus de 4× moins d’électricité · par requête courte » / « Environ 30× moins d’eau · face à ChatGPT » / « Conçu en France · vos données sous contrôle ».
+- RSE · Sobriété — « La sobriété, par conception. » (EN « Frugal by design. ») + credo. Illustration à l’échelle : surface des disques proportionnelle aux paramètres (≈ 400 Md / 4 Md).
+- Chiffres en grand : plus de 4× (électricité, 0,34 → ≈ 0,07 Wh), environ 30× (eau, 0,32 → ≈ 0,011 mL), environ 100× (taille, ≈ 400 Md → 4 Md ; calcul par mot « en théorie »).
+- Trois idées : « Moins de calcul, à chaque mot. » · « Léger, par conception. » (veille) · « Chaque réponse montre son empreinte. » (compteur, écran Empreinte).
+- Un avantage pour votre entreprise — « Sobre, et efficace. » : Coût (entraînement pour un coût bien inférieur), Vitesse (répond vite), Souveraineté (conçu en France, données sous votre contrôle), Mesurable (énergie estimée par réponse, total des conversations).
+- Nos engagements — reformulation d’engagements déjà présents sur le site : Rester petit · Afficher l’empreinte · Publier nos chiffres · Ne rien calculer pour rien (veille) · Garder vos données sous contrôle (conversations dans le navigateur) · Viser le 100 % renouvelable (objectif 2030, formulé comme un objectif).
+- Navigation : « RSE & sobriété » / « CSR & frugality ».
