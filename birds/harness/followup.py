@@ -81,6 +81,9 @@ def context_of(steps, widgets=None) -> dict | None:
             if got:
                 return {"tool": tool, "args": got}
     for w in reversed(list(widgets or [])):
+        if isinstance(w, dict) and w.get("type") == "ask_place" and w.get("kind") in _KIND_KEYS:
+            # « une pharmacie autour de moi » was answered with « près de quel lieu ? »: the reply is that place
+            return {"tool": "find_places", "args": {"query": w["kind"]}}
         if isinstance(w, dict) and w.get("type") == "clock":
             names = [
                 str(r.get("name") or "") for r in w.get("cities") or [] if isinstance(r, dict) and not r.get("user")
@@ -187,7 +190,9 @@ def _place_of(prev: dict) -> str:
     if prev["tool"] == "find_places":
         if a.get("near") and a.get("query", "").lower() in _KIND_KEYS:
             return a["near"]
-        return "" if a.get("near") or " ; " in a.get("query", "") else a.get("query", "")
+        if a.get("near") or " ; " in a.get("query", "") or a.get("query", "").lower() in _KIND_KEYS:
+            return ""  # a route, a list, or a kind with no place yet (« autour de moi »)
+        return a.get("query", "")
     return ""
 
 
@@ -205,7 +210,10 @@ def resolve(text: str, prev: dict | None, lang: str = "fr") -> intents.Intent | 
     tool, a = prev["tool"], dict(prev["args"])
     # slots in the user's words, each removed as it is read; whatever is left must be a place or nothing
     kind = ""
-    m = _KIND_ANY.search(t)
+    # the reply to « près de quel lieu ? » (after « une pharmacie autour de moi ») is the place, whole: « à la gare
+    # de Lyon » is not a search for stations
+    asked = tool == "find_places" and not a.get("near") and a.get("query", "").lower() in _KIND_KEYS
+    m = None if asked else _KIND_ANY.search(t)
     if m:
         kind = intents._kind_of(m.group("kind"))
         t = (t[: m.start()] + " " + t[m.end() :]).strip()
@@ -280,7 +288,7 @@ def resolve(text: str, prev: dict | None, lang: str = "fr") -> intents.Intent | 
     # find_places: « et à Lyon ? » moves the same search; « et la tour Eiffel ? » looks up a new place
     if day or around or not place:
         return None
-    if a.get("near") and a.get("query", "").lower() in _KIND_KEYS:
+    if a.get("query", "").lower() in _KIND_KEYS:  # « et à Lyon ? » after « pharmacies près de … » or « … de moi »
         return intents.Intent("find_places", {"query": a["query"], "near": place}, keep_web=False, mode="near")
     if a.get("near") or " ; " in a.get("query", ""):
         return None  # a route or a list: « et à Lyon ? » is ambiguous

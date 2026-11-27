@@ -620,6 +620,12 @@ def places(text: str, lang: str = "fr") -> Intent | None:
     return None
 
 
+def ask_kind(text: str) -> str:
+    """The kind of place of an « autour de moi » ask (« une pharmacie près de moi » -> 'pharmacy'), or ''."""
+    m = re.search(rf"\b{_KIND}\b", normalise(text or ""), re.I)
+    return _kind_of(m.group("kind")) if m else ""
+
+
 def split_near(query: str) -> tuple[str, str] | None:
     """'restaurants près de la gare de Lyon' -> ('restaurant', 'gare de Lyon'), for a model's call without near."""
     m = _RX_NEAR.search(normalise(query))

@@ -1884,8 +1884,8 @@ const RENDER = {
   event: renderEvent,
 };
 
-export function renderWidgets(turn) {
-  const list = (turn.answer?.widgets || []).filter((w) => w && RENDER[w.type]);
+export function renderWidgets(turn, widgets = turn.answer?.widgets || []) {
+  const list = (widgets || []).filter((w) => w && RENDER[w.type]);
   if (!list.length) return null;
   const els = [];
   for (const w of list) {

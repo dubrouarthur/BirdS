@@ -304,6 +304,12 @@ CLOCK_NOTE = {
     "with these exact times; compute no other and do not search the web.)",
 }
 
+ASK_NOTE = {  # maps: « autour de moi » (intents mode "ask")
+    "fr": "\n\n(Note de Bird : la position de l'utilisateur est inconnue de Bird. Demande-lui en une phrase près de "
+    "quelle adresse, gare, quartier ou ville chercher ; ne propose aucun lieu.)",
+    "en": "\n\n(Bird's note: Bird does not know where the user is. Ask in one sentence near which address, station, "
+    "area or town to search; suggest no place.)",
+}
 IMAGES_NOTE = {
     "fr": "\n\n(Note de Bird : la recherche d'images sur « {subject} » est faite. Les images qui correspondent, s'il y "
     "en a, sont affichées sous ta réponse avec leur source. Décris brièvement {subject} d'après les résultats ; "
@@ -871,6 +877,13 @@ class Agent:
             own_answer = prefill and prefill.tool in ("convert_currency", "get_weather")
             if prefill and not prefill.keep_web and (own_answer or not _NEEDS_WEB.search(req)):
                 routed |= {"web_search", "read_page"}
+            # ---- maps: « une pharmacie autour de moi »: Bird does not know where the user is; nothing is looked up,
+            # the model asks for a place and the memo keeps the kind for the reply (« gare de Lyon »)
+            if not prefill and any(i.mode == "ask" for i in found):
+                kind = intents.ask_kind(req)
+                routed |= {"find_places", "web_search", "read_page"}
+                messages[-1]["content"] += ASK_NOTE["en" if run.lang == "en" else "fr"]
+                ctx.widgets.append({"type": "ask_place", "kind": kind})
             facts = "" if prefill or not getattr(cfg, "widgets", True) else self._clock(clock_words, run.lang, tz, ctx)
             if facts:
                 # « décalage horaire avec Tokyo »: the harness computes the times and the slot itself (no tool, no

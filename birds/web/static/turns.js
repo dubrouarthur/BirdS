@@ -1482,10 +1482,13 @@ function basedOn(turn) {
 }
 
 function widgetsFor(turn, entry) {
-  if (!turn.answer?.widgets?.length) return null;
-  if (entry.widgetsOf !== turn.answer) {
-    entry.widgetsOf = turn.answer;
-    entry.widgets = renderWidgets(turn);
+  // the answer's cards, or the ones sent as each pre-called tool returned (`widget` event): shown while the model
+  // writes, and kept when it fails
+  const list = turn.answer?.widgets?.length ? turn.answer.widgets : turn.widgets || [];
+  if (!list.length) return null;
+  if (entry.widgetsOf !== list) {
+    entry.widgetsOf = list;
+    entry.widgets = renderWidgets(turn, list);
   }
   return entry.widgets;
 }
@@ -1536,6 +1539,7 @@ function fillAssistant(el, turn, isLast) {
         h("div", { class: "reasoning-body", text: turn.reasoning }),
       ),
     hasText && entry.md,
+    turn.answer?.fallback && h("p", { class: "answer-note", "data-notice": "fallback", text: turn.answer.fallback }),
     renderCharts(turn),
     renderWebImages(turn),
     widgetsFor(turn, entry),
