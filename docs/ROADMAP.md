@@ -35,7 +35,17 @@ Objectif : le niveau d'OpenAI dans les usages de bureau, porté par un petit mod
      frise, matrice de comparaison, chiffres clés, niveau de confiance par affirmation, export Word / PDF / diapos.
 3. Sources et citations façon ChatGPT / Perplexity : [n] cliquables, bulle, « N sources », panneau latéral.
 4. Modules du catalogue (`docs/research/rich-catalogue-2026-11.json`), 3 lots : structure de réponse, données, documents métier.
-5. Canevas avancé : retouche d'une sélection avec variantes, versions et restauration, ✦ par diapositive, thèmes,
+5. Canevas avancé, objectif « exceptionnel » (dès la vérification du Canevas terminée) :
+   - diapos : ~20 mises en page (couverture plein cadre, chiffre clé géant, comparaison, frise, grille d'images, citation,
+     graphique + message clé, clôture), thèmes marqués, mise en page choisie d'après le contenu ; images Openverse +
+     Wikimedia (licences vérifiées, crédits), « Remplacer » / « Sans image » par diapositive ;
+   - documents type Word au même niveau : page de garde, sommaire, styles de titres, encadrés, tableaux, figures légendées,
+     images, notes, sources ; édition en place, sections déplaçables, export .docx fidèle à l'aperçu ;
+   - code avec Web preview façon ChatGPT : aperçu HTML/CSS/JS en direct (iframe isolée), plusieurs fichiers, console,
+     responsive (mobile / tablette / bureau), « Corriger avec Bird », itérations versionnées, export / copie ;
+   - ✦ par bloc, retouche d'une sélection avec variantes, versions + restauration, le document modifié fait foi ;
+   - contrôle : directeur artistique en taille réelle, aperçu = fichier exporté, mesure live.
+   Détails initiaux : retouche d'une sélection avec variantes, versions et restauration, ✦ par diapositive, thèmes,
    mises en page suggérées par le contenu, panneau « Livrables », « Transformer en… », tableau interactif sur CSV/XLSX.
 
 ## Plus tard
