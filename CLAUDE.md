@@ -7,6 +7,11 @@
   d'outils ou des données de l'utilisateur, jamais du texte du modèle. Rien n'est inventé.
 - Ton promotionnel et confiant ; jamais d'auto-dépréciation en avant. Jamais de nombre de GPU ni de matériel, jamais
   l'énergie d'entraînement, jamais le modèle de base, jamais où le modèle tourne.
+- Message de marque : Bird, c'est avant tout la **légèreté** et la **liberté d'installer nos modèles** où l'on veut, sur
+  des sources d'énergie variées ; toujours mettre en avant le **modèle français** (« conçu en France »). C'est l'introduction
+  du site corporate comme de l'accueil du chat.
+- Interface claire et simple, au niveau de Claude ou ChatGPT : peu d'éléments à l'écran, beaucoup d'espace, la
+  richesse apparaît quand elle sert (modules), jamais d'encombrement.
 - CSP stricte : le navigateur ne contacte aucun tiers ; tout passe côté serveur par le garde d'egress.
 - Français d'abord, parité anglaise.
 - Feuille de route et priorités : `docs/ROADMAP.md`.
