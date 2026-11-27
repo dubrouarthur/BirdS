@@ -489,3 +489,25 @@ def test_a_figure_removed_from_a_bullet_does_not_stay_in_the_slide_title(tmp_pat
     removed = [i["sentence"] for i in card["items"] if i["status"] == "removed"]
     assert bad.removesuffix(" [2]") in removed and "37 % en télétravail" in removed
     assert not [i for i in card["items"] if i["status"] != "removed" and i["value"].startswith("37")]
+
+
+def test_plan_edits_reject_infinite_and_untyped_values(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    p = cp.make_plan(decide(ASK_DECK), ASK_DECK)
+    for v in (float("inf"), float("-inf"), float("nan"), 1e400, True, "9" * 5000):
+        assert cp.apply_edits(p, {"n_slides": v})[0].n_slides in (p.n_slides, 12)
+    assert cp.apply_edits(p, {"n_slides": 4.0})[0].n_slides == 4
+    llm = Script(deck_script())
+    body = {"messages": [{"role": "user", "content": ASK_DECK}], "agent_flow": "plan"}
+    with TestClient(_app(tmp_path, llm, monkeypatch)) as client:
+        card = next(e for e in _sse(client, body) if e["type"] == "agent_plan")
+        raw = json.dumps({**body, "agent_plan": {"token": card["token"], "edits": {"n_slides": float("inf")}}})
+        assert "Infinity" in raw
+        inf = client.post("/api/chat", content=raw, headers={"content-type": "application/json"})
+        wrong = client.post("/api/chat", json={**body, "agent_plan": {"token": card["token"],
+                                                                      "edits": {"audience": {"x": 1}}}})  # fmt: skip
+        extra = _sse(client, {**body, "agent_plan": {"token": card["token"], "edits": {"tool": "run_python",
+                                                                                       "n_slides": 5}}})  # fmt: skip
+    assert inf.status_code == 422 and "infinity to integer" not in inf.text and wrong.status_code == 422
+    assert next(e for e in extra if e["type"] == "agent_start")["plan"]["n_slides"] == 5

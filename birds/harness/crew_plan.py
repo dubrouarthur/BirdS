@@ -12,6 +12,7 @@ acknowledged as such, never silently dropped.
 
 from __future__ import annotations
 
+import math
 import re
 import threading
 import time
@@ -245,9 +246,11 @@ def apply_edits(plan: Plan, edits) -> tuple[Plan, list[str]]:
         p.length = edits["length"]
         changed.append("length")
     if p.n_slides is not None and "n_slides" in edits:
-        try:
-            n = max(3, min(12, int(edits["n_slides"])))
-        except (TypeError, ValueError):
+        v = edits["n_slides"]
+        try:  # Infinity and NaN parse as JSON in Python: int() of them raises OverflowError / ValueError
+            n = max(3, min(12, int(v))) if not isinstance(v, bool) and (not isinstance(v, float) or math.isfinite(v)) \
+                else p.n_slides
+        except (TypeError, ValueError, OverflowError):
             n = p.n_slides
         if n != p.n_slides:
             p.n_slides = n

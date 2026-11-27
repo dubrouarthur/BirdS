@@ -17,13 +17,14 @@ import threading
 import time
 from collections import deque
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from . import endpoint as ep
 from . import tokens
@@ -75,11 +76,29 @@ class Attachment(BaseModel):
 BINARY_ATTACHMENTS = (".pdf", ".docx", ".xlsx", ".pptx")
 
 
+_Short = Annotated[str, Field(max_length=300)]
+
+
+class PlanEditsIn(BaseModel):
+    """The plan card's typed fields only (crew_plan.apply_edits re-validates each value: enums, 3–12 slides,
+    headings and domains cleaned). Unknown keys are dropped; a value of the wrong type is a 422, never a 500."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    audience: Literal["general", "decision", "experts"] | None = None
+    length: Literal["short", "standard", "long"] | None = None
+    n_slides: int | None = Field(default=None, ge=1, le=50)
+    sections: list[_Short] | None = Field(default=None, max_length=16)
+    prefer: list[_Short] | None = Field(default=None, max_length=12)
+    exclude: list[_Short] | None = Field(default=None, max_length=12)
+    focus: str | None = Field(default=None, max_length=400)
+
+
 class AgentPlanIn(BaseModel):
     """« Lancer » on the plan card: the signed plan and the user's edits of its typed fields (crew_plan.apply_edits)."""
 
     token: str = Field(min_length=16, max_length=60_000)
-    edits: dict = Field(default_factory=dict)
+    edits: PlanEditsIn = Field(default_factory=PlanEditsIn)
 
 
 class AgentNoteIn(BaseModel):
@@ -815,7 +834,7 @@ def create_app(
         try:  # the plan card's « Lancer » and the next slice of a long task carry state signed by this server
             if body.agent_plan is not None:
                 agent_plan = {"payload": tokens.verify(body.agent_plan.token, s.signing_secret),
-                              "edits": body.agent_plan.edits}  # fmt: skip
+                              "edits": body.agent_plan.edits.model_dump(exclude_none=True)}  # fmt: skip
                 if agent_plan["payload"].get("k") != "crew_plan":
                     raise tokens.TokenError("not a plan")
             if body.agent_slice:
@@ -937,6 +956,14 @@ def create_app(
     async def http_error(request: Request, exc: HTTPException) -> JSONResponse:
         detail = exc.detail if isinstance(exc.detail, dict) else {"code": "http_error", "message": str(exc.detail)}
         return JSONResponse({"detail": detail}, status_code=exc.status_code)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_body(request: Request, exc: RequestValidationError) -> JSONResponse:
+        """FastAPI's 422, without echoing the input back: a value such as Infinity (valid for Python's json)
+        cannot be written as JSON, and a body is not to be repeated in an error anyway."""
+        errs = [{"loc": list(e.get("loc") or ()), "msg": str(e.get("msg") or "")[:200], "type": str(e.get("type") or "")}
+                for e in exc.errors()][:20]  # fmt: skip
+        return JSONResponse({"detail": errs}, status_code=422)
 
     @app.exception_handler(404)
     async def not_found(request: Request, exc: Exception) -> JSONResponse:
