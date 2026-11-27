@@ -27,7 +27,7 @@ import { wrapPref } from "./richcode.js";
 import { docCard, imageCard, kindOf, middle } from "./attach.js";
 import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 import { chartMarkdown, renderChart } from "./chart.js";
-import { renderWidgets, widgetsText } from "./widgets.js";
+import { moveFull, renderWidgets, widgetsText } from "./widgets.js";
 import { renderAgents, renderChecks } from "./agents.js";
 import { footprintAnswer } from "./footprint.js";
 import { renderPlan } from "./plan.js"; // task plan checklist (w1-harness)
@@ -1487,10 +1487,21 @@ function basedOn(turn) {
 }
 
 function widgetsFor(turn, entry) {
-  if (!turn.answer?.widgets?.length) return null;
-  if (entry.widgetsOf !== turn.answer) {
-    entry.widgetsOf = turn.answer;
-    entry.widgets = renderWidgets(turn);
+  // the answer's cards, or the ones sent as each pre-called tool returned (`widget` event): shown while the model
+  // writes, and kept when it fails
+  const list = turn.answer?.widgets?.length ? turn.answer.widgets : turn.widgets || [];
+  if (!list.length) return null;
+  if (entry.widgetsOf !== list) {
+    entry.widgetsOf = list;
+    // the answer's cards are most often the early ones again: the same cards keep their DOM (and its state: an
+    // open full screen, an expanded list); others are drawn again and take over a full screen left open
+    const key = JSON.stringify(list);
+    if (key !== entry.widgetsKey) {
+      entry.widgetsKey = key;
+      const old = entry.widgets;
+      entry.widgets = renderWidgets(turn, list);
+      moveFull(old, entry.widgets);
+    }
   }
   return entry.widgets;
 }
@@ -1499,6 +1510,8 @@ function widgetsFor(turn, entry) {
 function focusKey(el) {
   const a = document.activeElement;
   if (!a || a === el || !el.contains(a)) return null;
+  // a map open in full screen keeps its node across redraws: the focused control itself is given back
+  if (a.closest(".widget-places.is-full")) return { node: a };
   const sel = a.hasAttribute("data-crew-summary")
     ? "[data-crew-summary]"
     : a.dataset.act
@@ -1509,6 +1522,10 @@ function focusKey(el) {
 }
 
 function restoreFocus(el, key) {
+  if (key?.node) {
+    if (key.node.isConnected && document.activeElement !== key.node) key.node.focus({ preventScroll: true });
+    return;
+  }
   if (!key || el.contains(document.activeElement)) return;
   const all = el.querySelectorAll(key.sel);
   // the way out of a team that just finished is gone: its folded line takes the focus, never <body>
@@ -1542,6 +1559,7 @@ function fillAssistant(el, turn, isLast) {
         h("div", { class: "reasoning-body", text: turn.reasoning }),
       ),
     hasText && entry.md,
+    turn.answer?.fallback && h("p", { class: "answer-note", "data-notice": "fallback", text: turn.answer.fallback }),
     renderCharts(turn),
     renderWebImages(turn),
     widgetsFor(turn, entry),
@@ -1587,6 +1605,7 @@ function fillAssistant(el, turn, isLast) {
     el.replaceChildren(...kids);
   }
   restoreFocus(el, focus);
+  el.querySelector(".widget-places.is-full")?._reinert?.();
   el.setAttribute("aria-busy", String(turn.status === "running"));
 }
 

@@ -171,12 +171,15 @@ class Place:
 
 _ADDRESS = re.compile(
     r"\b\d{1,4}\s*(?:bis|ter)?,?\s+(?:rue|avenue|av\.?|bd|boulevard|place|pl\.|chemin|all[ée]e|impasse|quai|route|"
-    r"cours|square|passage|rond-point)\s+[^\n,;?!]{2,60}(?:,?\s*\d{5}\s+[A-Za-zÀ-ÿ' -]{2,40})?",
+    r"cours|square|passage|rond-point|esplanade|parvis|promenade|faubourg|(?:la\s+)?canebi[èe]re)"
+    r"(?:\s+[^\n,;?!]{2,60}|(?=[\s,]))"
+    # « …, 75001 Paris » or « …, Bordeaux » (a capitalised town after a comma)
+    r"(?:,?\s*\d{5}\s+[A-Za-zÀ-ÿ' -]{2,40}|,\s*(?!\d)[A-ZÀ-Ý][A-Za-zÀ-ÿ'-]+(?:[ -][A-Za-zÀ-ÿ'-]+){0,2}(?=\s*(?:[,;?!.\n]|$)))?",
     re.I,
 )
 _POSTCODE_STREET = re.compile(
-    r"\b\d{5}\b.*\b(?:rue|avenue|boulevard|place|chemin|quai|route|allée|impasse)\b|"
-    r"\b(?:rue|avenue|boulevard|place|chemin|quai|route|allée|impasse)\b.*\b\d{5}\b",
+    r"\b\d{5}\b.*\b(?:rue|avenue|boulevard|place|chemin|quai|route|allée|impasse|canebi[èe]re)\b|"
+    r"\b(?:rue|avenue|boulevard|place|chemin|quai|route|allée|impasse|canebi[èe]re)\b.*\b\d{5}\b",
     re.I,
 )
 _TOWNS = {"city", "town", "village", "administrative", "municipality", "hamlet", "suburb", "county", "state"}
@@ -341,8 +344,9 @@ def disambiguate(q: str, request: str = "") -> str:
 class Geocoder:
     """Search places for one run (``ctx``: http client, config, per-run counter, bytes meter)."""
 
-    def __init__(self, ctx):
-        self.ctx, self.cfg = ctx, ctx.config
+    def __init__(self, ctx, count: bool = True):
+        # count=False: the lookups of a list of places have their own cap (tools/places.py), not MAX_LOOKUPS_PER_RUN
+        self.ctx, self.cfg, self.count = ctx, ctx.config, count
 
     def _url(self, base: str, params: dict) -> str:
         return base + ("&" if "?" in base else "?") + urlencode(params)
@@ -358,23 +362,26 @@ class Geocoder:
         }
         if viewbox:
             params.update(viewbox=",".join(f"{v:.5f}" for v in viewbox), bounded=1)
-        data = get_json(self.ctx, self._url(self.cfg.nominatim_url, params))
+        data = get_json(self.ctx, self._url(self.cfg.nominatim_url, params), count=self.count)
         return [p for p in (from_nominatim(x) for x in (data if isinstance(data, list) else [])) if p]
 
     def photon(self, q: str, limit: int = 3, lang: str = "fr", near: Place | None = None) -> list[Place]:
         params = {"q": q, "limit": limit, "lang": lang if lang in ("fr", "en", "de", "it") else "default"}
         if near:
             params.update(lat=f"{near.lat:.5f}", lon=f"{near.lon:.5f}")
-        data = get_json(self.ctx, self._url(self.cfg.photon_url, params))
+        data = get_json(self.ctx, self._url(self.cfg.photon_url, params), count=self.count)
         feats = data.get("features", []) if isinstance(data, dict) else []
         return [p for p in (from_photon(f) for f in feats) if p]
 
-    def ban(self, q: str, limit: int = 1) -> list[Place]:
+    def ban(self, q: str, limit: int = 1, kind: str = "") -> list[Place]:
+        """``kind``: a BAN result type (« municipality » for a town name, « housenumber »…), or any."""
         base = self.cfg.ban_url
         params = {"q": q, "limit": limit}
         if "geopf" in base and "index=" not in base:
             params["index"] = "address"
-        data = get_json(self.ctx, self._url(base, params))
+        if kind:
+            params["type"] = kind
+        data = get_json(self.ctx, self._url(base, params), count=self.count)
         feats = data.get("features", []) if isinstance(data, dict) else []
         return [p for p in (from_ban(f) for f in feats) if p]
 
@@ -384,10 +391,16 @@ class Geocoder:
         q = disambiguate(" ".join(str(q or "").split())[:160], str(getattr(self.ctx, "request", "") or ""))
         if not q:
             return []
+        # a provider that fails (busy queue, 5xx, timeout, blocked) is not an empty answer: when every provider
+        # asked failed, the error is raised, so that « not found » is only ever said on a real empty answer
+        errors: list[Exception] = []
+        answered = False
         if near is None and looks_like_address(q):
             try:
                 found = [p for p in self.ban(q) if p.importance >= 0.6]
-            except (ToolError, guard.Blocked):
+                answered = True
+            except (ToolError, guard.Blocked) as e:
+                errors.append(e)
                 found = []
             if found:
                 return found[:1]
@@ -399,24 +412,40 @@ class Geocoder:
                 box = (near.lon - dl, near.lat + d, near.lon + dl, near.lat - d)
                 try:
                     out = self.nominatim(q, limit=max(limit, 8), viewbox=box, lang=lang)
-                except ToolError:
+                    answered = True
+                except ToolError as e:
+                    errors.append(e)
                     out = []
                 if len(out) >= 3:
                     break
+            if errors and not answered:
+                raise _unavailable(errors)
             for p in out:
                 p.distance_m = distance_m(near.lat, near.lon, p.lat, p.lon)
             out.sort(key=lambda p: p.distance_m or 0)
             return out[:limit]
         try:
             found = self.nominatim(q, limit=limit, lang=lang)
-        except ToolError:
+            answered = True
+        except ToolError as e:
+            errors.append(e)
             found = []
         if not found:
             try:
                 found = self.photon(q, limit=limit, lang=lang)
-            except ToolError:
+                answered = True
+            except ToolError as e:
+                errors.append(e)
                 found = []
+        if not found and errors and not answered:
+            raise _unavailable(errors)
         return found[:limit]
+
+
+def _unavailable(errors: list[Exception]) -> ToolError:
+    """The error of a lookup no provider could answer (« busy » kept: it says to try again in a moment)."""
+    busy = next((e for e in errors if "busy" in str(e)), None)
+    return ToolError(str(busy) if busy else "the map service is unavailable right now, try again in a moment")
 
 
 # ---------------------------------------------------------------- Web-Mercator (mirrored in static/widgets.js)

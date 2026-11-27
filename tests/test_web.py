@@ -683,10 +683,11 @@ def test_static_payload_budget():
     assert sum(p.stat().st_size for p in fonts.iterdir()) < 400_000
     # raised step by step: images, attachments, previews, the P1 UX backlog, the file previews, the in-chat charts
     # with web image cards, rich answer text, the result widgets (maps, company, currency, event cards, .ics), Mode Agent
-    # and its wave 2 (plan card, live activity, « Vérifications faites », « Livrables »), the footprint module (~65 kB), the task plan checklist
-    assert total < 890_000, f"static payload is {total} bytes"  # about 200 kB once gzipped
+    # and its wave 2 (plan card, live activity, « Vérifications faites », « Livrables »), the footprint module (~65 kB),
+    # the task plan checklist, then the map card of lists (groups, full screen, visit order, distances)
+    assert total < 910_000, f"static payload is {total} bytes"  # about 200 kB once gzipped
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
-    assert demo < 400_000, f"demo maps weigh {demo} bytes"
+    assert demo < 520_000, f"demo maps weigh {demo} bytes"  # + the maps of the scripted lists of places
 
 
 def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():

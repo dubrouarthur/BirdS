@@ -16,6 +16,11 @@ from birds.harness.intents import KINDS
 
 MAX_PER_RUN = 2
 MAX_CARDS = 8
+MAX_LIST = 25  # places of one list ask (« montre sur une carte : a ; b ; c … »)
+# a list card's JSON budget: birds/web/widgets.py MAX_LIST_BYTES (16 KB) less room for the map image it adds
+LIST_BYTES = 15_000
+MAX_LIST_SLOW = 6  # of which looked up on Nominatim / Photon (1 request a second, OSMF policy); BAN has no such limit
+LIST_WORKERS = 4  # parallel BAN requests (its limit is 50 requests a second per address)
 _KIND_KEYS = {k for _, k in KINDS}
 
 
@@ -28,8 +33,8 @@ def _directions(b: geo.Place, a: geo.Place | None = None) -> str:
     return "https://www.openstreetmap.org/directions?route=" + quote(f"{start};{b.lat:.6f},{b.lon:.6f}", safe="")
 
 
-def _card(n, p: geo.Place, origin: geo.Place | None = None) -> dict:
-    return {
+def _card(n, p: geo.Place, origin: geo.Place | None = None, slim: bool = False) -> dict:
+    card = {
         "n": n,
         "name": p.name,
         "kind": p.kind,
@@ -49,6 +54,86 @@ def _card(n, p: geo.Place, origin: geo.Place | None = None) -> dict:
         "osm": _osm(p.lat, p.lon),
         "directions": _directions(p, origin),
     }
+    if slim:  # a list of up to 25 places: empty fields are left out (the widget size is capped)
+        card = {k: v for k, v in card.items() if v not in ("", None)}
+    return card
+
+
+def itinerary_url(points: list[tuple[float, float]]) -> str:
+    """A multi-stop route on OSRM's OpenStreetMap router (openstreetmap.org/directions only takes two points)."""
+    return "https://map.project-osrm.org/?" + "&".join(f"loc={la:.5f}%2C{lo:.5f}" for la, lo in points)
+
+
+def visit_order(points: list[tuple[float, float]]) -> list[int]:
+    """An open path from the first point through all the others, short at crow-flies distance: nearest neighbour
+    then 2-opt. Indices into ``points``; the first stays first."""
+    n = len(points)
+    if n <= 2:
+        return list(range(n))
+
+    def d(i, j):
+        return geo.distance_m(points[i][0], points[i][1], points[j][0], points[j][1])
+
+    order, left = [0], set(range(1, n))
+    while left:
+        nxt = min(left, key=lambda j: (d(order[-1], j), j))
+        order.append(nxt)
+        left.remove(nxt)
+    improved = True
+    while improved:
+        improved = False
+        for i in range(1, n - 1):
+            for k in range(i + 1, n):
+                a, b = order[i - 1], order[i]
+                c, e = order[k], (order[k + 1] if k + 1 < n else None)
+                before = d(a, b) + (d(c, e) if e is not None else 0)
+                after = d(a, c) + (d(b, e) if e is not None else 0)
+                if after < before - 1:
+                    order[i : k + 1] = reversed(order[i : k + 1])
+                    improved = True
+    return order
+
+
+def _lookup_list(g: geo.Geocoder, names: list[str], lang: str) -> tuple[list[geo.Place | None], set[int]]:
+    """One place (or None) per name, in order, and the indices of the names that could not be checked. Addresses and
+    town names go to BAN in parallel; the others (and the addresses BAN does not know) to Nominatim / Photon one at a
+    time, at most MAX_LIST_SLOW of them. A name is « not found » only when a provider answered with nothing: a
+    lookup that failed (busy queue, 5xx, timeout, blocked) or never ran (over MAX_LIST_SLOW) is « not checked »."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from birds.harness.intents import known_place
+
+    def fast(name: str) -> geo.Place | None:
+        try:
+            if geo.looks_like_address(name):
+                hits = [h for h in g.ban(name) if h.importance >= 0.6]
+            elif known_place(name):
+                hits = [h for h in g.ban(name, kind="municipality") if h.importance >= 0.5]
+                hits = [h for h in hits if _fold(h.name).startswith(_fold(name).split(" ")[0])]
+            else:
+                return None
+        except (ToolError, geo.guard.Blocked):
+            return None  # BAN failed: Nominatim / Photon are asked next (geo.Geocoder.search)
+        return hits[0] if hits else None
+
+    with ThreadPoolExecutor(max_workers=LIST_WORKERS) as pool:
+        found = list(pool.map(fast, names))
+    unchecked: set[int] = set()
+    slow = 0
+    for i, name in enumerate(names):
+        if found[i] is not None:
+            continue
+        if slow >= MAX_LIST_SLOW:
+            unchecked.add(i)
+            continue
+        slow += 1
+        try:
+            hits = g.search(name, limit=1, lang=lang)
+        except (ToolError, geo.guard.Blocked):
+            unchecked.add(i)
+            hits = []
+        found[i] = hits[0] if hits else None
+    return found, unchecked
 
 
 def _fmt_dist(m: int | None, lang: str) -> str:
@@ -118,7 +203,8 @@ def find_places(args: dict, ctx) -> str:
     if ctx.place_calls >= MAX_PER_RUN:
         raise ToolError("places already shown; answer with them")
     lang = ctx.lang if ctx.lang in ("fr", "en") else "fr"
-    query = " ".join(str(args.get("query") or "").split())[:200]
+    query = " ".join(str(args.get("query") or "").split())
+    query = query[:6000] if ";" in query else query[:200]
     near = " ".join(str(args.get("near") or "").split())[:120]
     if not query:
         raise ToolError("query is empty")
@@ -132,17 +218,25 @@ def find_places(args: dict, ctx) -> str:
             )
     g = geo.Geocoder(ctx)
     center = None
+    plan = ""
     if ";" in query:
-        mode, names = "list", [x.strip() for x in query.split(";") if x.strip()][:5]
-        found, missing = [], []
-        for name in names:
-            try:
-                res = g.search(name, limit=1, lang=lang)
-            except ToolError:
-                res = []
-            (found.append(res[0]) if res else missing.append(name))
-        places = found
-        title = query
+        from birds.harness.mapwords import plan_of
+
+        every = [x.strip() for x in query.split(";") if x.strip()]
+        # past MAX_LIST, nothing is looked up: the names are said « not shown », never dropped silently
+        mode, names, not_shown = "list", every[:MAX_LIST], every[MAX_LIST:]
+        got, failed = _lookup_list(geo.Geocoder(ctx, count=False), names, lang)
+        places = [p for p in got if p is not None]
+        missing = [n for i, (n, p) in enumerate(zip(names, got, strict=True)) if p is None and i not in failed]
+        unchecked = [names[i] for i in sorted(failed)]
+        title = ""  # the card says « N lieux »: the raw ask (up to 6000 characters) never fills the widget
+        # the model (or the reading of the ask) says what to compute; the user's words are the fallback
+        asked = str(args.get("plan") or "").strip().lower()
+        said = getattr(ctx, "request", "") or ""
+        for n in names:  # the words of the places themselves (« rue du Circuit ») never ask for a plan
+            said = said.replace(n, " ")
+        plan = asked if asked in ("order", "distances") else plan_of(said)
+        plan = plan if len(places) >= 2 else ""
     else:
         if near:
             # « aix »: several towns match; the most important one (a city before villages) is the likely meaning
@@ -167,21 +261,26 @@ def find_places(args: dict, ctx) -> str:
                 top = hits[0].importance or 0.0
                 hits = [hits[0]] + [h for h in hits[1:] if top and h.importance >= 0.5 * top]
             places = hits
-        missing = []
+        missing, unchecked = [], []
         title = query
+    if not places and unchecked:
+        # nothing could be checked: the service failed, the places may well exist
+        raise ToolError("the map service is unavailable right now; say so, never that these places do not exist")
     if not places:
         ctx.step_info = {"found": 0}
         return _none(near if near and center is None else query, lang)
     ctx.place_calls += 1
     if mode == "route":
         cards = [_card("A", center), _card("B", places[0], center)]
+    elif mode == "list":
+        cards = [_card(i, p, None, slim=True) for i, p in enumerate(places, 1)]
     else:
         cards = [_card(i, p, None) for i, p in enumerate(places[:MAX_CARDS], 1)]
     widget = {
         "type": "places",
         "v": 1,
         "mode": mode,
-        "query": query,
+        "query": query[:200],
         "near": near,
         "title": title,
         "center": None
@@ -196,6 +295,10 @@ def find_places(args: dict, ctx) -> str:
     if mode == "route":
         widget["distance_m"] = places[0].distance_m
         widget["directions"] = _directions(places[0], center)
+    if mode == "list":
+        widget.update(missing=missing, unchecked=unchecked, not_shown=not_shown, plan=plan)
+        fit_list(widget, LIST_BYTES)
+        places = places[: len(widget["places"])]
     ctx.step_info = {
         "widget": widget,
         "found": len(places),
@@ -220,7 +323,7 @@ def find_places(args: dict, ctx) -> str:
                 "OpenStreetMap est affiché."
             )
         elif mode == "list":
-            head = "Lieux trouvés sur OpenStreetMap, dans l'ordre demandé :"
+            head = f"{len(places)} lieu(x) placé(s) sur une carte, dans l'ordre donné :"
         else:
             head = "Résultat OpenStreetMap :"
     else:
@@ -237,11 +340,93 @@ def find_places(args: dict, ctx) -> str:
                 "link is shown."
             )
         elif mode == "list":
-            head = "Places found on OpenStreetMap, in the order asked:"
+            head = f"{len(places)} place(s) put on a map, in the order given:"
         else:
             head = "OpenStreetMap result:"
-    lines = [head] + ([] if mode == "route" else [_line(i, p, lang) for i, p in enumerate(places[:MAX_CARDS], 1)])
+    shown = places if mode == "list" else places[:MAX_CARDS]
+    lines = [head] + ([] if mode == "route" else [_line(i, p, lang) for i, p in enumerate(shown, 1)])
     if missing:
-        lines.append(("Non trouvés : " if lang == "fr" else "Not found: ") + ", ".join(missing))
+        lines.append(("Introuvables (dis-le) : " if lang == "fr" else "Not found (say so): ") + " ; ".join(missing))
+    if mode == "list" and widget.get("not_shown"):
+        lines.append(
+            (
+                "Non affichés (trop de lieux pour une carte ; dis-le et propose une autre carte pour eux) : "
+                if lang == "fr"
+                else "Not shown (too many places for one map; say so and offer another map for them): "
+            )
+            + " ; ".join(widget["not_shown"])
+        )
+    if unchecked:
+        lines.append(
+            (
+                "Non vérifiés (service de cartes indisponible ou trop sollicité ; dis-le, ne dis pas qu'ils "
+                "n'existent pas) : "
+                if lang == "fr"
+                else "Not checked (map service unavailable or busy; say so, never that they do not exist): "
+            )
+            + " ; ".join(unchecked)
+        )
+    if mode == "list" and plan:
+        lines.append(_plan_text(widget, lang))
     lines.append(_tail(lang) + (f" Source à citer : [{n_src}]." if lang == "fr" else f" Source to cite: [{n_src}]."))
     return "\n".join(lines)
+
+
+def plan_list(w: dict) -> None:
+    """The visit order, legs, total and full-route link of a list card, from the places it shows (``w["plan"]``)."""
+    pts = [(c["lat"], c["lon"]) for c in w["places"]]
+    plan = w.get("plan") if len(pts) >= 2 else ""
+    order = visit_order(pts) if plan == "order" else list(range(len(pts)))
+    legs = [
+        {"a": order[i] + 1, "b": order[i + 1] + 1, "m": geo.distance_m(*pts[order[i]], *pts[order[i + 1]])}
+        for i in range(len(order) - 1)
+    ]
+    w.update(
+        plan=plan,
+        order=[i + 1 for i in order],
+        legs=legs if plan else [],
+        total_m=sum(x["m"] for x in legs) if plan else None,
+        itinerary=itinerary_url([pts[i] for i in order]) if len(pts) >= 2 else "",
+    )
+    w.pop("matrix", None)
+    if plan == "distances" and len(pts) <= 8:
+        w["matrix"] = [[geo.distance_m(*a, *b) for b in pts] for a in pts]
+
+
+def _size(w: dict) -> int:
+    import json
+
+    return len(json.dumps(w, ensure_ascii=False, separators=(",", ":")))
+
+
+def fit_list(w: dict, budget: int) -> list[str]:
+    """Plan a list card and keep it within ``budget`` bytes: the last places go first, their names join
+    ``not_shown`` (before the names past MAX_LIST), and the order, legs, total and route are computed again on what
+    is shown, so they never go through a place the card does not show. Returns the names dropped."""
+    plan_list(w)
+    dropped: list[str] = []
+    while _size(w) > budget and len(w.get("places") or []) > 1:
+        dropped.insert(0, str(w["places"].pop().get("name") or ""))
+        plan_list(w)
+        w["not_shown"] = [x for x in dropped if x] + [x for x in w.get("not_shown") or [] if x not in dropped]
+    return dropped
+
+
+def _plan_text(w: dict, lang: str) -> str:
+    """The visit order or the distances, for the model (crow-flies: never a driving time)."""
+    seq = " → ".join(str(n) for n in w["order"])
+    total = _fmt_dist(w.get("total_m"), lang)
+    if w["plan"] == "order":
+        return (
+            f"Ordre de visite proposé (le plus court à vol d'oiseau, en partant de 1) : {seq}, {total} au total. "
+            "Ce n'est pas un temps de trajet ; le lien « Itinéraire complet » de la carte calcule la route."
+            if lang == "fr"
+            else f"Suggested visit order (shortest as the crow flies, starting from 1): {seq}, {total} in all. "
+            "This is not a travel time; the map's 'Full route' link computes the road route."
+        )
+    legs = " ; ".join(f"{x['a']}–{x['b']} : {_fmt_dist(x['m'], lang)}" for x in w["legs"])
+    return (
+        f"Distances à vol d'oiseau entre les lieux, dans l'ordre donné : {legs}."
+        if lang == "fr"
+        else f"Straight-line distances between the places, in the order given: {legs}."
+    )

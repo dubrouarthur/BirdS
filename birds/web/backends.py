@@ -26,6 +26,7 @@ from birds.harness import guard
 from birds.harness.llm import Cancelled, accepts  # Cancelled: the client went away or pressed stop
 from birds.web.tidy import code_checks, tidy
 
+from . import rescue
 from .widgets import enrich_sources
 
 Event = dict[str, Any]
@@ -889,6 +890,9 @@ class _DemoRun:
         widgets = localise_maps(
             build_widgets([step], words, self.lang, now or _now(None), self.ctx.secret or b"demo", geo_on=True)
         )
+        cards = [w for w in widgets if w.get("type") != "event"]
+        if cards:  # as the live harness does: the card shows as soon as the tool returns (birds/web/rescue.py)
+            self.ctx.emit({"type": "widget", "index": index, "widgets": cards})
         return widgets, sources, info
 
     def _sources(self, urls: list[str], titles: dict) -> list[dict]:
@@ -922,6 +926,17 @@ class _DemoRun:
                 f"closest: {names} [1].\n\nOpening hours come from OpenStreetMap: check them before going. I "
                 "give no ratings or prices, which I do not have.",
             )
+        elif w["mode"] == "list" and (w.get("plan") == "order" or w.get("missing") or w.get("unchecked") or w.get("not_shown")):
+            from . import rescue
+
+            # a visit order or places not found: the same words as the answer written from the card
+            text = " ".join(rescue.places_lines(w, self.lang)) + " [1]"
+            if w.get("plan") == "order":
+                by = {p["n"]: p["name"] for p in ps}
+                text += "\n\n" + " → ".join(f"**{by[n]}**" for n in w["order"] if n in by) + self.t(
+                    ". Les distances sont à vol d'oiseau ; le lien « Itinéraire complet » donne la route.",
+                    ". Distances are as the crow flies; the 'Full route' link gives the road route.",
+                )
         elif w["mode"] == "list":
             text = self.t(
                 "Voici les sites placés sur la carte, dans l'ordre donné : "
@@ -1549,6 +1564,24 @@ class _DemoRun:
         )
 
     def scenario_error(self) -> None:
+        from birds.harness import intents
+
+        # « simule une panne : montre sur une carte : … »: the pre-called tool returns, then the model fails; the
+        # answer is written from the card (birds/web/rescue.py), exactly as the live harness does
+        words = re.sub(r"(?i)simule[rz]? une (?:panne|erreur)\s*[:,-]?\s*", "", self._last()).strip()
+        found = next((i for i in intents.detect(words) if i.args and i.tool == "find_places"), None) if words else None
+        if found is not None:
+            from . import rescue
+
+            widgets, urls, _ = self._widget_step("find_places", found.args)
+            text = rescue.summary_text(widgets, self.lang)
+            if text:
+                self.pause(0.6)
+                self.ctx.emit({"type": "answer", "content": text, "fallback": rescue.NOTE[self.lang],
+                               "sources": self._sources(urls, {}), "files": [], "draft_email": None,
+                               "stop_reason": "answer", "charts": [], "web_images": [], "code_checks": [],
+                               "widgets": widgets})  # fmt: skip
+                return
         self.step(
             "web_search",
             {"query": self.t("test de panne", "failure test")},
@@ -1974,8 +2007,14 @@ class HarnessBackend:
             [
                 {
                     k: u.get(k)
-                    for k in ("prompt_tokens", "completion_tokens", "cached_tokens", "seconds", "busy_seconds",
-                              "first_token_seconds")  # fmt: skip
+                    for k in (
+                        "prompt_tokens",
+                        "completion_tokens",
+                        "cached_tokens",
+                        "seconds",
+                        "busy_seconds",
+                        "first_token_seconds",
+                    )  # fmt: skip
                 }
                 for u in image_usage
             ],
@@ -2117,11 +2156,22 @@ class HarnessBackend:
                 ctx.check()  # stop between two tool calls when the user pressed stop
                 ctx.emit(step_event(index + offset, tool, _plain(arguments), "running"))
 
+            # ---- rich results independent of the model (birds/web/rescue.py): each card is sent as soon as its
+            # tool returns, and kept to answer from if the model then fails
+            live: list[tuple[int, Any, list[dict]]] = []
+
+            def on_step_end(index: int, step) -> None:
+                ctx.emit(self._step_event(index + offset, step, lang))
+                cards = self._live_widgets(step, ctx, lang)
+                if cards:
+                    live.append((index + offset, step, cards))
+                    ctx.emit({"type": "widget", "index": index + offset, "widgets": cards})
+
             hooks = Hooks(
                 on_token=lambda text: ctx.emit({"type": "delta", "content": text}),
                 on_reset=lambda: ctx.emit({"type": "delta_reset"}),
                 on_step_start=on_step_start,
-                on_step_end=lambda index, step: ctx.emit(self._step_event(index + offset, step, lang)),
+                on_step_end=on_step_end,
                 on_status=lambda state, info: ctx.emit({"type": "status", "state": state, **(info or {})}),
                 cancel=ctx.cancel,  # stop closes the endpoint stream and ends the wake-up retries
                 on_agent=crew_web.on_agent(ctx, lang, lambda: offset, self._step_event),
@@ -2199,16 +2249,24 @@ class HarnessBackend:
                                             system=system, lang=rl, names=names, workspace=workspace,
                                             history=kept)  # fmt: skip
                 if run is None:
-                    run = agent.run(
-                        user_sent,
-                        history=kept or None,
-                        system=system,
-                        thinking=request.thinking,
-                        lang=rl,
-                        request_text=words,
-                        attached=bool(names or image_texts),
-                        tz=request.tz,
-                    )
+                    from birds.harness.llm import EndpointError
+
+                    try:
+                        run = agent.run(
+                            user_sent,
+                            history=kept or None,
+                            system=system,
+                            thinking=request.thinking,
+                            lang=rl,
+                            request_text=words,
+                            attached=bool(names or image_texts),
+                            tz=request.tz,
+                        )
+                    except EndpointError:
+                        # the model failed after a pre-called tool returned: answer from its result, not an error
+                        if not live or not self._rescue(live, request, ctx, rl):
+                            raise
+                        return
             ctx.check()
             if run.stop_reason in ("plan", "slice"):  # the plan card, or a long task's slice: its events are sent
                 return
@@ -2312,14 +2370,27 @@ class HarnessBackend:
             tidied = tidy(str(run.answer), run.stop_reason)
             content = hide_out_paths(strip_tool_echo(strip_memo(tidied.text)))
             widgets = self._widgets(run, request, ctx, lang, draft)
+            stop_reason, fallback = tidied.stop_reason, None
+            if run.stop_reason in rescue.NO_ANSWER and widgets and not run.salvaged:
+                # out of time, or no usable output, after a pre-called tool returned: the results answer
+                text = rescue.summary_text(widgets, run.lang)
+                if text:
+                    content, stop_reason = text, "answer"
+                    fallback = rescue.NOTE["en" if run.lang == "en" else "fr"]
             ctx.emit(
                 {
                     "type": "answer",
                     "content": content,
+                    **({"fallback": fallback} if fallback else {}),
                     "sources": enrich_sources(sources, run.steps, ctx.secret, icons=bool(ctx.secret)),
                     "charts": _plain(list(getattr(run, "charts", []) or [])),
                     "web_images": pick_web_images(
-                        run, answer_text, request_words, sources, ctx.sign_image, subject=_picture_subject(request_words)
+                        run,
+                        answer_text,
+                        request_words,
+                        sources,
+                        ctx.sign_image,
+                        subject=_picture_subject(request_words),
                     ),
                     "widgets": widgets,
                     "files": files,
@@ -2333,7 +2404,7 @@ class HarnessBackend:
                         "body": str(draft.get("body") or ""),
                         **({"to_hint": str(draft["to_hint"])} if draft.get("to_hint") else {}),
                     },
-                    "stop_reason": tidied.stop_reason,
+                    "stop_reason": stop_reason,
                     "memo": turn_memo,
                     "code_checks": code_checks(content),
                     "tidy": tidied.repairs,
@@ -2367,6 +2438,63 @@ class HarnessBackend:
         finally:
             if ephemeral:
                 shutil.rmtree(workspace, ignore_errors=True)
+
+    # ---- rich results independent of the model (birds/web/rescue.py)
+    @staticmethod
+    def _live_widgets(step, ctx: RunContext, lang: str) -> list[dict]:
+        opts = ctx.geo or {}
+        if not opts.get("on", True):
+            return []
+        return rescue.step_widgets(step, lang, ctx.secret or b"x", layer=opts.get("layer", "osm"))
+
+    def _rescue(self, live: list, request: ChatRequest, ctx: RunContext, lang: str) -> bool:
+        """The answer event of a turn whose model failed after its pre-called tools returned: the cards already
+        shown, a short text written from them and a discreet note. False when the cards carry no answer."""
+        from birds.harness.followup import context_of
+        from birds.harness.history import memo
+
+        widgets = [w for _, _, cards in live for w in cards]
+        text = rescue.summary_text(widgets, lang)
+        if not text:
+            return False
+        steps = [s for _, s, _ in live]
+        urls: list[str] = []
+        for w in widgets:
+            for p in (w.get("places") or [])[:1]:
+                url = f"https://www.openstreetmap.org/#map=16/{p['lat']:.5f}/{p['lon']:.5f}"
+                if url not in urls:
+                    urls.append(url)
+            src = (w.get("source") or {}).get("url")
+            if w.get("type") != "places" and src and src not in urls:
+                urls.append(str(src))
+        sources = [{"n": n, "title": _source_title(u), "url": u} for n, u in enumerate(urls, 1)]
+        turn_memo = memo(
+            lang,
+            [{"tool": s.tool, "arguments": s.arguments} for s in steps],
+            sources,
+            [],
+            None,
+            context=context_of(steps, None),
+        )
+        ctx.emit(
+            {
+                "type": "answer",
+                "content": text,
+                "fallback": rescue.NOTE["en" if lang == "en" else "fr"],
+                "sources": enrich_sources(sources, steps, ctx.secret, icons=bool(ctx.secret)),
+                "charts": [],
+                "web_images": [],
+                "widgets": widgets,
+                "files": [],
+                "draft_email": None,
+                "stop_reason": "answer",
+                "memo": turn_memo,
+                "code_checks": [],
+                "tidy": [],
+                "images": [],
+            }
+        )
+        return True
 
     def _widgets(self, run, request: ChatRequest, ctx: RunContext, lang: str, draft) -> list[dict]:
         """Widgets of the answer, from tool results and the user's own words (never the model's text)."""

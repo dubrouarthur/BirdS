@@ -1264,6 +1264,13 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         );
       break;
     }
+    case "widget": {
+      // a pre-called tool's card (map, company, rate, forecast), sent as soon as the tool returns: shown at once and
+      // kept in the turn (saved with it) even if the model then fails; the answer's own list supersedes it
+      const cards = (Array.isArray(event.widgets) ? event.widgets : []).map((w) => ({ ...w, step: event.index }));
+      turn.widgets = [...(turn.widgets || []).filter((w) => w.step !== event.index), ...cards];
+      break;
+    }
     case "confirm":
       turn.confirm = {
         tool: event.tool,
@@ -1291,6 +1298,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         web_images: Array.isArray(event.web_images) ? event.web_images : [],
         code_checks: Array.isArray(event.code_checks) ? event.code_checks.slice(0, 50) : [], // syntax badges
         widgets: Array.isArray(event.widgets) ? event.widgets : [],
+        fallback: event.fallback ? String(event.fallback) : "", // written from the results, not by the model
       };
       if (event.plan !== undefined) turn.plan = cleanPlan(event.plan); // the final checklist, or none
       turn.files.push(...(event.files || []));
