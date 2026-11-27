@@ -24,6 +24,7 @@ Rubric (one point per check, a task passes when all its checks pass):
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import os
 import sys
@@ -36,12 +37,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from tests.scenarios.cases import SCENARIOS  # noqa: E402
 from tests.scenarios.runner import run_one, score  # noqa: E402
 
-TASKS = [  # 20 tasks: every family, the hardest first; two plain controls for latency
+TASKS = [  # 20 tasks: every family, the hardest first; two plain controls for latency; 8 false-trigger controls
     "ocr_table_totals_mail", "ocr_totals_dropped", "ocr_sheet_then_mail", "ocr_big_rounded",
     "search_compare_chart", "search_premature", "search_read_summary_mail", "multi_search_sheet_mail",
     "file_summary_deck", "file_premature", "file_doc_and_sheet", "file_wrong_path",
     "multi_slides_mail", "multi_doc_slides_mail_partial", "multi_minutes_table_mail", "multi_en_deck_mail",
     "followup_totals_mail", "followup_reread_image", "ordinary_mail", "ordinary_question",
+    # false-trigger controls: correct first answers that the checks must leave alone (one generation each, or two
+    # with a tool); select them with --only '^ordinary_'
+    "ordinary_translate_en", "ordinary_write_in_french", "ordinary_je_cherche", "ordinary_excel_formula",
+    "ordinary_mail_with_link", "ordinary_signature_link", "ordinary_code_with_call_line", "ordinary_json_example",
 ]  # fmt: skip
 
 
@@ -72,7 +77,7 @@ def main(argv=None) -> int:
 
     from transformers import AutoTokenizer  # tokenizer only: no weights
 
-    from birds.harness import CompletionsClient
+    from birds.harness import CompletionsClient, Config
 
     tok = AutoTokenizer.from_pretrained(a.tokenizer)
     llm = CompletionsClient(a.base_url, a.model, os.environ.get("BIRD_API_KEY"))
@@ -86,8 +91,9 @@ def main(argv=None) -> int:
                     model = Counted(llm)
                     t0 = time.monotonic()
                     try:
-                        run, _, _ = run_one(sc, Path(tmp) / f"{arm}-{k}", model=model, tok=tok,
-                                            config={"task_plan": arm == "on"})  # fmt: skip
+                        known = {f.name for f in dataclasses.fields(Config)}  # an older harness has no task_plan
+                        conf = {k: v for k, v in {"task_plan": arm == "on"}.items() if k in known}
+                        run, _, _ = run_one(sc, Path(tmp) / f"{arm}-{k}", model=model, tok=tok, config=conf)
                         checks, err = score(sc, run, model), ""
                     except Exception as e:  # noqa: BLE001 - an endpoint error is a failed task, reported
                         run, checks, err = None, {"crash": False}, f"{type(e).__name__}: {e}"
@@ -95,7 +101,7 @@ def main(argv=None) -> int:
                            "checks": checks, "gens": len(model.views), "seconds": round(time.monotonic() - t0, 1),
                            "error": err}  # fmt: skip
                     if run is not None:
-                        row.update(answer=run.answer, stop=run.stop_reason, plan=run.plan,
+                        row.update(answer=run.answer, stop=run.stop_reason, plan=getattr(run, "plan", None),
                                    steps=[{"tool": s.tool, "error": s.error, "repairs": s.repairs} for s in run.steps])  # fmt: skip
                     rows.append(row)
                     bad = [c for c, v in checks.items() if not v]

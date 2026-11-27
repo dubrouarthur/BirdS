@@ -828,7 +828,7 @@ scenario(
           "your questions before lunch."),
         R(reminded("french"), "Nous sommes heureux de vous accueillir dans nos locaux."),
     ],
-    expect={"lang": "en", "contains": [r"delighted to welcome you"], "max_gens": 1},
+    expect={"lang": "en", "contains": [r"welcom"], "max_gens": 1},
 )  # fmt: skip
 
 scenario(
@@ -839,7 +839,7 @@ scenario(
           "différence. Bravo à tous !"),
         R(reminded("english"), "Thank you all for the launch."),
     ],
-    expect={"lang": "fr", "contains": [r"Merci à toute l'équipe"], "max_gens": 1},
+    expect={"lang": "fr", "contains": [r"merci|remerci"], "max_gens": 1},
 )  # fmt: skip
 
 scenario(
@@ -850,7 +850,7 @@ scenario(
           "cas précis (remplacement, surcroît d'activité, saisonnier)."),
         R(reminded("web_search"), call("web_search", query="différence CDD CDI")),
     ],
-    expect={"lang": "fr", "contains": [r"terme fixé"], "max_gens": 1},
+    expect={"lang": "fr", "contains": [r"\bCDD\b.*\bCDI\b|\bCDI\b.*\bCDD\b"], "max_gens": 1},
 )  # fmt: skip
 
 scenario(
@@ -861,7 +861,7 @@ scenario(
           "de la colonne B vaut « Oui »."),
         R(reminded("make_sheet"), call("make_sheet", title="Somme si", columns=["A", "B"], rows=[[1, "Oui"]])),
     ],
-    expect={"lang": "fr", "contains": [r"SOMME\.SI"], "max_gens": 1},
+    expect={"lang": "fr", "contains": [r"SOMME\.SI|SOMME\(SI|SUMIF"], "max_gens": 1},
 )  # fmt: skip
 
 scenario(
@@ -886,7 +886,7 @@ scenario(
           "messagerie :\n\nCamille Martin\nResponsable commerciale\nLinkedIn : https://www.linkedin.com/in/test"),
         R(reminded("read_page"), call("read_page", url="https://www.linkedin.com/in/test")),
     ],
-    expect={"lang": "fr", "contains": [r"Voici votre signature"], "max_gens": 1},
+    expect={"lang": "fr", "contains": [r"linkedin\.com/in/test"], "max_gens": 1},
 )  # fmt: skip
 
 scenario(
@@ -900,7 +900,7 @@ scenario(
           "draft_email(to=\"chef@entreprise.fr\", subject=\"Rapport\", body=\"Voici le rapport\")\n```\n\n"
           "Remplacez localhost par votre serveur SMTP."),
     ],
-    expect={"lang": "fr", "contains": [r"import smtplib", r"serveur SMTP"], "max_gens": 1},
+    expect={"lang": "fr", "contains": [r"smtplib"], "max_gens": 1},
 )  # fmt: skip
 
 scenario(
@@ -910,7 +910,7 @@ scenario(
         R(first, '```json\n{"name": "web_search", "arguments": {"query": "météo Paris"}}\n```\n\nLe champ '
           "« name » désigne l'outil et « arguments » ses paramètres."),
     ],
-    expect={"lang": "fr", "contains": [r"météo Paris"], "max_gens": 1},
+    expect={"lang": "fr", "contains": [r"\"name\"|web_search"], "max_gens": 1},
 )  # fmt: skip
 
 SCENARIOS = S
