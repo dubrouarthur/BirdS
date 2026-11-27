@@ -77,7 +77,7 @@ export const FOOTPRINT_STRINGS = {
     "footprint.vs.times": "≈ {x} fois moins",
     "footprint.vs.more": "≈ {x} fois plus",
     "footprint.vs.note":
-      "Même périmètre : tout le service (puces, machines au repos, refroidissement). Bird est estimé d'après ses tokens, les grands assistants d'après le chiffre de leur fournisseur, par requête texte.",
+      "Même périmètre que le chiffre publié (août 2025) : tout le service (puces, machines au repos, refroidissement) ; le second chiffre n'indique pas son périmètre. Bird est estimé d'après ses tokens, les grands assistants d'après le chiffre de leur fournisseur, par requête texte.",
     "footprint.vs.source": "source",
     "footprint.story.title": "Pourquoi les petits modèles sont l'avenir",
     "footprint.story.lead":
@@ -211,7 +211,7 @@ export const FOOTPRINT_STRINGS = {
     "footprint.vs.times": "≈ {x} times less",
     "footprint.vs.more": "≈ {x} times more",
     "footprint.vs.note":
-      "Same boundary: the whole service (chips, idle machines, cooling). Bird is estimated from its tokens, large assistants from their provider's figure per text prompt.",
+      "Same boundary as the published figure (Aug 2025): the whole service (chips, idle machines, cooling); the second figure does not state its boundary. Bird is estimated from its tokens, large assistants from their provider's figure per text prompt.",
     "footprint.vs.source": "source",
     "footprint.story.title": "Why small models are the future",
     "footprint.story.lead":
