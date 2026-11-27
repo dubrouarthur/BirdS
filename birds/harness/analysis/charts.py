@@ -307,6 +307,13 @@ def normalize_spec(args: dict, lang: str = "fr", request: str = "", allowed=None
     for k in ("box", "matrix", "bins"):
         if isinstance(args.get(k), dict | list):
             spec[k] = args[k]
+    # the make_chart shape too: the turn memo (« refais-le en courbe »), the conversation export and older readers
+    if points:
+        spec["columns"] = ["", *(spec["axes"] or ["x", "y"])]
+        spec["rows"] = [[p[0], p[1], p[2]] for p in points[:200]]
+    else:
+        spec["columns"] = [spec["x"]["name"], *[s["name"] for s in series]]
+        spec["rows"] = [[lab, *[s["values"][i] for s in series]] for i, lab in enumerate(labels)]
     return spec
 
 

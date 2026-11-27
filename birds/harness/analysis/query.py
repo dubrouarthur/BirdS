@@ -139,12 +139,18 @@ def _title(q: dict, lang: str) -> str:
         head = "Nombre de lignes" if lang != "en" else "Row count"
     elif q["agg"] == "sum":
         head = f"{aggs['sum']} {measure}"
+    elif lang == "en":
+        head = f"{aggs[q['agg']]} {measure}"
     else:
-        head = f"{aggs[q['agg']]} {measure}" if lang == "en" else f"{measure} ({aggs[q['agg']].lower()})"
+        de = "d'" if plain(str(measure))[:1] in "aeiouyh" else "de "
+        head = f"{aggs[q['agg']]} {de}{measure}"
     word = " by " if lang == "en" else " par "
     if q.get("top"):
-        prefix = f"Top {q['top']} {by or ''}".strip()
-        return f"{prefix} — {head}" if by else head
+        if not by:
+            return head
+        flop = q.get("sort") == "asc"
+        lead = ("Bottom" if lang == "en" else "Flop") if flop else "Top"
+        return f"{lead} {q['top']} {by}{word}{measure}" if measure else f"{lead} {q['top']} {by}"
     if period:
         head += word + periods[period]
     if by:

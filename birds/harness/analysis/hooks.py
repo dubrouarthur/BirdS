@@ -46,6 +46,16 @@ CHECKED = {
 }
 
 
+MARKERS = ("\n\n[Bird a analysé « ", "\n\n[Bird analysed '", "\n\n[Bird a lu « ", "\n\n[Bird read '")
+
+
+def strip_note(text: str) -> str:
+    """``text`` without the data note added to it (always last): a regenerated turn never gets it twice, and the
+    user's own words never include it."""
+    cut = min((i for i in (text.find(m) for m in MARKERS) if i >= 0), default=-1)
+    return text if cut < 0 else text[:cut]
+
+
 @dataclass
 class Prep:
     name: str
@@ -160,4 +170,4 @@ def finish(run, prep: Prep | None, request: str = "") -> None:
         run.report = {**(getattr(run, "report", None) or {}), "data_check": {"ok": True}}
 
 
-__all__ = ["Prep", "finish", "prepare"]
+__all__ = ["MARKERS", "Prep", "finish", "prepare", "strip_note"]
