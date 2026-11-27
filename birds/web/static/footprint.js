@@ -267,14 +267,6 @@ export function footprintAnswer(u, conv, { onOpenPage } = {}) {
         range(f.gLow, f.gHigh, grams),
       ),
       fig(approx(F.fmtWater(f.ml, L)), t("footprint.water"), t("footprint.water.ratio")),
-      fig(
-        F.fmtDuration(f.gpuS, L),
-        t("footprint.gpu"),
-        t("footprint.tokens", {
-          in: F.int(f.tokensIn, L),
-          out: F.int(f.tokensOut, L),
-        }),
-      ),
     ),
     gridChooser(() => el.replaceWith(footprintAnswer(u, conv, { onOpenPage }))),
     gridNote(),
@@ -475,10 +467,18 @@ function energyChart(list, ref) {
         h(
           "span",
           { class: "fp-chart-legend" },
-          h("span", { class: "fp-legend-bird", "aria-hidden": "true" }),
-          h("span", { text: "Bird" }),
-          h("span", { class: "fp-legend-ref", "aria-hidden": "true" }),
-          h("span", { text: t("footprint.chart.ref", { wh: wh(ref.wh) }) }),
+          h(
+            "span",
+            { class: "fp-legend-item" },
+            h("span", { class: "fp-legend-bird", "aria-hidden": "true" }),
+            h("span", { text: "Bird" }),
+          ),
+          h(
+            "span",
+            { class: "fp-legend-item" },
+            h("span", { class: "fp-legend-ref", "aria-hidden": "true" }),
+            h("span", { text: t("footprint.chart.ref", { wh: wh(ref.wh) }) }),
+          ),
         ),
     ),
     svg(

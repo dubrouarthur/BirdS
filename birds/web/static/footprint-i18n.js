@@ -32,7 +32,6 @@ export const FOOTPRINT_STRINGS = {
     "footprint.gpu.what": "Qu'est-ce qu'une carte graphique ?",
     "footprint.gpu.explain":
       "Une carte graphique (GPU) est une puce qui fait des milliers de calculs à la fois : c'est elle qui écrit chaque mot de la réponse. Moins le modèle a de paramètres, moins il y a de calcul par mot : la carte travaille moins longtemps et consomme moins. Elle sert aussi plusieurs conversations en même temps, et l'estimation n'attribue à la vôtre que sa part.",
-    "footprint.tokens": "{in} tokens lus · {out} écrits",
     "footprint.equiv.title": "Pour se représenter",
     "footprint.equiv.streaming": "{v} de vidéo en streaming",
     "footprint.equiv.car": "{v} en voiture thermique",
@@ -176,7 +175,6 @@ export const FOOTPRINT_STRINGS = {
     "footprint.gpu.what": "What is a graphics card?",
     "footprint.gpu.explain":
       "A graphics card (GPU) is a chip that does thousands of calculations at once: it writes every word of the answer. The fewer parameters a model has, the less computation each word takes, so the card works for less time and uses less energy. It also serves several conversations at once, and the estimate charges yours only its share.",
-    "footprint.tokens": "{in} tokens read · {out} written",
     "footprint.equiv.title": "To picture it",
     "footprint.equiv.streaming": "{v} of video streaming",
     "footprint.equiv.car": "{v} in a combustion-engine car",
