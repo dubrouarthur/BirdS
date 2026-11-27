@@ -29,3 +29,5 @@
 - Feuille de route et priorités : `docs/ROADMAP.md`.
 - Python : `.venv/bin/python -I` pour les scripts ; tests `pytest -q`, lint `ruff check birds tests scripts`,
   banc des déclenchements `.venv/bin/python -I scripts/trigger_bench.py` (ne doit jamais régresser).
+- Dans un worktree au `.venv` en lien symbolique, lancer pytest et les scripts **sans** `-I` (`.venv/bin/python -m pytest -q`,
+  `.venv/bin/python scripts/trigger_bench.py`) : avec `-I`, Python importe le paquet `birds` du dépôt principal.
