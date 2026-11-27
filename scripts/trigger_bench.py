@@ -585,6 +585,10 @@ OFFICE_NO = [  # ordinary office prompts: no rich content at all, alone or right
     "et le projet ?",
     "ok",
     "et à Lyon, combien de salariés ?",
+    # « je cherche / je recherche » is « I am looking for / I want to understand », not a web search
+    "Je cherche à comprendre la différence entre CDD et CDI.",
+    "Je recherche un stagiaire en marketing, rédige l'annonce.",
+    "Je recherche les causes possibles d'une baisse de CA, donne-moi des pistes.",
 ]
 FOLLOWUP_NO = [(prev, q) for prev in (_W, _P, _PW, _F, _C, _CO, _CHART) for q in OFFICE_NO]
 IMAGES_YES = [  # (ask, the subject searched)

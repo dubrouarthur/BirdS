@@ -842,4 +842,15 @@ scenario(
     expect={"lang": "fr", "contains": [r"Merci à toute l'équipe"], "max_gens": 1},
 )  # fmt: skip
 
+scenario(
+    id="ordinary_je_cherche", family="controls",
+    ask="Je cherche à comprendre la différence entre CDD et CDI.",
+    rules=lambda: [
+        R(first, "Le CDI n'a pas de date de fin ; le CDD a un terme fixé à l'avance et n'est possible que dans des "
+          "cas précis (remplacement, surcroît d'activité, saisonnier)."),
+        R(reminded("web_search"), call("web_search", query="différence CDD CDI")),
+    ],
+    expect={"lang": "fr", "contains": [r"terme fixé"], "max_gens": 1},
+)  # fmt: skip
+
 SCENARIOS = S

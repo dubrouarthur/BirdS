@@ -55,11 +55,32 @@ def test_the_plan_lists_the_deliverables_in_the_order_asked(ask, want):
         "Quelle est la différence entre un CDD et un CDI ?",
         "Compare Excel et Google Sheets",
         "Fais une présentation de 4 diapositives sur le télétravail.",
+        "Je cherche à comprendre la différence entre CDD et CDI.",
+        "Je recherche un stagiaire en marketing, rédige l'annonce.",
+        "Je recherche les causes possibles d'une baisse de CA, donne-moi des pistes.",
+        "On cherche un nouveau local à Lyon, rédige une annonce.",
+        "Cherche à joindre le client avant midi, c'est urgent : rédige-moi un SMS.",
     ],
 )
 def test_inputs_and_one_thing_asks_make_no_active_plan(ask):
     items = taskplan.extract(ask, "fr", ask, chart_ask(ask))
     assert not taskplan.active(items) and not any(i.kind in taskplan.ENFORCED_ALONE for i in items), labels(ask)
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "Cherche le taux du livret A en 2026.",
+        "Peux-tu chercher le cours de l'action Airbus ?",
+        "Fais une recherche sur la directive CSRD.",
+        "Je cherche sur internet le prix du kWh en Espagne.",
+        "Résume le rapport puis recherche les chiffres de 2025.",
+        "Search for the latest CSRD news.",
+        "Can you look up the Airbus share price?",
+    ],
+)
+def test_an_explicit_search_ask_is_to_search_first(ask):
+    assert "search" in [i.kind for i in taskplan.extract(ask, "en" if ask.isascii() else "fr", ask)]
 
 
 def _bench():

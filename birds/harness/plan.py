@@ -10,8 +10,9 @@ cannot be done is reported plainly (« partiellement fait : mail manque »), nev
 Only deliverables named with a verb of making or an indefinite article count (« prépare un mail », « et un
 tableur »): « résume ce mail » or « d'après le tableau » name an input, not a deliverable. Two kinds are enforced
 even alone, because answering without them is answering before the result: reading an attached document, and an
-explicit « cherche ». Any other plan is used only when it has two items or more; an ordinary one-deliverable turn
-keeps its prompt byte for byte.
+explicit search ask (« cherche … » as an imperative, « sur internet », « fais une recherche »; never « je
+cherche à comprendre » or « je recherche un stagiaire »). Any other plan is used only when it has two items or
+more; an ordinary one-deliverable turn keeps its prompt byte for byte.
 """
 
 from __future__ import annotations
@@ -51,10 +52,18 @@ _TOTALS = re.compile(r"\b(?:totaux|totals?|sous-totaux|subtotals?|total\s+(?:ttc
                      r"du\s+total|les\s+totaux|the\s+total|somme\s+(?:des|totale))\b", re.I)  # fmt: skip
 _SUMMARY = re.compile(r"\b(?:r[ée]sum\w*|synth[èe]se|synth[ée]tis\w*|summar\w*|tl;?dr)\b", re.I)
 _COMPARE = re.compile(r"\b(?:compar\w*|versus)\b", re.I)
+_SEARCH_VERB = r"(?:cherche|cherchez|chercher|recherche|recherchez|rechercher|trouve|trouvez|trouver|search|look\s+up)"
 _SEARCH = re.compile(
-    r"(?<!\bla )(?<!\bune )(?<!\bde )(?<!\bma )(?<!\bta )(?<!\bsa )(?<!\bnotre )(?<!\bvotre )(?<!\bthe )"
-    r"\b(?:cherche|cherchez|chercher|recherche|recherchez|rechercher|search|look\s+up|trouve(?:z)?\s+sur\s+"
-    r"(?:le\s+web|internet))\b",
+    # an explicit web wording, whoever the subject: « je cherche sur internet … », « trouve en ligne … »
+    r"\b" + _SEARCH_VERB + r"\b[^.!?\n]{0,60}?\b(?:sur|dans|on)\s+(?:le\s+|the\s+)?(?:web|internet|google|net)\b|"
+    r"\b" + _SEARCH_VERB + r"\s+(?:en\s+ligne|online)\b|"
+    r"\b(?:fai[st]e?s?|faire|lance[sz]?|lancer|do|run)\s+(?:une|des|a)\s+(?:petite\s+)?(?:recherches?|web\s+search|search)\b|"
+    # an imperative at the start of a clause (« Cherche les … », « puis recherche … », « peux-tu chercher … »),
+    # never « je / nous / on cherche » (I am looking for) nor « cherche à comprendre » (I try to)
+    r"(?:^|[.!?;:\n]\s*|,\s*|\b(?:et|puis|ensuite|alors|aussi|stp|svp|please|and|then)\s+|"
+    r"\b(?:peux|pourrais|pouvez|pourriez)[- ](?:tu|vous)\s+(?:me\s+)?|\b(?:tu\s+peux|vous\s+pouvez)\s+(?:me\s+)?|"
+    r"\b(?:can|could)\s+you\s+)"
+    r"(?:cherche|cherchez|chercher|recherche|recherchez|rechercher|search(?:\s+for)?|look\s+up)\b(?!\s+[àa]\b)",
     re.I,
 )
 _URL = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
@@ -70,7 +79,7 @@ LABELS = {
     "chart": ("graphique", "chart"),
 }
 TOOLS_OF = {
-    # a lookup tool answers « cherche … » too: « je cherche un garage à Versailles » is answered by find_places
+    # a lookup tool answers « cherche … » too: « cherche un garage à Versailles » is answered by find_places
     "search": ("web_search", "read_page", "find_places", "find_company", "convert_currency", "get_weather"),
     "page": ("read_page",),
     "read": ("read_file",),
