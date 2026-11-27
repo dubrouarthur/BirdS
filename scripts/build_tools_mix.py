@@ -741,8 +741,20 @@ def followups(rng):
             yield "fu10", "fr", f"et {n} ?", h, _lab([m], native=m)
 
 
-FAMILIES = (weather, places, company, fx, clock_items, events, charts, images, office, negatives, false_triggers,
-            followups)
+FAMILIES = (
+    weather,
+    places,
+    company,
+    fx,
+    clock_items,
+    events,
+    charts,
+    images,
+    office,
+    negatives,
+    false_triggers,
+    followups,
+)
 
 
 # ---------------------------------------------------------------- variants (typing styles), checks, records
@@ -909,10 +921,12 @@ def build(n: int = 6000, seed: int = 0, heldout_share: float = 0.12) -> dict:
             "router": sum(r["task"] == "router" for r in rows),
             "tool_call_extra": sum(r["task"] == "tool_call_extra" for r in rows),
             "fr": sum(r["lang"] == "fr" for r in rows),
-            "negatives": sum(r["task"] == "router" and _negative(json.loads(r["messages"][-1]["content"]))
-                             for r in rows),  # fmt: skip
-            "follow_ups": sum(r["task"] == "router" and "Tour précédent" in r["messages"][-2]["content"]
-                              for r in rows),  # fmt: skip
+            "negatives": sum(
+                r["task"] == "router" and _negative(json.loads(r["messages"][-1]["content"])) for r in rows
+            ),  # fmt: skip
+            "follow_ups": sum(
+                r["task"] == "router" and "Tour précédent" in r["messages"][-2]["content"] for r in rows
+            ),  # fmt: skip
         }
     out["stats"] = st
     return out
