@@ -354,10 +354,14 @@ sous-questions de la recherche, les sites lus en puces qui arrivent, les voies, 
 au passé (« Équipe : 5 agents · 3 pages lues · 14 chiffres vérifiés · 2 versions · 48 s ») et « Ce que l'équipe a
 fait » replié.
 
-**« Vérifications faites ».** `agent_checks` : chaque chiffre du livrable avec son origine (la page qu'il cite et la
-ligne de cette page, votre texte, un calcul du harnais), les passages retirés faute de source, les phrases à relire
-(la page citée ne contient pas l'essentiel de la phrase), les actions d'un compte rendu vérifiées ligne par ligne.
-Calculé par `crew_checks.ledger` à partir des contrôles déjà faits, sans modèle.
+**« Vérifications faites ».** `agent_checks` : chaque chiffre du livrable, titres et intertitres compris, avec son
+origine (la page qu'il cite et la ligne de cette page, votre texte, un calcul du harnais), les passages retirés faute
+de source, les chiffres à relire, les actions d'un compte rendu vérifiées ligne par ligne. « Vérifié » demande le
+chiffre écrit tel quel sur la page (`on_page`) : un chiffre seulement déduit de deux autres (37 depuis 40 et 3) est
+« à vérifier » (`why: derived`), sauf s'il vient d'un calcul du harnais ; une phrase qui cite [n] est jugée sur la
+page n seule (`why: cited` si n ne contient pas le chiffre, jamais une autre page à sa place) ; `why: claim` quand la
+page contient le chiffre mais pas l'essentiel de la phrase. Un chiffre non sourcé dans un titre en est retiré
+(`drop_figures`), comme d'une puce. Calculé par `crew_checks.ledger` à partir des contrôles déjà faits, sans modèle.
 
 **Qualité de l'équipe.** La recherche est planifiée par le modèle : une génération courte (`plan_search`, 260
 jetons) découpe la demande en 3 sous-questions avec chacune sa requête ; le code garde une requête de 2 à 10 mots,
@@ -365,16 +369,19 @@ sans URL ni opérateur, qui reprend un mot de la demande, sans doublon, et compl
 lues : sites privilégiés, puis sources officielles, puis l'ordre du moteur ; forums, réseaux sociaux et vidéo en
 dernier ; un texte quasi identique sur un autre site (Jaccard des 6-grammes ≥ 0,7) compte une fois. Citations
 cohérentes : numérotées dans l'ordre où le livrable les cite (le fichier ne liste que les sources citées), et un
-chiffre écrit sans [n] reçoit le numéro de la page qui le contient (`autocite`, vrai par construction ; vos propres
-chiffres et les tableaux restent tels quels).
+chiffre écrit sans [n] reçoit le numéro de la page où il est écrit tel quel (`autocite` ; jamais pour un chiffre
+seulement déductible de la page ; vos propres chiffres et les tableaux restent tels quels).
 
 **Tâches longues en tranches.** Après le brief, si l'écriture ne tient plus dans la requête (moins de 110 s) ou si le
 plan est « Approfondie » (5 pages lues au lieu de 3, 20 Ko d'extraits), le serveur s'arrête et envoie
 `agent_slice {token, auto: true}` : état signé (brief, traces, usage, voies, consignes), porté par le navigateur,
 qui relance aussitôt avec `agent_slice`. Rien n'est relu ni régénéré ; le budget de générations est cumulé, temps et
-énergie aussi. Dans tous les cas, un point de reprise (`auto: false`) part après le brief : il est gardé avec la
-conversation, et après un rechargement ou une coupure « Reprendre la tâche » repart de la rédaction (jeton valable
-15 min). Fin de tâche onglet caché : « ✓ » dans le titre, et une notification si l'utilisateur l'a autorisée (« M'avertir
+énergie aussi. Un point de reprise part après le brief : `auto: false` quand l'écriture suit dans la même requête,
+l'état de la tranche suivante lui-même pour une tâche longue. Il est gardé avec la conversation (avec son `exp`), et
+après un rechargement ou une coupure « Reprendre la tâche » repart de la rédaction (jeton valable 15 min) ; il est
+effacé à la fin réussie de la tâche, à l'arrêt ou à expiration. Un jeton de plan ou de tranche ne tourne qu'une fois
+à la fois et plus après une fin normale (409 `agent_state_used`, en mémoire du processus : au mieux sur plusieurs
+instances) ; une requête coupée le libère pour « Reprendre ». Fin de tâche onglet caché : « ✓ » dans le titre, et une notification si l'utilisateur l'a autorisée (« M'avertir
 à la fin »).
 
 **Agents qui construisent.** Pour une présentation ou un document, si le Canevas (`birds.canvas`) est installé et
