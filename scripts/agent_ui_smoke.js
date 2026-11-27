@@ -262,6 +262,7 @@ async function wave2(browser, { width = 1280, scheme = "light" } = {}) {
   check(await page.isVisible("#btn-deliverables"), "« Livrables » appears in the top bar");
   await page.click("#btn-deliverables");
   await page.waitForSelector("#deliverables[open] .deliv-item");
+  await page.waitForTimeout(500); // the modal fades in
   await page.screenshot({ path: path.join(out, "7-deliverables.png") });
   const n = await page.$$eval("#deliverables .deliv-item", (els) => els.length);
   check(n === 1, `the conversation lists its deliverable (${n})`);
