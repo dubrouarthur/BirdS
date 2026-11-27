@@ -256,3 +256,32 @@ def test_pictures_asked_are_gated_by_the_subject_not_the_answer():
     assert all(g["page"] and g["domain"] for g in got)  # always credited
     four = pick_web_images(run, "Tour.", "photos de la tour", [], lambda s: s, subject="tour")
     assert len(four) == 4  # up to 4 when pictures are the answer
+
+
+def test_demo_replays_a_follow_up_from_the_memo():
+    pytest.importorskip("fastapi")
+    from fastapi.testclient import TestClient
+
+    from birds.web.server import create_app
+    from birds.web.settings import Settings
+
+    s = Settings(demo_delay=0.0, signing_secret=b"x" * 32, signing="configured", rate_limit=0)
+    messages = [{"role": "user", "content": "météo à Lyon demain"}]
+    with TestClient(create_app(s)) as c:
+
+        def ask():
+            r = c.post("/api/chat", json={"messages": messages, "lang": "fr"})
+            events = [json.loads(f[6:]) for f in r.text.split("\n\n") if f.startswith("data: ")]
+            return next(e for e in events if e["type"] == "answer"), [e for e in events if e["type"] == "step"]
+
+        first, _ = ask()
+        assert 'contexte : get_weather {"place": "Lyon", "day": "demain"}' in first["memo"]
+        messages += [{"role": "assistant", "content": first["content"], "memo": first["memo"]},
+                     {"role": "user", "content": "et à Lille ?"}]  # fmt: skip
+        second, steps = ask()
+        assert steps[-1]["arguments"] == {"place": "Lille", "day": "demain"} and steps[-1]["info"]["auto"]
+        assert second["widgets"][0]["type"] == "weather" and "Lille" in second["content"]
+        # without the memo (the model's text alone), nothing is re-asked
+        messages[1] = {"role": "assistant", "content": first["content"]}
+        third, steps = ask()
+        assert not steps and not third["widgets"]

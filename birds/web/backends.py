@@ -529,7 +529,16 @@ class DemoBackend:
 
         if crew_web.demo_match(last, request):
             return crew_web.demo_crew(run)  # Mode Agent, scripted
-        getattr(run, "scenario_" + pick_scenario(last, bool(request.attachments)))()
+        scenario = pick_scenario(last, bool(request.attachments))
+        if scenario == "plain" and not request.attachments:
+            from birds.harness import followup
+
+            again = followup.resolve(last, followup.previous(request.messages[:-1]), lang)
+            names = {"get_weather": "weather", "find_places": "places", "convert_currency": "fx",
+                     "find_company": "company", "clock": "clock"}  # fmt: skip
+            if again is not None and again.tool in names:
+                run.followup, scenario = again, names[again.tool]
+        getattr(run, "scenario_" + scenario)()
 
 
 class _DemoRun:
@@ -541,6 +550,8 @@ class _DemoRun:
         self.extra_prompt = 0
         self.extra_completion = 0
         self.carry_seconds = 0.0
+        self.followup = None  # « et à Lille ? »: the call a short follow-up re-asks (followup.resolve)
+        self.context = None  # this turn's rich result, written into the memo for the next follow-up
 
     # -- helpers
     def t(self, fr: str, en: str) -> str:
@@ -615,6 +626,7 @@ class _DemoRun:
                 "web_images": web_images or [],
                 "code_checks": code_checks(content),
                 "widgets": widgets or [],
+                **({"memo": self._memo()} if self.context else {}),
             }
         )
         prompt = 60 + sum(len(m["content"]) for m in self.req.messages) // 4 + self.extra_prompt
@@ -632,6 +644,11 @@ class _DemoRun:
                 tokens_kind="scripted",
             )
         )
+
+    def _memo(self) -> str:
+        from birds.harness.history import memo
+
+        return memo(self.lang, [], [], [], None, context=self.context)
 
     def make_file(self, tool: str, arguments: dict, summary: str) -> dict:
         """Create a real office file with the harness tool, in a temporary folder, and return it inline."""
@@ -814,6 +831,10 @@ class _DemoRun:
             )
         )  # fmt: skip
         step = SimpleNamespace(tool=tool, info=info, error=error)
+        if not error:
+            from birds.harness.followup import context_of
+
+            self.context = context_of([SimpleNamespace(tool=tool, arguments=args, error=None)])
         widgets = localise_maps(
             build_widgets([step], words, self.lang, now or _now(None), self.ctx.secret or b"demo", geo_on=True)
         )
@@ -825,7 +846,7 @@ class _DemoRun:
     def scenario_places(self) -> None:
         from birds.harness import intents
 
-        intent = next(i for i in intents.detect(self._last()) if i.args)
+        intent = self.followup or next(i for i in intents.detect(self._last()) if i.args)
         widgets, urls, _ = self._widget_step("find_places", intent.args)
         w = widgets[0] if widgets else None
         osm = self.t("OpenStreetMap — carte", "OpenStreetMap — map")
@@ -871,7 +892,7 @@ class _DemoRun:
     def scenario_company(self) -> None:
         from birds.harness import intents
 
-        intent = next(i for i in intents.detect(self._last()) if i.args)
+        intent = self.followup or next(i for i in intents.detect(self._last()) if i.args)
         widgets, urls, _ = self._widget_step("find_company", intent.args)
         if not widgets:
             return self.finish(self.t("Aucune entreprise trouvée dans les données de démonstration.",
@@ -890,7 +911,7 @@ class _DemoRun:
     def scenario_fx(self) -> None:
         from birds.harness import intents
 
-        intent = next(i for i in intents.detect(self._last()) if i.args)
+        intent = self.followup or next(i for i in intents.detect(self._last()) if i.args)
         widgets, urls, _ = self._widget_step("convert_currency", intent.args)
         if not widgets:
             return self.finish(self.t("Pas de taux de référence BCE pour cette devise.",
@@ -912,7 +933,7 @@ class _DemoRun:
 
         from .demo_widgets import MET_RECORDED
 
-        intent = next(i for i in intents.detect(self._last()) if i.args)
+        intent = self.followup or next(i for i in intents.detect(self._last()) if i.args)
         from datetime import datetime
         from zoneinfo import ZoneInfo
 
@@ -955,11 +976,14 @@ class _DemoRun:
 
         from .widgets import tz_or_default
 
-        found = clock.detect(self._last())
+        found = clock.detect(self.followup.args["text"] if self.followup else self._last())
         zone = str(tz_or_default(self.req.tz))
         w = clock.card(found, _now(self.req.tz), self.lang, zone) if found else None
         if not w:
             return self.finish(self.t("Je ne connais pas cette ville.", "I do not know this city."))
+        from birds.harness.followup import context_of
+
+        self.context = context_of([], [w])
         self.think(
             "Les heures se calculent sans outil : fuseaux de la table, heures de bureau 9 h–18 h.",
             "The times are computed without a tool: zones from the table, office hours 9am-6pm.",
