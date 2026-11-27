@@ -368,6 +368,12 @@ la capacité du routeur à généraliser à des tournures nouvelles se mesure su
 demandait 16 jetons, vLLM 0.32 répond `{\n  "probe": …\n}` en 20 et la sonde concluait « non pris en charge »
 (`PROBE_TOKENS = 40`).
 
+**Dans l'application** (même jour, `scripts/serve.py` port 9335, `BIRD_ROUTER` par défaut, 360 px et 1 280 px, clair
+et sombre, 8 tours) : « il fera quel temps demain du côté de Strasbourg ? », que les regex **ne voient pas**
+(`hint_tools: []`), est routé vers `get_weather {place, day}` (0,85 à 1,16 s) et la fiche météo s'affiche ; « fais-moi
+la météo des marchés » ne déclenche aucun module (`needs_web: true`, 0,51 à 0,55 s), Bird cherche et cite sa source.
+Aucune requête vers un tiers, aucune erreur CSP, pas de défilement horizontal.
+
 ### Apprentissage natif des modules
 
 `scripts/build_tools_mix.py --out out/tools_mix` prépare (sans lancer) un jeu au format exact du mélange
