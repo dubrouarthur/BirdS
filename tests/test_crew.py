@@ -424,9 +424,10 @@ def test_activated_and_disabled_modes():
     assert decide(ASK_DECK, images=1).recipe is None and decide(ASK_DECK, resume=True, mode="on").recipe is None
 
 
-def test_recipes_with_auto_off_run_only_when_activated():
+def test_researched_reports_start_the_team_in_auto_since_the_live_study():
     doc = "Rédige un rapport sur l'évolution du chômage en France depuis 2015 avec des chiffres sourcés"
-    assert decide(doc).recipe is None and decide(doc, mode="on").recipe == "doc_research"
+    assert decide(doc).recipe == "doc_research" and decide(doc, mode="on").recipe == "doc_research"
+    assert decide(doc, mode="off").recipe is None
 
 
 def test_offer_headings_need_a_price_and_accept_devis_and_offre_forms():

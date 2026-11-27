@@ -130,7 +130,7 @@ RECIPES = {
     "deck_research": {"auto": True, "tool": "make_slides"},
     "compare_write": {"auto": True, "tool": None},  # draft_email or make_document, from the request
     "minutes_actions": {"auto": True, "tool": "make_document"},
-    "doc_research": {"auto": False, "tool": "make_document"},  # studies, monitoring, reports with sources
+    "doc_research": {"auto": True, "tool": "make_document"},  # studies, monitoring, reports with sources (live A/B 2026-11-27, docs/HARNESS.md)
     "sheet_pasted": {"auto": False, "tool": "make_sheet"},
     "generic": {"auto": False, "tool": None},
 }

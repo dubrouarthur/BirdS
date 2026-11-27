@@ -245,6 +245,20 @@ ces liens ») ou si rien n'est demandé (« range ce dossier de veille », « qu
 famille `agent_study` de `scripts/trigger_bench.py` (10 oui, 20 demandes de bureau avec un mot d'étude qui ne
 déclenchent rien, même drapeau Auto allumé).
 
+**Mesure live (27/11/2026, Bird S 4B, recherche SearXNG, `scripts/agent_study_eval.py`).** 4 demandes d'étude
+(comparatif CRM, veille IA générative, rapport transition énergétique, benchmark visioconférence), Mode Agent forcé
+contre mode simple :
+
+| | Mode Agent | Mode simple |
+|---|---|---|
+| Livrable Word produit | 3/4 (le 4ᵉ s'est arrêté sur une demande de confirmation) | 0/4 (réponse dans le chat) |
+| Sections du document | 10 à 16 | — |
+| Citations numérotées + section Sources | oui (3/3) | non |
+| Temps total | 29 à 58 s | 14 à 26 s |
+
+Décision : `doc_research` passe en Auto. Une première mesure du même jour, recherche limitée à Wikipédia, n'était pas
+concluante (Wikipédia refusait les recherches parallèles : HTTP 429).
+
 **Qualité de l'équipe.** La recherche prend le premier résultat de chaque requête à tour de rôle et lit une page par
 site d'abord (2 à 3 sources distinctes, pas trois pages d'un même site) ; si moins de 2 pages donnent un extrait et
 qu'il reste du temps, elle lit jusqu'à 2 pages d'autres sites (0 génération, lecture une à une). Pour un document,
