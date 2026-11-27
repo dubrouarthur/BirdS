@@ -75,7 +75,7 @@ export const EQUIVALENTS = [
   {
     key: "car",
     per: "g",
-    value: 142.3, // g CO2e for 1 km, construction included
+    value: 142.3, // g CO2e for 1 km, construction included (ADEME hypothesis: average, diesel)
     unit: "km",
     source: IMPACT_CO2,
     url: "https://impactco2.fr/outils/transport/voiturethermique",
