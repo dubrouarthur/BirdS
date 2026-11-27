@@ -25,7 +25,7 @@ site/
 2. **BLOQUANT — adresse de contact** : `contact@birdmodels.example` est un domaine réservé qui ne reçoit rien ; tous les boutons « Nous écrire », « Parler de votre projet » et Contact y mènent. Dans `config.js`, remplacer `CONTACT_EMAIL` par l'adresse réelle avant toute mise en ligne. Le script l'applique aux 8 pages (liens `data-contact`, et `data-contact-href` pour les boutons « Nous écrire ») ; pour les visiteurs sans JavaScript, remplacer aussi `contact@birdmodels.example` dans les 8 pages.
 3. **Poids affiché en pied de page** : chaque page affiche son propre poids. Si une page change, remesurer et mettre à jour son pied de page.
    Méthode : charger la page dans Chromium (1440 px, cache désactivé), faire défiler jusqu'en bas pour charger toutes les images, additionner la taille des fichiers reçus, puis ajouter la favicon (`assets/favicon.svg`, que Chromium sans interface ne demande pas). 1 Ko = 1 000 octets. Le chiffre « compressé » est la même somme avec les fichiers texte (HTML, CSS, JS, SVG) compressés en gzip niveau 9 ; les images WebP sont comptées telles quelles.
-   Valeurs actuelles (thème clair, 1440 px) : accueil FR **414 Ko** (13 requêtes) ; accueil EN 413 KB (13) ; Entraîner Bird 77 Ko (5) ; Train Bird 76 KB (5) ; Notre démarche 74 Ko (5) ; Sobriété 123 Ko (7) ; Our approach 74 KB (5) ; Frugality 122 KB (7).
+   Valeurs actuelles (thème clair, 1440 px) : accueil FR **436 Ko** (13 requêtes, 345 Ko compressé) ; accueil EN 435 KB (13) ; Entraîner Bird 91 Ko (5) ; Train Bird 91 KB (5) ; Notre démarche 89 Ko (5) ; Sobriété 144 Ko (7, 68 Ko compressé) ; Our approach 88 KB (5) ; Frugality 143 KB (7).
 
 ## Déployer sur Vercel
 
