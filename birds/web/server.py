@@ -909,7 +909,7 @@ def create_app(
     app.include_router(office_edit.make_router(s, guard_request, check_access))  # the deck/document editor
     from . import canvas_web
 
-    app.include_router(canvas_web.make_router(s, guard_request, check_access, resolve_mode, fetch_client))
+    app.include_router(canvas_web.make_router(s, guard_request, check_access, resolve_mode, image_client))
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     if SITE_DIR.is_dir():
         import mimetypes

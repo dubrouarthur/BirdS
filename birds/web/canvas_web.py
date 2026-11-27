@@ -357,13 +357,14 @@ def make_router(settings, guard_request, check_access, resolve_mode, fetch_clien
             from birds.harness import Config
             from birds.harness import office_media as om
 
-            client = fetch_client(settings)
+            client = fetch_client(settings)  # a fresh client per call (server.image_client: never None)
             try:
                 cfg = Config(workspace=__import__("pathlib").Path("."), audit_file=None, pin_dns=settings.pin_dns)
                 m = images.search_commons(body.query, om.Fetcher(client, cfg), body.exclude, mid,
                                           deadline=time.monotonic() + 12)  # fmt: skip
             finally:
-                client.close()
+                if client is not None:
+                    client.close()
         if m is None:
             return {"ok": False, "reason": "none"}
         return {"ok": True, "media": images.to_entry(m, body.query)}

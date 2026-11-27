@@ -830,3 +830,32 @@ def test_turn_text_and_memo():
     assert "Plan mobilité 2027" in text and "5 diapositives" in text
     assert turn.chat_text("deck", d, "en").startswith("The deck")
     assert turn.memo_line({"doc": d, "version": 3}).startswith("[canvas deck v3")
+
+
+def test_image_endpoint_server_mode_with_pinned_dns(monkeypatch):
+    """The deployment's setting (BIRD_PIN_DNS on): server.fetch_client is None there, the endpoint still gets a
+    real client (server.image_client) and closes it, never a 500."""
+    from fastapi.testclient import TestClient
+
+    from birds.harness import office_media as om
+    from birds.web.server import create_app
+    from tests.test_web import settings
+
+    seen = {}
+
+    class Fetcher:
+        def __init__(self, http, cfg):
+            seen["http"], seen["pin"] = http, cfg.pin_dns
+
+    def search(query, fetch, exclude, mid, deadline=None):
+        seen["query"] = query
+        return None
+
+    monkeypatch.setattr(om, "Fetcher", Fetcher)
+    monkeypatch.setattr(images, "search_commons", search)
+    s = settings(allow_user_endpoint=True, pin_dns=True)
+    with TestClient(create_app(s)) as c:
+        r = c.post("/api/canvas/image", json={"query": "vélo"}, headers={"x-bird-mode": "user"})
+    assert r.status_code == 200 and r.json() == {"ok": False, "reason": "none"}
+    assert seen["query"] == "vélo" and seen["pin"] is True
+    assert seen["http"] is not None and hasattr(seen["http"], "stream")
