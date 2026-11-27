@@ -214,6 +214,9 @@ export function versus(sum, ref) {
     savedLow: refWh - sum.high,
     savedHigh: refWh - sum.low,
     ratio: sum.wh > 0 ? refWh / sum.wh : null,
+    // the ratio at Bird's high bound (worst case) and low bound (best case): the headline never hides its range
+    ratioLow: sum.high > 0 ? refWh / sum.high : null,
+    ratioHigh: sum.low > 0 ? refWh / sum.low : null,
   };
 }
 

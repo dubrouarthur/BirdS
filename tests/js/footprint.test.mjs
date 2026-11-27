@@ -94,6 +94,8 @@ test("sums and « had you used a large assistant », with an honest range", () =
   assert.equal(v.savedLow, 0.48 - 1.21); // negative: the worst case is said, not hidden
   assert.equal(v.savedHigh, 0.48 - 0.044);
   assert.equal(v.ratio, 0.48 / 0.1);
+  assert.equal(v.ratioLow, 0.48 / 1.21); // below 1: at the worst end Bird uses more
+  assert.equal(v.ratioHigh, 0.48 / 0.044);
 });
 
 test("device totals persist, keep demo answers apart, survive bad storage and reset", () => {

@@ -74,8 +74,14 @@ export const FOOTPRINT_STRINGS = {
       "Énergie économisée : ≈ {saved}, de {low} à {high} selon la charge du serveur.",
     "footprint.vs.saved.maybe":
       "Énergie économisée : ≈ {saved}. Dans le pire cas de la fourchette (une requête seule sur la carte), Bird dépasserait la référence de {over}.",
-    "footprint.vs.times": "≈ {x} fois moins",
-    "footprint.vs.more": "≈ {x} fois plus",
+    "footprint.vs.times": "≈ {x} fois moins, en estimation centrale",
+    "footprint.vs.more": "≈ {x} fois plus, en estimation centrale",
+    "footprint.vs.times.range":
+      "Selon la charge du serveur : de ≈ {low} à ≈ {high} fois moins.",
+    "footprint.vs.times.range.worse":
+      "Selon la charge du serveur : jusqu'à ≈ {high} fois moins ; dans le pire cas (une requête seule sur la carte), ≈ {worse} fois plus.",
+    "footprint.vs.more.range":
+      "Selon la charge du serveur : de ≈ {low} à ≈ {high} fois plus.",
     "footprint.vs.note":
       "Même périmètre que le chiffre publié (août 2025) : tout le service (puces, machines au repos, refroidissement) ; le second chiffre n'indique pas son périmètre. Bird est estimé d'après ses tokens, les grands assistants d'après le chiffre de leur fournisseur, par requête texte.",
     "footprint.vs.source": "source",
@@ -208,8 +214,14 @@ export const FOOTPRINT_STRINGS = {
       "Energy saved: ≈ {saved}, {low} to {high} depending on server load.",
     "footprint.vs.saved.maybe":
       "Energy saved: ≈ {saved}. At the worst end of the range (one request alone on the card), Bird would exceed the reference by {over}.",
-    "footprint.vs.times": "≈ {x} times less",
-    "footprint.vs.more": "≈ {x} times more",
+    "footprint.vs.times": "≈ {x} times less, central estimate",
+    "footprint.vs.more": "≈ {x} times more, central estimate",
+    "footprint.vs.times.range":
+      "Depending on server load: ≈ {low} to ≈ {high} times less.",
+    "footprint.vs.times.range.worse":
+      "Depending on server load: up to ≈ {high} times less; at the worst end (one request alone on the card), ≈ {worse} times more.",
+    "footprint.vs.more.range":
+      "Depending on server load: ≈ {low} to ≈ {high} times more.",
     "footprint.vs.note":
       "Same boundary as the published figure (Aug 2025): the whole service (chips, idle machines, cooling); the second figure does not state its boundary. Bird is estimated from its tokens, large assistants from their provider's figure per text prompt.",
     "footprint.vs.source": "source",

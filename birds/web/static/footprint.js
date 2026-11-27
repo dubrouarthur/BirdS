@@ -575,9 +575,24 @@ function versusPanel(sum, refs) {
             ? t("footprint.vs.times", { x: F.num(ratio, lang()) })
             : t("footprint.vs.more", { x: F.num(1 / ratio, lang()) }),
       }),
+    ratio && ratioRange(main),
     h("p", { class: "fp-vs-saved num", text: saved }),
     h("p", { class: "fp-note", text: t("footprint.vs.note") }),
   );
+}
+
+/** The ratio's range from Bird's low and high bounds, so the headline « ≈ N times less » is never read alone. */
+function ratioRange(v) {
+  const { ratioLow: lo, ratioHigh: hi } = v;
+  if (!(lo > 0 && hi > 0) || lo === hi) return null;
+  const x = (r) => F.num(r, lang());
+  const text =
+    lo >= 1
+      ? t("footprint.vs.times.range", { low: x(lo), high: x(hi) })
+      : hi >= 1
+        ? t("footprint.vs.times.range.worse", { high: x(hi), worse: x(1 / lo) })
+        : t("footprint.vs.more.range", { low: x(1 / hi), high: x(1 / lo) });
+  return h("p", { class: "fp-vs-times-range num", text });
 }
 
 /** The configured reference (BIRD_REFERENCE_*), plus the stated figure when it is the default published one. */
