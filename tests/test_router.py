@@ -284,8 +284,9 @@ def _client(enforces: str, bodies: list):
     def handler(req):
         body = json.loads(req.content)
         bodies.append(body)
-        if body.get("max_tokens") == 16:  # the probe
-            text = '{"probe":"bird-router-ok"}' if enforces and enforces in body else "Bonjour !"
+        if body.get("max_tokens") == R.PROBE_TOKENS:  # the probe
+            # pretty-printed, as vLLM 0.32 answers it (20 tokens: a 16-token probe was cut and concluded « none »)
+            text = '{\n  "probe": "bird-router-ok"\n}' if enforces and enforces in body else "Bonjour !"
         else:
             text = j([{"tool": "get_weather", "args": {"place": "Lyon"}}])
         return httpx.Response(200, json={"choices": [{"text": text, "finish_reason": "stop"}],

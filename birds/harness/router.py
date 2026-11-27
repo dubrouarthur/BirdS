@@ -51,6 +51,7 @@ MODES = ("model", "hybrid", "regex")
 MAX_TOKENS = 80
 BUDGET_S = 3.0  # latency budget of one router call; beyond it the turn goes on with the parsers
 PROBE_S = 6.0
+PROBE_TOKENS = 40  # vLLM 0.32 answers the probe pretty-printed ('{\n  "probe": …\n}', 20 tokens): 16 cut it short
 FAIL_TTL_S = 60.0  # a probe that could not reach the endpoint is retried after this long
 MAX_MESSAGE_CHARS = 600  # the router reads the start of a long paste: the intent is there
 STOP = ["<|im_end|>", "<|endoftext|>", "\n\n"]
@@ -583,7 +584,7 @@ def structured_kind(llm, *, deadline: float | None = None) -> str:
             break
         try:
             out = llm.generate(
-                "Écris le mot bonjour.\n", 16, ["<|im_end|>"],
+                "Écris le mot bonjour.\n", PROBE_TOKENS, ["<|im_end|>"],
                 deadline=min(end, time.monotonic() + 4.0),
                 extra={"temperature": 0, **structured_extra(kind, _PROBE_SCHEMA)},
             )  # fmt: skip
