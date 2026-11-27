@@ -303,6 +303,8 @@ def _added_note(added: list[str], media: list, lang: str) -> str:
 
 
 def make_slides(args: dict, ctx) -> str:
+    if (sink := getattr(ctx.config, "canvas_sink", None)) is not None:  # a canvas turn (birds.canvas.turn)
+        return sink("make_slides", args, ctx)
     _need("pptx", "python-pptx")
     from birds.harness.office import KEY_FIGURES, figure_bullets, missing_figures, plain
     from birds.harness.office_deck import build
@@ -339,6 +341,8 @@ def make_slides(args: dict, ctx) -> str:
 
 
 def make_document(args: dict, ctx) -> str:
+    if (sink := getattr(ctx.config, "canvas_sink", None)) is not None:  # a canvas turn (birds.canvas.turn)
+        return sink("make_document", args, ctx)
     _need("docx", "python-docx")
     from birds.harness.office import build_docx
 
@@ -361,6 +365,8 @@ def make_document(args: dict, ctx) -> str:
 
 
 def make_sheet(args: dict, ctx) -> str:
+    if (sink := getattr(ctx.config, "canvas_sink", None)) is not None:  # a canvas turn (birds.canvas.turn)
+        return sink("make_sheet", args, ctx)
     _need("openpyxl", "openpyxl")
     from birds.harness.office import build_xlsx
 

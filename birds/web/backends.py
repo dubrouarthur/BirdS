@@ -171,6 +171,7 @@ class ChatRequest:
     conversation_id: str | None = None  # random UUID from the client: cache salt and log id, never shown
     tz: str | None = None  # the browser's time zone (event card); validated, Europe/Paris otherwise
     agent: str = "auto"  # Mode Agent: "auto" | "on" | "off" (birds.harness.crew.decide)
+    canvas: dict | None = None  # the artifact open in the canvas, validated (birds.web.canvas_web.canvas_in)
 
 
 @dataclass
@@ -1829,6 +1830,7 @@ class HarnessBackend:
             }
         )
         self.images = hasattr(llm, "chat")
+        self.canvas = True  # the canvas (birds.canvas): decks, documents and pages built beside the chat
 
     def _config(self, workspace: Path, request: ChatRequest, ctx: RunContext):
         from birds.harness import Config
@@ -1975,7 +1977,7 @@ class HarnessBackend:
         from birds.harness.followup import context_of
         from birds.harness.history import memo
         from birds.harness.meter import energy_options, estimate_power_time, estimate_tokens
-        from birds.web import crew_web
+        from birds.web import canvas_web, crew_web
 
         lang = "en" if request.lang == "en" else "fr"
         ephemeral = self.workspace is None
@@ -2082,10 +2084,20 @@ class HarnessBackend:
                     run = self._ocr_answer(image_texts + docs, image_usage, rl, cfg, time.monotonic() - t0)
                     image_usage = []  # already counted in run.report
                 else:
-                    decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
-                    run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
-                                            system=system, lang=rl, names=names, workspace=workspace,
-                                            history=kept)  # fmt: skip
+                    # the canvas (birds.canvas): a change to the open artifact comes first; a new deck, document or
+                    # page is made after the Mode Agent declined it (its research decks stay the team's)
+                    cplan = canvas_web.plan_for(request, words, rl, self.canvas)
+                    canvas_kw = dict(user_sent=user_sent, words=words, system=system, history=kept, lang=rl,
+                                     mode="server", attached=bool(names or image_texts))  # fmt: skip
+                    if cplan is not None and cplan.mode != "create":
+                        run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
+                    else:
+                        decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
+                        run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
+                                                system=system, lang=rl, names=names, workspace=workspace,
+                                                history=kept)  # fmt: skip
+                        if run is None and cplan is not None:
+                            run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
                 if run is None:
                     run = agent.run(
                         user_sent,
@@ -2098,6 +2110,8 @@ class HarnessBackend:
                         tz=request.tz,
                     )
             ctx.check()
+            if run.stop_reason != "confirm":
+                canvas_web.adopt_files(run, ctx, run.lang or lang)  # a file a trained tool made: also in the canvas
             report = run.report or {}
             previews = iter(
                 written_preview(s.tool, s.arguments, getattr(s, "info", None))
@@ -2186,6 +2200,7 @@ class HarnessBackend:
                 list(getattr(run, "charts", []) or []),
                 context_of(run.steps, getattr(run, "widgets", None)),
             )
+            turn_memo = canvas_web.memo_with_canvas(turn_memo, run, lang)
             answer_text = hide_out_paths(strip_tool_echo(strip_memo(str(run.answer))))
             request_words = (
                 str((request.resume or {}).get("state", {}).get("request", ""))
@@ -2221,6 +2236,7 @@ class HarnessBackend:
                     "code_checks": code_checks(content),
                     "tidy": tidied.repairs,
                     "images": [{"name": n, "text": t[:4000]} for n, t in image_texts],
+                    "canvas": canvas_web.ref(run),
                 }
             )
             ctx.emit(

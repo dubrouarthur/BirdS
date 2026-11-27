@@ -1007,7 +1007,8 @@ class Agent:
                             run.stop_reason = "length"  # cut by max_tokens: kept, but marked as interrupted
                     if out.get("finish_reason") == "repetition":
                         run.stop_reason = "repetition"  # the model looped: stopped early, one copy kept
-                    if run.stop_reason == "answer" and not _made_file(run, ctx):
+                    canvas = getattr(cfg, "canvas_sink", None) is not None  # the canvas shows the content
+                    if run.stop_reason == "answer" and not _made_file(run, ctx) and not canvas:
                         claims = bool(_FILE_CLAIM.search(content))
                         if not file_nudged and claims and _file_edit_ask(ctx.request, attached):
                             if gen < cfg.max_steps - 1 and time.monotonic() < deadline:
@@ -1056,6 +1057,7 @@ class Agent:
                     if (
                         run.stop_reason == "answer"
                         and not file_nudged
+                        and not canvas
                         and "make_chart" not in withdrawn
                         and chart_ask(ctx.request)
                         and not ctx.charts
@@ -1084,6 +1086,7 @@ class Agent:
                         and chart_ask(ctx.request)
                         and not ctx.charts
                         and not _made_file(run, ctx)
+                        and not canvas
                         and chart_claim(content)
                     ):
                         content = NO_CHART[run.lang]  # "Voici la courbe :" with no chart: say so, plainly
@@ -1198,7 +1201,8 @@ class Agent:
                 run.stop_reason = "invalid_tool_calls"  # one retry after a malformed step, not more
                 break
 
-        if run.stop_reason == "answer" and chartable and not ctx.charts and "make_chart" in self._allowed():
+        if (run.stop_reason == "answer" and chartable and not ctx.charts and "make_chart" in self._allowed()
+                and getattr(cfg, "canvas_sink", None) is None):
             # a chart was asked and the model answered with a table or a list of figures instead of drawing it:
             # the harness draws that table (make_chart checks where the numbers come from and tags them)
             found = figures_in(content)
