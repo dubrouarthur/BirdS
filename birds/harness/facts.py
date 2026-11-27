@@ -6,7 +6,8 @@
   run's result memory. It is re-injected where the full result is no longer in view: a repeated call, the last
   answer after a failed loop, and the next turn's memo (birds.harness.history).
 * ``missing_figures``: key figures that do not reach the answer or a file made in the run.
-* ``wrong_language``: an answer clearly written in the other language than the user's.
+* ``wrong_language``: an answer clearly written in the other language than the user's; ``other_language_asked``
+  skips that check when the request itself asks for another language (« traduis en anglais », « write it in French »).
 
 Nothing here calls the model or reads model prose as data: figures come from tool results and the user's messages.
 """
@@ -154,4 +155,27 @@ def wrong_language(answer: str, lang: str) -> bool:
         return en >= 5 and en >= 3 * max(fr, 1)
     if lang == "en":
         return fr >= 5 and fr >= 3 * max(en, 1)
+    return False
+
+
+_LANGS = {
+    "fr": r"fran[çc]ais|french",
+    "en": r"anglais|english",
+    "other": r"espagnol|allemand|italien|portugais|n[ée]erlandais|chinois|japonais|arabe|russe|polonais|spanish|"
+    r"german|italian|portuguese|dutch|chinese|japanese|arabic|russian|polish",
+}
+_TRANSLATE = re.compile(r"\b(?:tradu\w*|translat\w*)\b", re.I)
+
+
+def other_language_asked(request: str, lang: str) -> bool:
+    """The request asks for a translation, or names a language other than the user's for the answer (« en
+    anglais », « vers l'espagnol », « in French », « into German »): the answer's language is then not checked."""
+    text = request or ""
+    if _TRANSLATE.search(text):
+        return True
+    for code, names in _LANGS.items():
+        if code == lang:
+            continue
+        if re.search(r"\b(?:en|vers\s+l['’]|in|into)\s*(?:" + names + r")\b", text, re.I):
+            return True
     return False

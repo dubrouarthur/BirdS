@@ -212,6 +212,23 @@ def test_wrong_language(text, lang, wrong):
     assert facts.wrong_language(text, lang) is wrong
 
 
+@pytest.mark.parametrize(
+    "ask, lang, other",
+    [
+        ("Traduis ce paragraphe en anglais : Nous sommes heureux de vous accueillir.", "fr", True),
+        ("Réponds en anglais à ce client qui se plaint d'un retard.", "fr", True),
+        ("Rédige l'annonce vers l'espagnol, s'il te plaît.", "fr", True),
+        ("Write it in French: a short note thanking the team for the launch.", "en", True),
+        ("Translate this into English: Bonjour à tous.", "en", True),
+        ("Explique en quelques phrases ce qu'est la TVA intracommunautaire.", "fr", False),
+        ("Réponds en français, s'il te plaît : qu'est-ce qu'un CDD ?", "fr", False),
+        ("Explain the difference between VAT and sales tax in English.", "en", False),
+    ],
+)  # fmt: skip
+def test_a_request_for_another_language_is_not_checked_against_the_users(ask, lang, other):
+    assert facts.other_language_asked(ask, lang) is other
+
+
 # ---------------------------------------------------------------- repairs
 
 

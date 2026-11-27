@@ -858,7 +858,7 @@ class Agent:
                 f"results: {facts.figures_line(gap)}."
             )
             reasons.add("figures")
-        if facts.wrong_language(content, run.lang):
+        if facts.wrong_language(content, run.lang) and not facts.other_language_asked(ctx.request, run.lang):
             parts.append(LANG_NUDGE["en" if run.lang == "en" else "fr"])
             reasons.add("lang")
         return " ".join(parts), reasons

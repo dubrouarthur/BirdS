@@ -819,4 +819,27 @@ scenario(
     expect={"lang": "en", "max_gens": 1},
 )  # fmt: skip
 
+scenario(
+    id="ordinary_translate_en", family="controls",
+    ask="Traduis ce paragraphe en anglais : Nous sommes heureux de vous accueillir dans nos locaux. L'équipe vous "
+        "présentera nos services et répondra à vos questions avant le déjeuner.",
+    rules=lambda: [
+        R(first, "We are delighted to welcome you to our offices. The team will present our services and answer "
+          "your questions before lunch."),
+        R(reminded("french"), "Nous sommes heureux de vous accueillir dans nos locaux."),
+    ],
+    expect={"lang": "en", "contains": [r"delighted to welcome you"], "max_gens": 1},
+)  # fmt: skip
+
+scenario(
+    id="ordinary_write_in_french", family="controls", lang="en",
+    ask="Write it in French: a short note thanking the team for the product launch.",
+    rules=lambda: [
+        R(first, "Merci à toute l'équipe pour ce lancement réussi : votre travail et votre énergie ont fait la "
+          "différence. Bravo à tous !"),
+        R(reminded("english"), "Thank you all for the launch."),
+    ],
+    expect={"lang": "fr", "contains": [r"Merci à toute l'équipe"], "max_gens": 1},
+)  # fmt: skip
+
 SCENARIOS = S
