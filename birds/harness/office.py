@@ -2203,13 +2203,25 @@ def build_xlsx(path, title: str, columns: list, rows: list[list], preview: dict 
     return {"formulas": formulas, "blocked_formulas": blocked}
 
 
-_FUNCS = {"SUM": sum, "MIN": min, "MAX": max, "AVERAGE": lambda v: sum(v) / len(v), "COUNT": len}
+def _round(v: list):
+    """Excel's ROUND (half away from zero), not Python's banker's rounding."""
+    from decimal import ROUND_HALF_UP, Decimal
+
+    digits = int(v[1]) if len(v) > 1 else 0
+    q = Decimal(1).scaleb(-digits)
+    out = Decimal(repr(v[0])).quantize(q, rounding=ROUND_HALF_UP)
+    return int(out) if digits <= 0 else float(out)
+
+
+_FUNCS = {"SUM": sum, "MIN": min, "MAX": max, "AVERAGE": lambda v: sum(v) / len(v), "COUNT": len,
+          "ROUND": _round, "ABS": lambda v: abs(v[0]), "PRODUCT": lambda v: __import__("math").prod(v)}  # fmt: skip
 _RANGE_REF = re.compile(r"\$?([A-Z]{1,3})\$?(\d{1,7}):\$?([A-Z]{1,3})\$?(\d{1,7})")
 
 
 def _evaluate(ws, formula: str, depth: int = 0):
-    """The value of a simple formula (+ - * / ( ), SUM/MIN/MAX/AVERAGE/COUNT over cells and ranges), for the preview
-    only: what Excel would show once it recalculates. None when the formula is beyond this small reader."""
+    """The value of a simple formula (+ - * / ( ), SUM/MIN/MAX/AVERAGE/COUNT/ROUND/ABS/PRODUCT over cells and ranges),
+    for the preview and an export's cached values: what Excel shows once it recalculates. None when the formula is
+    beyond this small reader."""
     import ast
     import operator
 
@@ -2265,7 +2277,7 @@ def _evaluate(ws, formula: str, depth: int = 0):
 
     try:
         value = ev(tree)
-    except (ValueError, ZeroDivisionError, TypeError, RecursionError):
+    except (ValueError, ZeroDivisionError, TypeError, RecursionError, IndexError, ArithmeticError):
         return None
     return value if isinstance(value, int | float) else None
 

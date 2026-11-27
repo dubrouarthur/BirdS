@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from . import dsl
+from . import dsl, sheetfx
 
 
 def _list_items(bullets) -> list[str]:
@@ -109,7 +109,8 @@ def from_tool(tool: str, args: dict, lang: str = "fr") -> dict | None:
         rows = []
         for r in (a.get("rows") or [])[: dsl.MAX_SHEET_ROWS]:
             if isinstance(r, list):
-                cells = ["" if c is None else str(c) for c in r][: len(cols)]
+                # the file's formulas count the header as row 1, the panel's A1 is the first data row
+                cells = ["" if c is None else sheetfx.from_ooxml(str(c)) for c in r][: len(cols)]
                 rows.append(cells + [""] * (len(cols) - len(cells)))
         doc["sheet"] = {"columns": cols, "rows": rows}
         doc.pop("blocks", None)

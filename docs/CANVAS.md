@@ -107,7 +107,9 @@ n'est pas touchée). Téléphone (< 1 000 px) : feuille plein écran, Échap ou 
   `=MOYENNE`, `MIN`, `MAX`, `NB`, `ARRONDI(x;n)`, `SI(c;a;b)`, `PRODUIT` (et leurs noms anglais), références et plages,
   `%`, décimales françaises ; erreurs `#DIV/0!`, `#CYCLE!`, `#NOM?`… — évaluées sans `eval()`. Tri par colonne,
   « Graphique » sur une sélection (libellés + colonnes numériques), « Demander à Bird » sur une sélection (tableau
-  Markdown dans la zone de saisie), export .xlsx et CSV.
+  Markdown dans la zone de saisie), export .xlsx et CSV. À l'export .xlsx (`birds/canvas/sheetfx.py`), les formules
+  passent en OOXML (noms anglais, séparateur `,`, décimales `.`, lignes décalées sous l'en-tête) et chaque valeur
+  calculable est écrite en cache (`<v>`), pour les aperçus de fichiers.
 
 Accessibilité : boutons nommés, barre d'outils par bloc, onglets au clavier (flèches), grille `role=grid` avec
 cellule active, statut `aria-live` (« Bird écrit… 3 diapositives »), annonce de chaque nouvelle version, focus rendu

@@ -13,7 +13,7 @@ from pathlib import Path
 
 from birds.harness import office_media as om
 
-from . import dsl
+from . import dsl, sheetfx
 
 MIME = {
     "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -236,11 +236,48 @@ def export(doc: dict, fmt: str, media_data: dict[str, str] | None = None) -> tup
             cols = sh.get("columns") or []
             if not cols:
                 raise ExportError("the sheet has no column")
-            office.build_xlsx(path, title, cols, sh.get("rows") or [], {}, lang)
+            rows = [[sheetfx.to_ooxml(v) for v in row] for row in sh.get("rows") or []]
+            office.build_xlsx(path, title, cols, rows, {}, lang)
+            cache_values(path)
         else:
             raise ExportError(f"cannot export a {kind} as {fmt}")
         data = path.read_bytes()
     return data, MIME[fmt], safe_name(title, fmt)
+
+
+def cache_values(path: Path) -> None:
+    """Write each formula's value as the cell's cached <v> (file previewers show only that; Excel recalculates on
+    opening anyway). A formula beyond the small evaluator keeps no cached value rather than an empty one."""
+    import zipfile
+
+    from openpyxl import load_workbook
+
+    from birds.harness import office
+
+    ws = load_workbook(str(path)).active
+    values = {}
+    for row in ws.iter_rows():
+        for c in row:
+            if isinstance(c.value, str) and c.value.startswith("="):
+                v = office._evaluate(ws, c.value)
+                if isinstance(v, int | float) and not isinstance(v, bool) and abs(v) < 1e300:
+                    values[c.coordinate] = repr(v) if isinstance(v, float) else str(v)
+    name = "xl/worksheets/sheet1.xml"
+    with zipfile.ZipFile(path) as z:
+        items = [(i, z.read(i.filename)) for i in z.infolist()]
+
+    def fill(m: re.Match) -> str:
+        v = values.get(m.group(1))
+        return m.group(0).replace("<v></v>", f"<v>{v}</v>" if v is not None else "").replace("<v />", "")
+
+    out = path.with_suffix(".tmp")
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        for info, data in items:
+            if info.filename == name:
+                data = re.sub(r'<c r="([A-Z]{1,3}\d{1,7})"[^>]*><f>[^<]*</f><v(?:></v>| />)</c>', fill,
+                              data.decode("utf-8")).encode("utf-8")  # fmt: skip
+            z.writestr(info, data)
+    out.replace(path)
 
 
 def validated(doc) -> dict:

@@ -7,6 +7,7 @@ import base64
 import io
 import json
 import random
+import re
 import zipfile
 
 import pytest
@@ -481,7 +482,7 @@ def test_export_sheet_neutralises_formula_injection():
     ws = load_workbook(io.BytesIO(data)).active
     cells = {c.coordinate: c for row in ws.iter_rows() for c in row}
     formulas = [c.value for c in cells.values() if c.data_type == "f"]
-    assert any("SUM(B2:B3)" in str(v) for v in formulas)
+    assert any("SUM(B3:B4)" in str(v) for v in formulas)  # the panel's B2:B3, under the file's header row
     assert not any("HYPERLINK" in str(v) or "cmd" in str(v) for v in formulas)
 
 
@@ -859,3 +860,33 @@ def test_image_endpoint_server_mode_with_pinned_dns(monkeypatch):
     assert r.status_code == 200 and r.json() == {"ok": False, "reason": "none"}
     assert seen["query"] == "vélo" and seen["pin"] is True
     assert seen["http"] is not None and hasattr(seen["http"], "stream")
+
+
+def test_xlsx_export_writes_excel_formulas_and_their_values():
+    """The mini-sheet's French formulas (SOMME, ARRONDI, « ; », « 1,5 ») become OOXML (SUM, ROUND, « , », « 1.5 »),
+    its rows are shifted under the header row, and each value it can compute is the cell's cached <v>."""
+    from openpyxl import load_workbook
+
+    from birds.canvas import sheetfx
+
+    rows = [["=SOMME(1;2)", "=1+1"], ["3", "=A1*2"], ["=ARRONDI(1,25;1)", '=SI(A1>1;"oui; non";"x")'],
+            ["=MOYENNE(A1:A2)", "=NB(B1:B2)"]]  # fmt: skip
+    d = {"v": 1, "kind": "sheet", "title": "S", "subtitle": "", "theme": None, "lang": "fr", "blocks": [],
+         "media": {}, "sheet": {"columns": ["a", "b"], "rows": rows}}  # fmt: skip
+    data, _, _ = export.export(export.validated(d), "xlsx", {})
+    xml = zipfile.ZipFile(io.BytesIO(data)).read("xl/worksheets/sheet1.xml").decode()
+    fx = re.findall(r"<f>([^<]*)</f>", xml)
+    assert len(fx) == 7 and not any(re.search(r"SOMME|ARRONDI|MOYENNE|NB\(|SI\(", f) for f in fx)
+    assert not any(";" in f.replace("&gt;", ">").split('"')[0] for f in fx)
+    assert "<v></v>" not in xml and "<v />" not in xml
+    f = [[c.value for c in r] for r in load_workbook(io.BytesIO(data)).active.iter_rows()]
+    assert f[1] == ["=SUM(1,2)", "=1+1"] and f[2][1] == "=A2*2" and f[3] == ["=ROUND(1.25,1)",
+                                                                           '=IF(A2>1,"oui; non","x")']  # fmt: skip
+    assert f[4] == ["=AVERAGE(A2:A3)", "=COUNT(B2:B3)"]
+    v = [[c.value for c in r] for r in load_workbook(io.BytesIO(data), data_only=True).active.iter_rows()]
+    assert v[1] == [3, 2] and v[2] == [3, 6] and v[3][0] == 1.3 and v[4][0] == 3
+    # and back: a trained make_sheet formula (header in row 1) is read in the panel's rows
+    assert sheetfx.from_ooxml("=SUM(B2:B9)") == "=SUM(B1:B8)" and sheetfx.from_ooxml("=A1") == "=A1"
+    doc = convert.from_tool("make_sheet", {"title": "T", "columns": ["x", "y"], "rows": [[1, 2], [3, "=SUM(A2:A3)"]]})
+    assert doc["sheet"]["rows"][1][1] == "=SUM(A1:A2)"
+    assert sheetfx.to_ooxml('="A1;B2"&A1') == '="A1;B2"&A2'
