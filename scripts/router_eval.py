@@ -35,6 +35,19 @@ def _pct(xs: list[float], q: float) -> float | None:
     return round(xs[min(len(xs) - 1, int(q * len(xs)))], 3)
 
 
+def sample(data: list[dict], per_class: int, seed: int = 0) -> list[dict]:
+    """At most ``per_class`` items per (family, label), drawn with a fixed seed, in bench order."""
+    import random
+
+    rng, keep = random.Random(seed), set()
+    groups: dict[tuple, list[int]] = {}
+    for i, it in enumerate(data):
+        groups.setdefault((it["family"], it["label"]), []).append(i)
+    for idx in groups.values():
+        keep.update(rng.sample(idx, min(per_class, len(idx))))
+    return [it for i, it in enumerate(data) if i in keep]
+
+
 def run(llm, tok, data, *, mode: str, structured: str, budget: float, lang_of) -> list[dict]:
     rows = []
     for i, it in enumerate(data):
@@ -44,9 +57,12 @@ def run(llm, tok, data, *, mode: str, structured: str, budget: float, lang_of) -
         d = R.decide(llm, tok, it["text"], history=it["history"], lang=lang, mode=mode, structured=structured,
                      budget=budget, base=base)  # fmt: skip
         wall = time.monotonic() - t0
-        jm, jb = D.judge(d, it), D.judge(base, it)
+        # hybrid is the same call, merged afterwards with the parsers: scored from this one call
+        h = d if d.source in ("fallback", "regex") or mode == "hybrid" else R.merge(d, base)
+        jm, jb, jh = D.judge(d, it), D.judge(base, it), D.judge(h, it)
         rows.append({**{k: it[k] for k in ("family", "label", "text")}, "ok": jm["ok"], "pred": jm["pred"],
-                     "regex_ok": jb["ok"], "regex_pred": jb["pred"], "source": d.source,
+                     "regex_ok": jb["ok"], "regex_pred": jb["pred"],
+                     "hybrid_ok": jh["ok"], "hybrid_pred": jh["pred"], "source": d.source,
                      "fallback": d.meta.get("fallback"), "invalid": bool(d.meta.get("invalid")),
                      "seconds": d.meta.get("seconds", round(wall, 3)), "router": d.as_dict(),
                      "regex": base.as_dict(), "dropped": d.meta.get("dropped", []),
@@ -59,16 +75,19 @@ def run(llm, tok, data, *, mode: str, structured: str, budget: float, lang_of) -
 def report(rows: list[dict]) -> dict:
     model = D.summarise(rows)
     regex = D.summarise([{**r, "ok": r["regex_ok"], "pred": r["regex_pred"]} for r in rows])
+    hybrid = D.summarise([{**r, "ok": r["hybrid_ok"], "pred": r["hybrid_pred"]} for r in rows])
     fmt = lambda v: "  -  " if v is None else f"{v:.3f}"  # noqa: E731
-    print(f"{'family':14s} {'n':>4s}   {'router acc/prec/rec':>21s}   {'regex acc/prec/rec':>21s}  wrong args")
+    trio = lambda x: f"{fmt(x['accuracy'])} {fmt(x['precision'])} {fmt(x['recall'])}"  # noqa: E731
+    print(f"{'family':14s} {'n':>4s}   {'router acc/prec/rec':>17s}   {'hybrid acc/prec/rec':>17s}   "
+          f"{'regex acc/prec/rec':>17s}  wrong args")  # fmt: skip
     for fam in sorted(model):
-        m, g = model[fam], regex[fam]
-        print(f"{fam:14s} {m['n']:4d}   {fmt(m['accuracy'])} {fmt(m['precision'])} {fmt(m['recall'])}   "
-              f"{fmt(g['accuracy'])} {fmt(g['precision'])} {fmt(g['recall'])}  {m['wrong_args']}")  # fmt: skip
+        m = model[fam]
+        print(f"{fam:14s} {m['n']:4d}   {trio(m)}   {trio(hybrid[fam])}   {trio(regex[fam])}  {m['wrong_args']}")
     lat = [r["seconds"] for r in rows if r["seconds"] is not None and r["source"] != "regex"]
     out = {
         "items": len(rows),
         "router_accuracy": round(sum(r["ok"] for r in rows) / len(rows), 3),
+        "hybrid_accuracy": round(sum(r["hybrid_ok"] for r in rows) / len(rows), 3),
         "regex_accuracy": round(sum(r["regex_ok"] for r in rows) / len(rows), 3),
         "latency_p50": _pct(lat, 0.5),
         "latency_p95": _pct(lat, 0.95),
@@ -77,7 +96,7 @@ def report(rows: list[dict]) -> dict:
         "vetoed": sum(bool(r["vetoed"]) for r in rows),
         "router_only_right": sum(r["ok"] and not r["regex_ok"] for r in rows),
         "regex_only_right": sum(r["regex_ok"] and not r["ok"] for r in rows),
-        "families": {"router": model, "regex": regex},
+        "families": {"router": model, "hybrid": hybrid, "regex": regex},
     }
     print(json.dumps({k: v for k, v in out.items() if k != "families"}))
     return out
@@ -94,12 +113,18 @@ def main(argv=None) -> int:
     ap.add_argument("--budget", type=float, default=R.BUDGET_S, help="latency budget per call, seconds")
     ap.add_argument("--families", nargs="*", default=[])
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument(
+        "--per-class", type=int, default=0, help="at most N items per (family, yes/no), seeded: a capped live run"
+    )
+    ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--fake", action="store_true", help="scripted stand-in, no network (plumbing check)")
     ap.add_argument("--out", default="", help="JSON lines of every row")
     a = ap.parse_args(argv)
     from birds.harness.agent import detect_lang
 
     data = [it for it in D.items() if not a.families or it["family"] in a.families]
+    if a.per_class:
+        data = sample(data, a.per_class, a.seed)
     data = data[: a.limit] if a.limit else data
     tok = TemplateTokenizer()
     if a.fake:
