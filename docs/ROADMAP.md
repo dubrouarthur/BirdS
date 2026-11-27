@@ -1,25 +1,34 @@
-# Feuille de route de Bird Models (objectifs annoncés par l'équipe)
+# Feuille de route
 
-Ce sont des objectifs, pas des engagements datés vérifiés. Les présenter comme tels.
+Priorités fixées par le propriétaire du produit, dans l'ordre : harnais agentique, contenu enrichi, édition de documents.
+Objectif : le niveau d'OpenAI dans les usages de bureau, porté par un petit modèle et beaucoup de modules soignés.
 
-## Aujourd'hui (état vérifié)
+## Vague 1 (en cours)
 
-- Bird S 4B est servi par un Inference Endpoint Hugging Face sur AWS, région us-east-1 (États-Unis), sur 1 GPU NVIDIA L4, mis en veille quand il ne sert pas.
-- L'énergie de chaque réponse est affichée comme une estimation haute (puissance de la carte × durée de travail). L'électricité de cette région n'est pas décarbonée en totalité.
+- Canevas : documents, diapos, code et mini-tableur construits en direct dans un design préconçu, modifiés par patchs ciblés.
+- Fiabilité du harnais entre les actions : plan de la demande suivi étape par étape, vérification avant réponse, réparation des arguments.
+- Recherche approfondie et graphe relationnel, petits modules (matrice de comparaison, avantages / inconvénients, frise,
+  chiffres clés, liste de tâches, calculatrice, cartes de sources, glossaire), suggestions de suite, transformations en un clic.
 
-## Objectif à moyen terme : des centres de données décarbonés
+## Vague 2 (dès la vague 1 fusionnée)
 
-- Faire tourner Bird dans des centres de données alimentés par une électricité bas carbone (par exemple une région dont le réseau est majoritairement nucléaire, hydraulique ou renouvelable).
-- Mesurer et publier l'intensité carbone réelle de cette électricité (gCO₂e/kWh) et l'afficher sous chaque réponse (variable `BIRD_GRID_INTENSITY`).
+1. Mode Agent : plan affiché et modifiable avant lancement, « Ajouter une consigne » en cours de route,
+   carte « Vérifications faites », agents qui agissent sur le Canevas, tâches longues en arrière-plan.
+2. Recherche approfondie, affichage dynamique et complet :
+   - tableau de bord en direct (sous-questions ouvertes / résolues, requêtes, sources lues qui arrivent au fil de l'eau,
+     affirmations recoupées, contradictions) ;
+   - graphe relationnel qui grandit pendant la recherche ;
+   - rapport final plein écran : sommaire, citations [n] avec bulle, panneau de sources (citées / consultées),
+     frise, matrice de comparaison, chiffres clés, niveau de confiance par affirmation, export Word / PDF / diapos.
+3. Sources et citations façon ChatGPT / Perplexity : [n] cliquables, bulle, « N sources », panneau latéral.
+4. Modules du catalogue (`docs/research/rich-catalogue-2026-11.json`), 3 lots : structure de réponse, données, documents métier.
+5. Canevas avancé : retouche d'une sélection avec variantes, versions et restauration, ✦ par diapositive, thèmes,
+   mises en page suggérées par le contenu, panneau « Livrables », « Transformer en… », tableau interactif sur CSV/XLSX.
 
-## Objectif 2030 : 100 % renouvelable, sur nos propres systèmes
+## Plus tard
 
-- Faire tourner Bird sur une infrastructure propre à Bird Models, alimentée par des énergies renouvelables.
-- Condition pour l'annoncer comme atteint : une mesure publiée (consommation, origine de l'électricité, méthode).
+- Ultra recherche (bêta, comptes autorisés) : des centaines d'itérations par tranches reprises, journal forensique,
+  garde-fous RGPD (pas de profilage de personnes privées).
+- Connecteurs (`docs/research/connectors-design-2026-11.md`) : correctifs de sécurité d'abord, puis Microsoft 365 en lecture.
 
-## Autres prochaines étapes (déjà listées)
-
-- Un palier encore plus petit pour les tâches simples.
-- Une version quantifiée qui tourne en local.
-- Davantage de données métier en français.
-- Une meilleure recherche web avec citations.
+Références : `docs/research/competitors-2026-11.md`.
