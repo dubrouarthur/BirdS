@@ -7711,3 +7711,238 @@ ol.a4-list > li::before {
 :root[data-theme="dark"] .map-img {
   filter: brightness(0.85) contrast(1.05);
 }
+/* ---------------------------------------------------------------- maps, wave 2 (lists, groups, full screen) */
+
+/* an answer written by the harness from the results, when the model could not write one */
+.answer-note {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* a group of close pins on a dense map: a round count, a tap zooms in */
+.map-clusters {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.map-cluster {
+  position: absolute;
+  inset-inline-start: var(--x, 50%);
+  inset-block-start: var(--y, 50%);
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  inline-size: 34px;
+  block-size: 34px;
+  padding: 0;
+  border: 3px solid rgb(255 255 255 / 0.95);
+  border-radius: 50%;
+  background: #0b1b3f;
+  color: #fff;
+  font: 700 0.8rem/1 var(--sans);
+  box-shadow:
+    0 0 0 4px rgb(11 27 63 / 0.22),
+    0 1px 4px rgb(0 0 0 / 0.35);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.map-cluster::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+}
+.map-cluster:hover {
+  background: #1e5bd8;
+}
+
+/* the list of places of a list: one block under the map (and the bottom sheet of the full-screen view) */
+.place-sheet {
+  display: grid;
+  gap: 6px;
+  min-inline-size: 0;
+}
+.place-copy {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.place-plan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+.place-plan-line {
+  flex: 1 1 260px;
+  margin: 0;
+  font-size: 0.9rem;
+}
+.place-plan-seq {
+  font-variant-numeric: tabular-nums;
+}
+.place-matrix {
+  flex-basis: 100%;
+  font-size: 0.86rem;
+}
+.place-matrix summary {
+  cursor: pointer;
+  color: var(--link);
+  inline-size: fit-content;
+}
+.place-matrix-scroll {
+  overflow-x: auto;
+  margin-block-start: 6px;
+}
+.place-matrix table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.place-matrix th,
+.place-matrix td {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  text-align: end;
+  white-space: nowrap;
+}
+.place-matrix th {
+  color: var(--muted);
+  font-weight: 600;
+}
+.place-missing {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--radius-s);
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+.place-missing .icon {
+  flex: none;
+  margin-block-start: 1px;
+}
+
+/* full screen: map on top, the list beside it (desktop) or as a bottom sheet under it (phone) */
+.map-full-close {
+  display: none;
+}
+:root.has-map-full {
+  overflow: hidden;
+}
+.widget-places.is-full {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  align-content: start;
+  gap: 10px 18px;
+  padding: 16px 20px;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg);
+  overflow: hidden;
+}
+.widget-places.is-full > * {
+  grid-column: 2;
+}
+.widget-places.is-full > .widget-title {
+  grid-column: 1 / -1;
+  padding-inline-end: 52px;
+  font-size: 0.9rem;
+  /* as tall as the close button beside it: the button never covers the map */
+  display: flex;
+  align-items: center;
+  min-block-size: 40px;
+  margin: 0;
+}
+.widget-places.is-full > .map-frame {
+  grid-column: 1;
+  grid-row: 2 / -1;
+  align-self: center;
+  justify-self: center;
+  max-inline-size: min(100%, calc((100dvh - 80px) * 16 / 9));
+}
+.widget-places.is-full > .place-sheet {
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  align-content: start;
+}
+.widget-places.is-full .place-more {
+  display: none;
+}
+.widget-places.is-full > .map-full-close {
+  display: inline-grid;
+  position: absolute;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  inline-size: 40px;
+  block-size: 40px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.widget-places.is-full .map-full {
+  display: none;
+}
+@media (max-width: 760px) {
+  .widget-places.is-full {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    gap: 8px;
+    padding: 12px 16px 0;
+  }
+  .widget-places.is-full > *,
+  .widget-places.is-full > .map-frame {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .widget-places.is-full > .map-frame {
+    max-inline-size: 100%;
+  }
+  .widget-places.is-full > .widget-source,
+  .widget-places.is-full > .widget-head-links {
+    display: none;
+  }
+  /* the bottom sheet: rounded top, a grab bar, scrolls on its own */
+  .widget-places.is-full > .place-sheet {
+    margin-inline: -16px;
+    padding: 14px 16px 24px;
+    border-radius: 16px 16px 0 0;
+    background: var(--surface);
+    box-shadow: 0 -6px 20px -12px rgb(18 26 46 / 0.35);
+  }
+  .widget-places.is-full > .place-sheet::before {
+    content: "";
+    justify-self: center;
+    inline-size: 36px;
+    block-size: 4px;
+    border-radius: 2px;
+    background: var(--line-strong);
+  }
+}
+@media (pointer: coarse) {
+  .place-actions .place-copy {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--link);
+    text-decoration: none;
+  }
+  .map-cluster {
+    inline-size: 38px;
+    block-size: 38px;
+  }
+}

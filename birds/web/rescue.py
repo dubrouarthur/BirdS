@@ -72,7 +72,7 @@ def _kinds(kind: str, n: int, lang: str) -> str:
     return f"{n} {one if n == 1 else many}"
 
 
-def _places(w: dict, lang: str) -> list[str]:
+def places_lines(w: dict, lang: str) -> list[str]:
     fr = lang != "en"
     ps, mode = w.get("places") or [], w.get("mode")
     if not ps:
@@ -113,7 +113,7 @@ def summary_text(widgets: list[dict], lang: str) -> str:
     for w in widgets or []:
         t = w.get("type")
         if t == "places":
-            out += _places(w, lang)
+            out += places_lines(w, lang)
         elif t == "company" and w.get("name"):
             bits = [w["name"], f"SIREN {w['siren']}" if w.get("siren") else "", w.get("address") or ""]
             out.append(("Voici la fiche de l'entreprise : " if fr else "Here is the company record: ")

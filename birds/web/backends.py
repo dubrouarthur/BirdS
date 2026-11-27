@@ -875,6 +875,17 @@ class _DemoRun:
                 f"closest: {names} [1].\n\nOpening hours come from OpenStreetMap: check them before going. I "
                 "give no ratings or prices, which I do not have.",
             )
+        elif w["mode"] == "list" and (w.get("plan") == "order" or w.get("missing")):
+            from . import rescue
+
+            # a visit order or places not found: the same words as the answer written from the card
+            text = " ".join(rescue.places_lines(w, self.lang)) + " [1]"
+            if w.get("plan") == "order":
+                by = {p["n"]: p["name"] for p in ps}
+                text += "\n\n" + " → ".join(f"**{by[n]}**" for n in w["order"] if n in by) + self.t(
+                    ". Les distances sont à vol d'oiseau ; le lien « Itinéraire complet » donne la route.",
+                    ". Distances are as the crow flies; the 'Full route' link gives the road route.",
+                )
         elif w["mode"] == "list":
             text = self.t(
                 "Voici les sites placés sur la carte, dans l'ordre donné : "
@@ -1438,6 +1449,24 @@ class _DemoRun:
         )
 
     def scenario_error(self) -> None:
+        from birds.harness import intents
+
+        # « simule une panne : montre sur une carte : … »: the pre-called tool returns, then the model fails; the
+        # answer is written from the card (birds/web/rescue.py), exactly as the live harness does
+        words = re.sub(r"(?i)simule[rz]? une (?:panne|erreur)\s*[:,-]?\s*", "", self._last()).strip()
+        found = next((i for i in intents.detect(words) if i.args and i.tool == "find_places"), None) if words else None
+        if found is not None:
+            from . import rescue
+
+            widgets, urls, _ = self._widget_step("find_places", found.args)
+            text = rescue.summary_text(widgets, self.lang)
+            if text:
+                self.pause(0.6)
+                self.ctx.emit({"type": "answer", "content": text, "fallback": rescue.NOTE[self.lang],
+                               "sources": self._sources(urls, {}), "files": [], "draft_email": None,
+                               "stop_reason": "answer", "charts": [], "web_images": [], "code_checks": [],
+                               "widgets": widgets})  # fmt: skip
+                return
         self.step(
             "web_search",
             {"query": self.t("test de panne", "failure test")},
