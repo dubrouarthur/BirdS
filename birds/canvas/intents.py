@@ -188,7 +188,8 @@ def edit_ask(words: str, kind: str, targeted: bool = False, shown: bool = True) 
     """The words change the artifact already open: an edit verb about a part of it (a slide, a section, the picture,
     the theme, the button), or any instruction sent from a block (« Demander à Bird »). A short edit that names
     nothing (« plus court », « et en anglais ? ») counts only while the panel is shown: once it is closed, « mets un
-    rappel lundi » is an ordinary turn."""
+    rappel lundi » is an ordinary turn (``shown``: the panel is shown, or the artifact was made or changed by the turn
+    just before)."""
     w = (words or "").strip()
     if not w:
         return False

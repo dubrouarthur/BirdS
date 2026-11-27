@@ -63,17 +63,37 @@ export function setup(h_) {
   handlers = { ...handlers, ...h_ };
   window.addEventListener("message", onFrameMessage);
   window.addEventListener("keydown", (e) => {
-    if (
-      e.key === "Escape" &&
-      panel &&
-      !panel.hidden &&
-      panel.contains(document.activeElement)
-    ) {
-      if (document.activeElement?.isContentEditable) return;
-      if (panel.querySelector(".cv-pop:not([hidden])")) return closePops();
-      close();
-    }
+    if (e.key !== "Escape" || e.defaultPrevented || !panel || panel.hidden)
+      return;
+    const el = document.activeElement;
+    const inside = panel.contains(el);
+    if (!inside && !isModal()) return; // on a laptop, Escape in the composer is the chat's (stop an answer)
+    if (inside && (el?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el?.tagName || "")))
+      return; // something is being edited: its own Escape (cancel, leave the field) comes first
+    if (panel.querySelector(".cv-pop:not([hidden])")) return closePops();
+    close();
   });
+  narrowMq()?.addEventListener?.("change", () => setModal(isOpen() && isModal()));
+}
+
+// On phones and tablets the panel is a full-screen sheet over the chat: a modal. What is behind it is inert (no
+// focus, no screen-reader reach), focus moves into it, and Escape closes it wherever focus is.
+const narrowMq = () => window.matchMedia?.("(max-width: 1000px)");
+const isModal = () => !!narrowMq()?.matches;
+let modalOn = false;
+
+function setModal(on) {
+  if (on === modalOn) return;
+  modalOn = on;
+  for (const el of document.querySelectorAll(".app > :not(#canvas), body > .skip")) {
+    if (on) {
+      el.dataset.cvInert = el.inert ? "1" : "0"; // the drawer may already have made it inert (app.js)
+      el.inert = true;
+    } else if (el.dataset.cvInert !== undefined) {
+      el.inert = el.dataset.cvInert === "1";
+      delete el.dataset.cvInert;
+    }
+  }
 }
 
 // ------------------------------------------------------------------ store (on the conversation)
@@ -252,6 +272,7 @@ export function payload(c) {
       canvas: { aid: a.aid, version: v.n, kind: a.kind, open: false },
     };
   const out = { aid: a.aid, version: v.n, doc: clone(v.doc), open: !!shown };
+  if (fresh) out.fresh = true;
   if (shown && tgt && tgt.aid === a.aid) out.target = tgt.block;
   return { canvas: out };
 }
@@ -391,18 +412,23 @@ export function open(aid, { focus = true, quiet = false } = {}) {
   if (first) handlers.onOpen?.();
   store().active = aid;
   render();
+  const modal = isModal();
+  setModal(modal);
   if (first && !quiet)
     announce(
       t("cv.live.opened", {
         title: current(a)?.title || t(`cv.kind.${a.kind}`),
       }),
     );
-  if (focus) panel.querySelector("#cv-title")?.focus({ preventScroll: true });
+  // a full-screen sheet takes the focus even when it opens by itself (a streamed creation): what is under it is inert
+  if (focus || (modal && first))
+    panel.querySelector("#cv-title")?.focus({ preventScroll: true });
 }
 
 export function close(refocus = true) {
   if (!panel || panel.hidden) return;
   panel.hidden = true;
+  setModal(false);
   document.documentElement.classList.remove("cv-open");
   handlers.onClose?.();
   closePops();
@@ -1766,6 +1792,7 @@ function codePane(a, doc, lang, code) {
     class: "cv-code",
     spellcheck: "false",
     "aria-label": t("cv.code.label"),
+    "aria-description": t("cv.code.tabhint"),
     "data-k": "code",
     readonly: !!a.draft,
     wrap: "off",
@@ -1791,8 +1818,19 @@ function codePane(a, doc, lang, code) {
     apply.disabled = area.value === code;
     note.textContent = area.value === code ? "" : t("cv.code.changed");
   });
+  // Tab indents, as in a code editor; Escape releases it (the next Tab leaves the field), as in most editors
+  let tabFree = false;
+  area.addEventListener("focus", () => (tabFree = false));
   area.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      tabFree = true;
+      announce(t("cv.code.tabfree"));
+      return;
+    }
+    if (e.key !== "Tab") tabFree = false;
     if (
+      !tabFree &&
       e.key === "Tab" &&
       !e.shiftKey &&
       !e.ctrlKey &&

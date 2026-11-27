@@ -298,7 +298,10 @@ def plan(words: str, canvas: dict | None, lang: str, enabled: bool = True, attac
         target = canvas.get("target") if isinstance(canvas.get("target"), str) else None
         if target and patch._index(doc, target) < 0:
             target = None
-        if intents.edit_ask(words, kind or "deck", targeted=bool(target), shown=canvas.get("open") is not False):
+        # a short unnamed edit (« plus court ») counts while the panel is shown, or on the turn right after the
+        # artifact was made or changed (a phone closes its full-screen sheet to type)
+        shown = canvas.get("open") is not False or bool(canvas.get("fresh"))
+        if intents.edit_ask(words, kind or "deck", targeted=bool(target), shown=shown):
             aid = canvas.get("aid") or new_aid()
             ver = int(canvas.get("version") or 1)
             if not target:

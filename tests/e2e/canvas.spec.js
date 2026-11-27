@@ -25,6 +25,9 @@ async function idle(page) {
 }
 
 async function say(page, text) {
+  // on a phone the sheet covers the chat (a modal): the person closes it to type, as here
+  if (await page.evaluate(() => !!document.querySelector(".main")?.inert))
+    await page.locator('#canvas [data-k="close"]').click();
   await page.fill("#composer-input", text);
   await page.keyboard.press("Enter");
   await page.waitForTimeout(150);
@@ -105,6 +108,31 @@ async function run(name, options, { full = true, scheme = "light" } = {}) {
     path: path.join(SHOTS, `canvas-deck-${tag}.png`),
     fullPage: false,
   });
+
+  // phone: the full-screen sheet is a modal (focus inside, the chat inert, Escape closes it wherever focus is)
+  if (name.startsWith("phone")) {
+    check(
+      await page.evaluate(() => !!document.activeElement?.closest("#canvas") || document.activeElement === document.body),
+      "phone: focus left the composer for the sheet",
+    );
+    check(
+      await page.evaluate(() => document.querySelector(".main").inert && document.querySelector("#sidebar").inert),
+      "phone: the chat under the sheet is inert",
+    );
+    await page.keyboard.press("Tab");
+    check(
+      await page.evaluate(() => !!document.activeElement?.closest("#canvas")),
+      "phone: Tab stays in the sheet",
+    );
+    await page.keyboard.press("Escape");
+    check(await page.locator("#canvas").isHidden(), "phone: Escape closes the sheet");
+    check(
+      !(await page.evaluate(() => document.querySelector(".main").inert)),
+      "phone: the chat is reachable again",
+    );
+    await page.locator(".cv-card .cv-card-open").last().click();
+    await page.waitForSelector("#canvas:not([hidden])");
+  }
 
   // 2. a follow-up adds a slide (patch, not a regeneration)
   await say(page, "ajoute une slide sur les risques");

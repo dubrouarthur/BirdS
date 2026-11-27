@@ -431,6 +431,11 @@ def test_closed_panel_sends_a_reference_and_an_ordinary_message_stays_ordinary()
     assert turn.plan("Mets un rappel dans mon agenda lundi à 9h", fresh, "fr") is None
     assert turn.plan("Traduis 'bonjour' en japonais", fresh, "fr") is None
     assert turn.plan("supprime la slide 3", fresh, "fr").mode == "direct"
+    assert turn.plan("plus court", fresh, "fr") is None  # not flagged fresh: a named part is needed
+    fresh["fresh"] = True  # the turn right after it was made (a phone closes its sheet to type)
+    assert turn.plan("plus court", fresh, "fr").mode == "patch"
+    assert turn.plan("Mets un rappel dans mon agenda lundi à 9h", fresh, "fr") is None
+    assert turn.plan("Traduis 'bonjour' en japonais", fresh, "fr") is None
 
 
 def test_reopen_turn_makes_no_model_call(monkeypatch):

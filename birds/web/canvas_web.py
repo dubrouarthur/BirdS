@@ -57,7 +57,7 @@ def canvas_in(raw) -> dict | None:
     )
     shown = raw.get("open") is not False  # an older page sent no flag: its panel was the one shown
     return {"doc": doc, "aid": aid or turn.new_aid(), "version": ver, "target": target if shown else None,
-            "open": shown}  # fmt: skip
+            "open": shown, "fresh": raw.get("fresh") is True}  # fmt: skip
 
 
 def plan_for(request, words: str, lang: str, enabled: bool = True, attached: bool = False) -> turn.Plan | None:
