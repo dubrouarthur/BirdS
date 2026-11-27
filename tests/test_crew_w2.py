@@ -466,3 +466,26 @@ def test_the_card_never_swaps_the_page_a_sentence_cites_for_another_one():
     cited, plain = led["items"]  # review first
     assert cited["status"] == "review" and cited["why"] == "cited" and cited["n"] == 2 and "site" not in cited
     assert plain["status"] == "verified" and plain["n"] == 1 and plain["site"] == "ex.org"  # uncited: the page holding it
+
+
+def test_a_figure_removed_from_a_bullet_does_not_stay_in_the_slide_title(tmp_path):
+    parts = cc.deliverable_parts({"title": "Télétravail : 37 % des salariés",
+                                  "slides": [{"title": "37 % en télétravail", "bullets": ["Hausse continue"]}]})  # fmt: skip
+    assert parts == ["Télétravail : 37 % des salariés", "37 % en télétravail", "Hausse continue"]
+    assert cc.drop_figures("Télétravail : 37 % des salariés", ["37"]) == "Télétravail"
+    assert cc.drop_figures("37 % en télétravail", ["37"]) == "Télétravail" and cc.drop_figures("37 %", ["37"]) == ""
+    bad = "Le télétravail atteint 37 % des salariés [2]"
+
+    def with_title(d: str) -> str:
+        return d.replace('"Partie 2"', '"37 % en télétravail"').replace(
+            '"Le télétravail en France depuis 2019"', '"Télétravail : 37 % des salariés"')
+
+    draft = with_title(deck(bad))
+    assert "37 % en télétravail" in draft
+    crew, llm, events = _crew(tmp_path, deck_script(draft_a=draft, draft_b=draft, fix=draft))
+    run = crew.run(ASK_DECK, ASK_DECK)
+    assert "37" not in run.answer and "Télétravail" in run.answer
+    card = next(e for e in events if e.get("type") == "agent_checks")
+    removed = [i["sentence"] for i in card["items"] if i["status"] == "removed"]
+    assert bad.removesuffix(" [2]") in removed and "37 % en télétravail" in removed
+    assert not [i for i in card["items"] if i["status"] != "removed" and i["value"].startswith("37")]

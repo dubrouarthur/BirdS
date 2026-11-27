@@ -1703,6 +1703,8 @@ class Crew:
         if any(k != v for k, v in self.cite_map.items()):
             alts = [cc.apply_map(a, self.cite_map) for a in alts or []]
             self._remap(b, self.cite_map)
+        if b.tool in ("make_slides", "make_document"):
+            removed += self._clean_titles(b, args)
         cited = {int(x) for x in re.findall(r"\[(\d{1,2})\]", "\n".join(cc.deliverable_parts(args)))}
         self.final_sources = srcs
         src = [f"[{s['n']}] {s['title']} — {s['url']}" for s in srcs if not cited or s["n"] in cited]
@@ -1777,6 +1779,33 @@ class Crew:
             if src:
                 args["body"] = str(args.get("body") or "").rstrip() + "\n\nSources :\n" + "\n".join(src)
         return args, removed
+
+    def _clean_titles(self, b: Brief, args: dict) -> int:
+        """Titles and headings checked like the text (in place): an unsourced figure in « 37 % en télétravail » is
+        taken out of the title (« Télétravail »), so a figure removed from a bullet never stays on the slide above
+        it. Returns the titles changed; each one is listed on the card as removed."""
+        fr, n = self.lang == "fr", 0
+
+        def clean(title, fallback: str) -> str:
+            nonlocal n
+            title = str(title or "")
+            bad = self._bad(b, title)
+            if not bad:
+                return title
+            n += 1
+            self.removed_log.append(title)
+            return cc.drop_figures(title, bad) or fallback
+
+        if args.get("title"):
+            topic = cc.drop_figures(b.topic, self._bad(b, b.topic))
+            args["title"] = clean(args["title"], topic or ("Présentation" if b.tool == "make_slides" else "Document"))
+        for s in args.get("slides") or []:
+            if s.get("title"):
+                s["title"] = clean(s["title"], "Points clés" if fr else "Key points")
+        for s in args.get("sections") or []:
+            if s.get("heading"):
+                s["heading"] = clean(s["heading"], "Détails" if fr else "Details")
+        return n
 
     @staticmethod
     def _remap(b: Brief, m: dict) -> None:

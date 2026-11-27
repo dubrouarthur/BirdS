@@ -1098,20 +1098,55 @@ def _with_unit(raw: str, text: str) -> str:
 
 
 def deliverable_parts(args: dict) -> list[str]:
-    """The text pieces of a deliverable a reader sees, the Sources list excluded (slides: one bullet each)."""
+    """The text pieces of a deliverable a reader sees, the Sources list excluded: its title, each slide title and
+    bullet, each section heading and sentence."""
     out: list[str] = []
     if not isinstance(args, dict):
         return out
+    out.append(str(args.get("title") or ""))  # a figure in a title is checked like any other
     for s in args.get("slides") or []:
         if not _SOURCES_HEAD.match(str(s.get("title") or "")):
-            out += [str(x) for x in s.get("bullets") or []]
+            out += [str(s.get("title") or "")] + [str(x) for x in s.get("bullets") or []]
     for s in args.get("sections") or []:
         if not _SOURCES_HEAD.match(str(s.get("heading") or "")):
-            out += sentences(str(s.get("content") or ""))
+            out += [str(s.get("heading") or "")] + sentences(str(s.get("content") or ""))
     if args.get("body"):
         body = re.split(r"\n\s*Sources\s*:", str(args["body"]))[0]
         out += sentences(body)
     return [p for p in out if p.strip()]
+
+
+_TITLE_SEP = re.compile(r"\s+[:—–|]\s+|\s*:\s+|\s+-\s+")
+_DANGLING = re.compile(r"\b(?:de|du|des|d'|d’|à|of|by|to)\s+(?=(?:en|in|sur|on|pour|for|et|and|chez)\b|[,;.!?]|$)", re.I)
+_LEADING = re.compile(r"^(?:en|de|des|du|d'|d’|à|sur|pour|et|in|of|on|for|and|by)\s+", re.I)
+_TRAILING = re.compile(r"\s+(?:et|ou|de|du|des|à|and|or|of|to)$", re.I)
+
+
+def drop_figures(title: str, raws: list[str]) -> str:
+    """A title without the figures ``raws`` (unsourced ones): the part of « Télétravail : 37 % des salariés » that
+    holds none of them (« Télétravail »), else the title with each figure and its unit taken out and the words left
+    hanging tidied (« 37 % en télétravail » -> « Télétravail »). "" when nothing worth a title is left."""
+    title = " ".join(str(title or "").split())
+    if not raws:
+        return title
+
+    def holds(t: str) -> bool:
+        return any(re.search(r"(?<![\d,.])" + re.escape(r) + r"(?!\d)", t) for r in raws)
+
+    segs = [x for x in _TITLE_SEP.split(title) if x.strip()]
+    if len(segs) > 1 and any(not holds(x) for x in segs):
+        out = " · ".join(x.strip() for x in segs if not holds(x))
+    else:
+        out = title
+        for r in raws:
+            out = re.sub(r"(?<![\d,.])" + re.escape(r) + r"(?!\d)" + _UNIT.pattern + "?", " ", out, flags=re.I)
+        for _ in range(2):
+            out = _DANGLING.sub("", " ".join(out.split()))
+            out = _TRAILING.sub("", _LEADING.sub("", out.strip(" ,;:—–-·")))
+    out = out.strip(" ,;:—–-·")
+    if len(re.findall(r"[^\W\d_]{3,}", out)) < 1:
+        return ""
+    return out[:1].upper() + out[1:]
 
 
 def ledger(args: dict, *, texts: dict, allowed_by: dict, request: str = "", computed=(), removed=(), weak=(),
