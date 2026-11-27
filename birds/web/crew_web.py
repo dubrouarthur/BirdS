@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import dataclasses
 import re
+import secrets
 import time
 from pathlib import Path
 
@@ -31,6 +32,10 @@ def on_agent(ctx: RunContext, lang: str, offset, step_end):
             ctx.emit({**out, "agent": ev["agent"]})
         elif kind == "tool_end":
             ctx.emit({**step_end(ev["index"] + offset(), ev["step"], lang), "agent": ev["agent"]})
+        elif kind == "slice":  # a long task's state, signed: the next slice (auto) or a checkpoint after a reload
+            token = ctx.sign(_plain(ev["state"]))
+            ctx.emit({"type": "agent_slice", "token": token, "final": not ev["auto"], "auto": bool(ev["auto"]),
+                      "slice": ev["state"].get("slice", 0), "run": ev["state"].get("run")})  # fmt: skip
         else:
             ctx.check()
             ctx.emit(_plain(ev))
@@ -59,14 +64,38 @@ def run_crew(
 ):
     """The crew run for this request, or None when the single agent answers (no recipe, mode off...).
     Activé with nothing to split up: an agent_done event tells the chip, then the single agent answers."""
-    from birds.harness.crew import Crew
+    from birds.harness import crew_plan
+    from birds.harness.agent import Run
+    from birds.harness.crew import Crew, Decision
 
+    if request.agent_slice is not None:  # the next slice of a long task: the brief comes from the signed state
+        return _continue_slice(agent, request, ctx, history)
+    plan = None
+    if request.agent_plan is not None:  # « Lancer »: the decision and plan the card showed, with the user's edits
+        got = request.agent_plan["payload"]
+        decision = Decision(str(got.get("recipe")), str(got.get("reason") or ""), str(got.get("mode") or "auto"),
+                            bool(got.get("forced")), got.get("deliverable"), dict(got.get("signals") or {}))  # fmt: skip
+        plan = crew_plan.from_public(got.get("plan"))
+        if plan is not None:
+            plan, _ = crew_plan.apply_edits(plan, request.agent_plan.get("edits"))
     if decision.recipe is None:
         if decision.no_deliverable:
             ctx.emit({"type": "agent_done", "recipe": None, "ok": False, "reason": "no_deliverable",
                       "message": decision.reason, "calls": 0, "caveats": []})  # fmt: skip
         return None
+    if plan is None:
+        plan = crew_plan.make_plan(decision, words, lang)
+        if request.agent_flow == "plan":  # the plan card first: nothing generated, the browser launches it
+            payload = {"k": "crew_plan", "recipe": decision.recipe, "reason": decision.reason, "mode": decision.mode,
+                       "forced": decision.forced, "deliverable": decision.deliverable,
+                       "signals": _plain(decision.signals), "plan": plan.public(lang)}  # fmt: skip
+            ctx.emit({"type": "agent_plan", "plan": plan.public(lang), "token": ctx.sign(payload),
+                      "auto_start": crew_plan.auto_start(plan, decision.mode), "mode": decision.mode,
+                      "recipe": decision.recipe, "reason": decision.reason, "forced": decision.forced})  # fmt: skip
+            return Run(lang=lang, stop_reason="plan")
     docs = [(Path(n).name, document_text(Path(workspace) / n, lang)) for n in names]
+    run_id = secrets.token_urlsafe(12)
+    box = _open_notes(run_id, request, ctx)
     crew = Crew(
         agent,
         decision,
@@ -75,8 +104,41 @@ def run_crew(
         lang=lang,
         deadline=ctx.deadline - 10,
         attached=bool(names),
+        plan=plan,
+        notes=box,
+        run_id=run_id,
+        slices=request.agent_flow == "plan" or request.agent_plan is not None,  # the app continues long tasks
     )
-    return crew.run(user_sent, words, docs=docs, history=history)
+    try:
+        return crew.run(user_sent, words, docs=docs, history=history)
+    finally:
+        crew_plan.REGISTRY.close(run_id)
+
+
+def _open_notes(run_id: str, request: ChatRequest, ctx: RunContext):
+    """The run's note box, with the notes the browser could not deliver live (sent with this request)."""
+    from birds.harness import crew_plan
+
+    box = crew_plan.REGISTRY.open(run_id)
+    for n in request.agent_notes or []:
+        note = crew_plan.parse_note(n.get("kind"), n.get("value"), n.get("id"))
+        if note is not None:
+            box.put(note)
+    return box
+
+
+def _continue_slice(agent, request: ChatRequest, ctx: RunContext, history):
+    from birds.harness import crew_plan
+    from birds.harness.crew import Crew
+
+    state = request.agent_slice
+    run_id = str(state.get("run") or "") or secrets.token_urlsafe(12)
+    box = _open_notes(run_id, request, ctx)
+    try:
+        crew = Crew.from_slice(agent, state, deadline=ctx.deadline - 10, notes=box, history=history)
+        return crew.continue_()
+    finally:
+        crew_plan.REGISTRY.close(run_id)
 
 
 def resume_crew(agent, request: ChatRequest, ctx: RunContext):
