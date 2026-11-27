@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from birds.harness import followup, guard, intents, meter
+from birds.harness import followup, guard, intents, meter, router
 from birds.harness.config import Config, Context
 from birds.harness.llm import STOP, EndpointError, accepts
 from birds.harness.tools import TOOLS, make_search
@@ -621,6 +621,7 @@ class Run:
     messages: list[dict] = field(default_factory=list)  # full conversation, to continue a chat
     pending: dict | None = None  # stop_reason "confirm": {"tool", "arguments"} waiting for the user's decision
     state: dict | None = None  # stop_reason "confirm": JSON-serialisable loop state for Agent.run(resume=...)
+    router: dict = field(default_factory=dict)  # the model router's decision, metadata only (router.log_meta)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -865,6 +866,17 @@ class Agent:
                 clock_words = again.args["text"]
             elif again is not None:
                 found = [again]
+            # ---- model router (birds/harness/router.py) -------------------------------------------------------
+            # Bird decides the modules in one short call; the parsers above become its hints, its fallback (router
+            # off, too slow, unusable answer: plan.active is False and nothing below changes) and a veto.
+            plan = router.plan_turn(self, req, history, attached=attached, lang=run.lang, deadline=deadline)
+            if plan.decision is not None:
+                run.router = router.log_meta(plan.decision)
+                if plan.decision.meta.get("usage"):
+                    run.usage.append({**plan.decision.meta["usage"], "kind": "router"})
+            found, clock_words = plan.found(found), plan.clock_words(clock_words)
+            routed = plan.routed(routed)
+            # ---- end of the model router hook ------------------------------------------------------------------
             routed |= set(EXTRA_TOOL_NAMES) - {"make_chart"} - {i.tool for i in found}
             prefill = next((i for i in found if i.args), None)
             # « météo aujourd'hui », « taux du jour »: words that usually call for the web, but the tool has the answer
@@ -877,13 +889,14 @@ class Agent:
                 # network); the model only puts them in a sentence
                 routed |= {"web_search", "read_page"}
                 messages[-1]["content"] += CLOCK_NOTE["en" if run.lang == "en" else "fr"].format(facts=facts)
-            slot = "" if prefill or facts or _NEEDS_WEB.search(req) else _event_slot(req, run.lang)
+            no_slot = prefill or facts or _NEEDS_WEB.search(req) or not plan.allows("event")
+            slot = "" if no_slot else _event_slot(req, run.lang)
             if slot:
                 # "cale un déjeuner le 25 décembre à midi": the UI shows an event card (.ics) built from these
                 # words; live model, offered the web, searched "restaurants ouverts le 25 décembre" and refused
                 routed |= {"web_search", "read_page"}
                 messages[-1]["content"] += EVENT_NOTE["en" if run.lang == "en" else "fr"].format(slot=slot)
-            pictures = None if prefill or facts or slot or attached else intents.images(req, run.lang)
+            pictures = None if prefill or facts or slot or attached else plan.images(req, run.lang)
             if pictures is not None and self.search:
                 # « montre-moi une photo de la tour Eiffel »: the harness searches the subject itself; the images
                 # shown are the ones whose page title names it (birds.web.backends.pick_web_images)
@@ -902,10 +915,11 @@ class Agent:
                 last.get("role") == "assistant"
                 and bool(_CHART_MEMO.search(str(last.get("content") or "") + str(last.get("memo") or "")))
                 and followup.chart_retype(req)
+                and plan.allows("make_chart")
             )
             if retype:
                 routed.discard("make_chart")
-            chartable = "make_chart" not in routed and (chart_ask(req) or trend_ask(req) or retype)
+            chartable = "make_chart" not in routed and plan.chart(chart_ask(req) or trend_ask(req) or retype)
             mine = figures_in(req) if chartable and not prefill else None
             if chartable and not prefill and mine is None and history and (_followup(req) or retype):
                 # « mets ça en graphique », « refais-le en courbe »: the figures are in the previous answer (its

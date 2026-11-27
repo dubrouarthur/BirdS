@@ -224,6 +224,10 @@ CHART_NO2 = [
     "le designer a envoyé la nouvelle identité graphique, tu peux rédiger un mail de remerciement ?",
     "calcule la TVA sur 1 500 € HT",
     "fais un tableau des taches de la semaine",
+    # a table asked for, figures given: a table, never a chart (found in the app with the model router)
+    "Mets en forme ce tableau : Paris 12, Lyon 8, Marseille 5",
+    "présente ces chiffres sous forme de tableau : Q1 40, Q2 55, Q3 61",
+    "format this table: Berlin 7, Madrid 4, Rome 3",
 ]
 # the user's own figures in these asks: the harness draws them (exact rows, type named)
 CHART_FIGURES = {
@@ -626,6 +630,10 @@ IMAGES_NO = [
     "ajoute une image dans la diapo 3",
     "l'image du service client s'est améliorée",
     "faut-il une photo sur un CV ?",
+    # writing about a picture: a caption is text (found in the app with the model router)
+    "Peux-tu rédiger la légende d une photo de la tour Eiffel pour notre newsletter ?",
+    "écris une légende pour notre photo du Mont-Saint-Michel sur Instagram",
+    "write a caption for a photo of the Golden Gate Bridge",
 ]
 REALISTIC_YES = [  # (phrasing, family it must START): realistic asks found missing or fixed in this round
     ("prévisions pour Lille demain matin", "get_weather"),
