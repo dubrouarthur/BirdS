@@ -348,6 +348,11 @@ TOOL_TEXT = {  # why a tool is on or off on this deployment, for the "available 
         "Off: running code needs a real sandbox, which this deployment does not have",
     ),
 }
+# --- open data (birds/opendata_schemas.py)
+from birds.opendata_schemas import OPENDATA_TEXT  # noqa: E402
+
+TOOL_TEXT.update(OPENDATA_TEXT)
+# --- end open data
 
 
 def tools_info(s: Settings, backend) -> dict:

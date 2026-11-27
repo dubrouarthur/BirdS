@@ -34,6 +34,11 @@ TOOLS = {
     "convert_currency": convert_currency,
     "get_weather": get_weather,
 }
+# --- open data (birds/harness/tools/opendata)
+from birds.harness.tools.opendata import OPENDATA_TOOLS  # noqa: E402
+
+TOOLS.update(OPENDATA_TOOLS)
+# --- end open data
 
 __all__ = [
     "TOOLS",
