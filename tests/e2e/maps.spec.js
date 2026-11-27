@@ -5,7 +5,7 @@
 // Checks: a list of addresses draws one map with a numbered pin per place and its list; « introuvable » is said;
 // a visit order lists the cards in that order; a simulated model failure still shows the card and a short answer
 // (no error card); full screen opens and Escape closes it; no third-party request, no CSP or script error, no
-// horizontal scroll; full screen opened while the model writes is handed
+// horizontal scroll; Tab stays inside the full-screen map; full screen opened while the model writes is handed
 // over to the answer's card and never leaves the page locked. Screenshots at 360 px and 1280 px, light and dark
 // (look at them). ONLY=<config part> and ONLY_CASE=<case id | streaming> narrow.
 const { chromium } = require("playwright");
@@ -171,6 +171,33 @@ async function send(page, text) {
         await page.screenshot({
           path: path.join(OUT, `maps-full-${name}.png`),
         });
+        // a modal: Tab never leaves it (focus trap, the page behind is inert)
+        const stops = await card.evaluate(
+          (s) => s.querySelectorAll("a[href],button:not([disabled])").length,
+        );
+        for (let i = 0; i < stops + 4; i++) {
+          await page.keyboard.press("Tab"); // past the last control: it must wrap to the first
+          const inside = await page.evaluate(
+            () => !!document.activeElement?.closest(".widget-places.is-full"),
+          );
+          if (!inside) {
+            problems.push(
+              `${name}/${id}: Tab left the full-screen map (step ${i})`,
+            );
+            break;
+          }
+        }
+        for (let i = 0; i < 3; i++) {
+          await page.keyboard.press("Shift+Tab");
+          if (
+            !(await page.evaluate(
+              () => !!document.activeElement?.closest(".widget-places.is-full"),
+            ))
+          ) {
+            problems.push(`${name}/${id}: Shift+Tab left the full-screen map`);
+            break;
+          }
+        }
         await page.keyboard.press("Escape");
         await page.waitForTimeout(300);
         if (await card.evaluate((s) => s.classList.contains("is-full")))
@@ -207,6 +234,7 @@ async function send(page, text) {
       const st = await page.evaluate(() => ({
         locked: document.documentElement.classList.contains("has-map-full"),
         full: document.querySelectorAll(".widget-places.is-full").length,
+        inFull: !!document.activeElement?.closest(".widget-places.is-full"),
       }));
       if (!streaming)
         problems.push(
@@ -215,6 +243,10 @@ async function send(page, text) {
       if (st.locked !== st.full > 0 || st.full > 1)
         problems.push(
           `${name}/streaming: has-map-full=${st.locked} with ${st.full} open cards`,
+        );
+      if (st.full && !st.inFull)
+        problems.push(
+          `${name}/streaming: focus left the full-screen map (${await page.evaluate(() => document.activeElement?.outerHTML?.slice(0, 120))})`,
         );
       await page.screenshot({
         path: path.join(OUT, `maps-full-streaming-${name}.png`),

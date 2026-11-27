@@ -804,11 +804,30 @@ function renderPlaces(w, turn) {
     t("map.fullClose"),
     () => toggleFull(false),
   );
+  // a modal: Escape closes, Tab wraps inside it, and the page behind is inert (keyboard and screen readers)
+  let inerted = [];
   const onKey = (e) => {
     if (e.key === "Escape") {
       e.stopPropagation();
       toggleFull(false);
+    } else if (e.key === "Tab") {
+      const all = focusables(sec);
+      if (!all.length) return;
+      const first = all[0];
+      const last = all[all.length - 1];
+      const inside = sec.contains(document.activeElement);
+      if (e.shiftKey && (!inside || document.activeElement === first)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (!inside || document.activeElement === last)) {
+        e.preventDefault();
+        first.focus();
+      }
     }
+  };
+  // the turn is redrawn while the model writes: what it adds next to the card is not inert yet, focus comes back
+  const onFocus = (e) => {
+    if (!sec.contains(e.target)) close.focus({ preventScroll: true });
   };
   function toggleFull(force) {
     const on = force ?? !sec.classList.contains("is-full");
@@ -820,12 +839,17 @@ function renderPlaces(w, turn) {
       sec.setAttribute("role", "dialog");
       sec.setAttribute("aria-modal", "true");
       document.addEventListener("keydown", onKey, true);
+      document.addEventListener("focusin", onFocus, true);
+      inerted = inertAround(sec);
       showAll(true);
       close.focus({ preventScroll: true });
     } else {
       sec.removeAttribute("role");
       sec.removeAttribute("aria-modal");
       document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("focusin", onFocus, true);
+      for (const el of inerted) el.inert = false;
+      inerted = [];
       showAll(false);
       // the button that opened it may be gone (the card was drawn again): this card's own button then
       (back?.isConnected ? back : sec.querySelector(".map-full"))?.focus?.({
@@ -870,7 +894,41 @@ function renderPlaces(w, turn) {
     ),
   );
   sec._full = toggleFull; // turns.js: a card drawn again hands its full screen over (moveFull)
+  // turns.js, after each redraw of the turn: what was drawn next to an open card is made inert too, and a focus
+  // lost when the card was moved in the page comes back to it
+  sec._reinert = () => {
+    if (!sec.classList.contains("is-full")) return;
+    for (const el of inerted) el.inert = false;
+    inerted = inertAround(sec);
+    // the turn may be drawn before it is put back in the page: the focus is checked once it is there
+    requestAnimationFrame(() => {
+      if (sec.classList.contains("is-full") && !sec.contains(document.activeElement))
+        close.focus({ preventScroll: true });
+    });
+  };
   return sec;
+}
+
+const FOCUSABLE =
+  'a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])';
+
+function focusables(root) {
+  return [...root.querySelectorAll(FOCUSABLE)].filter(
+    (el) => !el.closest("[hidden],[inert]") && el.getClientRects().length,
+  );
+}
+
+/** Make everything but ``el`` and its ancestors inert; returns what was changed (to undo it). */
+function inertAround(el) {
+  const out = [];
+  for (let n = el; n && n.parentElement && n !== document.body; n = n.parentElement) {
+    for (const sib of n.parentElement.children) {
+      if (sib === n || sib.inert || sib.tagName === "SCRIPT") continue;
+      sib.inert = true;
+      out.push(sib);
+    }
+  }
+  return out;
 }
 
 /** A card list drawn again (the answer's cards replace the early ones): a map open in full screen in ``old`` is

@@ -1598,6 +1598,7 @@ function fillAssistant(el, turn, isLast) {
     el.replaceChildren(...kids);
   }
   restoreFocus(el, focus);
+  el.querySelector(".widget-places.is-full")?._reinert?.();
   el.setAttribute("aria-busy", String(turn.status === "running"));
 }
 
