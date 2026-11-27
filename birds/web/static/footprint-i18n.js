@@ -47,7 +47,7 @@ export const FOOTPRINT_STRINGS = {
     "footprint.equiv.email.share": "{v} % d'un e-mail",
     "footprint.equiv.phone.share": "{v} % d'une charge de smartphone",
     "footprint.equiv.note":
-      "Facteurs en cycle de vie (appareil, réseau, centres de données) ; la charge de smartphone est comptée en énergie, quel que soit le réseau.",
+      "Bird : électricité seule, hors fabrication du matériel. Les équivalents ADEME sont en cycle de vie : ils incluent la fabrication des appareils et des centres de données (détail dans la méthode). La charge de smartphone est comptée en énergie, quel que soit le réseau.",
     "footprint.conv.title": "Cette conversation",
     "footprint.conv.line": "{n} réponse(s) · {wh} · {g}",
     "footprint.more": "Méthode, sources et pourquoi les petits modèles",
@@ -180,7 +180,7 @@ export const FOOTPRINT_STRINGS = {
     "footprint.equiv.email.share": "{v}% of an email",
     "footprint.equiv.phone.share": "{v}% of a smartphone charge",
     "footprint.equiv.note":
-      "Life-cycle factors (device, network, data centres); the smartphone charge is counted in energy, whatever the grid.",
+      "Bird: electricity only, hardware manufacturing not counted. The ADEME equivalents are life-cycle figures: they include making the devices and data centres (details in the method). The smartphone charge is counted in energy, whatever the grid.",
     "footprint.conv.title": "This conversation",
     "footprint.conv.line": "{n} answer(s) · {wh} · {g}",
     "footprint.more": "Method, sources and why small models",
