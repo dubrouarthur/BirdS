@@ -3446,4 +3446,39 @@ thead .score {
     gap: 0.45rem;
   }
 }
+/* Page Sobriété : héros illustré, chiffres en grand */
+.rse-page-hero {
+  background:
+    radial-gradient(48rem 28rem at 90% 0%, var(--rse-glow), transparent 65%),
+    radial-gradient(40rem 26rem at 0% 100%, var(--glow), transparent 70%);
+}
+.rse-page-hero .rse-copy {
+  gap: 1.5rem;
+}
+.rse-page-hero .pill {
+  justify-self: start;
+}
+.rse-page-hero .display em {
+  color: var(--leaf);
+}
+.rse-page-hero .display {
+  font-size: clamp(2.6rem, 6vw, 5rem);
+}
+.rse-tight {
+  padding-block: clamp(3.5rem, 7vw, 5.5rem);
+}
+.rse-tight .rse-figs {
+  margin-top: 0;
+}
+#defaut .rse-story {
+  margin-top: 0;
+}
+.p-footprint .rse-biz {
+  border-top: 1px solid var(--line-soft);
+}
+.rse-m {
+  font-size: 0.8125rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
 /* ===================== fin RSE & sobriété (fi-site) ===================== */
