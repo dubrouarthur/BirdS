@@ -25,8 +25,10 @@ previous turn's context (a small model must not look up a place it made up).
 
 ``BIRD_ROUTER`` (or ``Config.router``): ``model`` (the router decides), ``hybrid`` (the router decides, and a
 confident parser call the router missed is kept), ``regex`` (no router call: the previous behaviour), ``auto``
-(default): ``model`` when the endpoint enforces JSON schemas (structured outputs, detected once and cached),
-``hybrid`` when it does not, ``regex`` for an in-process or scripted client that cannot be probed.
+(default): ``hybrid`` for a remote endpoint (schema enforced when it supports structured outputs, detected once and
+cached; prompt + JSON repair otherwise), ``regex`` for an in-process or scripted client that cannot be probed.
+Why hybrid: live run of 27/11/2026 (docs/HARNESS.md § 12), hybrid 0.978 on the module families against 0.969
+for the router alone and 0.972 for the parsers, for 0.67 s (p50) per turn.
 
 Structured outputs: vLLM ≥ 0.10 (``structured_outputs: {json}``), older vLLM (``guided_json``), OpenAI-style
 ``response_format: json_schema``, llama.cpp (``json_schema``). Unknown request fields are ignored by vLLM rather
@@ -616,8 +618,7 @@ def resolve_mode(cfg=None, llm=None, *, deadline: float | None = None) -> tuple[
         return want, structured_kind(llm, deadline=deadline) if llm is not None else ""
     if llm is None or not probeable(llm):
         return "regex", ""  # in-process or scripted client: nothing to ask, keep the parsers
-    kind = structured_kind(llm, deadline=deadline)
-    return ("model" if kind else "hybrid"), kind
+    return "hybrid", structured_kind(llm, deadline=deadline)  # the live numbers: docs/HARNESS.md § 12
 
 
 # ---------------------------------------------------------------- the decision

@@ -306,3 +306,91 @@ section 9 de la spécification (12 tâches, 60 requêtes) qui doit confirmer ou 
 coûts d'une offre plafonnée (« 16 € par poste au-delà de 90 ») restent mal décrits par l'analyste (15 672 € au lieu
 de 15 480 €), sans changer le verdict ; les touches de cache de préfixe ne sont pas vérifiables (l'endpoint ne
 renvoie pas `cached_tokens`).
+
+## 12. Routeur piloté par le modèle
+
+**Principe.** Avant la génération principale, Bird décide lui-même des modules du tour en **un appel court**
+(≤ 80 jetons, température 0) : `{"modules":[{"tool":"get_weather","args":{"place":"Lyon","day":"demain"}}],
+"agent":"off","needs_web":false}`. Une seule source de vérité, `birds/harness/catalog.py` : nom, ligne FR/EN, petit
+schéma d'arguments et exemples de chaque module (météo, lieux, société, devises, horloge, événement, images,
+graphique, et les indices bureautique / recherche / données). Le prompt est le catalogue (statique, en préfixe :
+le cache de vLLM le réutilise), des exemples fixes, puis le tour : contexte du tour précédent (mémo du serveur,
+jamais le texte du modèle), **indices** des analyseurs regex (qui peuvent se tromper) et les mots de l'utilisateur.
+La sortie est contrainte par schéma quand l'endpoint le permet (`structured_outputs: {json}` sur vLLM ≥ 0.10,
+détecté une fois par sonde et mis en cache), sinon réparée et validée. Chaque argument est vérifié
+(`catalog.check_args`) et **ancré** : écrit dans les mots de l'utilisateur ou dans le contexte du tour précédent.
+
+**Rôle des règles écrites à la main** (`intents.py`, `clock.py`, `when.py`) : indices dans le prompt ; **repli**
+quand le routeur est absent, trop lent (budget 3 s, `BIRD_ROUTER_BUDGET_S`) ou illisible ; **veto** seulement pour
+les familles de faux déclenchements connues du banc (« météo des marchés », « charte graphique », « image de
+marque », « heures de pointe »…), et seulement si l'analyseur de la famille ne se déclenche pas lui-même.
+
+**Réglage** `BIRD_ROUTER` : `model` (le routeur décide seul), `hybrid` (le routeur décide, et un appel sûr d'un
+analyseur d'une famille que le routeur a laissée de côté est ajouté), `regex` (aucun appel : comportement
+d'avant), `auto` (défaut) = **`hybrid`** pour un endpoint distant, `regex` pour un client local ou scripté.
+Journaux : métadonnées seulement (outils, noms d'arguments, durée, source, repli, veto), jamais le texte.
+Le champ `agent` de la décision est mesuré mais ne pilote pas encore le mode Agent (qui reste `crew.decide`).
+
+**Mesure réelle (27/11/2026, endpoint vLLM 0.32, Bird S 4B, `structured_outputs` détecté).**
+`scripts/router_eval.py --per-class 15` : 389 appels, au plus 15 exemples tirés (graine 0) par famille du banc et
+par classe oui/non ; l'hybride est noté sur le même appel. Résumé : `docs/measures/router-eval-2026-11-27.json`.
+
+| Famille | n | routeur seul (exact. / préc. / rappel) | hybride | regex |
+| --- | --- | --- | --- | --- |
+| weather | 30 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| maps | 22 | 0,955 / 1,000 / 0,933 | 0,955 / 1,000 / 0,933 | 0,955 / 1,000 / 0,933 |
+| maps+ | 30 | 0,967 / 1,000 / 0,933 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| company_fx | 30 | 0,933 / 0,933 / 0,933 | 0,967 / 0,938 / 1,000 | 1,000 / 1,000 / 1,000 |
+| clock | 29 | 0,931 / 0,882 / 1,000 | 0,931 / 0,882 / 1,000 | 0,931 / 0,882 / 1,000 |
+| events | 30 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 | 0,967 / 1,000 / 0,933 |
+| images | 30 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| charts | 21 | 0,952 / 1,000 / 0,933 | 0,952 / 1,000 / 0,933 | 0,762 / 1,000 / 0,667 |
+| charts+ | 30 | 0,967 / 1,000 / 0,933 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| chart_howto | 11 | 1,000 / – / – | 1,000 / – / – | 1,000 / – / – |
+| followups | 30 | 0,933 / 1,000 / 0,867 | 0,933 / 1,000 / 0,867 | 1,000 / 1,000 / 1,000 |
+| realistic | 30 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| **modules (323)** | | **0,969** | **0,978** | **0,972** |
+| agent | 11 | 1,000 / 1,000 / 1,000 | idem | 0,727 / 1,000 / 0,500 |
+| office_agent | 30 | 0,867 / 0,824 / 0,933 | idem | 1,000 / 1,000 / 1,000 |
+| agent_study | 25 | 0,640 / 0,526 / 1,000 | idem | 0,600 / – / 0,000 |
+
+Latence d'un appel : **p50 0,67 s, p95 0,89 s** (≈ 830 jetons de prompt, ≈ 50 de sortie). JSON invalide : 0,3 %
+(1 sur 389, repli sur les analyseurs). Veto appliqué 11 fois. Le routeur seul a raison là où les regex se trompent
+18 fois, l'inverse 19 fois : les erreurs se compensent, d'où le choix de **`hybrid` par défaut** (0,978 contre
+0,972 pour les regex et 0,969 pour le routeur seul sur les familles de modules, pour 0,67 s par tour). Erreurs
+restantes du routeur : deux reprises (« et en yens » sans le montant, « et à New York ? » qui garde Tokyo), « trouve
+un créneau pour une réunion à Lyon » pris pour l'horloge (regex aussi), « montre-moi sur une carte les agences de
+Lyon, Marseille et Lille » manqué (regex aussi), et surtout `agent: "on"` pour des documents internes (« rapport
+d'incident », « note de synthèse sur la réunion d'hier ») : 12 faux positifs sur 23 erreurs, raison pour laquelle le
+champ `agent` ne pilote rien pour l'instant. Lecture franche : le banc a servi à régler les regex, il les avantage ;
+la capacité du routeur à généraliser à des tournures nouvelles se mesure sur `eval.jsonl` de `build_tools_mix.py`
+(gabarits retenus), pas encore fait en réel. Correctif trouvé pendant la mesure : la sonde de sortie structurée
+demandait 16 jetons, vLLM 0.32 répond `{\n  "probe": …\n}` en 20 et la sonde concluait « non pris en charge »
+(`PROBE_TOKENS = 40`).
+
+### Apprentissage natif des modules
+
+`scripts/build_tools_mix.py --out out/tools_mix` prépare (sans lancer) un jeu au format exact du mélange
+d'entraînement (`birds/schema.py`, `train.jsonl` / `eval.jsonl` lus par `jobs/bird_job.py`) :
+
+- `router` : le prompt exact du routeur (`router.messages`) et la décision en un seul tour assistant, positifs et
+  **négatifs** (`{"modules":[]}` : faux déclenchements, demandes bureautiques, conversation) ; les indices sont ceux
+  des analyseurs, parfois faux, parfois retirés, pour que le modèle apprenne à les corriger ;
+- `tool_call_extra` : le prompt système de Bird, les outils (bloc entraîné puis `EXTRA_TOOLS`), la demande et l'appel
+  natif de `get_weather` / `find_places` / `find_company` / `convert_currency` / `web_search` (images) / `make_chart` ;
+- `eval.jsonl` : gabarits **retenus en entier** (12 %, jamais vus à l'entraînement) ; `bench_heldout.jsonl` : toutes
+  les tournures du banc, exclues de `train` ; `stats.json`.
+
+Sortie mesurée (graine 0, 8,5 s) : train 5 207 enregistrements (3 205 routeur dont 739 négatifs et 172 reprises,
+2 002 appels natifs ; 86 % FR), eval 517, bench retenu 875 ; 1 235 doublons, 92 recoupements avec le banc et 77
+étiquettes rejetées par les contrôles. Le gisement des gabarits plafonne à ≈ 3 200 décisions : `--n` au-delà ne
+change rien. Taille comptée avec le vrai tokenizer : **7,15 M jetons** en train (dont 170 k de cible), 0,69 M en eval.
+
+**Coût et durée attendus.** La passe v1 a tenu ≈ 2 000 jetons/s (`out/curves/bird-v1.log` : 1 338 pas, 325 min,
+1,78 kWh). Au même réglage (LoRA r 32, `--batch-tokens 8192`, `--grad-accum 4`, 1 époque) : **≈ 1 h** de calcul
+pour le jeu seul (7,15 M jetons), **≈ 2 h** avec un rappel du mélange v1 à parts égales (recommandé contre l'oubli :
+≈ 5 000 enregistrements tirés de `out/mix_v1/train.jsonl`), plus ≈ 10 min de chargement et d'évaluation ; énergie
+≈ 0,33 kWh par heure de calcul (même mesure). Coût : la durée × le tarif horaire publié de la machine du job v1 (même
+`--flavor` que `scripts/launch.py`), soit quelques dollars ; aucun prix n'est repris ici. Ensuite : `router_eval.py`
+sur `bench_heldout` et `eval.jsonl`, et banc complet, avant/après, chiffres notés ici. À valider d'abord par un essai
+court (`--max-steps 50`).

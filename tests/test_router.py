@@ -304,7 +304,7 @@ def test_structured_output_form_is_detected_once_and_cached(kind):
     assert tried == list(R.STRUCTURED_KINDS[: R.STRUCTURED_KINDS.index(kind) + 1])
     n = len(bodies)
     assert R.structured_kind(llm) == kind and len(bodies) == n  # cached: no new probe
-    assert R.resolve_mode(None, llm) == ("model", kind)
+    assert R.resolve_mode(None, llm) == ("hybrid", kind)  # the default chosen from the live run
 
 
 def test_no_structured_outputs_means_hybrid_and_is_cached_for_good():
@@ -347,7 +347,7 @@ def test_resolve_mode_settings(monkeypatch, tmp_path):
     fake = FakeClient([])
     assert R.resolve_mode(None, fake) == ("regex", "")  # scripted / in-process client: the parsers, no call
     fake.router_structured = "guided_json"
-    assert R.resolve_mode(None, fake) == ("model", "guided_json")
+    assert R.resolve_mode(None, fake) == ("hybrid", "guided_json")
     fake.router_structured = ""
     assert R.resolve_mode(None, fake) == ("hybrid", "")
     for want in ("model", "hybrid", "regex"):
