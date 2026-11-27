@@ -67,6 +67,9 @@ def test_the_plan_lists_the_deliverables_in_the_order_asked(ask, want):
         "Comment faire un tableau croisé dynamique dans Excel ?",
         "J'ai un fichier Excel de 3000 lignes, comment supprimer les doublons ?",
         "How do I make a pivot table in a spreadsheet and then a chart?",
+        "Rédige un mail pour inviter l'équipe au webinaire, lien d'inscription : https://example.com/inscription",
+        "Ajoute ce lien à ma signature de mail : https://www.linkedin.com/in/test",
+        "Mets ce lien dans le message de bienvenue : https://acme.fr/accueil",
     ],
 )
 def test_inputs_and_one_thing_asks_make_no_active_plan(ask):
@@ -88,6 +91,19 @@ def test_inputs_and_one_thing_asks_make_no_active_plan(ask):
 )
 def test_an_explicit_search_ask_is_to_search_first(ask):
     assert "search" in [i.kind for i in taskplan.extract(ask, "en" if ask.isascii() else "fr", ask)]
+
+
+@pytest.mark.parametrize(
+    "ask, want",
+    [
+        ("Résume https://news.test/csrd et fais un mail à a@b.fr", ["synthèse", "lecture de la page", "mail"]),
+        ("Que dit cette page ? https://news.test/csrd", ["lecture de la page"]),
+        ("https://news.test/csrd", ["lecture de la page"]),
+        ("Rédige un mail d'invitation à a@b.fr, lien d'inscription : https://example.com/inscription", ["mail"]),
+    ],
+)
+def test_a_link_is_a_page_to_read_only_when_the_request_says_so(ask, want):
+    assert labels(ask) == want
 
 
 def _bench():

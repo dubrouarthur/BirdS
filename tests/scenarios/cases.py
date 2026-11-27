@@ -864,4 +864,29 @@ scenario(
     expect={"lang": "fr", "contains": [r"SOMME\.SI"], "max_gens": 1},
 )  # fmt: skip
 
+scenario(
+    id="ordinary_mail_with_link", family="controls",
+    ask="Rédige un mail à equipe@acme.fr pour inviter l'équipe au webinaire, lien d'inscription : "
+        "https://example.com/inscription",
+    rules=lambda: [
+        R(first, call("draft_email", to=["equipe@acme.fr"], subject="Invitation au webinaire",
+          body="Bonjour à tous,\n\nVous êtes invités au webinaire. Inscription : https://example.com/inscription"
+               "\n\nÀ bientôt")),
+        R(after("draft_email"), "Le brouillon d'invitation est prêt, avec le lien d'inscription."),
+        R(reminded("read_page"), call("read_page", url="https://example.com/inscription")),
+    ],
+    expect={"tools": ["draft_email"], "lang": "fr", "max_gens": 2},
+)  # fmt: skip
+
+scenario(
+    id="ordinary_signature_link", family="controls",
+    ask="Ajoute ce lien à ma signature de mail : https://www.linkedin.com/in/test",
+    rules=lambda: [
+        R(first, "Voici votre signature avec le lien ajouté à la fin, prête à coller dans les réglages de votre "
+          "messagerie :\n\nCamille Martin\nResponsable commerciale\nLinkedIn : https://www.linkedin.com/in/test"),
+        R(reminded("read_page"), call("read_page", url="https://www.linkedin.com/in/test")),
+    ],
+    expect={"lang": "fr", "contains": [r"Voici votre signature"], "max_gens": 1},
+)  # fmt: skip
+
 SCENARIOS = S

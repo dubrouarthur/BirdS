@@ -12,7 +12,9 @@ tableur »): « résume ce mail » or « d'après le tableau » name an input, n
 even alone, because answering without them is answering before the result: reading an attached document, and an
 explicit search ask (« cherche … » as an imperative, « sur internet », « fais une recherche »; never « je
 cherche à comprendre » or « je recherche un stagiaire »). Any other plan is used only when it has two items or
-more; an ordinary one-deliverable turn keeps its prompt byte for byte.
+more; an ordinary one-deliverable turn keeps its prompt byte for byte. A link is a page to read only when the
+request says so (« lis / résume / que dit cette page », or a link sent alone); a link to put in a mail or a
+signature is content.
 """
 
 from __future__ import annotations
@@ -84,6 +86,15 @@ _SEARCH = re.compile(
     re.I,
 )
 _URL = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
+# a link is to read only when the request says so; a link to include (« lien d'inscription : … », « ajoute ce lien
+# à ma signature ») is content, not a page to fetch
+_READ_LINK = re.compile(
+    r"\b(?:lis|lisez|lire|relis|r[ée]sum\w*|synth[ée]tis\w*|analys\w*|consulte[sz]?|consulter|parcour\w*|"
+    r"regarde[sz]?|extrai[st]|extraire|que\s+dit|ce\s+que\s+dit|qu['’]est-ce\s+que\s+dit|d['’]apr[èe]s\s+(?:cette|"
+    r"ce|cet|la|le)|selon\s+(?:cette|ce|cet|la|le)|read|summari[sz]e|summary|analy[sz]e|what\s+does|look\s+at|"
+    r"according\s+to|tl;?dr|v[ée]rifie\s+(?:ce|cette|la|le)\s+(?:page|lien|site|article))\b",
+    re.I,
+)
 _ATTACHED = re.compile(r"\[(?:Fichier joint|Attached file)\s*:\s*([^\]\n]+)\]")
 
 LABELS = {
@@ -117,7 +128,7 @@ WHAT_TO_DO = {
     "page": "call read_page on the link first",
     "read": "call read_file on the attached file first; do not answer before reading it",
 }
-ENFORCED_ALONE = {"read", "search", "page"}
+ENFORCED_ALONE = {"read", "search"}  # a link to read is checked only within an active plan
 
 
 @dataclass
@@ -199,8 +210,8 @@ def extract(request: str, lang: str = "fr", message: str = "", chart: bool = Fal
     if m:
         add("search", m.start())
     m = _URL.search(text)
-    if m:
-        add("page", m.start())
+    if m and (_READ_LINK.search(text) or len(_URL.sub(" ", text).split()) <= 2):
+        add("page", m.start())  # « résume https://… », « que dit cette page : https://… », or a link alone
     names = [n.strip() for n in _ATTACHED.findall(message or "")]
     if names:
         short = names[0].rsplit("/", 1)[-1]

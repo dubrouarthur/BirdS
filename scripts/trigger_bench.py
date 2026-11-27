@@ -592,6 +592,8 @@ OFFICE_NO = [  # ordinary office prompts: no rich content at all, alone or right
     # « une formule Excel » asks for a formula, not a spreadsheet; a how-to question asks for no file
     "Je cherche une formule Excel pour additionner une colonne si la cellule voisine vaut Oui.",
     "comment faire un tableau croisé dynamique ?",
+    # a link to include is content, not a page to read
+    "Ajoute ce lien à ma signature de mail : https://www.linkedin.com/in/test",
 ]
 FOLLOWUP_NO = [(prev, q) for prev in (_W, _P, _PW, _F, _C, _CO, _CHART) for q in OFFICE_NO]
 IMAGES_YES = [  # (ask, the subject searched)
