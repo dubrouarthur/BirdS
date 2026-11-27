@@ -249,10 +249,33 @@ def _image_query(words: str) -> str:
     return q
 
 
+# Words that make a change uncertain: a negation (« ne mets pas »), a contrast (« plutôt que de la supprimer »,
+# « sans »), a question or a hesitation (« non attends, laisse »). The model reads those, never a regex.
+_UNSURE = re.compile(
+    r"\b(?:ne|n['’]|pas|jamais|plut[ôo]t|sans|sauf|non|attends?|laisse[rz]?|surtout|h[ée]site|peut-[êe]tre|"
+    r"not|don['’]?t|never|instead|rather|without|except|wait|maybe)\b|\?",
+    re.I,
+)
+_ACTION = re.compile(
+    r"\b(?:supprime[rz]?|enl[eè]ve[rz]?|retire[rz]?|efface[rz]?|vire[rz]?|delete|remove|drop|duplique[rz]?|"
+    r"dupliquer|copie[rz]?|duplicate|clone|d[ée]place[rz]?|mets?|mettre|passe[rz]?|remonte[rz]?|descend[sz]?|move|"
+    r"put|inverse[rz]?|[ée]change[rz]?|permute[rz]?|swap|renomme[rz]?|rename|retitle|change[rz]?|modifie[rz]?|"
+    r"remplace[rz]?|replace|ajoute[rz]?|ins[èe]re[rz]?|add|insert|touche[rz]?)\b",
+    re.I,
+)
+
+
+def _unsure(text: str) -> bool:
+    """A negation, contrast, question or hesitation, or more than one action: not for the words alone to apply."""
+    bare = re.sub(r"[«\"“][^»\"”]*[»\"”]", " ", text)  # a new title in quotes is not an instruction
+    return bool(_UNSURE.search(bare)) or len(_ACTION.findall(bare)) > 1
+
+
 def direct_ops(words: str, doc: dict) -> tuple[list[dict], str] | None:
-    """(operations, kind) when the user's words alone say what to change; None when the model must write it."""
+    """(operations, kind) when the user's words alone say what to change; None when the model must write it (and
+    always on a negation, a contrast, a question, a hesitation or two actions: see ``_unsure``)."""
     text = (words or "").strip()
-    if not text or len(text) > 240 or not doc or doc.get("kind") not in ("deck", "doc"):
+    if not text or len(text) > 240 or not doc or doc.get("kind") not in ("deck", "doc") or _unsure(text):
         return None
     ids = refs(text, doc)
     theme = _THEME_NAME.search(text)

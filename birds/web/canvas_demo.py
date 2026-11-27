@@ -275,6 +275,12 @@ def run(demo_run, p: turn.Plan, words: str) -> None:
     lg = "en" if lang == "en" else "fr"
     if p.mode == "create":  # the demo is deterministic: same words, same artifact id
         p.aid = "a" + hashlib.sha256(words.encode("utf-8")).hexdigest()[:12]
+    if p.mode == "reopen":
+        from birds.web.canvas_web import emit_reopen
+
+        emit_reopen(ctx, p)
+        demo_run.finish(p.said)
+        return
     if p.mode == "direct":
         doc, done, failed = patch.apply_all(p.base, p.ops or [])
         _illustrate(ctx, p, doc, lang)

@@ -34,9 +34,18 @@ MAX_BODY = 4_400_000  # Vercel's request limit is 4.5 MB
 
 def canvas_in(raw) -> dict | None:
     """The artifact the browser sent with the message, validated (None when absent or invalid: the turn then runs
-    as an ordinary one, it never fails for it)."""
-    if not isinstance(raw, dict) or not isinstance(raw.get("doc"), dict):
+    as an ordinary one, it never fails for it). The browser sends the document only while the panel is shown, or
+    for the one turn after the artifact was made or changed (``open`` False then); otherwise only a reference
+    ({'aid', 'version', 'kind', 'open': False}), returned with ``ref`` True and no document."""
+    if not isinstance(raw, dict):
         return None
+    if not isinstance(raw.get("doc"), dict):
+        aid = raw.get("aid")
+        if not (isinstance(aid, str) and re.fullmatch(r"a[0-9a-f]{12}|l[0-9a-f]{6,20}", aid)):
+            return None
+        kind = raw.get("kind") if raw.get("kind") in ("deck", "doc", "code", "sheet") else "deck"
+        ver = raw.get("version") if isinstance(raw.get("version"), int) and 0 < raw["version"] < 10_000 else 1
+        return {"ref": True, "aid": aid, "kind": kind, "version": ver, "open": False}
     try:
         doc = dsl.validate(raw["doc"])
     except dsl.Invalid:
@@ -46,7 +55,9 @@ def canvas_in(raw) -> dict | None:
     target = (
         raw.get("target") if isinstance(raw.get("target"), str) and re.fullmatch(r"b\d{1,4}", raw["target"]) else None
     )
-    return {"doc": doc, "aid": aid or turn.new_aid(), "version": ver, "target": target}
+    shown = raw.get("open") is not False  # an older page sent no flag: its panel was the one shown
+    return {"doc": doc, "aid": aid or turn.new_aid(), "version": ver, "target": target if shown else None,
+            "open": shown}  # fmt: skip
 
 
 def plan_for(request, words: str, lang: str, enabled: bool = True, attached: bool = False) -> turn.Plan | None:
@@ -128,14 +139,26 @@ def run_direct(p: turn.Plan, ctx, agent, lang: str, mode: str):
     return run
 
 
+def run_reopen(p: turn.Plan, ctx, agent, lang: str):
+    """An edit asked of an artifact whose panel is closed (the browser sent only its reference): the panel opens
+    again and the chat says so. No model call: the next message carries the document."""
+    from birds.harness import meter
+    from birds.harness.agent import Run
+
+    t0 = time.monotonic()
+    emit_reopen(ctx, p)
+    run = Run(lang=lang, answer=p.said, stop_reason="answer")
+    run.report = meter.report([], wall_seconds=time.monotonic() - t0, tool_calls=0, bytes_fetched=0,
+                              measured_wh=None, **meter.energy_options(agent.cfg))  # fmt: skip
+    return run
+
+
+def emit_reopen(ctx, p: turn.Plan) -> None:
+    ctx.emit({"type": "canvas", "phase": "reopen", "aid": p.aid, "kind": p.kind})
+
+
 def _t(lang: str, fr: str, en: str) -> str:
     return en if lang == "en" else fr
-
-
-def _needs_web(words: str) -> bool:
-    from birds.harness.agent import _NEEDS_WEB
-
-    return bool(_NEEDS_WEB.search(words or ""))
 
 
 def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str, system, history, lang: str,
@@ -143,14 +166,15 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
     """A create or patch turn (see birds.canvas.turn). Returns the harness Run; ``run.canvas`` holds the result."""
     if p.mode == "direct":
         return run_direct(p, ctx, agent, lang, mode)
+    if p.mode == "reopen":
+        return run_reopen(p, ctx, agent, lang)
     captured: list[dict] = []
     compute = turn.compute_for(p, words, lang)
     stream = turn.Stream(compute, lambda d: emit_doc(ctx, p, d, "stream", lang))
     hooks = dataclasses.replace(agent.hooks, on_token=stream.feed, on_reset=stream.reset)
-    keep = None
-    if p.mode == "patch":
-        keep = {"web_search", "read_page"} if _needs_web(words) else set()
-    a2 = turn.derive_agent(agent, hooks, turn.sink_for(captured), hide=turn.FILE_TOOLS, keep_only=keep)
+    # the turn's ordinary tools stay offered on a patch turn too (an edit that was not one still gets its weather);
+    # a trained file tool called anyway is captured by the sink and its arguments become the new version
+    a2 = turn.derive_agent(agent, hooks, turn.sink_for(captured), hide=turn.FILE_TOOLS)
     run = a2.run(turn.turn_message(p, user_sent, lang), history=history or None, system=system,
                  thinking=request.thinking, lang=lang, request_text=words, attached=attached, tz=request.tz)  # fmt: skip
     stream.flush()

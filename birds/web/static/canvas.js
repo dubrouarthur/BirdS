@@ -127,6 +127,7 @@ function pushVersion(a, doc, label) {
     a.versions.splice(1, a.versions.length - MAX_VERSIONS); // v1 is kept
   a.cur = a.versions.length - 1;
   a.draft = null;
+  a.fresh = true; // the next message carries it even if the panel is closed (« plus court » right after)
 }
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
@@ -175,6 +176,14 @@ export function onEvent(c, turn, ev) {
       draft: null,
     };
   }
+  if (ev.phase === "reopen") {
+    // an edit asked while the panel was closed: it opens again, and the next message carries the document
+    if (c === conv && a.versions.length) {
+      s.active = ev.aid;
+      open(ev.aid, { focus: false });
+    }
+    return false;
+  }
   turn.canvasLive = { aid: ev.aid, phase: ev.phase };
   if (ev.phase === "abort") {
     a.draft = null;
@@ -222,19 +231,28 @@ export function onAnswer(c, turn, ref) {
   }
 }
 
-/** What the next message carries: the artifact shown (or the last one of the conversation), and a target block. */
+/**
+ * What the next message carries. The artifact shown in the panel, whole (and a target block); after the panel is
+ * closed, the whole document only for the one turn after it was made or changed, then just a reference
+ * ({aid, version, kind}): an ordinary message never carries a 400 kB deck, and never becomes an edit of it.
+ */
 export function payload(c) {
   const s = store(c);
-  const aid = (panel && !panel.hidden && view.aid) || s.active;
+  const shown = !!panel && !panel.hidden && c === conv && view.aid;
+  const aid = shown || s.active;
   const a = aid && s.list[aid];
-  if (!a || !a.versions.length) {
-    target = null;
-    return {};
-  }
-  const doc = clone(a.versions[a.cur].doc);
-  const out = { aid: a.aid, version: a.versions[a.cur].n, doc };
-  if (target && target.aid === a.aid) out.target = target.block;
+  const tgt = target;
   target = null;
+  if (!a || !a.versions.length) return {};
+  const v = a.versions[a.cur];
+  const fresh = !!a.fresh;
+  a.fresh = false;
+  if (!shown && !fresh)
+    return {
+      canvas: { aid: a.aid, version: v.n, kind: a.kind, open: false },
+    };
+  const out = { aid: a.aid, version: v.n, doc: clone(v.doc), open: !!shown };
+  if (shown && tgt && tgt.aid === a.aid) out.target = tgt.block;
   return { canvas: out };
 }
 

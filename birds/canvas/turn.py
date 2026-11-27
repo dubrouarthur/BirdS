@@ -268,7 +268,7 @@ def finish_doc(doc: dict, kind: str, words: str, lang: str) -> dict:
 class Plan:
     """What this turn does with the canvas, decided before any generation."""
 
-    mode: str  # "create" | "patch" | "direct"
+    mode: str  # "create" | "patch" | "direct" | "reopen" (an edit asked while the panel is closed)
     kind: str  # deck | doc | code | diagram | sheet
     aid: str
     base: dict | None = None  # the current document (patch, direct)
@@ -284,13 +284,21 @@ def plan(words: str, canvas: dict | None, lang: str, enabled: bool = True, attac
     message (a question about them is never a creation)."""
     if not enabled:
         return None
+    if canvas and canvas.get("ref"):  # the panel is closed: only an explicit edit of a part of it reopens it
+        kind = canvas.get("kind") or "deck"
+        if intents.edit_ask(words, kind, shown=False):
+            name = NAMES.get(kind, NAMES["doc"])[_lang2(lang)]
+            said = (f"J'ai rouvert {name} dans le canevas : redemandez la modification et je l'applique." if lang != "en"
+                    else f"I opened {name} again in the canvas: ask for the change again and I will make it.")  # fmt: skip
+            return Plan("reopen", kind, canvas["aid"], None, int(canvas.get("version") or 1), said=said)
+        canvas = None
     if canvas and isinstance(canvas.get("doc"), dict):
         doc = canvas["doc"]
         kind = doc.get("kind")
         target = canvas.get("target") if isinstance(canvas.get("target"), str) else None
         if target and patch._index(doc, target) < 0:
             target = None
-        if intents.edit_ask(words, kind or "deck", targeted=bool(target)):
+        if intents.edit_ask(words, kind or "deck", targeted=bool(target), shown=canvas.get("open") is not False):
             aid = canvas.get("aid") or new_aid()
             ver = int(canvas.get("version") or 1)
             if not target:

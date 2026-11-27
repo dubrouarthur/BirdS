@@ -356,11 +356,11 @@ def test_canvas_never_opens_on_ordinary_office_prompts():
         "plus court",
         "et en anglais ?",
         "corrige l'erreur",
-        "mets le bouton en bleu",
     ],
 )
 def test_edit_asks(words):
     assert intents.edit_ask(words, "deck")
+    assert intents.edit_ask("mets le bouton en bleu", "code")
 
 
 @pytest.mark.parametrize(
@@ -371,10 +371,81 @@ def test_edit_asks(words):
         "fais une présentation sur le vélo",
         "c'est quoi un KPI ?",
         "rédige un mail pour envoyer la présentation à Paul",
+        "Mets un rappel dans mon agenda",
+        "Mets un rappel dans mon agenda lundi à 9h",
+        "Change rien, c'est bien",
+        "Traduis 'bonjour' en japonais",
+        "Fix the bug in my Excel formula =SOMME(A1:A3",
+        "mets le bouton en bleu",  # a deck has no button
     ],
 )
 def test_not_edit_asks(words):
     assert not intents.edit_ask(words, "deck")
+
+
+@pytest.mark.parametrize("words", ["plus court", "et en anglais ?", "raccourcis", "mets-le en bleu"])
+def test_short_unnamed_edits_need_the_panel_shown(words):
+    assert intents.edit_ask(words, "deck", shown=True)
+    assert not intents.edit_ask(words, "deck", shown=False)
+    assert intents.edit_ask("ajoute une slide sur les risques", "deck", shown=False)  # it names a part
+
+
+@pytest.mark.parametrize(
+    "words",
+    [
+        "Ne mets pas la slide 2 à la fin",
+        "Change le titre de la slide 2 en « Risques » plutôt que de la supprimer",
+        "Surtout ne touche pas à la diapo 3, supprime plutôt les fautes",
+        "Mets la slide 2 en premier ? Non attends, laisse",
+        "Supprime la slide 2 et mets la 3 à la fin",
+        "move slide 2 to the end, not slide 3",
+    ],
+)
+def test_direct_ops_leave_negations_hesitations_and_two_actions_to_the_model(words):
+    d = dsl.parse(DECK, "deck")
+    assert patch.direct_ops(words, d) is None
+    p = turn.plan(words, {"doc": d, "aid": "a0123456789ab", "version": 1, "open": True}, "fr")
+    assert p is not None and p.mode == "patch"
+
+
+def test_direct_ops_still_apply_plain_orders():
+    d = dsl.parse(DECK, "deck")
+    assert patch.direct_ops("Mets la slide 2 en premier", d)[1] == "move"
+    assert patch.direct_ops("Renomme la slide 2 en « Ne pas oublier »", d)[0][0]["title"] == "Ne pas oublier"
+    assert patch.direct_ops("passe en thème chaleureux", d)[1] == "theme"
+
+
+def test_closed_panel_sends_a_reference_and_an_ordinary_message_stays_ordinary():
+    d = dsl.parse(DECK, "deck")
+    from birds.web import canvas_web
+
+    ref = canvas_web.canvas_in({"aid": "a0123456789ab", "version": 3, "kind": "deck", "open": False})
+    assert ref == {"ref": True, "aid": "a0123456789ab", "kind": "deck", "version": 3, "open": False}
+    assert turn.plan("Mets un rappel dans mon agenda lundi à 9h", ref, "fr") is None
+    assert turn.plan("plus court", ref, "fr") is None
+    p = turn.plan("ajoute une slide sur les risques", ref, "fr")
+    assert p.mode == "reopen" and p.aid == "a0123456789ab" and "rouvert" in p.said
+    # the turn right after it was made: the document comes along, but the closed panel needs a named part
+    fresh = canvas_web.canvas_in({"aid": "a0123456789ab", "version": 1, "doc": d, "open": False})
+    assert fresh["open"] is False
+    assert turn.plan("Mets un rappel dans mon agenda lundi à 9h", fresh, "fr") is None
+    assert turn.plan("Traduis 'bonjour' en japonais", fresh, "fr") is None
+    assert turn.plan("supprime la slide 3", fresh, "fr").mode == "direct"
+
+
+def test_reopen_turn_makes_no_model_call(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    app, llm = _app([])
+    with TestClient(app) as client:
+        events = _chat(client, "ajoute une slide sur les risques",
+                       canvas={"aid": "a0123456789ab", "version": 2, "kind": "deck", "open": False})  # fmt: skip
+    assert llm.prompts == []
+    assert [e for e in events if e["type"] == "canvas"] == [
+        {"type": "canvas", "phase": "reopen", "aid": "a0123456789ab", "kind": "deck"}
+    ]
+    assert "rouvert" in next(e for e in events if e["type"] == "answer")["content"]
+
 
 
 # ------------------------------------------------------------------ pictures
@@ -644,7 +715,7 @@ def test_patch_turn_gives_the_outline_and_applies_operations(monkeypatch):
             client, "ajoute une slide sur les risques après la slide 4", canvas=_canvas_body(dsl.parse(DECK, "deck"))
         )
     prompt = json.loads(llm.prompts[0])
-    assert prompt["tools"] == []  # nothing to search: no tool block at all
+    assert prompt["tools"] and not set(prompt["tools"]) & set(turn.FILE_TOOLS)  # the turn's tools, no file tool
     assert "[b3] Évolution" in prompt["messages"][-1]["content"]
     final = [e for e in events if e["type"] == "canvas"][-1]
     assert [b["title"] for b in final["doc"]["blocks"]][4] == "Risques" and final["doc"]["blocks"][4]["id"] == "b6"

@@ -142,27 +142,53 @@ _EDIT = re.compile(
     r"\b(?:ajoute[rz]?|rajoute[rz]?|ins[èe]re[rz]?|remplace[rz]?|modifie[rz]?|change[rz]?|supprime[rz]?|enl[èe]ve[rz]?|"
     r"retire[rz]?|efface[rz]?|raccourci[st]?|r[ée]dui[st]|all[èe]ge[rz]?|condense[rz]?|d[ée]veloppe[rz]?|"
     r"approfondi[st]|compl[èe]te[rz]?|enrichi[st]|reformule[rz]?|r[ée][ée]cri[st]|retravaille[rz]?|am[ée]liore[rz]?|"
-    r"simplifie[rz]?|corrige[rz]?|r[ée]pare[rz]?|ajuste[rz]?|mets?|mettre|d[ée]place[rz]?|inverse[rz]?|"
-    r"renomme[rz]?|duplique[rz]?|traduis|tradui[st]|illustre[rz]?|colore[rz]?|agrandi[st]|centre[rz]?|"
+    r"simplifie[rz]?|corrige[rz]?|r[ée]pare[rz]?|ajuste[rz]?|mets?|mettre|d[ée]place[rz]?|inverse[rz]?|passe[rz]?|"
+    r"renomme[rz]?|duplique[rz]?|traduis|tradui[st]|illustre[rz]?|colore[rz]?|agrandi[st]|centre[rz]?|rends|"
     r"add|insert|replace|change|remove|delete|shorten|expand|rewrite|improve|simplify|fix|move|swap|rename|"
-    r"translate|make it|plus (?:court|long|concis|clair|simple|visuel|pro|formel|d[ée]taill[ée])e?s?|"
+    r"translate|make it|plus (?:court|long|concis|clair|simple|visuel|pro|formel|d[ée]taill[ée]|percutant)e?s?|"
     r"moins (?:long|de texte|technique)|shorter|longer|more|less)\b",
     re.I,
 )
-_ABOUT = re.compile(
-    r"\b(?:slides?|diapos?(?:itives?)?|transparents?|pages?|sections?|parties|partie|paragraphes?|titres?|"
-    r"sous-titres?|images?|photos?|illustrations?|graphiques?|tableaux?|th[èe]mes?|couleurs?|style|"
-    r"pr[ée]sentation|document|rapport|deck|code|bouton|boutons|page|formulaire|script|fonction|erreur|bug|"
-    r"chiffres|conclusion|introduction|intro|sommaire|plan|cellules?|colonnes?|lignes?|"
-    r"slide|title|picture|chart|table|theme|button|error|column|row|b\d{1,3})\b",
-    re.I,
-)
+# What names a part of the artifact, per kind: « la slide 3 », « le titre », « le bouton », « la colonne B ».
+_ABOUT_COMMON = (r"blocs?|block|titres?|sous-titres?|images?|photos?|illustrations?|th[èe]mes?|couleurs?|style|polices?|"
+                 r"title|picture|theme|colou?rs?|font|b\d{1,3}")  # fmt: skip
+_ABOUT = {
+    "deck": re.compile(
+        rf"\b(?:{_ABOUT_COMMON}|slides?|diapos?(?:itives?)?|transparents?|pr[ée]sentation|deck|graphiques?|"
+        r"tableaux?|chiffres|conclusion|introduction|intro|sommaire|points?|puces?|citations?|chart|table|"
+        r"bullets?|quote)\b",
+        re.I,
+    ),
+    "doc": re.compile(
+        rf"\b(?:{_ABOUT_COMMON}|sections?|parties|partie|paragraphes?|chapitres?|document|rapport|note|"
+        r"graphiques?|tableaux?|chiffres|conclusion|introduction|intro|sommaire|encadr[ée]s?|listes?|chart|table|"
+        r"section|paragraph|report)\b",
+        re.I,
+    ),
+    "code": re.compile(
+        rf"\b(?:{_ABOUT_COMMON}|code|bouton|boutons|page|formulaire|script|fonction|erreur|bug|pied de page|"
+        r"en-t[êe]te|menu|fond|marges?|n[œo]uds?|[ée]tapes?|fl[èe]ches?|sch[ée]ma|button|form|function|error|"
+        r"footer|header|background|node|diagram)\b",
+        re.I,
+    ),
+    "sheet": re.compile(
+        rf"\b(?:{_ABOUT_COMMON}|cellules?|colonnes?|lignes?|tableau|formules?|totaux|total|cell|column|row|"
+        r"formula|sheet)\b",
+        re.I,
+    ),
+}
 _NEW_SUBJECT = re.compile(r"\b(?:sur|about|concernant|à propos de)\b\s+(?!(?:la|le|les|cette|ce|this|the)\b)\w", re.I)
+_LANGS = r"(?:anglais|fran[çc]ais|english|french|espagnol|spanish|allemand|german|italien|italian)"
+# « Change rien, c'est bien », « Ne mets pas… », « Non attends, laisse »: not a change of a short, unnamed thing
+_HOLD = re.compile(r"\b(?:ne|n['’]|rien|pas|aucun|non|attends?|laisse|nothing|don['’]?t|no need|never mind|"
+                   r"c['’]est (?:bien|bon|parfait)|it['’]s (?:fine|good))\b|\?", re.I)  # fmt: skip
 
 
-def edit_ask(words: str, kind: str, targeted: bool = False) -> bool:
-    """The words change the artifact already open: an edit verb that is about it (a slide, a section, the
-    picture, the theme, the code), or any instruction sent from a block (« Demander à Bird »)."""
+def edit_ask(words: str, kind: str, targeted: bool = False, shown: bool = True) -> bool:
+    """The words change the artifact already open: an edit verb about a part of it (a slide, a section, the picture,
+    the theme, the button), or any instruction sent from a block (« Demander à Bird »). A short edit that names
+    nothing (« plus court », « et en anglais ? ») counts only while the panel is shown: once it is closed, « mets un
+    rappel lundi » is an ordinary turn."""
     w = (words or "").strip()
     if not w:
         return False
@@ -170,12 +196,8 @@ def edit_ask(words: str, kind: str, targeted: bool = False) -> bool:
         return True
     if len(w) > 1200 or _HOWTO.search(w[:120]) and not re.search(r"\b(?:peux-tu|can you)\b", w[:60], re.I):
         return False
-    if not _EDIT.search(w) and not re.search(
-        r"^\W*(?:et\s+)?(?:en|in)\s+(?:anglais|fran[çc]ais|english|french|"
-        r"espagnol|spanish|allemand|german)\b",
-        w,
-        re.I,
-    ):
+    lang_only = re.search(rf"^\W*(?:et\s+)?(?:en|in)\s+{_LANGS}\b", w, re.I)
+    if not _EDIT.search(w) and not lang_only:
         return False
     created = ask(w)
     if created and created != _family(kind) and _NEW_SUBJECT.search(w):
@@ -191,11 +213,20 @@ def edit_ask(words: str, kind: str, targeted: bool = False) -> bool:
         )
     ):
         return False  # « fais une autre présentation sur X »
-    if _ABOUT.search(w) or re.search(r"\b(?:plus|moins|shorter|longer)\b", w, re.I):
+    about = _ABOUT.get(_family(kind), _ABOUT["deck"])
+    if about.search(w):
         return True
-    if re.search(r"\b(?:en|in)\s+(?:anglais|fran[çc]ais|english|french|espagnol|spanish|allemand|german)\b", w, re.I):
-        return len(w) <= 80
-    return len(w) <= 80  # « raccourcis », « en anglais », « mets-le en bleu » right after the artifact
+    if not shown:
+        return False
+    if re.search(r"\b(?:plus|moins|shorter|longer)\b", w, re.I) and len(w.split()) <= 6 and not _HOLD.search(
+        w.replace("?", "")
+    ):
+        return True  # « plus court », « un peu moins long »
+    if re.search(r"[«\"“'‘].+[»\"”'’]", w) or _HOLD.search(w.rstrip(" ?") if lang_only else w):
+        return False  # « traduis 'bonjour' en japonais »: its own object; « change rien, c'est bien »
+    if re.search(rf"\b(?:en|in)\s+{_LANGS}\b", w, re.I):
+        return len(w.split()) <= 6  # « et en anglais ? », « traduis-la en anglais »
+    return len(w.split()) <= 4  # « raccourcis », « mets-le en bleu », « simplifie » while it is shown
 
 
 def _family(kind: str) -> str:

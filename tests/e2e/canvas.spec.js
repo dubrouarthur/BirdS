@@ -315,9 +315,28 @@ async function run(name, options, { full = true, scheme = "light" } = {}) {
     });
   }
 
-  // phone: the sheet closes with Escape and the chat is back
+  // closed panel: an ordinary message is not an edit, and later ones carry only a reference (no document)
   await page.locator('#canvas [data-k="close"]').click();
   check(await page.locator("#canvas").isHidden(), "canvas closes");
+  const bodies = [];
+  const spy = (r) => {
+    if (r.url().endsWith("/api/chat")) bodies.push(JSON.parse(r.postData() || "{}"));
+  };
+  page.on("request", spy);
+  await say(page, "Mets un rappel dans mon agenda lundi à 9h");
+  await say(page, "Merci, et quel temps fera-t-il à Lyon demain ?");
+  page.off("request", spy);
+  const answers = await page.locator(".turn-bird").allTextContents();
+  const last = answers.slice(-2).join(" ");
+  check(
+    !/je sais ajouter|I can add a slide|Nouvelle version|New version|rouvert/i.test(last),
+    `ordinary answer, not a canvas edit: ${(last || "").slice(0, 60)}`,
+  );
+  check(await page.locator("#canvas").isHidden(), "the panel stays closed");
+  check(
+    bodies.length === 2 && bodies[0].canvas?.open === false && !bodies[1].canvas?.doc,
+    `closed panel: the document once (fresh), then a reference only (${bodies.map((b) => JSON.stringify(b.canvas || {}).length).join(", ")} bytes)`,
+  );
   check(errors.length === 0, `no page error: ${errors.join(" / ")}`);
   check(external.length === 0, `no third-party request: ${external.join(" ")}`);
   await browser.close();
