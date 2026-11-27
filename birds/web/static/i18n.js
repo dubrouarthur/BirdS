@@ -799,6 +799,8 @@ export const STRINGS = {
       "1 lieu non vérifié (service de cartes indisponible) : {list}",
     "places.unchecked.many":
       "{n} lieux non vérifiés (service de cartes indisponible) : {list}",
+    "places.notShown.one": "1 lieu non affiché sur cette carte : {list}",
+    "places.notShown.many": "{n} lieux non affichés sur cette carte : {list}",
     "company.title": "Fiche entreprise",
     "company.siren": "SIREN",
     "company.siret": "SIRET du siège",
@@ -1789,6 +1791,8 @@ export const STRINGS = {
     "places.unchecked.one": "1 place not checked (map service unavailable): {list}",
     "places.unchecked.many":
       "{n} places not checked (map service unavailable): {list}",
+    "places.notShown.one": "1 place not shown on this map: {list}",
+    "places.notShown.many": "{n} places not shown on this map: {list}",
     "company.title": "Company record",
     "company.siren": "SIREN",
     "company.siret": "Head office SIRET",

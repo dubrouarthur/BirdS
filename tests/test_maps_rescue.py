@@ -244,3 +244,69 @@ def test_an_empty_answer_is_still_not_found(monkeypatch):
     find_places({"query": "Lyon ; 99 rue Inexistante Nullepart"}, c)
     assert c.step_info["widget"]["missing"] == ["99 rue Inexistante Nullepart"]
     assert c.step_info["widget"]["unchecked"] == []
+
+
+# --------------------------------------------------------------------------- nothing is dropped silently
+
+THIRTY = ("Paris ; Lyon ; Marseille ; Bordeaux ; Nantes ; Lille ; Strasbourg ; Toulouse ; Nice ; Rennes ; Montpellier ; "
+          "Reims ; Le Havre ; Toulon ; Grenoble ; Dijon ; Angers ; Brest ; Le Mans ; Tours ; Limoges ; Amiens ; Metz ; "
+          "Besançon ; Orléans ; Annecy ; Chambéry ; Valence ; Avignon ; Nîmes")  # fmt: skip
+
+
+def test_past_25_places_the_others_are_named_not_dropped():
+    from birds.harness import intents
+
+    ask = "Mets sur une carte les 30 villes suivantes : " + THIRTY
+    got = next(i for i in intents.detect(ask) if i.tool == "find_places")
+    assert got.args["query"].split(" ; ")[-5:] == ["Annecy", "Chambéry", "Valence", "Avignon", "Nîmes"]
+    c = ctx(ask)
+    text = find_places(got.args, c)
+    w = c.step_info["widget"]
+    assert w["not_shown"] == ["Annecy", "Chambéry", "Valence", "Avignon", "Nîmes"]
+    assert "Non affichés (trop de lieux pour une carte" in text and "Nîmes" in text
+    assert "5 lieux non affichés sur cette carte : Annecy ; Chambéry ; Valence ; Avignon ; Nîmes." in " ".join(
+        rescue.places_lines(w, "fr")
+    )
+
+
+def _big_list(n=25, plan="order"):
+    from birds.harness.tools.places import fit_list
+
+    cards = [
+        {"n": i, "name": f"{i} avenue des Champs-Élysées très longue", "address": f"{i} avenue des Champs-Élysées "
+         "75008 Paris, Île-de-France, France métropolitaine", "lat": 48.85 + i / 100, "lon": 2.30 + (i % 7) / 50,
+         "website": f"https://www.exemple-de-site-officiel-{i}.fr/contact/nous-trouver", "phone": "+33 1 23 45 67 89",
+         "hours": "Mo-Fr 09:00-12:30,14:00-18:30; Sa 10:00-12:00",
+         "source": {"label": "Base Adresse Nationale", "url": f"https://adresse.data.gouv.fr/base-adresse-nationale/{i}"},
+         "osm": f"https://www.openstreetmap.org/?mlat={48.85 + i / 100:.6f}&mlon=2.300000#map=18/48.85/2.30",
+         "directions": "https://www.openstreetmap.org/directions?route=%3B48.850000%2C2.300000"}
+        for i in range(1, n + 1)
+    ]  # fmt: skip
+    return {"type": "places", "v": 1, "mode": "list", "query": "x", "title": "", "places": cards, "missing": [],
+            "unchecked": [], "not_shown": [], "plan": plan}, fit_list  # fmt: skip
+
+
+def test_a_card_over_its_size_drops_the_last_places_and_plans_again_on_what_it_shows():
+    import json as _json
+
+    w, fit_list = _big_list()
+    dropped = fit_list(w, 15_000)
+    shown = [p["n"] for p in w["places"]]
+    assert dropped and len(shown) + len(dropped) == 25 and w["not_shown"] == dropped
+    assert len(_json.dumps(w, ensure_ascii=False, separators=(",", ":"))) <= 15_000
+    assert sorted(w["order"]) == shown and {x["a"] for x in w["legs"]} | {x["b"] for x in w["legs"]} == set(shown)
+    assert w["total_m"] == sum(x["m"] for x in w["legs"]) and w["itinerary"].count("loc=") == len(shown)
+
+
+def test_build_widgets_never_cuts_a_list_without_saying_so():
+    from types import SimpleNamespace
+
+    from birds.web.widgets import MAX_LIST_BYTES, _size, build_widgets
+
+    w, fit_list = _big_list(plan="order")
+    fit_list(w, 10**9)  # planned on all 25, as a tool result over the cap would be
+    step = SimpleNamespace(info={"widget": w}, error=None)
+    out = build_widgets([step], "", "fr", None, b"k" * 32)[0]
+    shown = [p["n"] for p in out["places"]]
+    assert _size(out) <= MAX_LIST_BYTES and len(shown) < 25 and len(out["not_shown"]) == 25 - len(shown)
+    assert sorted(out["order"]) == shown and out["itinerary"].count("loc=") == len(shown)

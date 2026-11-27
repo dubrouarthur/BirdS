@@ -875,7 +875,7 @@ class _DemoRun:
                 f"closest: {names} [1].\n\nOpening hours come from OpenStreetMap: check them before going. I "
                 "give no ratings or prices, which I do not have.",
             )
-        elif w["mode"] == "list" and (w.get("plan") == "order" or w.get("missing") or w.get("unchecked")):
+        elif w["mode"] == "list" and (w.get("plan") == "order" or w.get("missing") or w.get("unchecked") or w.get("not_shown")):
             from . import rescue
 
             # a visit order or places not found: the same words as the answer written from the card

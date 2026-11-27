@@ -47,9 +47,11 @@ def test_lists_by_newline_bullet_csv_and_et(text, items):
     assert mode == "list" and args["query"].split(" ; ") == items
 
 
-def test_a_list_keeps_at_most_25_places():
+def test_a_list_reads_every_place_the_map_shows_25_and_names_the_others():
     text = "carte : " + " ; ".join(f"{n} rue de la Paix Paris" for n in range(1, 40))
-    assert len(_call(text)[1]["query"].split(" ; ")) == mapwords.MAX_ITEMS
+    assert len(_call(text)[1]["query"].split(" ; ")) == 39  # the tool shows 25 and says which are not shown
+    text = "carte : " + " ; ".join(f"{n} rue de la Paix Paris" for n in range(1, 100))
+    assert len(_call(text)[1]["query"].split(" ; ")) == mapwords.MAX_READ
 
 
 @pytest.mark.parametrize(

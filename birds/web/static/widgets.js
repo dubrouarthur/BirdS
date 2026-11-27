@@ -673,10 +673,12 @@ function planBlock(w, prefix) {
 }
 
 // the places of a list that are not on the map, each kind said for what it is: not found (the provider answered
-// with nothing) or not checked (the map service failed or was busy: never shown as « not found »)
+// with nothing), not checked (the map service failed or was busy: never shown as « not found ») or not shown
+// (past the 25 places or the size of one card)
 const LEFT_OUT = [
   ["missing", "places.missing"],
   ["unchecked", "places.unchecked"],
+  ["not_shown", "places.notShown"],
 ];
 
 function missingLine(w) {

@@ -17,7 +17,8 @@ from __future__ import annotations
 
 import re
 
-MAX_ITEMS = 25
+MAX_ITEMS = 25  # places of one map (birds/harness/tools/places.py MAX_LIST)
+MAX_READ = 60  # read from the user's words: the map shows MAX_ITEMS, the tool names the others « not shown »
 
 _BULLET = re.compile(r"^\s*(?:[-–—•*·▪►✓]+|\d{1,2}\s*[.)°]|\(?[a-z]\)|#\d+)\s*", re.I)
 # words that ask for a map (strong cue): enough for « mets sur une carte Lyon, Marseille et Lille »
@@ -178,7 +179,7 @@ def _items_of_line(text: str) -> list[str]:
 
 
 def place_list(text: str) -> list[str] | None:
-    """The places or addresses of a list ask, in the order given (2..MAX_ITEMS kept), or None. The caller checks
+    """The places or addresses of a list ask, in the order given (2..MAX_READ kept), or None. The caller checks
     that each item is a place."""
     from birds.harness.geo import looks_like_address
 
@@ -204,7 +205,7 @@ def place_list(text: str) -> list[str] | None:
         from birds.harness.geo import find_address
 
         line = lines[0] if lines else ""
-        if len(line) > 1200:
+        if len(line) > 4000:  # about MAX_READ places
             return None
         if ";" not in line and len(find_address(line)) >= 0.5 * len(line):
             return None  # « 1 place du Capitole, Toulouse »: one address with a comma, not a list
@@ -233,7 +234,7 @@ def place_list(text: str) -> list[str] | None:
     items = [i for i in items if i]
     if len(items) < 2:
         return None
-    return items[:MAX_ITEMS]
+    return items[:MAX_READ]
 
 
 def list_cue(text: str) -> bool:

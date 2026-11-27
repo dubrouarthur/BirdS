@@ -17,6 +17,8 @@ from birds.harness.intents import KINDS
 MAX_PER_RUN = 2
 MAX_CARDS = 8
 MAX_LIST = 25  # places of one list ask (« montre sur une carte : a ; b ; c … »)
+# a list card's JSON budget: birds/web/widgets.py MAX_LIST_BYTES (16 KB) less room for the map image it adds
+LIST_BYTES = 15_000
 MAX_LIST_SLOW = 6  # of which looked up on Nominatim / Photon (1 request a second, OSMF policy); BAN has no such limit
 LIST_WORKERS = 4  # parallel BAN requests (its limit is 50 requests a second per address)
 _KIND_KEYS = {k for _, k in KINDS}
@@ -202,7 +204,7 @@ def find_places(args: dict, ctx) -> str:
         raise ToolError("places already shown; answer with them")
     lang = ctx.lang if ctx.lang in ("fr", "en") else "fr"
     query = " ".join(str(args.get("query") or "").split())
-    query = query[:3000] if ";" in query else query[:200]
+    query = query[:6000] if ";" in query else query[:200]
     near = " ".join(str(args.get("near") or "").split())[:120]
     if not query:
         raise ToolError("query is empty")
@@ -220,12 +222,14 @@ def find_places(args: dict, ctx) -> str:
     if ";" in query:
         from birds.harness.mapwords import plan_of
 
-        mode, names = "list", [x.strip() for x in query.split(";") if x.strip()][:MAX_LIST]
+        every = [x.strip() for x in query.split(";") if x.strip()]
+        # past MAX_LIST, nothing is looked up: the names are said « not shown », never dropped silently
+        mode, names, not_shown = "list", every[:MAX_LIST], every[MAX_LIST:]
         got, failed = _lookup_list(geo.Geocoder(ctx, count=False), names, lang)
         places = [p for p in got if p is not None]
         missing = [n for i, (n, p) in enumerate(zip(names, got, strict=True)) if p is None and i not in failed]
         unchecked = [names[i] for i in sorted(failed)]
-        title = query
+        title = ""  # the card says « N lieux »: the raw ask (up to 6000 characters) never fills the widget
         # the model (or the reading of the ask) says what to compute; the user's words are the fallback
         asked = str(args.get("plan") or "").strip().lower()
         said = getattr(ctx, "request", "") or ""
@@ -276,7 +280,7 @@ def find_places(args: dict, ctx) -> str:
         "type": "places",
         "v": 1,
         "mode": mode,
-        "query": query,
+        "query": query[:200],
         "near": near,
         "title": title,
         "center": None
@@ -292,23 +296,9 @@ def find_places(args: dict, ctx) -> str:
         widget["distance_m"] = places[0].distance_m
         widget["directions"] = _directions(places[0], center)
     if mode == "list":
-        pts = [(p.lat, p.lon) for p in places]
-        order = visit_order(pts) if plan == "order" else list(range(len(places)))
-        legs = [
-            {"a": order[i] + 1, "b": order[i + 1] + 1, "m": geo.distance_m(*pts[order[i]], *pts[order[i + 1]])}
-            for i in range(len(order) - 1)
-        ]
-        widget.update(
-            missing=missing,
-            unchecked=unchecked,
-            plan=plan,
-            order=[i + 1 for i in order],
-            legs=legs if plan else [],
-            total_m=sum(x["m"] for x in legs) if plan else None,
-            itinerary=itinerary_url([pts[i] for i in order]) if len(pts) >= 2 else "",
-        )
-        if plan == "distances" and len(pts) <= 8:
-            widget["matrix"] = [[geo.distance_m(*a, *b) for b in pts] for a in pts]
+        widget.update(missing=missing, unchecked=unchecked, not_shown=not_shown, plan=plan)
+        fit_list(widget, LIST_BYTES)
+        places = places[: len(widget["places"])]
     ctx.step_info = {
         "widget": widget,
         "found": len(places),
@@ -357,6 +347,15 @@ def find_places(args: dict, ctx) -> str:
     lines = [head] + ([] if mode == "route" else [_line(i, p, lang) for i, p in enumerate(shown, 1)])
     if missing:
         lines.append(("Introuvables (dis-le) : " if lang == "fr" else "Not found (say so): ") + " ; ".join(missing))
+    if mode == "list" and widget.get("not_shown"):
+        lines.append(
+            (
+                "Non affichés (trop de lieux pour une carte ; dis-le et propose une autre carte pour eux) : "
+                if lang == "fr"
+                else "Not shown (too many places for one map; say so and offer another map for them): "
+            )
+            + " ; ".join(widget["not_shown"])
+        )
     if unchecked:
         lines.append(
             (
@@ -371,6 +370,46 @@ def find_places(args: dict, ctx) -> str:
         lines.append(_plan_text(widget, lang))
     lines.append(_tail(lang) + (f" Source à citer : [{n_src}]." if lang == "fr" else f" Source to cite: [{n_src}]."))
     return "\n".join(lines)
+
+
+def plan_list(w: dict) -> None:
+    """The visit order, legs, total and full-route link of a list card, from the places it shows (``w["plan"]``)."""
+    pts = [(c["lat"], c["lon"]) for c in w["places"]]
+    plan = w.get("plan") if len(pts) >= 2 else ""
+    order = visit_order(pts) if plan == "order" else list(range(len(pts)))
+    legs = [
+        {"a": order[i] + 1, "b": order[i + 1] + 1, "m": geo.distance_m(*pts[order[i]], *pts[order[i + 1]])}
+        for i in range(len(order) - 1)
+    ]
+    w.update(
+        plan=plan,
+        order=[i + 1 for i in order],
+        legs=legs if plan else [],
+        total_m=sum(x["m"] for x in legs) if plan else None,
+        itinerary=itinerary_url([pts[i] for i in order]) if len(pts) >= 2 else "",
+    )
+    w.pop("matrix", None)
+    if plan == "distances" and len(pts) <= 8:
+        w["matrix"] = [[geo.distance_m(*a, *b) for b in pts] for a in pts]
+
+
+def _size(w: dict) -> int:
+    import json
+
+    return len(json.dumps(w, ensure_ascii=False, separators=(",", ":")))
+
+
+def fit_list(w: dict, budget: int) -> list[str]:
+    """Plan a list card and keep it within ``budget`` bytes: the last places go first, their names join
+    ``not_shown`` (before the names past MAX_LIST), and the order, legs, total and route are computed again on what
+    is shown, so they never go through a place the card does not show. Returns the names dropped."""
+    plan_list(w)
+    dropped: list[str] = []
+    while _size(w) > budget and len(w.get("places") or []) > 1:
+        dropped.insert(0, str(w["places"].pop().get("name") or ""))
+        plan_list(w)
+        w["not_shown"] = [x for x in dropped if x] + [x for x in w.get("not_shown") or [] if x not in dropped]
+    return dropped
 
 
 def _plan_text(w: dict, lang: str) -> str:

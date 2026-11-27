@@ -100,6 +100,11 @@ def places_lines(w: dict, lang: str) -> list[str]:
             s = "s" if len(miss) > 1 else ""
             out.append((f"{len(miss)} adresse{s} introuvable{s} : " if fr else f"{len(miss)} not found: ")
                        + " ; ".join(miss) + ".")  # fmt: skip
+        if hidden := w.get("not_shown") or []:
+            s = "s" if len(hidden) > 1 else ""
+            out.append((f"{len(hidden)} lieu{'x' if s else ''} non affiché{s} sur cette carte : "
+                        if fr else f"{len(hidden)} not shown on this map: ")
+                       + " ; ".join(hidden) + ".")  # fmt: skip
         if unchecked := w.get("unchecked") or []:
             s = "s" if len(unchecked) > 1 else ""
             out.append((f"{len(unchecked)} lieu{'x' if s else ''} non vérifié{s} (service de cartes indisponible) : "
