@@ -220,6 +220,11 @@ def chat_text(kind: str, doc: dict, lang: str, before: str = "", after: str = ""
         if kind == "code":
             tip = ("L'onglet Aperçu l'exécute à part, sans accès au réseau." if fr
                    else "The Preview tab runs it apart, with no network access.")  # fmt: skip
+            if (doc.get("code") or {}).get("lang") == "mermaid":
+                tip = "L'onglet Aperçu dessine le schéma." if fr else "The Preview tab draws the diagram."
+            elif (doc.get("code") or {}).get("lang") not in ("html", "svg", "js", "css", "markdown"):
+                tip = ("Le code est affiché et vérifié, jamais exécuté." if fr
+                       else "The code is shown and checked, never run.")  # fmt: skip
         parts = [head, tip]
     else:
         parts = [("Nouvelle version de " if fr else "New version of ") + name + f" ({what})."]

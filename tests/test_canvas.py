@@ -573,6 +573,35 @@ def test_create_turn_salvages_a_deck_cut_by_the_length_limit(monkeypatch):
     assert final["phase"] == "final" and len(final["doc"]["blocks"]) == 4
 
 
+def test_create_turn_reads_tool_arguments_written_as_json_text(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    _no_network(monkeypatch)
+    text = 'Voici :\n```json\n{"name": "make_slides", "arguments": {"title": "Vélo", "slides": [{"title": "A", ' \
+           '"bullets": ["x", "y"]}, {"title": "B", "bullets": ["z"]}]}}\n```'  # fmt: skip
+    app, _ = _app([text])
+    with TestClient(app) as client:
+        events = _chat(client, "Fais une présentation sur le vélo")
+    final = [e for e in events if e["type"] == "canvas"][-1]
+    assert final["doc"]["title"] == "Vélo" and [b["title"] for b in final["doc"]["blocks"]] == ["A", "B"]
+
+
+def test_a_long_repetitive_deck_is_not_cut_as_a_loop(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    _no_network(monkeypatch)
+    slides = "\n".join(
+        f"# Partie {i}\n- Point clé numéro un de la partie {i}\n- Point clé numéro deux de la partie {i}\n"
+        f'- Point clé numéro trois de la partie {i}\n::: image query="illustration partie {i}"\n:::'
+        for i in range(1, 9)
+    )
+    app, _ = _app(["---\ntitle: Long\n---\n" + slides])
+    with TestClient(app) as client:
+        events = _chat(client, "Fais une présentation de 8 slides sur le plan de formation")
+    final = [e for e in events if e["type"] == "canvas"][-1]
+    assert len(final["doc"]["blocks"]) == 8
+
+
 def test_create_turn_without_content_leaves_the_answer_in_the_chat(monkeypatch):
     from fastapi.testclient import TestClient
 

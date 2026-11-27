@@ -143,3 +143,27 @@ def subject(words: str) -> str:
                  m.group("s"))[0]  # fmt: skip
     s = s.strip(" ,;")
     return s[:1].upper() + s[1:] if s else ""
+
+
+def from_json_text(text: str, lang: str = "fr") -> dict | None:
+    """A small model sometimes writes the trained tool's arguments as JSON text instead of calling the tool
+    (« {"title": …, "slides": [...]} », in a fence or not). That JSON, when it is one, becomes the document."""
+    import json
+
+    src = str(text or "")
+    start, end = src.find("{"), src.rfind("}")
+    if start < 0 or end <= start or not re.search(r'"(?:slides|sections)"\s*:', src):
+        return None
+    try:
+        args = json.loads(src[start : end + 1])
+    except ValueError:
+        return None
+    if not isinstance(args, dict):
+        return None
+    if isinstance(args.get("arguments"), dict):  # {"name": "make_slides", "arguments": {...}}
+        args = args["arguments"]
+    tool = "make_slides" if isinstance(args.get("slides"), list) else "make_document"
+    if tool == "make_document" and not isinstance(args.get("sections"), list):
+        return None
+    doc = from_tool(tool, args, lang)
+    return doc if doc and doc.get("blocks") else None

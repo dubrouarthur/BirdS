@@ -171,8 +171,12 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
             if found:
                 before, after = found["before"], found["after"]
         elif p.mode == "create":
-            before, content, after = dsl.split_answer(text)
-            doc = dsl.parse(content, p.kind, lang, repairs)
+            doc = convert.from_json_text(text, lang)  # the tool's arguments written as text (a 4B habit)
+            if doc is not None:
+                repairs.append("JSON arguments written in the answer became the document")
+            else:
+                before, content, after = dsl.split_answer(text)
+                doc = dsl.parse(content, p.kind, lang, repairs)
             if not _enough(doc):
                 doc = None
         else:
