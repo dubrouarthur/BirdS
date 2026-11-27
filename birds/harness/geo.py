@@ -171,12 +171,15 @@ class Place:
 
 _ADDRESS = re.compile(
     r"\b\d{1,4}\s*(?:bis|ter)?,?\s+(?:rue|avenue|av\.?|bd|boulevard|place|pl\.|chemin|all[ée]e|impasse|quai|route|"
-    r"cours|square|passage|rond-point)\s+[^\n,;?!]{2,60}(?:,?\s*\d{5}\s+[A-Za-zÀ-ÿ' -]{2,40})?",
+    r"cours|square|passage|rond-point|esplanade|parvis|promenade|faubourg|(?:la\s+)?canebi[èe]re)"
+    r"(?:\s+[^\n,;?!]{2,60}|(?=[\s,]))"
+    # « …, 75001 Paris » or « …, Bordeaux » (a capitalised town after a comma)
+    r"(?:,?\s*\d{5}\s+[A-Za-zÀ-ÿ' -]{2,40}|,\s*(?!\d)[A-ZÀ-Ý][A-Za-zÀ-ÿ'-]+(?:[ -][A-Za-zÀ-ÿ'-]+){0,2}(?=\s*(?:[,;?!.\n]|$)))?",
     re.I,
 )
 _POSTCODE_STREET = re.compile(
-    r"\b\d{5}\b.*\b(?:rue|avenue|boulevard|place|chemin|quai|route|allée|impasse)\b|"
-    r"\b(?:rue|avenue|boulevard|place|chemin|quai|route|allée|impasse)\b.*\b\d{5}\b",
+    r"\b\d{5}\b.*\b(?:rue|avenue|boulevard|place|chemin|quai|route|allée|impasse|canebi[èe]re)\b|"
+    r"\b(?:rue|avenue|boulevard|place|chemin|quai|route|allée|impasse|canebi[èe]re)\b.*\b\d{5}\b",
     re.I,
 )
 _TOWNS = {"city", "town", "village", "administrative", "municipality", "hamlet", "suburb", "county", "state"}

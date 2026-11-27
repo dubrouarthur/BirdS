@@ -24,6 +24,9 @@ from birds.harness.agent import (  # noqa: E402
 )
 from birds.web.widgets import event_widget  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import bench_maps  # noqa: E402  (maps: 200 realistic asks + 60 office prompts, 30 + 15 held out)
+
 CHART_YES = [
     "fais un graphique des ventes : janvier 120, février 135, mars 160",
     "montre-moi l'évolution du chômage en France depuis 2015",
@@ -892,6 +895,8 @@ if __name__ == "__main__":
         ("realistic", REALISTIC_YES, OFFICE_NO, realistic_ok, anything),
         ("chart_howto", [], CHART_HOWTO_NO, chart_touched),
         ("agent_study", STUDY_YES, STUDY_NO, study_routed, study_touched),
+        ("maps_real", bench_maps.MAPS_REAL, bench_maps.MAPS_OFFICE_NO, bench_maps.correct, bench_maps.detected),
+        ("maps_heldout", bench_maps.MAPS_HELDOUT, bench_maps.MAPS_HELDOUT_NO, bench_maps.correct, bench_maps.detected),
     ):
         ok, n = bench(*args)
         total[0] += ok
