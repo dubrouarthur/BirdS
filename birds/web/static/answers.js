@@ -307,6 +307,100 @@ export async function copyAnswer(button, payload) {
   return true;
 }
 
+// ------------------------------------------------------------------ thumbs down: reasons and a comment
+// Kept with the conversation in this browser only (there is no feedback endpoint on the server: nothing leaves the
+// device). Reasons are fixed keys, the comment is plain text capped at 500 characters.
+
+/** The one-line thank-you that follows a sent thumbs down. */
+export function feedbackThanks() {
+  const thanks = document.createElement("p");
+  thanks.className = "fb-thanks";
+  thanks.setAttribute("role", "status");
+  thanks.append(icon("check"), document.createTextNode(` ${t("fb.thanks")}`));
+  return thanks;
+}
+
+export const REASONS = ["wrong", "incomplete", "offtopic", "long", "format", "refusal"];
+
+/** What is stored for a thumbs down: known reasons only, a trimmed comment, the time. */
+export function cleanFeedback(raw, now = Date.now()) {
+  const reasons = [...new Set((raw?.reasons || []).filter((r) => REASONS.includes(r)))];
+  const comment = String(raw?.comment || "").replace(/\s+/g, " ").trim().slice(0, 500);
+  return { reasons, comment, at: now };
+}
+
+/**
+ * The small panel under a thumbs down: reason chips (toggle buttons), an optional comment, « Envoyer » and
+ * « Fermer ». onSave(detail) stores it with the turn (the turn then shows feedbackThanks()).
+ */
+export function feedbackPanel(turn, { onSave, onClose }) {
+  const picked = new Set(turn.feedbackDetail?.reasons || []);
+  const id = `fb-${turn.id}`;
+  const box = document.createElement("section");
+  box.className = "fb-panel";
+  box.setAttribute("aria-labelledby", `${id}-t`);
+  const title = document.createElement("p");
+  title.className = "fb-title";
+  title.id = `${id}-t`;
+  title.textContent = t("fb.title");
+  const chips = document.createElement("div");
+  chips.className = "fb-chips";
+  chips.setAttribute("role", "group");
+  chips.setAttribute("aria-labelledby", `${id}-t`);
+  for (const key of REASONS) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "fb-chip";
+    chip.dataset.reason = key;
+    chip.textContent = t(`fb.r.${key}`);
+    chip.setAttribute("aria-pressed", String(picked.has(key)));
+    chip.addEventListener("click", () => {
+      const on = !picked.has(key);
+      if (on) picked.add(key);
+      else picked.delete(key);
+      chip.setAttribute("aria-pressed", String(on));
+    });
+    chips.append(chip);
+  }
+  const label = document.createElement("label");
+  label.className = "fb-label";
+  label.htmlFor = `${id}-c`;
+  label.textContent = t("fb.comment");
+  const area = document.createElement("textarea");
+  area.id = `${id}-c`;
+  area.className = "fb-comment";
+  area.rows = 2;
+  area.maxLength = 500;
+  area.placeholder = t("fb.comment.ph");
+  area.value = turn.feedbackDetail?.comment || "";
+  const note = document.createElement("p");
+  note.className = "fb-note";
+  note.textContent = t("act.feedback.note");
+  const row = document.createElement("div");
+  row.className = "fb-row";
+  const send = document.createElement("button");
+  send.type = "button";
+  send.className = "btn btn-primary btn-small";
+  send.textContent = t("fb.send");
+  send.dataset.act = "fb-send";
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "btn btn-quiet btn-small";
+  close.textContent = t("fb.close");
+  close.dataset.act = "fb-close";
+  row.append(send, close, note);
+  send.addEventListener("click", () => onSave(cleanFeedback({ reasons: [...picked], comment: area.value })));
+  close.addEventListener("click", () => onClose());
+  box.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      onClose();
+    }
+  });
+  box.append(title, chips, label, area, row);
+  return box;
+}
+
 // ------------------------------------------------------------------ citations: the bubble and the sources panel
 
 /** Open or close the « N sources » panel that a pill controls. */

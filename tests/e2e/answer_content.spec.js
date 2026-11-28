@@ -205,6 +205,36 @@ async function shot(page, el, file) {
     check((await mail.locator(".email-missing").count()) === 1 && !/@/.test(await mail.locator(".card-meta").innerText()), `${name}: mail recipient`);
     await shot(page, mail.locator(".card-head"), `mail-${name}.png`);
 
+    // ---- R26: thumbs down opens reasons and a comment; « Envoyer » stores them in this browser and says thanks
+    const summary = birds(page).nth(0);
+    const down = summary.locator('[data-act="down"]');
+    await down.scrollIntoViewIfNeeded();
+    await down.click();
+    await page.waitForTimeout(300);
+    const panel = summary.locator(".fb-panel");
+    check((await panel.count()) === 1 && (await panel.locator(".fb-chip").count()) === 6, `${name}: no reasons panel`);
+    if (await panel.count()) {
+      check((await page.evaluate(() => document.activeElement?.className || "")).includes("fb-chip"), `${name}: focus not on the first reason`);
+      await panel.locator('.fb-chip[data-reason="wrong"]').click();
+      await panel.locator('.fb-chip[data-reason="long"]').click();
+      await panel.locator(".fb-comment").fill("La date de la Bastille est fausse.");
+      await shot(page, panel, `feedback-${name}.png`);
+      await panel.locator('[data-act="fb-send"]').click();
+      await page.waitForTimeout(300);
+      check((await summary.locator(".fb-thanks").count()) === 1 && (await summary.locator(".fb-panel").count()) === 0, `${name}: no thank-you`);
+      await shot(page, summary.locator(".actions-row"), `feedback-thanks-${name}.png`);
+      const saved = await page.evaluate(() => {
+        const conv = JSON.parse(localStorage.getItem("bird.conv.cac2fixture01") || "{}");
+        return conv.turns?.[1]?.feedbackDetail || null;
+      });
+      check(saved && saved.reasons.join() === "wrong,long" && /Bastille/.test(saved.comment), `${name}: feedback not stored (${JSON.stringify(saved)})`);
+      // taking the thumbs down back drops what was said
+      await summary.locator('[data-act="down"]').click();
+      await page.waitForTimeout(300);
+      const after = await page.evaluate(() => JSON.parse(localStorage.getItem("bird.conv.cac2fixture01")).turns[1].feedbackDetail ?? null);
+      check(after === null, `${name}: feedback kept after the thumbs down was taken back`);
+    }
+
     const [sw, cw] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
     check(sw <= cw + 1, `${name}: horizontal scroll ${sw} > ${cw}`);
 

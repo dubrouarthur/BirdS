@@ -128,3 +128,14 @@ test("rich copy: real headings, lists and one table with its header row; no inte
   // a link keeps only an http(s) address
   assert.equal(serialize(E("div", [E("p", [E("a", [T("x")], { href: "https://e.org/a" })])])).html, '<meta charset="utf-8"><p><a href="https://e.org/a">x</a></p>');
 });
+
+test("thumbs down: known reasons only, a short plain comment, French and English labels", async () => {
+  const { REASONS, cleanFeedback } = await import("../../birds/web/static/answers.js");
+  const d = cleanFeedback({ reasons: ["wrong", "wrong", "<script>", "long"], comment: `  trop\n\nlong  ${"x".repeat(900)}` }, 7);
+  assert.deepEqual(d.reasons, ["wrong", "long"]);
+  assert.ok(d.comment.startsWith("trop long ") && d.comment.length === 500);
+  assert.equal(d.at, 7);
+  assert.deepEqual(cleanFeedback(null, 1), { reasons: [], comment: "", at: 1 });
+  for (const lang of ["fr", "en"])
+    for (const r of REASONS) assert.ok(ANSWER_STRINGS[lang][`fb.r.${r}`], `${lang} fb.r.${r}`);
+});

@@ -36,7 +36,7 @@ import { canvasCard } from "./canvas.js";
 import { enhanceAnswer } from "./modules.js";
 import { renderChips, transforms } from "./followups.js";
 import { flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
-import { copyAnswer, serialize, setSourcesOpen, treeOf, typeset } from "./answers.js"; // math, citations, rich copy, feedback (chat audit C2)
+import { copyAnswer, feedbackPanel, feedbackThanks, serialize, setSourcesOpen, treeOf, typeset } from "./answers.js"; // math, citations, rich copy, feedback (chat audit C2)
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1182,8 +1182,13 @@ function renderActions(turn, isLast) {
     return null;
   const vote = (value) => () => {
     turn.feedback = turn.feedback === value ? null : value;
+    // a thumbs down opens the reasons panel (answers.js); taking it back drops what was said
+    turn.ui.fbOpen = turn.feedback === "down";
+    turn.ui.fbThanks = false;
+    if (turn.feedback !== "down") delete turn.feedbackDetail;
     handlers.onChange(turn);
-    if (turn.feedback) toast(t("toast.feedback"), "ok");
+    if (turn.feedback === "up") toast(t("toast.feedback"), "ok");
+    if (turn.ui.fbOpen) requestAnimationFrame(() => document.querySelector(`#fb-${CSS.escape(turn.id)}-t`)?.closest(".fb-panel")?.querySelector(".fb-chip")?.focus());
   };
   return h(
     "div",
@@ -1664,6 +1669,26 @@ function fillAssistant(el, turn, isLast) {
           button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(), { "data-act": "restart" }),
       ),
     renderActions(turn, isLast),
+    turn.ui?.fbOpen &&
+      turn.answer &&
+      feedbackPanel(turn, {
+        onSave: (detail) => {
+          turn.feedbackDetail = detail; // kept with the conversation, in this browser only
+          turn.ui.fbOpen = false;
+          turn.ui.fbThanks = true;
+          handlers.onChange(turn);
+          setTimeout(() => {
+            turn.ui.fbThanks = false; // the thank-you is a moment, not a fixture under the answer
+            handlers.onChange(turn);
+          }, 6000);
+        },
+        onClose: () => {
+          turn.ui.fbOpen = false;
+          handlers.onChange(turn);
+          document.querySelector(`[data-turn="${CSS.escape(turn.id)}"] [data-act="down"]`)?.focus();
+        },
+      }),
+    turn.ui?.fbThanks && turn.feedback === "down" && feedbackThanks(),
     isLast && handlers.onSuggest && renderChips(turn, handlers.onSuggest, state.busy),
     renderReceipt(turn, isLast),
   ];
