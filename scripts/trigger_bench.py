@@ -1048,6 +1048,31 @@ DATA_NO = [
     "explique-moi ce que contient le fichier",
     "corrige les fautes du document",
 ]
+# the table came with an EARLIER message (the app re-sends it each turn): only a turn about it is computed on
+DATA_EARLIER_YES = [
+    "quel est le CA moyen par mois ?",
+    "top 3 des clients",
+    "et par région ?",
+    "combien de commandes en 2025 ?",
+    "compare 2024 et 2025",
+    "total des ventes dans l'Est",
+    "how many rows are in the file?",
+    "average discount by product",
+]
+DATA_EARLIER_NO = [
+    "Quelle est la population de Canberra ?",
+    "Combien font 17 x 23 ?",
+    "Quel temps fera-t-il demain à Lyon ?",
+    "Combien coûte un abonnement Bird ?",
+    "What is the total population of France?",
+    "Quelle est la meilleure façon de présenter ce fichier à mon chef ?",
+    "Combien de jours de congés me reste-t-il ?",
+    "Écris un mail pour inviter l'équipe à la réunion de lundi",
+    "quel est le meilleur restaurant de Lyon ?",
+    "how many days until Christmas?",
+    "quelle heure est-il à Tokyo ?",
+    "combien de temps pour aller à Marseille en train ?",
+]
 _FRAME = None
 
 
@@ -1067,6 +1092,22 @@ def data_planned(item) -> bool:
     q, op = item if isinstance(item, tuple) else (item, None)
     plan = plan_question(_data_frame(), q)
     return plan is not None and (op is None or plan["query"]["op"] == op)
+
+
+def _data_earlier(q: str):
+    from birds.harness.analysis import hooks
+
+    return hooks.prepare(Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "data", ["ventes.csv"], q,
+                         fresh=[])  # fmt: skip
+
+
+def data_earlier(q: str) -> bool:
+    prep = _data_earlier(q)
+    return prep is not None and prep.result is not None
+
+
+def data_earlier_touched(q: str) -> bool:
+    return _data_earlier(q) is not None  # a card, a note or a number check on an unrelated turn
 
 
 def bench(name: str, yes: list[str], no: list[str], fn, touched=None) -> tuple[int, int]:
@@ -1104,6 +1145,7 @@ if __name__ == "__main__":
         ("canvas", CANVAS_YES + CANVAS_CODE_FROM_OFFICE, CANVAS_NO + CANVAS_OFFICE_NO, canvas_opened, canvas_touched),
         ("canvas_edit", CANVAS_EDIT_YES, CANVAS_EDIT_NO, canvas_edited),
         ("data_analysis", DATA_YES, DATA_NO, data_planned),
+        ("data_earlier", DATA_EARLIER_YES, DATA_EARLIER_NO, data_earlier, data_earlier_touched),
     ):
         ok, n = bench(*args)
         total[0] += ok

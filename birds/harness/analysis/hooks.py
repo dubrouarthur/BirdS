@@ -11,6 +11,7 @@ against the result; an answer with a number found nowhere is replaced by the har
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -59,8 +60,6 @@ UNCOMPUTED = {
 
 def _without_unverified(answer: str, allowed: list[float], request: str) -> tuple[str, int]:
     """(the answer without its sentences or list lines that carry an unverified number, how many were dropped)."""
-    import re
-
     parts = re.split(r"(?<=[.!?])[ \t]+|\n", answer)
     kept = [p for p in parts if not check_numbers(p, allowed, request)]
     return " ".join(p.strip() for p in kept if p.strip()), len(parts) - len(kept)
@@ -117,18 +116,37 @@ def _load(workspace: Path, names: list[str], words: str) -> tuple[str, object, s
     return None
 
 
+_NOTED = re.compile(r"\[(?:Fichier joint|Attached file) : ([^\]\n]{1,200})\]")
+
+
+def brought(attachments: list[dict], history: list[dict] | None) -> list[str] | None:
+    """The names of the attachments THIS message brings (the client re-sends every attachment of the conversation
+    each turn). The app marks them (``fresh``); for another client, a file already noted in an earlier user message
+    (« [Fichier joint : ventes.csv] ») was brought before. None: no attachment."""
+    if not attachments:
+        return None
+    if any("fresh" in a for a in attachments):
+        return [Path(str(a["name"])).name for a in attachments if a.get("fresh")]
+    seen = {Path(n.strip()).name for m in history or [] if m.get("role") == "user"
+            for n in _NOTED.findall(str(m.get("content") or ""))}  # fmt: skip
+    return [Path(str(a["name"])).name for a in attachments if Path(str(a["name"])).name not in seen]
+
+
 def prepare(workspace: Path, names: list[str], words: str, lang: str = "fr", *, llm=None, tok=None, history=None,
             mode: str = "rules", structured: str = "", budget: float = planner.BUDGET_S,
-            cache_salt: str | None = None) -> Prep | None:  # fmt: skip
+            cache_salt: str | None = None, fresh: list[str] | None = None) -> Prep | None:  # fmt: skip
     """``llm`` / ``tok`` given and ``mode`` model or hybrid: Bird chooses the analysis (``planner.decide``, one short
     structured call); otherwise, or when that call fails, the fixed rules do. ``history``: the conversation before
-    this message (a follow-up edits the previous turn's analysis)."""
+    this message (a follow-up edits the previous turn's analysis). ``fresh``: the attachments this message brings
+    (``brought``), None for all of them; a table brought by an earlier message is only used when the planner asks
+    for an analysis of it (« Quelle est la population de Canberra ? » next is answered by the model alone)."""
     lang = "en" if lang == "en" else "fr"
     try:
         loaded = _load(workspace, names, words)
         if loaded is None:
             return None
         name, table, origin = loaded
+        new = origin == "pasted" or fresh is None or name in {Path(n).name for n in fresh}
         if origin == "pasted" and lang == "en":
             name = "pasted table"
         f = frame_of(table)
@@ -147,6 +165,8 @@ def prepare(workspace: Path, names: list[str], words: str, lang: str = "fr", *, 
                 chart["id"] = "a1"
             except (QueryError, ToolError):
                 result = chart = plan = None
+        if result is None and not new:
+            return None  # a table of an earlier message, and no analysis asked of it: not this turn's topic
         previous = planner.previous_spec(history)
         version = int((previous or {}).get("version") or 1) + 1 if previous and plan else 1
         answer = {"label": result["title"], "query": result["query"], "result": slim_result(result), "chart": chart,
@@ -291,4 +311,4 @@ def finish(run, prep: Prep | None, request: str = "") -> None:
         run.report = {**(getattr(run, "report", None) or {}), "data_check": {"ok": True}}
 
 
-__all__ = ["MARKERS", "Prep", "finish", "memo_line", "next_steps", "prepare", "strip_note"]
+__all__ = ["MARKERS", "Prep", "brought", "finish", "memo_line", "next_steps", "prepare", "strip_note"]

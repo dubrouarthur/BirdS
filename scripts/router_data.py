@@ -302,6 +302,14 @@ DATA_PLAN = [
     ("en_monthly", "monthly revenue in 2025", None,
      {"op": "aggregate", "measure": "CA (€)", "time": "Date", "period": "month", "filter": ("Date", 2025)},
      {"line", "area", "bar", "combo", "auto"}),
+    # the table is already in the conversation (an analysis was shown) and the message is about something else: no
+    # computation (review 28/11/2026: each of these became « Total CA (€) » and replaced the model's answer)
+    ("earlier_canberra", "Quelle est la population de Canberra ?", _PREV_REGION, None, set()),
+    ("earlier_maths", "Combien font 17 x 23 ?", _PREV_REGION, None, set()),
+    ("earlier_price", "Combien coûte un abonnement Bird ?", _PREV_REGION, None, set()),
+    ("earlier_en", "What is the total population of France?", _PREV_REGION, None, set()),
+    ("earlier_advice", "Quelle est la meilleure façon de présenter ce fichier à mon chef ?", _PREV_REGION, None, set()),
+    ("earlier_leave", "Combien de jours de congés me reste-t-il ?", _PREV_REGION, None, set()),
 ]  # fmt: skip
 LIVE_8 = ("units_seller", "moving_avg", "pivot", "top_filter", "pct_change", "compare_by", "share", "summary_no")
 

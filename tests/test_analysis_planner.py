@@ -242,7 +242,7 @@ def test_eval_cases_are_sound_and_the_rules_baseline_holds(frame):
         hist = [{"role": "assistant", "content": "x", "memo": P.memo_line("ventes.csv", {"query": prev["analysis"],
                  "chart": prev["chart"]})}] if prev else None  # fmt: skip
         ok += D.data_judge(P.rule_plan(frame, text, P.previous_spec(hist)), gold, charts)["ok"]
-    assert ok >= 8  # the fixed rules: 8/14 (docs/HARNESS.md, « Analyse de données »); the model does better live
+    assert ok >= 14  # the fixed rules: 14/20 (docs/HARNESS.md, « Analyse de données »); the model does better live
     # a perfect plan is judged right: the gold of each case, as a plan
     for _cid, _text, _prev, gold, charts in D.DATA_PLAN:
         if gold is None:
@@ -288,3 +288,47 @@ def test_a_card_only_answer_loses_its_invented_figures():
                                  "10 000 €.", charts=[], report={})  # fmt: skip
     finish(run, prep, "les 5 clients qui rapportent le plus")
     assert "15 500" not in run.answer and "Dites-moi le calcul voulu" in run.answer
+
+
+# ---------------------------------------------------------------- a table of an earlier message (review 28/11/2026)
+OFF_TOPIC = ["Quelle est la population de Canberra ?", "Combien font 17 x 23 ?", "Quel temps fera-t-il demain à Lyon ?",
+             "Combien coûte un abonnement Bird ?", "What is the total population of France?",
+             "Quelle est la meilleure façon de présenter ce fichier à mon chef ?",
+             "Combien de jours de congés me reste-t-il ?"]  # fmt: skip
+
+
+@pytest.mark.parametrize("question", OFF_TOPIC)
+def test_no_template_for_a_question_that_names_nothing_of_the_table(frame, question):
+    assert P.rule_plan(frame, question) is None
+
+
+@pytest.mark.parametrize("question", OFF_TOPIC)
+@pytest.mark.parametrize("mode", ["rules", "hybrid"])
+def test_a_table_of_an_earlier_message_is_left_alone_by_an_unrelated_turn(question, mode):
+    llm = Scripted({"analysis": None, "chart": "auto"}) if mode != "rules" else None
+    assert prepare(DATA, ["ventes.csv"], question, llm=llm, tok=TOK, mode=mode, structured="x", fresh=[]) is None
+    # brought by this very message: the card is shown (the file was just attached), with no computation
+    prep = prepare(DATA, ["ventes.csv"], question, llm=Scripted({"analysis": None, "chart": "auto"}), tok=TOK,
+                   mode="hybrid", structured="x", fresh=["ventes.csv"])  # fmt: skip
+    assert prep is not None and prep.result is None
+
+
+def test_a_table_of_an_earlier_message_is_still_analysed_when_the_turn_asks_for_it():
+    prep = prepare(DATA, ["ventes.csv"], "quel est le CA moyen par mois ?", fresh=[])
+    assert prep is not None and prep.result is not None and prep.plan["query"]["agg"] == "mean"
+    llm = Scripted({"analysis": {"op": "aggregate", "measure": "CA (€)", "agg": "sum", "by": "Région"}, "chart": "bar"})
+    prep = prepare(DATA, ["ventes.csv"], "et par région ?", llm=llm, tok=TOK, mode="hybrid", structured="x", fresh=[])
+    assert prep is not None and prep.plan["query"]["by"] == "Région"
+
+
+def test_brought_reads_the_apps_flag_or_the_notes_of_earlier_messages():
+    from birds.harness.analysis.hooks import brought
+
+    assert brought([], None) is None
+    docs = [{"name": "ventes.csv", "fresh": False}, {"name": "budget.xlsx", "fresh": True}]
+    assert brought(docs, None) == ["budget.xlsx"]
+    hist = [{"role": "user", "content": "CA par mois\n\n[Fichier joint : pieces-jointes/ventes.csv]"},
+            {"role": "assistant", "content": "Voilà."}]  # fmt: skip
+    assert brought([{"name": "ventes.csv"}], hist) == []
+    assert brought([{"name": "ventes.csv"}, {"name": "b.csv"}], hist) == ["b.csv"]
+    assert brought([{"name": "ventes.csv"}], None) == ["ventes.csv"]

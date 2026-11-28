@@ -244,11 +244,45 @@ def _value_filters(f: Frame, text: str, skip: set[str]) -> list[dict]:
     return out
 
 
+_FILE = re.compile(r"\b(?:fichiers?|tableaux?|tableurs?|feuilles?|onglets?|donn[ée]es|csv|xlsx?|excel|export|"
+                   r"files?|tables?|sheets?|spreadsheets?|data(?:set)?|jeu\s+de\s+donn[ée]es)\b", re.I)  # fmt: skip
+_ROWS = re.compile(r"\b(?:lignes?|rows?|enregistrements?|entr[ée]es|records?|observations?|commandes?|orders?|"
+                   r"transactions?)\b", re.I)  # a row of a sales export is an order
+# the words that ask for a computation by themselves; « combien », « quel », « meilleur », « total » do not (« quelle
+# est la meilleure façon de présenter ce fichier ? », « what is the total population of France? »)
+_STRONG = re.compile(
+    r"\b(?:moyen(?:ne)?s?|average|mean|avg|m[ée]dian\w*|somme|cumul\w*|sum|top\s*\d*|flop|classement|ranking|"
+    r"calcul\w*|calculate|compute|totale?s?\s+(?:de|du|des|of)\b)",
+    re.I,
+)
+
+
+def refers_to_table(f: Frame, text: str) -> bool:
+    """Whether ``text`` is about the table: it names a column (header, synonym), one of its values, a year or a
+    period of its dates, its rows, or the file itself with a word that asks for a computation. A question with an
+    attachment in the conversation is not about it by default (« Combien font 17 x 23 ? »)."""
+    if not text:
+        return False
+    words = set(tokens(text))
+    if any(column_score(c, words) > 0.5 for c in f.columns) or _ROWS.search(text):
+        return True
+    if any(c.type == "date" for c in f.columns) and (
+        _YEARS2.search(text) or _VS_YEAR.search(text) or _YEAR.search(text) or any(rx.search(text) for _, rx in _PERIOD)
+    ):
+        return True
+    if _value_filters(f, text, set()):
+        return True
+    return bool(_FILE.search(text) and (_STRONG.search(text) or _SHARE.search(text) or _CORR.search(text)
+                                        or _DIST.search(text) or _TREND.search(text)))  # fmt: skip
+
+
 def plan_question(f: Frame, text: str) -> dict | None:
     """{"query": ..., "why": ...} for an analytical question about ``f``, or None."""
     if not text or not _ASK.search(text) or _NOT_ASK.search(text) and not re.search(r"\b(?:calcul|combien|top)\w*",
                                                                                      text, re.I):  # fmt: skip
         return None
+    if not refers_to_table(f, text):
+        return None  # « quel / combien » alone is no computation on the table (review 28/11/2026)
     words = set(tokens(text))
     times = [c for c in f.columns if c.type == "date"]
     measure_named = _named(f, words, ("number",))

@@ -722,9 +722,21 @@ Code : `birds/harness/analysis/` (lecture `table.py`, profil `profile.py`, moteu
   routeur : décidée par son propre appel, seulement quand un tableau est joint), enregistrements `task: "data_plan"`
   de `scripts/build_tools_mix.py` (4 formes de tableaux × 14 gabarits FR/EN + négatifs, 2 gabarits tenus à l'écart),
   cas fixes `DATA_PLAN` / `LIVE_8` de `scripts/router_data.py`, mesure `scripts/data_eval.py`, famille
-  `data_analysis` du banc de déclenchement (24/24).
+  `data_analysis` du banc de déclenchement (24/24) et famille `data_earlier` (tableau joint à un message précédent).
+- **Un tableau d'un message précédent** (l'application renvoie toutes les pièces jointes à chaque tour, marquées
+  `fresh` quand ce message les apporte) n'est repris que si le planificateur demande une analyse : « Quelle est la
+  population de Canberra ? » après une analyse de `ventes.csv` n'a ni fiche, ni note, ni contrôle des chiffres, et la
+  réponse du modèle reste la sienne. Les gabarits des règles ne partent plus d'un simple « quel / combien » : il faut
+  nommer une colonne, une valeur, une année ou une période des dates, les lignes, ou le fichier avec un mot de calcul
+  (`ask.refers_to_table`).
 
-**Mesure hors ligne (règles seules, 14 cas fixes de `DATA_PLAN`)** : 8/14 analyses justes (2/8 sur les 8 cas
+**Faux déclenchements, tableau déjà dans la conversation (revue du 28/11/2026, hors ligne, mêmes jeux avant /
+après)** : famille `data_earlier` du banc de déclenchement (8 demandes sur le tableau, 12 sans rapport) **8/20 → 20/20**
+(12/12 tours sans rapport avec fiche et contrôle avant, 0/12 après ; les 8 demandes sur le tableau restent calculées) ;
+`DATA_PLAN` (règles, 6 cas négatifs ajoutés) **8/20 → 14/20** ; banc complet 1485/1485 → 1505/1505 (20 cas ajoutés).
+En `hybrid`, un `null` du modèle sur ces 6 cas donnait avant le gabarit « somme du CA » (6/6) ; après, aucun calcul.
+
+**Mesure hors ligne (règles seules, 14 cas fixes de `DATA_PLAN` d'origine)** : 8/14 analyses justes (2/8 sur les 8 cas
 `LIVE_8`), 12/14 graphiques acceptables. Les règles manquent « quel commercial a vendu le plus d'unités », la
 moyenne mobile, le croisement région × produit, le top 5 filtré sur une région, l'évolution en %, la part par produit.
 

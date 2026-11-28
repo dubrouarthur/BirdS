@@ -584,6 +584,8 @@ class DemoBackend:
         scenario = pick_scenario(last, bool(request.attachments))
         if scenario in ("attachment", "plain", "chart") and run.data_prep() is not None:
             scenario = "data"  # data analysis hook: a CSV / XLSX or a pasted table, computed by the harness
+        elif scenario == "attachment" and not run.data_prep_new():
+            scenario = pick_scenario(last)  # only files of earlier messages, and none of them is asked about
         if scenario != "data" and demo_plan(last, lang) and not request.attachments:
             scenario = "plan"  # a deck and a mail in one ask: the task plan's checklist (w1-harness)
         if scenario == "plain" and not request.attachments:
@@ -771,10 +773,18 @@ class _DemoRun:
                     (tmp / name).write_text(doc["content"], encoding="utf-8")
                 names.append(name)
             self._data = data_hooks.prepare(tmp, list(reversed(names)), words, self.lang,
-                                            history=self.req.messages[:-1])  # rules only: no model in the demo
+                                            history=self.req.messages[:-1],
+                                            fresh=data_hooks.brought(self.req.attachments, self.req.messages[:-1]))
+            # rules only: no model in the demo
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
         return self._data
+
+    def data_prep_new(self) -> bool:
+        """Whether this message brings an attachment (the others were read by earlier turns)."""
+        from birds.harness.analysis import hooks as data_hooks
+
+        return bool(data_hooks.brought(self.req.attachments, self.req.messages[:-1]))
 
     def scenario_data(self) -> None:
         from birds.harness.analysis.card import explain
@@ -2350,7 +2360,8 @@ class HarnessBackend:
                 # the model gets the result and only explains it (birds/harness/analysis/hooks.py)
                 from birds.harness.analysis import hooks as data_hooks
 
-                data_prep = data_hooks.prepare(workspace, names, words, rl, **self._data_planner(agent, cfg, request))
+                data_prep = data_hooks.prepare(workspace, names, words, rl, **self._data_planner(agent, cfg, request),
+                                               fresh=data_hooks.brought(request.attachments, request.messages[:-1]))
                 if data_prep is not None:
                     user_sent = data_hooks.strip_note(user_sent) + data_prep.note
                 ctx.emit({"type": "user", "content": user_sent})

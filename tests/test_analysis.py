@@ -472,6 +472,28 @@ def test_demo_chat_with_a_csv_shows_the_card(client):
     assert len(card2["answer"]["chart"]["labels"]) == 8 and '"version":2' in answer2["memo"]
 
 
+def test_demo_an_unrelated_question_after_a_table_gets_no_card(client):
+    # review 28/11/2026: turn 2 « Quelle est la population de Canberra ? » showed « Total CA (€) » and a card, v2
+    content = (DATA / "ventes.csv").read_text(encoding="utf-8")
+    body = {"messages": [{"role": "user", "content": "quel est le CA moyen par mois ?"}], "lang": "fr",
+            "attachments": [{"name": "ventes.csv", "content": content, "fresh": True}]}  # fmt: skip
+    events = [json.loads(f[6:]) for f in client.post("/api/chat", json=body).text.split("\n\n") if f.startswith("data: ")]
+    answer = next(e for e in events if e["type"] == "answer")
+    body["messages"] += [{"role": "assistant", "content": answer["content"], "memo": answer["memo"]},
+                         {"role": "user", "content": "Quelle est la population de Canberra ?"}]  # fmt: skip
+    body["attachments"][0]["fresh"] = False
+    events = [json.loads(f[6:]) for f in client.post("/api/chat", json=body).text.split("\n\n") if f.startswith("data: ")]
+    answer2 = next(e for e in events if e["type"] == "answer")
+    assert not any(w.get("type") == "datacard" for w in answer2.get("widgets") or [])
+    assert "CA" not in answer2["content"] and "Analyse de" not in (answer2.get("memo") or "")
+    # the same table, asked about again: computed on, with no need to attach it again
+    body["messages"] += [{"role": "assistant", "content": answer2["content"]},
+                         {"role": "user", "content": "top 3 des clients"}]  # fmt: skip
+    events = [json.loads(f[6:]) for f in client.post("/api/chat", json=body).text.split("\n\n") if f.startswith("data: ")]
+    answer3 = next(e for e in events if e["type"] == "answer")
+    assert answer3["widgets"][0]["type"] == "datacard" and answer3["widgets"][0]["answer"]["query"]["top"] == 3
+
+
 def test_csv_text_is_not_bigger_than_needed():
     t = read_text_table("a;b\n" + "\n".join(f"{i};{i * 1.5}".replace(".", ",") for i in range(60000)), "big.csv")
     assert t.shape == (50000, 2) and t.meta["truncated"]
