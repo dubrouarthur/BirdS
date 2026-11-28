@@ -83,6 +83,9 @@ MAP_NO = [
     "où est passé mon fichier ?",
 ]
 WEATHER_YES = [  # (phrase, the place the harness must pre-call get_weather with)
+    # a person addressed before the place (« à Julie qui … ») is never the place
+    ("Réponds à Julie qui me demande s'il fera beau à Nice ce week-end", "Nice"),
+    ("Dis à Paul qu'il fera beau à Lyon demain ?", "Lyon"),
     ("météo à Lyon demain", "Lyon"),
     ("il va pleuvoir à Nantes ?", "Nantes"),
     ("quel temps pour jeudi à Lille", "Lille"),

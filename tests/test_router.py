@@ -614,3 +614,14 @@ def test_a_reply_to_write_never_starts_the_weather(text, mode):
                                                  "Grenoble" if "Grenoble" in text else "Lyon"}}])  # fmt: skip
     d = R.decide(FakeClient([model]), TOK, text, mode=mode)
     assert "get_weather" not in d.tools()
+
+
+@pytest.mark.parametrize(
+    "text,place",
+    [
+        ("Réponds à Julie qui me demande s'il fera beau à Nice ce week-end", "Nice"),
+        ("Dis à Paul qu'il fera beau à Lyon demain ?", "Lyon"),
+    ],
+)
+def test_a_person_addressed_is_never_the_weather_place(text, place):
+    assert R.regex_decision(text).get("get_weather").args["place"] == place

@@ -1084,8 +1084,12 @@ def _wx_place(t: str) -> str:
     """The first plausible place in ``t`` (the day words already removed), or ''."""
     for m in _WX_PLACE.finditer(t):
         words: list[str] = []
+        person = False
         for w in m.group("p").split():
             lw = w.lower().strip("'")
+            if lw in ("qui", "que", "who") or re.match(r"qu['’]", lw):
+                person = True  # « réponds à Julie qui me demande … », « dis à Paul qu'il … »: a person, not a place
+                break
             if lw in _WX_STOP or (lw in _WX_CUT and (words or lw not in ("a",))):
                 break
             words.append(w)
@@ -1108,7 +1112,7 @@ def _wx_place(t: str) -> str:
         ):
             words.pop(0)  # « météo de Marseille »
         name = " ".join(words).strip(" '-")
-        if len(name) < 2 or name.lower() in _WX_STOP or name.isdigit() or not _ok(name) or _not_a_place(name):
+        if person or len(name) < 2 or name.lower() in _WX_STOP or name.isdigit() or not _ok(name) or _not_a_place(name):
             continue
         return name
     return ""
