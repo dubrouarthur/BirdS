@@ -219,6 +219,8 @@ def harness_config(s: Settings) -> dict:
         "searxng_url": s.searxng_url,
         "brave_api_key": s.brave_api_key,
         "tavily_api_key": s.tavily_api_key,
+        "twelvedata_api_key": s.twelvedata_api_key,
+        "coingecko_api_key": s.coingecko_api_key,
         "search_default": s.search_default,
         "search_contact": s.search_contact,
         "pin_dns": s.pin_dns,
@@ -1077,6 +1079,11 @@ def create_app(
     @app.get("/manifest.webmanifest", include_in_schema=False)
     def manifest() -> FileResponse:
         return FileResponse(STATIC_DIR / "manifest.webmanifest", media_type="application/manifest+json")
+
+    @app.get("/install.sh", include_in_schema=False)
+    def install_script() -> FileResponse:
+        # « curl -fsSL https://<site>/install.sh | sh »: Bird and its model on the user's own machine (docs/LOCAL.md)
+        return FileResponse(Path(__file__).with_name("install.sh"), media_type="text/plain; charset=utf-8")
 
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon() -> FileResponse:

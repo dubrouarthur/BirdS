@@ -109,7 +109,12 @@ const setStorage = ([p, pair]) => {
 };
 
 async function openModelSettings(page) {
-  await page.click("#btn-model");
+  // the model pill opens the model choice; on a phone the pill shows only in Bird local, else the menu leads there
+  if (await page.locator("#btn-model").isVisible()) await page.click("#btn-model");
+  else {
+    await page.click("#btn-menu");
+    await page.click("#nav-settings");
+  }
   await page.waitForSelector("#settings-model");
 }
 async function chooseLocal(page) {

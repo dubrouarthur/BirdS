@@ -711,6 +711,7 @@ function updateJump() {
     label.dataset.i18n = key;
     label.textContent = t(key);
   }
+  btn.title = t(key); // a round arrow, as in other chat apps: its words on hover and for screen readers
 }
 
 // ------------------------------------------------------------------ composer

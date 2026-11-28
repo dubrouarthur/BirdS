@@ -95,6 +95,8 @@ class Settings:
     searxng_url: str | None = None
     brave_api_key: str | None = field(default=None, repr=False)
     tavily_api_key: str | None = field(default=None, repr=False)
+    twelvedata_api_key: str | None = field(default=None, repr=False)  # share and index prices (finance.py)
+    coingecko_api_key: str | None = field(default=None, repr=False)  # optional: raises the crypto quota
     search_default: str = "wikipedia"  # "wikipedia" (no key) or "none"
     search_contact: str | None = None  # contact in the User-Agent sent to Wikipedia
     # the canvas (birds.canvas): a creation ask is written in the content format beside the chat. Off
@@ -253,6 +255,8 @@ class Settings:
         return cls(
             brave_api_key=get("BIRD_BRAVE_API_KEY"),
             tavily_api_key=get("BIRD_TAVILY_API_KEY"),
+            twelvedata_api_key=get("BIRD_TWELVEDATA_API_KEY"),
+            coingecko_api_key=get("BIRD_COINGECKO_API_KEY"),
             search_default="none"
             if (get("BIRD_SEARCH_DEFAULT") or "").lower() in ("none", "off", "0")
             else "wikipedia",

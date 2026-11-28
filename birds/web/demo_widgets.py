@@ -13,6 +13,9 @@ from urllib.parse import parse_qs, urlsplit
 
 DATA = Path(__file__).parent / "demo_data"
 MET_RECORDED = "2026-11-23T07:30:00+00:00"
+# markets (get_quote): CoinGecko and ECB answers recorded by scripts/finance_live.py --demo --record (finance.json);
+# replays run at that instant, so the card's dates and ranges are those of the recording
+FINANCE_RECORDED = "2026-11-28T09:30:00+00:00"
 _MET = {
     (45.7578, 4.832): "lyon",
     (50.6366, 3.0635): "lille",
@@ -41,8 +44,10 @@ _OPENDATA: dict | None = None
 def _opendata(url: str):
     global _OPENDATA
     if _OPENDATA is None:
-        p = DATA / "opendata.json"
-        _OPENDATA = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+        _OPENDATA = {}
+        for name in ("opendata.json", "finance.json"):  # finance: markets (scripts/finance_live.py --demo)
+            p = DATA / name
+            _OPENDATA.update(json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {})
     return _OPENDATA.get(opendata_key(url))
 
 
@@ -128,6 +133,10 @@ def run_tool(tool: str, args: dict, lang: str, charts: list | None = None):
         from datetime import datetime
 
         ctx.now = datetime.fromisoformat(MET_RECORDED)  # the instant the forecasts were recorded
+    if tool == "get_quote":
+        from datetime import datetime
+
+        ctx.now = datetime.fromisoformat(FINANCE_RECORDED)  # the instant the prices were recorded
     text = TOOLS[tool](args, ctx)
     if charts is not None:
         charts.extend(ctx.charts)

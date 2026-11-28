@@ -26,6 +26,7 @@ from birds.harness.agent import (  # noqa: E402
 from birds.web.widgets import event_widget  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import bench_finance  # noqa: E402  (markets: shares, indices, crypto, currency pairs)
 import bench_maps  # noqa: E402  (maps: 200 realistic asks + 60 office prompts, 30 + 15 held out)
 import bench_opendata  # noqa: E402  (open data: holidays, entity cards, statistics, tenders, papers, communes)
 
@@ -1247,6 +1248,10 @@ if __name__ == "__main__":
          bench_opendata.touched),
         # every "no" of the other families, office prompts first: none may start an open-data card
         ("opendata_cross", [], opendata_cross_no(), bench_opendata.touched),
+        ("finance", bench_finance.FINANCE_YES, bench_finance.FINANCE_NO, bench_finance.started, bench_finance.touched),
+        # every "no" of the other families (office prompts, charts, maps, company and currency…): no market card
+        ("finance_cross", [], [q for q in opendata_cross_no() + bench_opendata.OPENDATA_NO
+                               if q not in bench_finance.OTHER_FAMILIES_YES], bench_finance.touched),
     ):
         ok, n = bench(*args)
         total[0] += ok

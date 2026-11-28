@@ -28,6 +28,9 @@ soit depuis le chat hébergé (https://bird-s.vercel.app), soit directement dans
    tapez le code, « Se connecter au Bird local ». La pastille affiche « Bird local » (badge vert calme) ; « Revenir au
    modèle hébergé » vous ramène au modèle hébergé, « Oublier le code » l'efface de ce navigateur.
 
+Tout-en-un : `curl -fsSL https://bird-s.vercel.app/install.sh | sh` installe Bird dans `~/.bird`, démarre vLLM puis
+cette commande, et ouvre la page déjà appairée (`sh ~/.bird/stop.sh` pour arrêter).
+
 Options : `--vllm-url URL` (défaut `http://127.0.0.1:8000/v1`), `--model NOM` (défaut : le modèle servi, un Bird de
 préférence), `--port 8765`, `--allow-origin ORIGINE` (répétable, remplace la liste par défaut), `--no-browser`,
 `--new-code` (nouveau code, l'ancien ne marche plus), `--measure-gpu` (énergie mesurée par nvidia-smi),

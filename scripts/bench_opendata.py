@@ -195,7 +195,9 @@ def touched(q: str) -> bool:
     """Any open-data call started (a "no" must start none)."""
     from birds.harness import opendata_intents
 
-    return any(i.args for i in opendata_intents.detect(q, False, "en" if _en(q) else "fr", today=TODAY))
+    # get_quote is the market family's (bench_finance.py)
+    return any(i.args and i.tool != "get_quote" for i in opendata_intents.detect(q, False, "en" if _en(q) else "fr",
+                                                                                 today=TODAY))
 
 
 def _en(q: str) -> bool:

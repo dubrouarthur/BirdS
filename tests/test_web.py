@@ -717,8 +717,10 @@ def test_static_payload_budget():
     # and Word-like documents in the canvas (canvas-doc.js, A4 pages, variants: +47 kB raw, +12 kB gzipped)
     # then the canvas code mode (several files, preview by device, console with file:line, per-file versions, zip:
     # +37 kB raw, +11 kB gzipped)
+    # and the quote card (finance.js/.css: +17 kB raw, ~4 kB gzipped)
+    # and the UX pass (calm wake-up line and bar, mail card recipient hints and blanks, lighter phone top bar)
     # and Bird local (settings choice, connect flow, « ne répond pas » card, request routing: +34 kB raw, +9 kB gz)
-    assert total < 1_560_000, f"static payload is {total} bytes"  # measured 1 546 046 (+ Bird local)
+    assert total < 1_580_000, f"static payload is {total} bytes"  # measured 1 570 821 (+ Bird local)
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"
@@ -1446,3 +1448,14 @@ def test_a_flagged_page_asks_only_for_a_draft_to_someone_the_user_never_named():
     )
     assert guard.needs_approval("draft_email", {"to": ["a@b.fr"], "body": "écrivez à x@evil.test"}, said)
     assert guard.needs_approval("make_slides", {"title": "T"}, None)  # the stricter rule when asked
+
+
+def test_install_script_is_served_as_plain_text_and_binds_locally():
+    """« curl -fsSL …/install.sh | sh »: served as text, Bird listens on 127.0.0.1 only, no secret written."""
+    with TestClient(create_app(settings())) as client:
+        r = client.get("/install.sh")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    body = r.text
+    assert body.startswith("#!/bin/sh") and "set -eu" in body
+    assert "--host 127.0.0.1" in body and "0.0.0.0" not in body
+    assert "HF_TOKEN=" not in body.replace("HF_TOKEN        jeton", "")

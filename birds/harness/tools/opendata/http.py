@@ -42,6 +42,10 @@ HOSTS: dict[str, tuple[float, float]] = {
     "api.crossref.org": (0.3, DAY),
     "geo.api.gouv.fr": (0.05, 7 * DAY),
     "data.geopf.fr": (0.05, 7 * DAY),
+    # markets (finance.py): end-of-day closes, a few minutes for crypto, the ECB's daily reference rates
+    "api.twelvedata.com": (0.3, 900.0),  # licensed feed, behind BIRD_TWELVEDATA_API_KEY (8 requests/min on Basic)
+    "api.coingecko.com": (1.0, 300.0),  # keyless public API: IP-based quota, attribution required
+    "data-api.ecb.europa.eu": (0.2, 6 * 3600.0),  # ECB Data Portal (EXR), free reuse with the source quoted
 }
 for _host, (_gap, _) in HOSTS.items():
     geo.INTERVALS.setdefault(_host, _gap)
@@ -67,9 +71,10 @@ def _no_store(headers: dict) -> bool:
 
 def get(ctx, u: str, *, ttl: float | None = None, text: bool = False, accept: str = "application/json",
         types: tuple[str, ...] = ("application/json", "application/geo+json", "text/json", "application/vnd.api+json"),
-        miss_ttl: float = 3600.0, max_bytes: int = MAX_BYTES):  # fmt: skip
+        miss_ttl: float = 3600.0, max_bytes: int = MAX_BYTES, headers: dict | None = None):  # fmt: skip
     """JSON (or text) at ``u``, a URL built by the caller from a fixed base. Recorded answers when ``ctx.recorded``
-    is set (the scripted demo and the tests): no network at all."""
+    is set (the scripted demo and the tests): no network at all. ``headers``: an API key header (never in the URL,
+    so neither the cache key nor a log line carries it)."""
     host = host_of(u)
     if host not in HOSTS:
         raise Blocked(f"host not allowed for open data: {host or '?'}")
@@ -94,7 +99,7 @@ def get(ctx, u: str, *, ttl: float | None = None, text: bool = False, accept: st
     for attempt in (0, 1):
         try:
             _, _, body, hdrs = guard.fetch_bytes(
-                ctx.http, cfg, u, accept=accept, types=types, max_bytes=max_bytes, user_agent=USER_AGENT,
+                ctx.http, cfg, u, accept=accept, types=types, max_bytes=max_bytes, user_agent=USER_AGENT, headers=headers,
                 timeout=min(TIMEOUT, cfg.http_timeout), redirect_ok=lambda nxt: host_of(nxt) == host,
             )  # fmt: skip
             break
