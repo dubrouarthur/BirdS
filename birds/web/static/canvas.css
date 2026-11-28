@@ -2,47 +2,151 @@
    Slides and pages are "paper": they keep their theme's light colours in dark mode, like a real file; the panel's
    chrome follows the app's tokens. Themes mirror the office engine's palettes (birds/harness/office.py THEMES). */
 
+/* Theme palettes: the SAME values as birds/canvas/deck_pptx.py PALETTES (a test compares them), so the exported
+   .pptx looks like this preview. --d-* are the palette, --t-* what the drawing code reads. */
+.cv {
+  --deck-sans: Carlito, Calibri, var(--sans);
+  --deck-serif: Georgia, "Times New Roman", serif;
+}
+
 .cvt-corporate {
-  --t-navy: #0b1b3f;
-  --t-accent: #1e5bd8;
-  --t-ink: #121a2e;
-  --t-muted: #586078;
-  --t-soft: #e2e9f8;
-  --t-tint: #f4f6fb;
-  --t-bg: #ffffff;
+  --d-bg: #ffffff;
+  --d-ink: #121a2e;
+  --d-head: #0b1b3f;
+  --d-accent: #1e5bd8;
+  --d-muted: #586078;
+  --d-soft: #e2e9f8;
+  --d-tint: #f4f6fb;
+  --d-hair: #d9dee8;
+  --d-dark: #0b1b3f;
+  --d-on-dark: #c9d3ea;
+  --d-accent2: #5bd69b;
+  --t-navy: var(--d-head);
+  --t-accent: var(--d-accent);
+  --t-accent2: var(--d-accent2);
+  --t-ink: var(--d-ink);
+  --t-muted: var(--d-muted);
+  --t-soft: var(--d-soft);
+  --t-tint: var(--d-tint);
+  --t-bg: var(--d-bg);
   --t-pos: #1a8a5a;
   --t-neg: #b23b2a;
-  --t-on-dark: #c9d3ea;
-  --t-hair: #d9dee8;
-  --t-head: var(--sans);
+  --t-on-dark: var(--d-on-dark);
+  --t-hair: var(--d-hair);
+  --t-dark: var(--d-dark);
+  --t-head: var(--deck-sans);
 }
-.cvt-modern {
-  --t-navy: #111827;
-  --t-accent: #0d9488;
-  --t-ink: #0f172a;
-  --t-muted: #64748b;
-  --t-soft: #ccfbf1;
-  --t-tint: #f1f5f9;
-  --t-bg: #ffffff;
-  --t-pos: #0f8a6a;
-  --t-neg: #b4372a;
-  --t-on-dark: #cbd5e1;
-  --t-hair: #e2e8f0;
-  --t-head: var(--sans);
+
+.cvt-forest {
+  --d-bg: #fbfcf8;
+  --d-ink: #14231b;
+  --d-head: #12301f;
+  --d-accent: #2e7d52;
+  --d-muted: #5c6b61;
+  --d-soft: #ddeed6;
+  --d-tint: #f2f7ef;
+  --d-hair: #dce5da;
+  --d-dark: #12301f;
+  --d-on-dark: #d3e6d5;
+  --d-accent2: #c9a227;
+  --t-navy: var(--d-head);
+  --t-accent: var(--d-accent);
+  --t-accent2: var(--d-accent2);
+  --t-ink: var(--d-ink);
+  --t-muted: var(--d-muted);
+  --t-soft: var(--d-soft);
+  --t-tint: var(--d-tint);
+  --t-bg: var(--d-bg);
+  --t-pos: #1f7a4a;
+  --t-neg: #b23b2a;
+  --t-on-dark: var(--d-on-dark);
+  --t-hair: var(--d-hair);
+  --t-dark: var(--d-dark);
+  --t-head: var(--deck-sans);
 }
+
 .cvt-warm {
-  --t-navy: #3b1f14;
-  --t-accent: #c2410c;
-  --t-ink: #2b1d16;
-  --t-muted: #7c6a5e;
-  --t-soft: #fde7d7;
-  --t-tint: #f8eee4;
-  --t-bg: #fffcf8;
+  --d-bg: #fffcf8;
+  --d-ink: #2b1d16;
+  --d-head: #3b1f14;
+  --d-accent: #c2410c;
+  --d-muted: #7c6a5e;
+  --d-soft: #fde7d7;
+  --d-tint: #f8eee4;
+  --d-hair: #eadfd3;
+  --d-dark: #3b1f14;
+  --d-on-dark: #f3e5d8;
+  --d-accent2: #e8a26b;
+  --t-navy: var(--d-head);
+  --t-accent: var(--d-accent);
+  --t-accent2: var(--d-accent2);
+  --t-ink: var(--d-ink);
+  --t-muted: var(--d-muted);
+  --t-soft: var(--d-soft);
+  --t-tint: var(--d-tint);
+  --t-bg: var(--d-bg);
   --t-pos: #2f7d4f;
   --t-neg: #b23b2a;
-  --t-on-dark: #f3e5d8;
-  --t-hair: #eadfd3;
-  --t-head: var(--serif);
+  --t-on-dark: var(--d-on-dark);
+  --t-hair: var(--d-hair);
+  --t-dark: var(--d-dark);
+  --t-head: var(--deck-serif);
+}
+
+.cvt-night {
+  --d-bg: #0f1424;
+  --d-ink: #e8ecf5;
+  --d-head: #ffffff;
+  --d-accent: #7fa4ff;
+  --d-muted: #9aa4bc;
+  --d-soft: #232b42;
+  --d-tint: #161c2e;
+  --d-hair: #2a3350;
+  --d-dark: #070a14;
+  --d-on-dark: #c9d3ea;
+  --d-accent2: #a78bfa;
+  --t-navy: var(--d-head);
+  --t-accent: var(--d-accent);
+  --t-accent2: var(--d-accent2);
+  --t-ink: var(--d-ink);
+  --t-muted: var(--d-muted);
+  --t-soft: var(--d-soft);
+  --t-tint: var(--d-tint);
+  --t-bg: var(--d-bg);
+  --t-pos: #5bd69b;
+  --t-neg: #ff8a7a;
+  --t-on-dark: var(--d-on-dark);
+  --t-hair: var(--d-hair);
+  --t-dark: var(--d-dark);
+  --t-head: var(--deck-sans);
+}
+
+.cvt-modern {
+  --d-bg: #ffffff;
+  --d-ink: #0f172a;
+  --d-head: #111827;
+  --d-accent: #0d9488;
+  --d-muted: #64748b;
+  --d-soft: #ccfbf1;
+  --d-tint: #f1f5f9;
+  --d-hair: #e2e8f0;
+  --d-dark: #111827;
+  --d-on-dark: #cbd5e1;
+  --d-accent2: #6366f1;
+  --t-navy: var(--d-head);
+  --t-accent: var(--d-accent);
+  --t-accent2: var(--d-accent2);
+  --t-ink: var(--d-ink);
+  --t-muted: var(--d-muted);
+  --t-soft: var(--d-soft);
+  --t-tint: var(--d-tint);
+  --t-bg: var(--d-bg);
+  --t-pos: #0f8a6a;
+  --t-neg: #b23b2a;
+  --t-on-dark: var(--d-on-dark);
+  --t-hair: var(--d-hair);
+  --t-dark: var(--d-dark);
+  --t-head: var(--deck-sans);
 }
 
 /* ------------------------------------------------------------ the panel */

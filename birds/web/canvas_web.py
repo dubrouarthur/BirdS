@@ -301,7 +301,7 @@ class ExportIn(BaseModel):
 class ImageIn(BaseModel):
     query: str = Field(min_length=1, max_length=120)
     exclude: list[str] = Field(default_factory=list, max_length=8)
-    theme: Literal["corporate", "modern", "warm"] | None = None
+    theme: Literal["corporate", "modern", "warm", "forest", "night"] | None = None
     lang: Literal["fr", "en"] = "fr"
     mid: str | None = Field(default=None, pattern=r"^[a-z]{1,2}\d{1,4}$")
 
@@ -407,7 +407,7 @@ def make_router(settings, guard_request, check_access, resolve_mode, fetch_clien
             client = fetch_client(settings)  # a fresh client per call (server.image_client: never None)
             try:
                 cfg = Config(workspace=__import__("pathlib").Path("."), audit_file=None, pin_dns=settings.pin_dns)
-                m = images.search_commons(body.query, om.Fetcher(client, cfg), body.exclude, mid,
+                m = images.search_web(body.query, om.Fetcher(client, cfg), body.exclude, mid,
                                           deadline=time.monotonic() + 12)  # fmt: skip
             finally:
                 if client is not None:
