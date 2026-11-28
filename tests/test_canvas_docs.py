@@ -262,15 +262,18 @@ def test_an_adopted_word_document_opens_in_the_canvas_with_one_card():
     assert run.answer.startswith("Le document de cadrage est prêt.") and run.answer.endswith("l'ajuster.")
 
 
-def test_a_deck_made_by_the_trained_tool_keeps_its_file_card():
+def test_a_deck_made_by_the_trained_tool_opens_in_the_canvas_as_one_card():
+    """« un ppt sur … » (a phrasing the canvas hint misses): the model's make_slides deck opens in the canvas, its
+    card replaces the old file card and the « Fichier : t.pptx » line, as a document does."""
     from birds.web import canvas_web
 
     run = SimpleNamespace(steps=[SimpleNamespace(tool="make_slides", error=None, arguments={
         "title": "T", "slides": [{"title": "A", "bullets": ["x"]}, {"title": "B", "bullets": ["y"]}]})],
-        canvas=None, answer="Fichier : t.pptx", files=["t.pptx"])  # fmt: skip
+        canvas=None, answer="La présentation est prête.\n\nFichier : t.pptx", files=["t.pptx"])  # fmt: skip
     canvas_web.adopt_files(run, None, "fr", "")
     ref = canvas_web.ref(run)
-    assert ref["open"] is False and "files" not in ref and run.answer == "Fichier : t.pptx"
+    assert ref["open"] is True and ref["kind"] == "deck" and ref["files"] == ["t.pptx"]
+    assert run.answer == "La présentation est prête."
 
 
 def test_strip_file_lines_keeps_the_rest():
@@ -285,3 +288,18 @@ def test_chat_text_of_a_document_says_its_template_and_version():
     assert "note de cadrage, 5 sections" in turn.chat_text("doc", d, "fr")
     assert turn.chat_text("doc", d, "fr", verb="patch", version=3).startswith("Version 3 du document")
     assert "Fichier" not in turn.chat_text("doc", d, "fr")
+
+
+def test_code_the_model_wrote_as_a_document_opens_as_code_with_its_preview():
+    """« code moi une mini calculatrice web » answered with make_document(title='mini-calculatrice.html'): the canvas
+    shows the page in code mode (live preview), never a one-section « Rapport » with .docx / PDF buttons."""
+    from birds.web import canvas_web
+
+    page = "<!DOCTYPE html><html><body><button id='b'>1</button><script>document.title='ok'</script></body></html>"
+    run = SimpleNamespace(steps=[SimpleNamespace(tool="make_document", error=None, arguments={
+        "title": "mini-calculatrice.html", "sections": [{"heading": "Code", "content": page}]})],
+        canvas=None, answer="Voici votre mini calculatrice :\n\nmini-calculatrice.html", files=["mini-calculatrice.html.docx"])  # fmt: skip
+    canvas_web.adopt_files(run, None, "fr", "code moi une mini calculatrice web")
+    ref = canvas_web.ref(run)
+    assert ref["kind"] == "code" and ref["open"] is True and ref["files"] == ["mini-calculatrice.html.docx"]
+    assert [f["name"] for f in ref["doc"]["code"]["files"]] == ["mini-calculatrice.html"]
