@@ -195,6 +195,34 @@ async function send(page, text) {
     if (!(await card2.locator(".dk-fold").count())) problems.push(`${name}: the table is not folded in the follow-up`);
     if ((await card2.locator(".dk-next-chip").count()) < 2) problems.push(`${name}: no next steps after the edit`);
     await card2.screenshot({ path: path.join(OUT, `datacard-v2-${name}.png`) });
+    // ---- review 28/11/2026: an unrelated question, the table still attached: no card, the answer is not « Total CA »
+    await send(page, "Quelle est la population de Canberra ?");
+    const off = page.locator(".turn-bird").last();
+    if (await off.locator(".dk-card").count()) problems.push(`${name}: an unrelated turn shows the data card`);
+    if (/Total CA|CA \(€\)/.test(await off.innerText())) problems.push(`${name}: an unrelated turn answers with the CA`);
+    await off.screenshot({ path: path.join(OUT, `unrelated-${name}.png`) });
+    // a total: version 1 (not an edit of the quarterly chart), with next steps that keep the measure
+    await send(page, "quel est le CA total ?");
+    const card3 = page.locator(".turn-bird").last().locator(".dk-card");
+    if (!(await card3.count())) problems.push(`${name}: no card for the total`);
+    else {
+      if (await card3.locator(".dk-version", { hasText: /Version [2-9]/ }).count())
+        problems.push(`${name}: an unrelated analysis is numbered as a new version`);
+      const n3 = await card3.locator(".dk-next-chip").count();
+      if (n3 < 2) problems.push(`${name}: the total has ${n3} next steps`);
+      await card3.screenshot({ path: path.join(OUT, `datacard-total-${name}.png`) });
+      const t3 = await page.locator(".turn-bird").count();
+      await card3.locator(".dk-next-chip", { hasText: "Par Région" }).click();
+      await page.waitForFunction((n) => document.querySelectorAll(".turn-bird").length > n &&
+        !document.querySelector('.turn-bird[aria-busy="true"]'), t3, { timeout: 60000 }); // prettier-ignore
+      await page.waitForTimeout(600);
+      const card4 = page.locator(".turn-bird").last().locator(".dk-card");
+      if (!(await card4.locator(".dk-version", { hasText: "Version 2" }).count()))
+        problems.push(`${name}: « Par Région » after the total is not its version 2`);
+      const t4 = await card4.innerText();
+      if (!/Région/.test(t4) || !/CA/.test(t4)) problems.push(`${name}: « Par Région » lost the measure (${t4.slice(0, 80)})`);
+      await card4.screenshot({ path: path.join(OUT, `datacard-total-v2-${name}.png`) });
+    }
     await page.setViewportSize(vp);
     // ---- gallery of every chart type
     await page.evaluate(async (specs) => {
