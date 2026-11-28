@@ -3307,7 +3307,7 @@ thead .score {
   width: 18px;
   height: 18px;
 }
-.hp-ico.hp-water {
+.hp-ico.hp-blue {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
 }
@@ -3440,3 +3440,89 @@ thead .score {
   background: var(--surface);
 }
 /* ===================== fin RSE & sobriété (fi-site) ===================== */
+
+/* ---------- Liberté d'installation : « Installez Bird où vous voulez » ---------- */
+.where .section-head {
+  max-width: 40rem;
+}
+.where-list {
+  list-style: none;
+  margin: 2.25rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+.where-item {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  line-height: 1.3;
+}
+.where-item b {
+  display: block;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.where-k {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.where-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 14px;
+  background: var(--leaf-soft);
+  color: var(--leaf);
+}
+.where-ico svg {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+.where-item.is-place .where-ico {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+}
+.where-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1.25rem;
+  margin: 1.5rem 0 0;
+  color: var(--ink-2);
+}
+@media (min-width: 760px) {
+  .where-list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 1rem;
+  }
+  .where-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem 1.15rem 1.35rem;
+  }
+  .where-ico {
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 16px;
+  }
+  .where-ico svg {
+    width: 2.1rem;
+    height: 2.1rem;
+  }
+}
+@media (min-width: 760px) and (max-width: 1079px) {
+  .where-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
