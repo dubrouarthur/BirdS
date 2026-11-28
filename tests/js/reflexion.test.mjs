@@ -40,7 +40,8 @@ test("facts say only what the server checked", () => {
   const legacy = R.flightFacts({ level: "faucon", corrected: true, checks: { calcs: 1, calc_wrong: 0 } });
   assert.equal(legacy[0].key, "rf.fact.calc.ok.1");  // no flag: never claims a fix
   const warn = R.flightFacts({ level: "chouette", checks: { calcs: 2, calc_wrong: 1, points: 3, missing: 1 }, reviewed: true, cut: "repetition" });
-  assert.deepEqual(warn.map((f) => f.kind), ["warn", "warn", "ok", "info"]);
+  // a calculation is recomputed (a real error); a « missing » point is word overlap only: no warning about it
+  assert.deepEqual(warn.map((f) => f.key), ["rf.fact.calc.wrong", "rf.fact.review.ok", "rf.fact.cut.loop"]);
   assert.equal(R.flightFacts({ level: "hirondelle", checks: {}, cut: "think_budget" })[0].key, "rf.fact.cut.budget");
 });
 

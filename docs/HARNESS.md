@@ -729,7 +729,11 @@ de la réponse est recalculé par le harnais (priorités, parenthèses, pourcent
 en % ; « ≈ » jamais jugé ; « 3 + 4 × 2 = 14 » écrit de gauche à droite n'est pas une faute ; une étape
 intermédiaire « = 1 200 + 900 = 2 100 » n'est pas un résultat ; tolérance : l'arrondi affiché) ; un calcul faux de la
 réflexion compte seulement si son résultat faux est arrivé dans la réponse ; une demande à plusieurs points (liste
-numérotée, ou au moins deux questions) est vérifiée point par point. Ce qui ne va pas part en **un** rappel qui le
+numérotée, ou au moins deux questions) est vérifiée point par point, sur les seuls mots de l'utilisateur : le texte
+qu'il donne à répondre, résumer ou traduire (« réponds à ce mail : « … ? … ? » », « résume : - a - b ») et ce qui
+est cité ne sont jamais des points demandés (`router.own_words`, la lecture du routeur). Un point « manquant »
+n'est qu'un recouvrement de mots (un synonyme passe pour un oubli) : il déclenche le rappel, jamais un avertissement
+dans l'en-tête. Ce qui ne va pas part en **un** rappel qui le
 nomme (« 14,90 € × 24 = 357,60 (not 375,60) »), le modèle réécrit. **Relecture** (Chouette, Albatros) : une
 génération sans outils ni flux relit le brouillon et répond « OK » ou le texte corrigé (un « OK » ou une réponse
 trop courte garde le brouillon). **Résumé lisible** : trois ou quatre phrases de la réflexion du modèle lui-même

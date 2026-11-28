@@ -135,6 +135,30 @@ def test_points_asked_are_checked_one_by_one():
     assert R.missing_points(two, "Le prix TTC est 1 440 € ; livraison sous 5 jours.")[1] == []
 
 
+@pytest.mark.parametrize(
+    "req",
+    ["Réponds à ce mail de Paul : « Bonjour, pouvez-vous me confirmer votre présence jeudi ? Et pensez-vous pouvoir "
+     "apporter le rapport ? Merci »",
+     "Résume en une phrase ce compte rendu :\n- Budget 2027 validé\n- Recrutement de deux développeurs\n"
+     "- Déménagement en mars\n- Pot de départ de Julie vendredi",
+     "Traduis en anglais : Où est la gare ? À quelle heure part le train ?",
+     "Reply to this email from Paul: \"Can you confirm you're coming on Thursday? Can you bring the report?\"",
+     "Il m'a écrit « tu viens jeudi ? tu apportes le rapport ? », c'est poli ?"],
+)  # fmt: skip
+def test_text_handed_over_is_never_a_point_asked(req):
+    assert R.asked_points(req) == []
+    assert R.verify(req, "Bonjour Paul, je serai bien présent jeudi et j'apporterai le document.").ok
+
+
+def test_a_reply_with_a_synonym_costs_no_extra_generation(tmp_path):
+    ans = "<think>.</think>Bonjour Paul, je serai bien présent jeudi et j'apporterai le document. Bien à vous."
+    llm = FakeClient([ans, ans])
+    req = ("Réponds à ce mail de Paul : « Bonjour, pouvez-vous me confirmer votre présence jeudi ? Et pensez-vous "
+           "pouvoir apporter le rapport ? Merci »")  # fmt: skip
+    run = Agent(llm, Tok(), Config(workspace=tmp_path)).run(req, lang="fr", reflexion="faucon")
+    assert len(llm.prompts) == 1 and R.public(run.reflexion)["checks"]["missing"] == 0
+
+
 def test_a_wrong_figure_thought_and_written_counts():
     v = R.verify("combien ?", "Le total est 375,60 €.", "14,90 × 24 = 375,60")
     assert not v.ok and v.calc_wrong[0]["right"] == "357,60"

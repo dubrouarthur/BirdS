@@ -488,8 +488,14 @@ def _fold(text: str) -> str:
 
 def asked_points(request: str) -> list[str]:
     """The points of a request that asks several things: numbered or bulleted lines, else two questions or more.
-    [] for a request that asks one thing (nothing to check point by point)."""
+    [] for a request that asks one thing (nothing to check point by point). Only the user's own words count: the
+    text handed over to reply to, summarize or translate (« réponds à ce mail : « … ? … ? » », « résume : - a - b »)
+    and anything quoted are content to work on, never points asked (the router's own reading, ``own_words``)."""
+    from birds.harness import router
+
     req = request or ""
+    own = router.own_words(req)
+    req = router._QUOTED.sub(" ", req if own is None else own)
     lines = [m.group(1).strip() for m in _ASK_LINE.finditer(req)]
     if len(lines) >= 2:
         return lines[:8]
