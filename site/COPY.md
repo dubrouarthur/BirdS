@@ -334,7 +334,7 @@ Si vous avez une meilleure méthode, écrivez-nous. Nous la préférerons à la 
 
 Une question, une idée, une méthode plus juste ? Écrivez-nous.
 
-**contact@birdmodels.example**
+**Nous écrire →** (lien vers « Entraîner Bird » tant qu’aucune adresse n’est renseignée dans `config.js`)
 `[À REMPLACER : adresse de contact provisoire]`
 
 ---
@@ -658,7 +658,7 @@ If you have a better method, write to us. We'll prefer it to ours.
 
 A question, an idea, a better method? Write to us.
 
-**contact@birdmodels.example**
+**Nous écrire →** (lien vers « Entraîner Bird » tant qu’aucune adresse n’est renseignée dans `config.js`)
 `[TO BE REPLACED: placeholder contact address]`
 
 ---

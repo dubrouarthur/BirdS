@@ -49,7 +49,7 @@
       var cs = document.querySelectorAll("[data-contact]");
       for (var c = 0; c < cs.length; c++) {
         cs[c].setAttribute("href", "mailto:" + mail);
-        cs[c].textContent = mail;
+        cs[c].setAttribute("title", mail);
       }
     }
 
@@ -194,6 +194,15 @@
           }, i * step);
         });
       }
+      // Hors de l'écran, la scène revient à son état final : on ne retrouve jamais une carte vide.
+      function rest() {
+        stop();
+        scene.classList.remove("is-live");
+        items.forEach(function (el) {
+          el.classList.remove("is-on", "is-off");
+          if (el._full != null) el.textContent = el._full;
+        });
+      }
       function play() {
         stop();
         playing = true;
@@ -231,12 +240,13 @@
           entries.forEach(function (en) {
             if (en.isIntersecting && !playing) {
               if (shownFirst) {
-                shownFirst = false;
                 playing = true;
                 later(play, hold);
               } else play();
+            } else if (!en.isIntersecting && playing) {
+              rest();
+              shownFirst = true; // de retour à l'écran : l'échange complet d'abord, la reprise ensuite
             }
-            else if (!en.isIntersecting && playing) stop();
           });
         },
         { threshold: 0.35 },
