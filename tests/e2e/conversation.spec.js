@@ -105,6 +105,29 @@ part("background", async (page, name, fail, shot) => {
   await shot("r2-back");
 });
 
+// ---------------------------------------------------------------- R3: regenerate keeps the first answer (« ‹ 1/2 › »)
+part("versions", async (page, name, fail, shot) => {
+  await newChat(page);
+  await send(page, "Écris un mail à mon propriétaire pour signaler une fuite");
+  const first = await page.locator(".turn-bird").last().locator(".md").innerText();
+  await page.locator('.turn-bird [data-act="regenerate"]').last().click();
+  await page.waitForTimeout(500);
+  await idle(page);
+  const pager = page.locator(".turn-bird .cx-pager").last();
+  if ((await pager.getAttribute("data-versions")) !== "2/2") fail("R3: no 2/2 pager after regenerate");
+  if (await page.locator(".toast .toast-action").count()) fail("R3: an undo toast is still offered");
+  await shot("r3-pager");
+  await pager.locator('[data-act="ver-prev"]').click();
+  await page.waitForTimeout(300);
+  const back = await page.locator(".turn-bird").last().locator(".md").innerText();
+  if (back !== first) fail("R3: version 1/2 is not the first answer");
+  if ((await page.locator(".turn-bird .cx-pager").last().getAttribute("data-versions")) !== "1/2") fail("R3: pager not at 1/2");
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(800);
+  if ((await page.locator(".turn-bird .cx-pager").last().getAttribute("data-versions").catch(() => "")) !== "1/2")
+    fail("R3: the versions did not survive a reload");
+});
+
 (async () => {
   const browser = await chromium.launch();
   const problems = [];

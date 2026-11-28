@@ -36,6 +36,7 @@ import { canvasCard } from "./canvas.js";
 import { enhanceAnswer } from "./modules.js";
 import { renderChips, transforms } from "./followups.js";
 import { flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
+import { inlineEditor, versionPager } from "./conversation.js"; // « ‹ 1/2 › », editing a question in place
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1153,9 +1154,15 @@ function renderActions(turn, isLast) {
     handlers.onChange(turn);
     if (turn.feedback) toast(t("toast.feedback"), "ok");
   };
+  const turns = state.conv?.turns || [];
+  const at = turns.indexOf(turn);
+  // the answers to this question (regenerated): « ‹ 1/2 › »
+  const pager = at >= 0 && versionPager(turns, at, (j) => handlers.onVersion(at, j), state.busy);
   return h(
     "div",
     { class: "actions-row", role: "group", "aria-label": t("turn.bird") },
+    pager,
+    pager && h("span", { class: "actions-sep", "aria-hidden": "true" }),
     button(
       "btn-quiet btn-icon btn-small",
       "copy",
@@ -1169,7 +1176,7 @@ function renderActions(turn, isLast) {
         "btn-quiet btn-icon btn-small",
         "retry",
         t("act.regenerate"),
-        () => handlers.onRegenerate(),
+        () => handlers.onRegenerate(turn),
         { "data-act": "regenerate" },
       ),
     h("span", { class: "actions-sep", "aria-hidden": "true" }),
@@ -1205,6 +1212,14 @@ function renderActions(turn, isLast) {
         : []),
     ]),
   );
+}
+
+/** The versions of a turn that has no actions row (failed, stopped before any word), or null. */
+function pagerRow(turn) {
+  const turns = state.conv?.turns || [];
+  const at = turns.indexOf(turn);
+  const pager = at >= 0 && versionPager(turns, at, (j) => handlers.onVersion(at, j), state.busy);
+  return pager ? h("div", { class: "actions-row" }, pager) : null;
 }
 
 /** "Plus": a menu button (arrow keys, Home/End, Escape back to the button, closes on outside click). */
@@ -1348,7 +1363,7 @@ function renderError(turn, isLast) {
           "btn-outline btn-small",
           "retry",
           t("turn.retry"),
-          () => handlers.onRetry(),
+          () => handlers.onRetry(turn),
           { "data-act": "retry" },
         ),
     ),
@@ -1612,7 +1627,7 @@ function fillAssistant(el, turn, isLast) {
         h("span", { text: t("turn.looped") }),
         isLast &&
           !state.busy &&
-          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(), { "data-act": "restart" }),
+          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(turn), { "data-act": "restart" }),
       ),
     turn.status === "stopped" &&
       h(
@@ -1622,9 +1637,11 @@ function fillAssistant(el, turn, isLast) {
         h("span", { text: turn.stoppedAt ? t("turn.stopped.at", { step: toolLabel(turn.stoppedAt) }) : t("turn.stopped") }),
         isLast &&
           !state.busy &&
-          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(), { "data-act": "restart" }),
+          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(turn), { "data-act": "restart" }),
       ),
     renderActions(turn, isLast),
+    // a failed or stopped turn without text still shows its versions (it was a retry)
+    !turn.answer && turn.status !== "running" && pagerRow(turn),
     isLast && handlers.onSuggest && renderChips(turn, handlers.onSuggest, state.busy),
     renderReceipt(turn, isLast),
   ];

@@ -64,7 +64,7 @@ import { applyResearchEvent } from "./research.js";
 import { mountPicker, updatePicker } from "./reflexion.js"; // Mode Réflexion: the bird picker
 import { normalizeChoice, thinks } from "./reflexion-data.js";
 import * as cx from "./conversation.js"; // versions, inline edit, documents in context, dialogs, back button
-import { contextDocs } from "./conversation-data.js";
+import { contextDocs, fork, switchVersion, validGroup } from "./conversation-data.js";
 
 // Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
 const AGENT_MODES = ["auto", "on", "off"];
@@ -136,41 +136,54 @@ function slim(conv) {
     attachments: (conv.attachments || []).map((a) =>
       a.encoding === "base64" ? { ...a, content: null, lost: true } : a,
     ),
-    turns: conv.turns
-      // a signed state the server no longer accepts is not kept (it holds the pages read: up to ~160 kB)
-      .map((turn) => (turn.crew?.checkpoint && !(turn.crew.checkpointExp > Date.now() / 1000)
-        ? { ...turn, crew: { ...turn.crew, checkpoint: "", next: "", checkpointExp: 0 } }
-        : turn))
-      // a team at work is kept once it sent a checkpoint: after a reload, « Reprendre la tâche » continues it
-      .filter((turn) => turn.role === "user" || turn.status !== "running" || turn.crew?.checkpoint)
-      .map((turn) => {
-        // running, or between two slices of a long task: after a reload, the task resumes from its checkpoint
-        if (turn.role === "assistant" && (turn.status === "running" || turn.status === "slice"))
-          turn = {
-            ...turn,
-            status: "error",
-            error: { code: "dropped", message: t("error.dropped") },
-            crew: { ...turn.crew, next: "", done: { ok: false, dropped: true, caveats: [] } },
-          };
-        if (turn.role === "user")
-          return {
-            ...turn,
-            // images are never stored: only their name and size survive a reload
-            images: (turn.images || []).map(({ name, w, h: hh, sent }) => ({
-              name,
-              w,
-              h: hh,
-              sent,
-            })),
-          };
-        const { ui, live, text, ...rest } = turn;
-        return {
-          ...rest,
-          files: (rest.files || []).map((f) =>
-            f.data && f.data.length > KEEP_FILE_B64 ? { ...f, data: null } : f,
-          ),
-        };
-      }),
+    turns: slimTurns(conv.turns),
+  };
+}
+
+/** The turns as stored, the hidden versions (« ‹ 1/2 › ») included. */
+function slimTurns(list) {
+  return list
+    // a signed state the server no longer accepts is not kept (it holds the pages read: up to ~160 kB)
+    .map((turn) => (turn.crew?.checkpoint && !(turn.crew.checkpointExp > Date.now() / 1000)
+      ? { ...turn, crew: { ...turn.crew, checkpoint: "", next: "", checkpointExp: 0 } }
+      : turn))
+    // a team at work is kept once it sent a checkpoint: after a reload, « Reprendre la tâche » continues it; an
+    // answer that heads versions is kept too (as interrupted), so the earlier versions survive a reload
+    .filter((turn) => turn.role === "user" || turn.status !== "running" || turn.crew?.checkpoint || turn.alts)
+    .map((turn) => {
+      const out = slimTurn(turn);
+      if (turn.alts && Array.isArray(turn.alts.list))
+        out.alts = { at: turn.alts.at, list: turn.alts.list.map((tail) => (Array.isArray(tail) ? slimTurns(tail) : null)) };
+      return out;
+    });
+}
+
+function slimTurn(turn) {
+  // running, or between two slices of a long task: after a reload, the task resumes from its checkpoint
+  if (turn.role === "assistant" && (turn.status === "running" || turn.status === "slice"))
+    turn = {
+      ...turn,
+      status: "error",
+      error: { code: "dropped", message: t("error.dropped") },
+      crew: { ...turn.crew, next: "", done: { ok: false, dropped: true, caveats: [] } },
+    };
+  if (turn.role === "user")
+    return {
+      ...turn,
+      // images are never stored: only their name and size survive a reload
+      images: (turn.images || []).map(({ name, w, h: hh, sent }) => ({
+        name,
+        w,
+        h: hh,
+        sent,
+      })),
+    };
+  const { ui, live, text, ...rest } = turn;
+  return {
+    ...rest,
+    files: (rest.files || []).map((f) =>
+      f.data && f.data.length > KEEP_FILE_B64 ? { ...f, data: null } : f,
+    ),
   };
 }
 
@@ -213,23 +226,34 @@ function loadConv(id) {
   const raw = store.json(`bird.conv.${id}`, null);
   if (!raw || !Array.isArray(raw.turns)) return null;
   raw.attachments = Array.isArray(raw.attachments) ? raw.attachments : [];
-  raw.turns = raw.turns
-    .filter((x) => x && (x.role === "user" || x.role === "assistant"))
-    .map((x) =>
-      x.role === "user"
-        ? {
-            role: "user",
-            content: String(x.content ?? ""),
-            // the exact text the model got (image and scan transcriptions included): keep it for the history
-            sent: typeof x.sent === "string" ? x.sent : undefined,
-            attachments: (x.attachments || []).map((a) =>
-              typeof a === "string" ? { name: a } : a,
-            ),
-            images: Array.isArray(x.images) ? x.images : [],
-          }
-        : { steps: [], files: [], ...x, ui: {} },
-    );
+  raw.turns = loadTurns(raw.turns);
   return raw;
+}
+
+/** Stored turns back in memory, their hidden versions included (a broken group is dropped, never half-shown). */
+function loadTurns(list) {
+  return (Array.isArray(list) ? list : [])
+    .filter((x) => x && (x.role === "user" || x.role === "assistant"))
+    .map((x) => {
+      const out =
+        x.role === "user"
+          ? {
+              role: "user",
+              content: String(x.content ?? ""),
+              // the exact text the model got (image and scan transcriptions included): keep it for the history
+              sent: typeof x.sent === "string" ? x.sent : undefined,
+              attachments: (x.attachments || []).map((a) =>
+                typeof a === "string" ? { name: a } : a,
+              ),
+              images: Array.isArray(x.images) ? x.images : [],
+              ...(x.hidden ? { hidden: true } : {}),
+            }
+          : { steps: [], files: [], ...x, ui: {} };
+      delete out.alts;
+      if (validGroup(x.alts, x.role))
+        out.alts = { at: x.alts.at, list: x.alts.list.map((tail) => (Array.isArray(tail) ? loadTurns(tail) : null)) };
+      return out;
+    });
 }
 
 function openConv(id) {
@@ -1676,7 +1700,7 @@ function send(text) {
   for (const a of newDocs) a.sent = true;
   saveConv(conv); // the question is stored before the answer starts: a reload or a switch never loses it
   const payload = images.map(({ name, url }) => ({ name, url }));
-  lastImages = payload; // kept in memory only, so "regenerate" can send them again
+  sentImages.set(conv.turns[conv.turns.length - 2], payload);
   pending.images = [];
   input().value = "";
   autosize();
@@ -1687,45 +1711,49 @@ function send(text) {
   runTurn(turn, payload.length ? { images: payload } : {});
 }
 
-let lastImages = [];
-function regenerate() {
+const sentImages = new WeakMap(); // user turn -> the images it sent (in memory only), for a regenerate or an edit
+
+/** The request part that sends the question of `user` again: its images while this page still has them, else the
+ * exact text the model got (transcriptions included). */
+function againFor(user) {
+  const imgs = (user && sentImages.get(user)) || [];
+  if ((user?.images || []).length && imgs.length) {
+    user.sent = undefined; // the images are still here: read them again
+    return { images: imgs };
+  }
+  return user?.sent ? { resend: true } : {};
+}
+
+/** A new answer to the question before turns[at] (the last answer by default). The answer it replaces stays one
+ * click away: the « ‹ 1/2 › » pager under the answer. */
+function regenerate(at) {
   if (state.busy) return;
-  const turns = state.conv.turns;
-  if (!turns.length || turns[turns.length - 1].role !== "assistant") return;
   const conv = state.conv;
-  const previous = turns[turns.length - 1];
+  const turns = conv.turns;
+  const i = Number.isInteger(at) ? at : turns.length - 1;
+  if (turns[i]?.role !== "assistant" || turns[i - 1]?.role !== "user") return;
+  const failed = turns[i].status === "error";
   const turn = newAssistantTurn();
-  turns[turns.length - 1] = turn;
+  fork(turns, i, [turn]);
   if ($("scroll").contains(document.activeElement)) keepFocus(); // the Regenerate button is about to be redrawn
   renderChat();
   scrollToEnd(true);
-  const user = turns[turns.length - 2];
-  let again = {};
-  if ((user?.images || []).length && lastImages.length) {
-    user.sent = undefined; // the images are still here: read them again
-    again = { images: lastImages };
-  } else if (user?.sent) again = { resend: true }; // reuse the exact text, transcriptions included
-  const running = runTurn(turn, again);
-  // the replaced answer (text, files, receipt) can come back for 8 s; what the new run cost stays counted
-  toast(t("toast.regenerated"), "info", {
-    ms: 8000,
-    action: {
-      label: t("act.undo"),
-      run: async () => {
-        if (state.conv !== conv || conv.turns[conv.turns.length - 1] !== turn) return;
-        if (state.abort && state.busy) state.abort.abort();
-        await running;
-        if (state.conv !== conv || conv.turns[conv.turns.length - 1] !== turn) return;
-        conv.turns[conv.turns.length - 1] = previous;
-        forgetRendered();
-        renderChat();
-        saveConv();
-        updateComposer();
-        announce(t("toast.restored"));
-        input().focus();
-      },
-    },
-  });
+  announce(t(failed ? "cx.retry.note" : "toast.regenerated"));
+  runTurn(turn, againFor(turns[i - 1]));
+}
+
+/** Show version j of the group headed by turns[i] (an answer regenerated, a question edited). */
+function showVersion(i, j) {
+  if (state.busy) return;
+  const turns = state.conv.turns;
+  if (!switchVersion(turns, i, j)) return;
+  const g = turns[i].alts;
+  renderChat();
+  saveConv();
+  updateComposer();
+  announce(t("cx.ver.shown", { at: g.at + 1, n: g.list.length }));
+  const at = document.querySelectorAll("#conversation > .turn")[i];
+  at?.querySelector(`[data-act="${j < g.list.length - 1 ? "ver-prev" : "ver-next"}"]:not(:disabled), [data-act^="ver-"]:not(:disabled)`)?.focus({ preventScroll: true });
 }
 
 // ------------------------------------------------------------------ helpers that need no model
@@ -1890,13 +1918,7 @@ async function agentOff(turn) {
   renderChat();
   keepFocus(); // the button pressed is gone with the team: the keyboard user lands in the composer, not on <body>
   scrollToEnd(true);
-  const user = conv.turns[conv.turns.length - 2];
-  let again = {};
-  if ((user?.images || []).length && lastImages.length) {
-    user.sent = undefined;
-    again = { images: lastImages };
-  } else if (user?.sent) again = { resend: true };
-  runTurn(fresh, again);
+  runTurn(fresh, againFor(conv.turns[conv.turns.length - 2]));
 }
 
 // ------------------------------------------------------------------ Mode Agent, wave 2: plan, notes, slices
@@ -2429,8 +2451,9 @@ async function init() {
   cx.ensureStyles();
   setHandlers({
     onConfirm: answerConfirm,
-    onRegenerate: regenerate,
-    onRetry: regenerate,
+    onRegenerate: (turn) => regenerate(state.conv.turns.indexOf(turn)),
+    onRetry: (turn) => regenerate(state.conv.turns.indexOf(turn)),
+    onVersion: showVersion,
     onEdit: editLast,
     onChange: (turn) => (updateTurn(turn), saveConv()),
     onOpenFootprint: () => showView("footprint"),
