@@ -549,16 +549,54 @@ _PLACEHOLDER = re.compile(
 )
 
 
+# « [Albatros en vol](https://commons.wikimedia.org/wiki/File:Albatross….jpg) » (production): a link to a picture the
+# model meant to show. Its address is never loaded (it may not exist; the browser contacts no third party): its words
+# become an image search, licence checked and credit shown, like any picture of the canvas
+_IMG_HOST = (r"(?:commons\.wikimedia\.org|upload\.wikimedia\.org|[a-z]{2,3}\.wikipedia\.org/wiki/(?:File|Fichier|Image)|"
+             r"unsplash\.com|images\.unsplash\.com|pexels\.com|pixabay\.com|flickr\.com|staticflickr\.com|"
+             r"openverse\.org)")  # fmt: skip
+_IMG_URL = re.compile(rf"(?i)^https?://(?:www\.)?(?:{_IMG_HOST}|[^\s)]+\.(?:jpe?g|png|gif|webp|svg|avif)(?:\?[^\s)]*)?$)")
+_LINK_LINE = re.compile(r"^\s*(?:[-*•+]\s+|\d+[.)]\s+)?!?\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)\s*\.?\s*$")
+_BARE_URL = re.compile(r"^\s*(?:[-*•+]\s+|\d+[.)]\s+)?<?(https?://\S+?)>?\s*$")
+
+
+def _words_of_url(url: str) -> str:
+    name = re.sub(r"[?#].*$", "", url).rstrip("/").rsplit("/", 1)[-1]
+    name = re.sub(r"^(?:File|Fichier|Image):", "", name, flags=re.I)
+    name = re.sub(r"\.(?:jpe?g|png|gif|webp|svg|avif)$", "", name, flags=re.I)
+    from urllib.parse import unquote
+
+    return re.sub(r"[_\-.+%]+", " ", unquote(name)).strip()
+
+
+def image_line(line: str) -> str | None:
+    """The search words of a line that is really a picture: « [Photo : X] », « ![X](…) », a link or a bare address
+    to an image (Commons, Unsplash, a .jpg…). None for anything else (an ordinary link stays a link)."""
+    ph = _PLACEHOLDER.match(line)
+    if ph and ph.group(2).strip():
+        return ph.group(2).strip()
+    link = _LINK_LINE.match(line)
+    if link:
+        text, url = link.group(1).strip(), link.group(2).strip()
+        if line.lstrip(" -*•+0123456789.)").startswith("!") or _IMG_URL.match(url) or url == "placeholder":
+            return text or _words_of_url(url) or None
+        return None
+    bare = _BARE_URL.match(line)
+    if bare and _IMG_URL.match(bare.group(1)):
+        return _words_of_url(bare.group(1)) or None
+    return None
+
+
 def _content_parts(lines: list[str], repairs: list[str]) -> list[dict]:
     """Paragraphs, lists, tables, quotes, code fences, Markdown images and sub-headings of a block's free text."""
     # « [Photo : chaton heureux] » written as text or as a bullet is a picture the model meant, never words to print:
     # it becomes an image search (the same path as « ::: image query=… », licence checked, credit shown)
     fixed = []
     for line in lines:
-        ph = _PLACEHOLDER.match(line)
-        if ph and ph.group(2).strip():
-            repairs.append("image placeholder written as text became an image search")
-            fixed.append(f"![{ph.group(2).strip()}](placeholder)")
+        words = None if _MD_IMAGE.match(line) else image_line(line)
+        if words:
+            repairs.append("image placeholder or image link written as text became an image search")
+            fixed.append(f"![{words.replace(']', ' ')}](placeholder)")
         else:
             fixed.append(line)
     lines = fixed

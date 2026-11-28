@@ -32,6 +32,13 @@ def slide_parts(title: str, bullets: list[str]) -> list[dict]:
     from birds.harness import office, office_plan
 
     items = [b for b in bullets if str(b).strip()]
+    # a bullet that is a picture (« [Albatros en vol](…commons…File:….jpg) », « [Photo : X] ») is an image search,
+    # never a line of text with an address in it
+    pics = [{"t": "image", "query": dsl._cut(w, 120), "alt": dsl._cut(w, 160), "caption": ""}
+            for w in (dsl.image_line(str(b)) for b in items) if w]  # fmt: skip
+    if pics:
+        items = [b for b in items if not dsl.image_line(str(b))]
+        return [*(slide_parts(title, items) if items else []), *pics[:2]]
     if not items:
         return []
     if q := office_plan.quote_of(items):

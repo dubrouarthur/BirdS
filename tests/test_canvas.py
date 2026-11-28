@@ -1253,3 +1253,21 @@ def test_search_web_cleans_tries_variants_then_pexels_and_the_model_looks_at_pex
     assert images.search_web("cargo bike Paris", F(), mid="w9", judge=lambda want, media: False) is None
     urls.clear()
     assert images.search_web("chart showing quarterly growth", F(), mid="w9") is None and urls == []
+
+
+def test_an_image_link_in_a_slide_becomes_an_image_search_never_printed_text():
+    """Production: a slide « Image d'albatros » printed « [Albatros en vol sur l'océan](https://commons…/File:…) ».
+    A link or an address to a picture is an image search (its address never loaded); an ordinary link stays text."""
+    from birds.canvas import convert, dsl
+
+    link = "[Albatros en vol sur l'océan](https://commons.wikimedia.org/wiki/File:Albatross_over_ocean.jpg)"
+    assert convert.slide_parts("Image d'albatros", [link]) == [
+        {"t": "image", "query": "Albatros en vol sur l'océan", "alt": "Albatros en vol sur l'océan", "caption": ""}]
+    parts = convert.slide_parts("Albatros", ["Il plane des heures sans battre des ailes", "Il vit plus de 60 ans", f"- {link}"])
+    assert [p["t"] for p in parts] == ["list", "image"] and "commons" not in str(parts[0])
+    assert dsl.image_line("https://upload.wikimedia.org/wikipedia/commons/a/ab/Diomedea_exulans.jpg") == "Diomedea exulans"
+    assert dsl.image_line("[le site de l'INSEE](https://insee.fr)") is None
+    assert dsl.image_line("Les albatros planent des heures") is None
+    rep: list[str] = []
+    out = dsl._content_parts(["Texte.", "", f"* {link}"], rep)
+    assert out[-1]["t"] == "image" and out[-1]["query"] == "Albatros en vol sur l'océan" and rep
