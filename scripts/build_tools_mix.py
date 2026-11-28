@@ -1412,36 +1412,36 @@ def reflexion_records(seed: int = 0, heldout_share: float = 0.12) -> dict:
 # assistant turn: in the user's voice, specific, the options of Bird's question as the user's answers, none after
 # small talk. The eval cases of router_data.NEXTSTEPS_CASES never reach train.
 
-NS_TEMPLATES = [  # (template id, lang, request, answer, [(label, prompt)]) with {slots}
+NS_TEMPLATES = [  # (template id, lang, request, answer, [(needs, label, prompt)]) with {slots}
     ("ns_ask_format", "fr", "j'ai besoin de présenter {sujet} à {qui}",
      "Je peux préparer ce support sur {sujet}. Préférez-vous une présentation ou une note d'une page ?",
-     [("Fais une présentation", "Fais une présentation de {sujet} pour {qui}."),
-      ("Rédige une note d'une page", "Rédige une note d'une page sur {sujet} pour {qui}.")]),
+     [("office", "Fais une présentation", "Fais une présentation de {sujet} pour {qui}."),
+      ("office", "Rédige une note d'une page", "Rédige une note d'une page sur {sujet} pour {qui}.")]),
     ("ns_ask_detail", "fr", "explique-moi {notion}",
      "{Notion} désigne… Voulez-vous un exemple chiffré ou une version plus courte ?",
-     [("Donne un exemple chiffré", "Donne un exemple chiffré de {notion}."),
-      ("Fais une version plus courte", "Explique {notion} en trois phrases.")]),
+     [("write", "Donne un exemple chiffré", "Donne un exemple chiffré de {notion}."),
+      ("write", "Fais une version plus courte", "Explique {notion} en trois phrases.")]),
     ("ns_mail", "fr", "rédige un mail à {qui} pour {objet}",
      "Objet : {Objet}\n\nBonjour, je vous écris pour {objet}…",
-     [("Rends le ton plus chaleureux", "Rends ce mail à {qui} plus chaleureux."),
-      ("Ajoute une date limite", "Ajoute au mail une date limite de réponse."),
-      ("Traduis-le en anglais", "Traduis ce mail en anglais.")]),
+     [("office", "Rends le ton plus chaleureux", "Rends ce mail à {qui} plus chaleureux."),
+      ("office", "Ajoute une date limite", "Ajoute au mail une date limite de réponse."),
+      ("office", "Traduis-le en anglais", "Traduis ce mail en anglais.")]),
     ("ns_deck", "fr", "fais une présentation sur {sujet}",
      "La présentation « {Sujet} » est dans le canevas : 5 diapositives.",
-     [("Ajoute une diapo de chiffres clés", "Ajoute une diapositive de chiffres clés sur {sujet}."),
-      ("Ajoute une conclusion", "Ajoute une diapositive de conclusion avec trois messages clés.")]),
+     [("office", "Ajoute une diapo de chiffres clés", "Ajoute une diapositive de chiffres clés sur {sujet}."),
+      ("office", "Ajoute une conclusion", "Ajoute une diapositive de conclusion avec trois messages clés.")]),
     ("ns_info", "fr", "écris un mail à {qui} pour {objet}",
      "Il me manque l'adresse et la date. Pouvez-vous me les donner ?",
-     [("Rédige-le avec des champs à compléter", "Rédige le mail à {qui} avec l'adresse et la date à compléter.")]),
+     [("office", "Rédige-le avec des champs à compléter", "Rédige le mail à {qui} avec l'adresse et la date à compléter.")]),
     ("ns_hello", "fr", "{salut}", "Bonjour ! Comment puis-je vous aider ?", []),
     ("ns_thanks", "fr", "{merci}", "Avec plaisir ! Bonne journée.", []),
     ("ns_ask_en", "en", "help me prepare {topic_en}",
      "Here is an outline for {topic_en}. Would you like a checklist or a timeline?",
-     [("Make a checklist", "Make a checklist for {topic_en}."),
-      ("Draw up a timeline", "Draw up a timeline for {topic_en}.")]),
+     [("write", "Make a checklist", "Make a checklist for {topic_en}."),
+      ("write", "Draw up a timeline", "Draw up a timeline for {topic_en}.")]),
     ("ns_mail_en", "en", "draft an email to {who} to {task}",
      "Subject: Quick update\n\nHi, I am writing to {task}…",
-     [("Make it shorter", "Make this email to {who} shorter."), ("Add a call to action", "Add a clear call to action.")]),
+     [("office", "Make it shorter", "Make this email to {who} shorter."), ("office", "Add a call to action", "Add a clear call to action.")]),
     ("ns_thanks_en", "en", "{thanks_en}", "You're welcome! Have a great day.", []),
 ]
 NS_SLOTS = {
@@ -1481,16 +1481,17 @@ def nextsteps_records(seed: int = 0, heldout_share: float = 0.12) -> dict:
         for _ in range(16):
             pick: dict = {}
             r, a = fill(req, pick), fill(ans, pick)
-            items = [(fill(x, pick), fill(y, pick)) for x, y in sugg]
+            items = [(n, fill(x, pick), fill(y, pick)) for n, x, y in sugg]
             k = R.fold(r + " " + a)
             if k in seen or R.fold(r) in banned:
                 continue
             seen.add(k)
-            kept, dropped = N.validate({"suggestions": [{"label": x, "prompt": y} for x, y in items]}, lang=lang)
-            assert not dropped, (tid, dropped)  # a training target always passes the validation
+            target = [{"needs": n, "label": x, "prompt": y} for n, x, y in items]
+            kept, dropped = N.validate({"suggestions": target}, lang=lang, available=set())
+            assert not dropped and len(kept) == len(target), (tid, dropped)  # it passes the live validation
             split = "eval" if tid in held else "train"
             msgs = N.messages(r, a, lang, caps[lang]) + [
-                {"role": "assistant", "content": json.dumps({"suggestions": kept}, ensure_ascii=False,
+                {"role": "assistant", "content": json.dumps({"suggestions": target}, ensure_ascii=False,
                                                             separators=(",", ":"))}]  # fmt: skip
             out[split].append({"id": f"{SOURCE}-{split}-n{len(out[split]):06d}", "source": SOURCE,
                                "license": LICENSE, "lang": lang, "task": "nextsteps", "thinking": False,

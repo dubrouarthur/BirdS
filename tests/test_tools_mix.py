@@ -134,6 +134,7 @@ def test_nextsteps_records_teach_the_users_voice(mix):
         assert x["messages"][0] == N.messages("", "", x["lang"], N.capabilities(x["lang"], None, None))[0]
         obj = json.loads(x["messages"][-1]["content"])
         assert N.validate(obj, lang=x["lang"])[1] == []  # every target passes the validation of the live call
+        assert all(list(it)[0] == "needs" and it["needs"] in N.all_ids() for it in obj["suggestions"])
         empty += not obj["suggestions"]
         req = _user(x).split("\n", 1)[0].split(":", 1)[-1]
         assert R.fold(req) not in evals

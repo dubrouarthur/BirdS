@@ -32,16 +32,20 @@ MAX_REQUEST_CHARS = 400
 MAX_ANSWER_CHARS = 1600  # the start and the end of the answer: the subject and the closing question
 STOP = ["<|im_end|>", "<|endoftext|>"]
 PREFIX = '{"suggestions":'
+NEVER_IDS = ("user", "none")
 
 
-def schema() -> dict:
+def schema(ids: list[str] | None = None) -> dict:
+    """``needs`` first: the capability the suggestion uses, chosen from this deployment's list before the words
+    (vetoed in ``validate`` when it is ``user``, ``none`` or a module that is off)."""
     item = {
         "type": "object",
         "properties": {
+            "needs": {"type": "string", "enum": list(ids or all_ids())},
             "label": {"type": "string", "minLength": 2, "maxLength": LABEL_MAX},
             "prompt": {"type": "string", "minLength": 4, "maxLength": PROMPT_MAX},
         },
-        "required": ["label", "prompt"],
+        "required": ["needs", "label", "prompt"],
         "additionalProperties": False,
     }
     return {
@@ -54,50 +58,74 @@ def schema() -> dict:
 
 # ---------------------------------------------------------------- what Bird can do here (static per deployment)
 
-_BASE = {
-    "fr": [
-        "écrire, raccourcir, reformuler, traduire un texte",
-        "brouillon de mail (Bird ne l'envoie pas)",
-        "présentation, document ou tableur",
-        "tableau, liste, plan, comparatif",
-        "calcul exact",
-    ],
-    "en": [
-        "write, shorten, rephrase, translate a text",
-        "email draft (Bird never sends it)",
-        "slides, document or spreadsheet",
-        "table, list, outline, comparison",
-        "exact calculation",
-    ],
-}
-_WEB = {"fr": "recherche web sourcée, photos d'un sujet", "en": "sourced web search, pictures of a subject"}
+# (id, fr, en): what every deployment does; the catalogue modules that are on come after, then web search
+_BASE = (
+    ("write", "écrire, raccourcir, reformuler ou traduire un texte ; tableau, liste, plan ou comparatif dans la "
+     "réponse", "write, shorten, rephrase or translate a text; table, list, outline or comparison in the answer"),
+    ("office", "brouillon de mail (Bird ne l'envoie pas), présentation, document ou tableur, et leurs modifications",
+     "email draft (Bird never sends it), slides, document or spreadsheet, and changes to them"),
+    ("calc", "calcul exact", "exact calculation"),
+)  # fmt: skip
+_WEB = ("web", "recherche web sourcée, photos d'un sujet", "sourced web search, pictures of a subject")
+# never doable: the model labels such a request so, and it is dropped
+_NEVER = (
+    ("user", "ce que seul l'utilisateur sait ou fait (ses informations, valider, envoyer)",
+     "what only the user knows or does (their own facts, approving, sending)"),
+    ("none", "ce que Bird ne peut pas faire", "what Bird cannot do"),
+)  # fmt: skip
+_SKIP = ("card", "images")  # inside « write » and « web »
 _CANT = {
-    "fr": "Bird ne peut pas : envoyer un mail, réserver, payer, appeler, accéder à un agenda, une boîte mail ou des "
-    "fichiers non joints, programmer un rappel.",
-    "en": "Bird cannot: send an email, book, pay, call, open a calendar, a mailbox or files not attached, set a "
-    "reminder.",
+    "fr": "Bird ne peut pas : envoyer, transmettre ou publier, réserver, payer, commander, imprimer, appeler, ouvrir "
+    "un agenda, une boîte mail, un compte ou des fichiers non joints, programmer un rappel.",
+    "en": "Bird cannot: send, forward or post, book, pay, order, print, call, open a calendar, a mailbox, an account "
+    "or files not attached, set a reminder.",
 }
 
 
-def capabilities(lang: str, names: set[str] | None, tools: set[str] | None) -> str:
-    """One line per capability on: the base skills, the catalogue modules available, web search if it is on."""
+def _module_ids() -> list[str]:
     from birds.harness import catalog
 
-    lg = "en" if lang == "en" else "fr"
-    lines = list(_BASE[lg])
+    return [m.name for m in catalog.MODULES if m.kind != catalog.HINT and m.name not in _SKIP]
+
+
+def capabilities(lang: str, names: set[str] | None, tools: set[str] | None) -> list[tuple[str, str]]:
+    """[(id, what it does)]: the base skills, the catalogue modules available, web search if it is on, then
+    « user » and « none ». The ids are the ``needs`` enum of the schema."""
+    from birds.harness import catalog
+
+    en = lang == "en"
+    out = [(i, e if en else f) for i, f, e in _BASE]
     for m in catalog.available(names):
-        if m.kind == catalog.HINT or m.name in ("card", "images"):
-            continue
-        lines.append(m.en if lg == "en" else m.fr)
+        if m.kind != catalog.HINT and m.name not in _SKIP:
+            out.append((m.name, m.en if en else m.fr))
     if tools is None or "web_search" in tools:
-        lines.append(_WEB[lg])
-    return "; ".join(lines)
+        out.append((_WEB[0], _WEB[2] if en else _WEB[1]))
+    return out + [(i, e if en else f) for i, f, e in _NEVER]
+
+
+def all_ids() -> list[str]:
+    return [i for i, *_ in _BASE] + _module_ids() + [_WEB[0]] + [i for i, *_ in _NEVER]
+
+
+def caps_line(caps) -> str:
+    """The capabilities as the guide shows them: « id (what it does) », one after the other."""
+    if isinstance(caps, str):
+        return caps
+    return " | ".join(f"{i} : {d}" for i, d in caps)
+
+
+def doable_ids(available: set[str] | None) -> set[str] | None:
+    """The ``needs`` values a suggestion may carry on a deployment (``available``: its modules and tools)."""
+    if available is None:
+        return None
+    ids = {i for i, *_ in _BASE} | {i for i in _module_ids() if i in available}
+    return ids | ({"web"} if "web_search" in available else set())
 
 
 _GUIDE = {
     "fr": (
         "Tu proposes les suites d'une conversation avec Bird, comme les suggestions sous une réponse de ChatGPT. "
-        'Réponds en JSON : {"suggestions":[{"label":"…","prompt":"…"}]}, 0 à 3 suggestions.\n'
+        'Réponds en JSON : {"suggestions":[{"needs":"…","label":"…","prompt":"…"}]}, 0 à 3 suggestions.\n'
         "Chaque suggestion est une demande que L'UTILISATEUR enverrait ensuite à Bird, écrite à sa place : à "
         "l'impératif et au tutoiement (« Ajoute… », « Compare… », « Rédige… », « Traduis… »), jamais avec la voix de "
         "Bird (pas de « je », pas de « vous », pas de « Souhaitez-vous »).\n"
@@ -106,14 +134,15 @@ _GUIDE = {
         "la réponse de l'utilisateur (« Souhaitez-vous une version courte ou détaillée ? » → « Fais la version "
         "courte », « Fais la version détaillée »). Jamais « Oui » ni « Non ».\n"
         "label : 42 caractères au plus, commence par le verbe. prompt : la demande complète, une phrase.\n"
-        "Seulement ce que Bird sait faire ici : {caps}. {cant}\n"
+        "needs : la capacité de Bird que la demande utilise, parmi : {caps}. Seulement ce que Bird sait faire ici ; "
+        "jamais une suggestion « user » ou « none ». {cant}\n"
         'Aucune suggestion ({{"suggestions":[]}}) après une salutation, un remerciement, une réponse courte qui ne '
         "demande rien de plus.\n"
         "Exemples :"
     ),
     "en": (
         "You suggest the next steps of a conversation with Bird, like the suggestions under a ChatGPT answer. "
-        'Answer in JSON: {"suggestions":[{"label":"…","prompt":"…"}]}, 0 to 3 suggestions.\n'
+        'Answer in JSON: {"suggestions":[{"needs":"…","label":"…","prompt":"…"}]}, 0 to 3 suggestions.\n'
         "Each suggestion is a request THE USER would send Bird next, written for them, as an imperative "
         '("Add…", "Compare…", "Draft…", "Translate…"), never in Bird\'s voice (no "I can", no "Would you '
         'like").\n'
@@ -122,13 +151,14 @@ _GUIDE = {
         'user\'s answer ("Would you like a short or a detailed version?" → "Write the short version", "Write the '
         'detailed version"). Never "Yes" or "No".\n'
         "label: 42 characters at most, starts with the verb. prompt: the full request, one sentence.\n"
-        "Only what Bird can do here: {caps}. {cant}\n"
+        "needs: the capability of Bird the request uses, among: {caps}. Only what Bird can do here; never a "
+        '"user" or "none" suggestion. {cant}\n'
         'No suggestion ({{"suggestions":[]}}) after a greeting, thanks, or a short answer that needs nothing more.\n'
         "Examples:"
     ),
 }
 
-_SHOTS = {
+_SHOTS = {  # (request, answer, [(needs, label, prompt)])
     "fr": (
         (
             "fais-moi une diapo sur notre offre de formation",
@@ -136,11 +166,10 @@ _SHOTS = {
             "expert), durée et tarif de chacun. Souhaitez-vous que je vous aide à intégrer des images ou à "
             "structurer la diapositive visuellement ?",
             [
-                (
-                    "Ajoute des images à la diapositive",
-                    "Ajoute des images illustrant les trois parcours à la diapositive.",
-                ),
-                ("Structure la diapo en 3 blocs", "Structure la diapositive en trois blocs visuels, un par parcours."),
+                ("office", "Ajoute des images à la diapositive",
+                 "Ajoute des images illustrant les trois parcours à la diapositive."),
+                ("office", "Structure la diapo en 3 blocs",
+                 "Structure la diapositive en trois blocs visuels, un par parcours."),
             ],
         ),
         (
@@ -148,12 +177,11 @@ _SHOTS = {
             "Objet : Relance – facture 2024-118\n\nBonjour, sauf erreur de notre part, la facture 2024-118 du 3 "
             "octobre reste impayée…",
             [
-                ("Rends le ton plus ferme", "Rends ce mail de relance à Dupont SA plus ferme, avec une date limite."),
-                (
-                    "Ajoute les pénalités de retard",
-                    "Ajoute au mail le rappel des pénalités de retard prévues au contrat.",
-                ),
-                ("Traduis-le en anglais", "Traduis ce mail de relance en anglais."),
+                ("office", "Rends le ton plus ferme",
+                 "Rends ce mail de relance à Dupont SA plus ferme, avec une date limite."),
+                ("office", "Ajoute les pénalités de retard",
+                 "Ajoute au mail le rappel des pénalités de retard prévues au contrat."),
+                ("write", "Traduis-le en anglais", "Traduis ce mail de relance en anglais."),
             ],
         ),
         ("merci, c'est parfait", "Avec plaisir ! Bonne journée.", []),
@@ -164,21 +192,19 @@ _SHOTS = {
             "1. A cooking workshop… 2. A hike with a picnic… 3. An escape game… Would you like a budget for each "
             "or a sample agenda?",
             [
-                (
-                    "Estimate a budget for each idea",
-                    "Estimate a budget per person for each of the three offsite ideas.",
-                ),
-                ("Draft a sample agenda", "Draft a one-day sample agenda for the offsite."),
+                ("write", "Estimate a budget for each idea",
+                 "Estimate a budget per person for each of the three offsite ideas."),
+                ("write", "Draft a sample agenda", "Draft a one-day sample agenda for the offsite."),
             ],
         ),
         ("thanks, that's all", "You're welcome! Have a great day.", []),
     ),
-}
+}  # fmt: skip
 
 
 def _answer_json(items) -> str:
-    return json.dumps({"suggestions": [{"label": a, "prompt": b} for a, b in items]}, ensure_ascii=False,
-                      separators=(",", ":"))  # fmt: skip
+    return json.dumps({"suggestions": [{"needs": n, "label": a, "prompt": b} for n, a, b in items]},
+                      ensure_ascii=False, separators=(",", ":"))  # fmt: skip
 
 
 def clip_answer(answer: str) -> str:
@@ -190,7 +216,7 @@ def clip_answer(answer: str) -> str:
     return a[:head].rstrip() + " […] " + a[-(MAX_ANSWER_CHARS - head - 7) :].lstrip()
 
 
-def messages(request: str, answer: str, lang: str = "fr", caps: str = "") -> list[dict]:
+def messages(request: str, answer: str, lang: str = "fr", caps=None) -> list[dict]:
     """[system, user]: the guide, the capabilities and fixed examples (static per deployment: the endpoint reuses
     them from its prefix cache), then this turn: the user's own request and Bird's answer, nothing else."""
     lg = "en" if lang == "en" else "fr"
@@ -198,7 +224,8 @@ def messages(request: str, answer: str, lang: str = "fr", caps: str = "") -> lis
     ans = "Bird's answer" if lg == "en" else "Réponse de Bird"
     req = "Request" if lg == "en" else "Demande"
     shots = "\n".join(f"{req}{sep}{q}\n{ans}{sep}{a}\n→ {_answer_json(s)}" for q, a, s in _SHOTS[lg])
-    guide = _GUIDE[lg].replace("{caps}", caps or "; ".join(_BASE[lg])).replace("{cant}", _CANT[lg])
+    line = caps_line(caps or capabilities(lg, set(), set()))
+    guide = _GUIDE[lg].replace("{caps}", line).replace("{cant}", _CANT[lg])
     guide = guide.replace("{{", "{").replace("}}", "}")
     turn = f"{req}{sep}{' '.join(str(request or '').split())[:MAX_REQUEST_CHARS]}\n{ans}{sep}{clip_answer(answer)}"
     return [{"role": "system", "content": guide + "\n" + shots}, {"role": "user", "content": turn}]
@@ -228,12 +255,22 @@ _UNSAFE = re.compile(
     r"previous instructions|jailbreak|mot de passe|password|api key|cl[ée] d'api|token)\b",
     re.I,
 )
-# what Bird cannot do on any deployment (the capabilities line says so): a chip must never promise it
+# what Bird cannot do on any deployment (the « none » capability, and the line _CANT says so): a safety net under
+# the model's own ``needs`` label, for the actions the guide declares impossible
 _CANT_DO = re.compile(
+    # an action Bird does not take, as the request's verb (« Transmets ce mail… », « Publie ce post… »)
+    r"^(?:envoie|envoyez|exp[ée]die|transmets|transf[èe]re|forward|send|publie|publish|poste|post|imprime|print|"
+    r"commande|ach[èe]te|buy|r[ée]serve|book|paie|r[èe]gle|pay|appelle|t[ée]l[ée]phone|call|phone|"
+    r"t[ée]l[ée]charge|download)\b|"
     r"\b(?:envoie|envoyer|exp[ée]die|send|r[ée]serve|r[ée]server|book (?:a|an|the|my)|paie|payer|"
     r"pay (?:the|my|this|it)|appelle|appeler|call (?:him|her|them|me|my|the client|the supplier)|"
-    r"rappelle-moi|remind me|programme un rappel|set a reminder|ouvre (?:mon|ma|mes)|open my|"
-    r"consulte (?:mon|ma|mes)|check my|l'envoi|the sending)\b|"
+    r"l'envoi|the sending)\b|"
+    # a reminder, an account, a mailbox or a calendar of the user's (the .ics card is the « event » module)
+    r"\b(?:mets|programme|cr[ée]e|ajoute|planifie|set|create|add|schedule) (?:un |une |a |me )?(?:rappel|"
+    r"reminder|alarme|alarm)\b|\brappelle-moi\b|\bremind me\b|"
+    r"\b(?:ouvre|consulte|lis|v[ée]rifie|regarde|open|check|read) (?:mon|ma|mes|my)\b|"
+    r"\b(?:mon|ma|mes|my) (?:solde|compte bancaire|relev[ée]s? bancaires?|bank balance|bank account|"
+    r"bo[iî]te mail|messagerie|inbox|mailbox|contacts)\b|"
     # what the user does himself, not a request to Bird (live run of 28/11: « Valide le mail… et confirme
     # l'envoi », « Provide the client's email address » after Bird asked for it)
     r"^(?:valide|validez|confirme|fournis|fournissez|indique|indiquez|provide|share|upload|joins|attach)\b",
@@ -261,6 +298,8 @@ def tidy_label(label: str, limit: int = LABEL_MAX) -> str:
     return s
 # a capability that can be off on a deployment: (pattern on the suggestion, the module or tool it needs)
 _NEEDS = (
+    (re.compile(r"\b(?:dans|à|sur|to|in|into) (?:mon |ma |my |l'|the )?(?:agenda|calendrier|calendar)\b|"
+                r"\.ics\b", re.I), "event"),  # fmt: skip
     (re.compile(r"\bm[ée]t[ée]o\b|\bweather\b|\bforecast\b|\bpr[ée]visions?\b", re.I), "get_weather"),
     (re.compile(r"\bcarte\b|\bitin[ée]raire\b|\bmap\b|\bdirections\b|\bautour\b|\bnearby\b", re.I), "find_places"),
     (re.compile(r"\bsiren\b|\bsiret\b|\bfiche (?:de l'|d')entreprise\b|\bcompany record\b", re.I), "find_company"),
@@ -296,7 +335,11 @@ def _clean(v) -> str:
 
 
 def validate(obj, *, lang: str = "fr", available: set[str] | None = None) -> tuple[list[dict], list[tuple[str, str]]]:
-    """(kept suggestions, dropped [(label, reason)]). ``available``: the modules and tools on (None: all)."""
+    """(kept suggestions, dropped [(label, reason)]). ``available``: the modules and tools on (None: all).
+
+    The model's own ``needs`` label decides what is doable: « user » / « none » are dropped (``cannot``), a module
+    that is off too (``off``); the patterns below only catch what a wrong or missing label lets through."""
+    doable = doable_ids(available)
     raw = obj.get("suggestions") if isinstance(obj, dict) else obj if isinstance(obj, list) else None
     if not isinstance(raw, list):
         return [], [("", "schema")]
@@ -311,6 +354,8 @@ def validate(obj, *, lang: str = "fr", available: set[str] | None = None) -> tup
         if not label and prompt and len(prompt) <= LABEL_MAX:
             label = prompt
         both = f"{label} {prompt}"
+        needs = it.get("needs")
+        needs = needs.strip().lower() if isinstance(needs, str) and needs.strip() else None
         why = ""
         if len(label) < 2 or len(prompt) < 4:
             why = "empty"
@@ -320,8 +365,10 @@ def validate(obj, *, lang: str = "fr", available: set[str] | None = None) -> tup
             why = "unsafe"
         elif _BIRD_VOICE.search(label) or _BIRD_VOICE.search(prompt):
             why = "bird_voice"
-        elif _CANT_DO.search(both):
+        elif needs in NEVER_IDS or _CANT_DO.search(label) or _CANT_DO.search(prompt):
             why = "cannot"
+        elif doable is not None and needs is not None and needs not in doable:
+            why = "off"  # a module that is off here, or an id the deployment does not have
         elif available is not None and any(p.search(both) and need not in available for p, need in _NEEDS):
             why = "off"
         elif wrong_language(both, lang):
@@ -377,7 +424,7 @@ def generate(llm, tok, request: str, answer: str, *, lang: str = "fr", names: se
         kind = router.structured_kind(llm, deadline=t0 + budget) if structured is None else structured
         caps = capabilities(lang, names, tools)
         p = render_prompt(tok, messages(request, answer, lang, caps), [], False) + ("" if kind else PREFIX)
-        extra = {"temperature": 0, **router.structured_extra(kind, schema())}
+        extra = {"temperature": 0, **router.structured_extra(kind, schema([i for i, _ in caps]))}
         if cache_salt:
             extra["cache_salt"] = cache_salt
         out = llm.generate(p, MAX_TOKENS, STOP, deadline=t0 + budget, extra=extra)

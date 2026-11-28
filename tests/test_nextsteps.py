@@ -123,6 +123,34 @@ def test_no_injection_carry_over_no_impossible_action_no_tool_that_is_off():
     assert on and N.validate(obj(("La météo", "La météo à Lyon demain")))[0]  # available=None: everything on
 
 
+def test_the_models_capability_label_vetoes_what_bird_cannot_do_here():
+    """Issue: the regex net missed most impossible actions the guide declares. The model labels each suggestion
+    with the capability it uses (``needs``): « user » / « none » / a module that is off are dropped."""
+    av = {"get_weather", "find_places", "convert_currency"}
+    for text in ("Transmets ce mail à toute l'équipe.", "Publie ce post sur LinkedIn.",
+                 "Planifie la réunion du 12 dans mon agenda.", "Ajoute la réunion du 12 à mon calendrier.",
+                 "Mets un rappel vendredi pour relancer Martin.", "Imprime le document en deux exemplaires.",
+                 "Télécharge le rapport complet en PDF.", "Commande les fournitures pour le bureau.",
+                 "Donne mon solde bancaire actuel."):  # fmt: skip
+        # no label at all (an endpoint without structured outputs): the net catches them
+        assert N.validate(obj((text[:40], text)), lang="fr", available=av)[0] == [], text
+    # the .ics card makes « à mon calendrier » doable where the event module is on
+    cal = obj(("Ajoute la réunion au calendrier", "Ajoute la réunion du 12 à mon calendrier."))
+    assert N.validate(cal, available=av | {"event"})[0]
+    labelled = {"suggestions": [
+        {"needs": "user", "label": "Liste mes accomplissements", "prompt": "Liste mes accomplissements."},
+        {"needs": "none", "label": "Trouve le tarif du parking", "prompt": "Trouve le tarif du parking."},
+        {"needs": "find_company", "label": "Fais la fiche de Dupont SA", "prompt": "Fais la fiche de Dupont SA."},
+        {"needs": "web", "label": "Cherche des études récentes", "prompt": "Cherche des études récentes."},
+        {"needs": "write", "label": "Raccourcis le mail", "prompt": "Raccourcis le mail."},
+    ]}  # fmt: skip
+    kept, dropped = N.validate(labelled, available=av)
+    assert [k["label"] for k in kept] == ["Raccourcis le mail"]
+    assert [w for _, w in dropped] == ["cannot", "cannot", "off", "off"]
+    assert len(N.validate(labelled, available=av | {"find_company", "web_search"})[0]) == 3
+    assert "needs" not in kept[0]  # the chip itself carries only what the client shows and sends
+
+
 def test_schema_and_parse():
     s = N.schema()
     item = s["properties"]["suggestions"]["items"]
@@ -162,7 +190,9 @@ def test_generate_one_structured_call_never_raises():
         {"label": "Ajoute des images", "prompt": "Ajoute des images à la diapositive."}
     ]
     ((_, prompt, extra),) = llm.calls
-    assert extra["temperature"] == 0 and extra["structured_outputs"]["json"] == N.schema()
+    sent = extra["structured_outputs"]["json"]
+    assert extra["temperature"] == 0 and sent == N.schema([i for i, _ in N.capabilities("fr", None, None)])
+    assert sent["properties"]["suggestions"]["items"]["required"][0] == "needs"  # the capability before the words
     assert '"think": false' in prompt  # never a reasoning block for this call
     bad = Probeable([], nexts="pas du JSON")
     assert N.generate(bad, Tok(), "q", "réponse")["why"] == "invalid_json"
