@@ -270,6 +270,23 @@ part("delete", async (page, name, fail, shot) => {
   if ((await page.locator(".conv").count()) !== before) fail("R13: Escape cleared the conversations");
 });
 
+// ---------------------------------------------------------------- R15: search in the messages
+part("search", async (page, name, fail, shot) => {
+  await newChat(page);
+  await send(page, "Écris un mail à mon propriétaire pour signaler une fuite");
+  await openDrawer(page);
+  await page.fill("#conv-search", "Camille"); // in the answer only, not in the title
+  await page.waitForTimeout(200);
+  const row = page.locator(".conv").first();
+  if (!(await row.count())) fail("R15: a word of the answer finds nothing");
+  else if (!(await row.locator(".cx-snippet mark").innerText().catch(() => "")).match(/Camille/i)) fail("R15: no snippet");
+  await shot("r15-search");
+  await page.fill("#conv-search", "fuíte"); // accents ignored, in the title
+  await page.waitForTimeout(150);
+  if (!(await page.locator(".conv").count())) fail("R15: accents are not ignored");
+  await page.fill("#conv-search", "");
+});
+
 (async () => {
   const browser = await chromium.launch();
   const problems = [];

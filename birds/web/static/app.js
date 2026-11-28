@@ -65,7 +65,7 @@ import { applyResearchEvent } from "./research.js";
 import { mountPicker, updatePicker } from "./reflexion.js"; // Mode Réflexion: the bird picker
 import { normalizeChoice, thinks } from "./reflexion-data.js";
 import * as cx from "./conversation.js"; // versions, inline edit, documents in context, dialogs, back button
-import { contextDocs, fork, switchVersion, validGroup } from "./conversation-data.js";
+import { contextDocs, convText, findIn, fork, switchVersion, validGroup } from "./conversation-data.js";
 
 import { loadAgentMode } from "./agent-mode.js"; // Mode Agent: Auto by default; Activé for this session only
 let planTimer = 0; // the plan card's countdown (Auto, high confidence)
@@ -315,12 +315,27 @@ function convMenuKeys(e) {
   } else if (e.key === "Tab") closeConvMenu(false);
 }
 
+const textCache = new Map(); // conversation id -> {updated, text}: what the sidebar search reads
+function searchText(c) {
+  const hit = textCache.get(c.id);
+  if (hit && hit.updated === c.updated) return hit.text;
+  const conv = state.conv?.id === c.id ? state.conv : running.get(c.id)?.conv || loadConv(c.id);
+  const text = conv ? convText(conv) : "";
+  textCache.set(c.id, { updated: c.updated, text });
+  return text;
+}
+
 function renderSidebar() {
   const list = $("conv-list");
-  const q = search.trim().toLowerCase();
-  const items = state.convs.filter(
-    (c) => !q || (c.title || "").toLowerCase().includes(q),
-  );
+  const q = search.trim();
+  // the title first, then the questions and answers (accents and case ignored); a match in the text shows its snippet
+  const snippets = new Map();
+  const items = state.convs.filter((c) => {
+    if (!q || findIn(c.title || "", q)) return true;
+    const hit = findIn(searchText(c), q, 12);
+    if (hit) snippets.set(c.id, hit);
+    return !!hit;
+  });
   if (!items.length) {
     list.replaceChildren(
       h("p", {
@@ -396,7 +411,20 @@ function renderSidebar() {
           title: `${title} — ${fmtDate(c.updated)}`,
           onclick: () => openConv(c.id),
         },
-        h("span", { class: "conv-title", text: title }),
+        snippets.has(c.id)
+          ? h(
+              "span",
+              { class: "cx-hit" },
+              h("span", { class: "conv-title", text: title }),
+              h(
+                "span",
+                { class: "cx-snippet", title: t("cx.search.in") },
+                snippets.get(c.id).before,
+                h("mark", { text: snippets.get(c.id).match }),
+                snippets.get(c.id).after,
+              ),
+            )
+          : h("span", { class: "conv-title", text: title }),
         running.has(c.id) &&
           h("span", { class: "cx-live", role: "img", "aria-label": t("cx.live.side"), title: t("cx.live.side") }),
         c.att &&

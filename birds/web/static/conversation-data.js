@@ -97,6 +97,8 @@ export function convText(conv) {
     if (turn.hidden) continue;
     if (turn.role === "user") parts.push(String(turn.content || ""));
     else if (turn.answer?.content) parts.push(String(turn.answer.content));
+    const mail = turn.answer?.draft_email; // a mail drafted in the chat is found by its subject and its words
+    if (mail) parts.push(String(mail.subject || ""), String(mail.body || ""));
   }
   return parts.join("\n");
 }

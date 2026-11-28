@@ -336,3 +336,8 @@
 .conv-menu[role="menu"] .btn:focus-visible {
   background: var(--surface-2);
 }
+.cx-hit {
+  display: block;
+  flex: 1;
+  min-inline-size: 0;
+}
