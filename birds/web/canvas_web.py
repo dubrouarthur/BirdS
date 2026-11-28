@@ -132,12 +132,14 @@ def code_changes(p: turn.Plan, doc: dict) -> list[dict] | None:
     return codefiles.diff(codefiles.files_of(p.base), codefiles.files_of(doc))
 
 
-def _finder(mode: str, agent, doc: dict, lang: str):
+def _finder(mode: str, agent, doc: dict, lang: str, deadline: float | None = None):
     if mode == "demo":
         return images.finder("demo", theme=doc.get("theme"), lang=lang)
     from birds.harness import office_media as om
 
-    return images.finder("server", fetch=om.Fetcher(agent.http, agent.cfg))
+    # the model looks at each candidate picture (when it reads images): a title's words are only a first sieve
+    judge = images.vision_judge(getattr(agent, "llm", None), deadline)
+    return images.finder("server", fetch=om.Fetcher(agent.http, agent.cfg), judge=judge, deadline=deadline)
 
 
 def illustrate(ctx, p: turn.Plan, doc: dict, mode: str, agent, lang: str) -> None:
@@ -147,8 +149,9 @@ def illustrate(ctx, p: turn.Plan, doc: dict, mode: str, agent, lang: str) -> Non
     budget = min(turn.IMAGE_SECONDS, max(0.0, ctx.seconds_left() - 20))
     if budget <= 1:
         return
-    found = images.resolve(doc, _finder(mode, agent, doc, lang), limit=turn.IMAGE_LIMIT,
-                           deadline=time.monotonic() + budget)  # fmt: skip
+    until = time.monotonic() + budget
+    found = images.resolve(doc, _finder(mode, agent, doc, lang, until), limit=turn.IMAGE_LIMIT,
+                           deadline=until)  # fmt: skip
     if found:
         ctx.emit({"type": "canvas_media", "aid": p.aid, "media": found})
 
@@ -282,6 +285,16 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
         from birds.canvas import convert as cv
 
         cv.enrich(doc)
+    if kind in ("deck", "doc"):
+        from birds.canvas import figures
+
+        # a chart is drawn only from figures the conversation holds (the request, earlier messages, tool results,
+        # the artifact being edited): one the model made up becomes a note asking for them
+        said = figures.sources_of(words, history, run)
+        waiting = figures.check(doc, said, p.base, lang, repairs)
+        blanked = figures.cells(doc, said, p.base, lang, repairs)
+    else:
+        waiting = blanked = 0
     illustrate(ctx, p, doc, mode, agent, lang)
     changes = code_changes(p, doc)
     if changes == []:  # the model rewrote the files exactly as they were: no new version
@@ -296,6 +309,16 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
     run.answer = turn.chat_text("code" if p.kind == "diagram" else kind, doc, lang, before, after,
                                 cut=run.stop_reason == "length", verb="create" if p.mode == "create" else "patch",
                                 version=version, changes=changes)  # fmt: skip
+    if waiting:
+        run.answer += "\n\n" + _t(lang, "Le graphique attend vos chiffres : ceux qu'il montrait ne venaient ni de "
+                                          "votre demande ni d'une source. Donnez-les et je le trace.",
+                                    "The chart waits for your figures: the ones it showed came neither from your "
+                                    "request nor from a source. Give them and I draw it.")  # fmt: skip
+    if blanked:
+        run.answer += "\n\n" + _t(lang, f"{blanked} chiffre{'s' if blanked > 1 else ''} sans source "
+                                          f"{'sont marqués' if blanked > 1 else 'est marqué'} « à compléter ».",
+                                    f"{blanked} figure{'s' if blanked > 1 else ''} with no source "
+                                    f"{'are' if blanked > 1 else 'is'} marked \"to be completed\".")  # fmt: skip
     run.stop_reason = "answer"
     run.canvas = {"aid": p.aid, "version": version, "doc": doc, "repairs": repairs,
                   "raw": text[:8000]}  # fmt: skip  # raw: for evaluations, never sent
@@ -375,7 +398,8 @@ def _adopt(run, ctx, lang: str, words: str = "") -> None:
 
 _FILE_LINE = re.compile(
     r"(?im)^[ \t>*_-]*(?:\*\*|__)?(?:fichier|file|document|t[ée]l[ée]chargement|download)\s*(?:\*\*|__)?\s*:"
-    r"(?:\*\*|__)?\s*`?[^\n`]*\.docx`?\s*\.?[ \t]*$\n?")
+    r"(?:\*\*|__)?\s*`?[^\n`]*\.docx`?\s*\.?[ \t]*$\n?"
+)
 
 
 def strip_file_lines(text: str, names: list[str]) -> str:
@@ -541,7 +565,9 @@ def make_router(settings, guard_request, check_access, resolve_mode, fetch_clien
                 if client is not None:
                     client.close()
         if m is None:
-            return {"ok": False, "reason": "none"}
+            # « busy »: the picture sources were refusing (rate limit) — the canvas says « réessayez », not « none »
+            busy = mode != "demo" and images.COOL.hot("commons") and images.COOL.hot("openverse")
+            return {"ok": False, "reason": "busy" if busy else "none"}
         return {"ok": True, "media": images.to_entry(m, body.query)}
 
     @router.post("/api/canvas/check")

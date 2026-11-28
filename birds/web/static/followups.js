@@ -259,6 +259,15 @@ export function transforms() {
   ];
 }
 
+function fillComposer(text) {
+  const box = document.getElementById("composer-input");
+  if (!box) return;
+  box.value = text;
+  box.dispatchEvent(new Event("input", { bubbles: true }));
+  box.focus();
+  box.setSelectionRange(text.length, text.length);
+}
+
 /** The chip row of the last answer, or null. */
 export function renderChips(turn, onSuggest, busy = false) {
   if (!turn?.answer || turn.status === "running" || busy) return null;
@@ -286,7 +295,8 @@ export function renderChips(turn, onSuggest, busy = false) {
           type: "button",
           "data-act": `chip-${it.kind}`,
           title: it.prompt,
-          onclick: () => onSuggest(it.prompt),
+          // « fill »: the chip writes the start of a message the user completes (their own figures)
+          onclick: () => (it.kind === "fill" ? fillComposer(it.prompt) : onSuggest(it.prompt)),
         },
         it.label,
       ),

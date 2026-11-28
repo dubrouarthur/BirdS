@@ -517,6 +517,7 @@ def parse_patch(text: str, doc: dict, words: str = "", target: str | None = None
         ops = fit(ops, words, doc, repairs)
         return _resolve_last(ops), "ops" if ops else "none"
     new = dsl.parse(content, kind, doc.get("lang") or "fr", repairs)
+    _drop_outline_copies(new, repairs)
     blocks = new["blocks"]
     if not blocks:
         return [], "none"
@@ -598,6 +599,23 @@ def fit(ops: list[dict], words: str, doc: dict, repairs: list[str]) -> list[dict
                 continue
         out.append(op)
     return out
+
+
+_OUTLINE_ITEM = re.compile(r"^\s*\[\s*b\d{1,4}\s*\]\s")
+
+
+def _drop_outline_copies(new: dict, repairs: list[str]) -> None:
+    """A list made of the outline's lines (« [b1] Introduction », « [b2] Le marché… »): the 4B copied the outline
+    it was shown into the slide it added (seen live). Such a list is not content: it is removed."""
+    for b in new.get("blocks") or []:
+        keep = []
+        for p in b.get("parts") or []:
+            items = p.get("items") or [] if p.get("t") == "list" else []
+            if len(items) >= 2 and sum(1 for x in items if _OUTLINE_ITEM.match(str(x))) >= max(2, len(items) // 2):
+                repairs.append(f"outline copied into '{b.get('title') or ''}': removed")
+                continue
+            keep.append(p)
+        b["parts"] = keep
 
 
 def _tag_of(content: str, block: dict) -> str | None:

@@ -226,7 +226,8 @@ def test_openverse_free_licence_relevant_credited_cached():
     assert m is not None and m.id == "w3" and m.kind == "web"
     assert m.licence == "CC BY-SA 2.0" and m.source == "https://www.flickr.com/p/4"
     assert m.credit == "Ada — CC BY-SA 2.0 — Flickr via Openverse"
-    assert "license=cc0,pdm,by,by-sa" in f.calls[0] and "mature=false" in f.calls[0]
+    ov = f.calls[0]  # Openverse first, then Commons
+    assert "license=cc0,pdm,by,by-sa" in ov and "mature=false" in ov
     n = len(f.calls)
     again = images.search_web("tramway lyon", f, mid="w7")  # same query: from the cache, no network
     assert again.id == "w7" and again.credit == m.credit and len(f.calls) == n

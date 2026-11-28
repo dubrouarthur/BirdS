@@ -1196,6 +1196,8 @@ def _part_ok(p) -> dict:
             out["level"] = lv if isinstance(lv, int) and 1 <= lv <= 4 else 2
         if t == "callout":
             out["tone"] = p.get("tone") if p.get("tone") in TONES else "info"
+            if p.get("need") == "figures":
+                out["need"] = "figures"  # a chart's place, waiting for the user's figures (birds/canvas/figures.py)
         return out
     if t == "list":
         items = p.get("items")

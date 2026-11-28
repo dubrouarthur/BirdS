@@ -304,18 +304,42 @@ class Fetcher:
         _, raw = guard.fetch_image(self.http, self.cfg, url, max_bytes=4_000_000, timeout=8.0)
         return raw
 
-    def json(self, url: str) -> dict:
+    def user_agent(self, url: str) -> str:
+        """Wikimedia asks for a descriptive User-Agent with a contact (its policy; a bare one is throttled first)."""
+        from birds.harness import guard
+
+        if "wikimedia.org" in url or "wikipedia.org" in url:
+            from birds.harness.tools.search import user_agent
+
+            return user_agent(getattr(self.cfg, "search_contact", None))
+        return guard.IMAGE_USER_AGENT
+
+    def json(self, url: str, retry: float = 1.2) -> dict:
+        """The JSON of a search API. A 429 (rate limit) is asked again once after ``retry`` seconds: the picture
+        APIs refuse in short windows (seen live on Commons and Openverse), the second try often passes."""
         import json
+        import time
 
         from birds.harness import guard
 
-        status, _, body, _ = guard.fetch_bytes(
-            self.http, self.cfg, url, accept="application/json", types=("application/json",), max_bytes=400_000,
-            user_agent=guard.IMAGE_USER_AGENT, timeout=8.0,
-        )  # fmt: skip
-        if status != 200:
-            raise ValueError(f"HTTP {status}")
-        return json.loads(body.decode("utf-8", "replace"))
+        for attempt in (0, 1):
+            try:
+                status, _, body, _ = guard.fetch_bytes(
+                    self.http, self.cfg, url, accept="application/json", types=("application/json",),
+                    max_bytes=400_000, user_agent=self.user_agent(url), timeout=8.0,
+                )  # fmt: skip
+            except guard.ToolError as e:
+                if attempt == 0 and retry > 0 and "429" in str(e):
+                    time.sleep(retry)
+                    continue
+                raise ValueError(str(e)) from None
+            if status == 429 and attempt == 0 and retry > 0:
+                time.sleep(retry)
+                continue
+            if status != 200:
+                raise ValueError(f"HTTP {status}")
+            return json.loads(body.decode("utf-8", "replace"))
+        raise ValueError("HTTP 429")
 
     def tile(self, url: str, headers=None):
         from birds.harness import guard

@@ -632,7 +632,7 @@ def test_create_turn_captures_a_trained_tool_call(monkeypatch):
     ]
     app, llm = _app([_tool_call("make_slides", title="Bilan", slides=slides), "C'est prêt."])
     with TestClient(app) as client:
-        events = _chat(client, "Fais une présentation du bilan annuel")
+        events = _chat(client, "Fais une présentation du bilan annuel : CA 2023 1 M€, 2024 2 M€, 2025 3 M€")
     final = [e for e in events if e["type"] == "canvas"][-1]
     assert final["doc"]["title"] == "Bilan" and final["doc"]["blocks"][1]["parts"][0]["t"] == "chart"
     answer = next(e for e in events if e["type"] == "answer")
@@ -924,7 +924,7 @@ def test_image_endpoint_server_mode_with_pinned_dns(monkeypatch):
         def __init__(self, http, cfg):
             seen["http"], seen["pin"] = http, cfg.pin_dns
 
-    def search(query, fetch, exclude, mid, deadline=None):
+    def search(query, fetch, exclude, mid, deadline=None, judge=None, want=""):
         seen["query"] = query
         return None
 
