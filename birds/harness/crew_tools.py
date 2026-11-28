@@ -113,7 +113,25 @@ COST_MODEL = _fn(
     },
     ["offers"],
 )
-VIRTUAL = {t["function"]["name"]: t for t in (RECORD_FACTS, RECORD_TABLE, RECORD_ACTIONS, COST_MODEL)}
+PLAN_SEARCH = _fn(
+    "plan_search",
+    "Split the request into the sub-questions a researcher would look up, each with one short web query.",
+    {
+        "sub_questions": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "question": {"type": "string", "description": "One precise sub-question of the request."},
+                    "query": {"type": "string", "description": "A web search query of 3 to 8 words for it."},
+                },
+                "required": ["question", "query"],
+            },
+        }
+    },
+    ["sub_questions"],
+)
+VIRTUAL = {t["function"]["name"]: t for t in (RECORD_FACTS, RECORD_TABLE, RECORD_ACTIONS, COST_MODEL, PLAN_SEARCH)}
 PRODUCT = {t["function"]["name"]: t for t in PRODUCT_TOOLS}
 
 # What a good deliverable looks like, per tool (the drafters' brief ends with it).
@@ -185,6 +203,11 @@ PROMPTS = {
         "draft": "{shape}. Utilise uniquement les faits, calculs vérifiés et notes ci-dessus ; chaque chiffre suivi de "
         "[n] quand il vient d'une source. Angle : {angle}. Appelle maintenant {tool}.",
         "fix": "Voici ta version :\n{draft}\n\nCorrige uniquement : {findings}. Garde tout le reste. Appelle {tool}.",
+        "search_plan": "Sujet : {topic}. Découpe cette demande en 3 sous-questions précises qu'un chargé d'études "
+        "chercherait (par exemple les acteurs et leurs offres, les chiffres du marché, les tendances ou les risques), "
+        "chacune avec une requête web courte de 3 à 8 mots, sans guillemets ni opérateur. Une requête au moins vise "
+        "une source primaire ou officielle (statistique publique, rapport, site de l'éditeur). Année en cours : "
+        "{year}. Appelle plan_search.",
     },
     "en": {
         "extract": "Here are one or more page extracts (from [{n}]). Record at most 8 useful figures for: {topic}. For "
@@ -206,5 +229,9 @@ PROMPTS = {
         "draft": "{shape}. Use only the facts, verified computations and notes above; every figure that comes from a "
         "source is followed by [n]. Angle: {angle}. Call {tool} now.",
         "fix": "Here is your version:\n{draft}\n\nFix only: {findings}. Keep everything else. Call {tool}.",
+        "search_plan": "Topic: {topic}. Split this request into 3 precise sub-questions a research analyst would look "
+        "up (for instance the players and their offers, the market figures, the trends or the risks), each with a "
+        "short web query of 3 to 8 words, no quotes or operators. At least one query targets a primary or official "
+        "source (public statistics, a report, the vendor's site). Current year: {year}. Call plan_search.",
     },
 }

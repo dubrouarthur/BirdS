@@ -14,7 +14,8 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from birds.harness import calc, followup, guard, intents, meter
+from birds.harness import calc, facts, followup, guard, intents, meter, repair, router
+from birds.harness import plan as taskplan
 from birds.harness.config import Config, Context
 from birds.harness.llm import STOP, EndpointError, accepts
 from birds.harness.tools import TOOLS, make_search
@@ -202,6 +203,10 @@ DO_IT_NUDGE = (
     "Do it now, in this turn: call the tool you need (for example read_file on the attached file or image) and then "
     "answer with the result. Do not wait for the user to confirm."
 )
+LANG_NUDGE = {
+    "fr": "The user writes in French: write your whole answer in French.",
+    "en": "The user writes in English: write your whole answer in English.",
+}
 # stop reasons after which a last answer is attempted before the generic fallback
 _SALVAGE = {"max_steps", "invalid_tool_calls", "loop", "empty_output", "malformed_output"}
 LAST_CHANCE = {
@@ -304,6 +309,12 @@ CLOCK_NOTE = {
     "with these exact times; compute no other and do not search the web.)",
 }
 
+ASK_NOTE = {  # maps: « autour de moi » (intents mode "ask")
+    "fr": "\n\n(Note de Bird : la position de l'utilisateur est inconnue de Bird. Demande-lui en une phrase près de "
+    "quelle adresse, gare, quartier ou ville chercher ; ne propose aucun lieu.)",
+    "en": "\n\n(Bird's note: Bird does not know where the user is. Ask in one sentence near which address, station, "
+    "area or town to search; suggest no place.)",
+}
 IMAGES_NOTE = {
     "fr": "\n\n(Note de Bird : la recherche d'images sur « {subject} » est faite. Les images qui correspondent, s'il y "
     "en a, sont affichées sous ta réponse avec leur source. Décris brièvement {subject} d'après les résultats ; "
@@ -597,6 +608,7 @@ class Hooks:
     on_status: Callable[[str, dict], None] | None = None  # e.g. ("waking", {"attempt": 2, "retry_in": 5.0})
     cancel: Any = None  # a threading.Event the front end sets on stop: the model call ends at once
     on_agent: Callable[[dict], None] | None = None  # Mode Agent (crew.py): agent_* events and the crew's tool steps
+    on_plan: Callable[[dict], None] | None = None  # the task plan's checklist (plan.py), each time it changes
 
 
 @dataclass
@@ -621,6 +633,10 @@ class Run:
     messages: list[dict] = field(default_factory=list)  # full conversation, to continue a chat
     pending: dict | None = None  # stop_reason "confirm": {"tool", "arguments"} waiting for the user's decision
     state: dict | None = None  # stop_reason "confirm": JSON-serialisable loop state for Agent.run(resume=...)
+    router: dict = field(default_factory=dict)  # the model router's decision, metadata only (router.log_meta)
+    plan: dict | None = None  # the task plan's final checklist, when the request asked for two things or more
+    notes: list[str] = field(default_factory=list)  # one short line per tool result (facts.note_of)
+    figures: list[list[str]] = field(default_factory=list)  # labelled totals read by the tools ([label, amount])
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -747,10 +763,16 @@ class Agent:
         off |= set() if getattr(self.cfg, "widgets", True) else set(EXTRA_TOOL_NAMES)
         return set(self.cfg.allowed_tools) - off
 
-    def _last_answer(self, messages: list[dict], lang: str, deadline: float) -> tuple[str, dict | None]:
+    def _last_answer(
+        self, messages: list[dict], lang: str, deadline: float, notes: list[str] | None = None
+    ) -> tuple[str, dict | None]:
         """One generation with no tools and no reasoning, asked to answer from what is already in the conversation.
-        The instruction is a temporary last message: it is never kept in the history."""
-        note = {"role": "user", "content": LAST_CHANCE[lang if lang in LAST_CHANCE else "en"]}
+        The instruction is a temporary last message: it is never kept in the history. ``notes`` (the run's result
+        memory) is repeated in it, so a result pushed out of view by later errors is not lost."""
+        text = LAST_CHANCE[lang if lang in LAST_CHANCE else "en"]
+        if notes:
+            text += ("\nRésultats obtenus : " if lang == "fr" else "\nResults so far: ") + " | ".join(notes[-6:])
+        note = {"role": "user", "content": text}
         try:
             out, stream = self._generate(render_prompt(self.tok, [*messages, note], [], False), False, deadline)
         except EndpointError:
@@ -762,6 +784,100 @@ class Agent:
         if text and stream is not None:
             stream.finish()
         return text, out
+
+    # ---------------------------------------------------------------- between actions (plan.py, repair.py, facts.py)
+
+    _base = ""  # the user's messages and the history of this run, where the figures a follow-up refers to are
+
+    @staticmethod
+    def _base_text(messages: list[dict], turn_at: int) -> str:
+        return "\n".join(
+            str(m.get("content") or "") for m in messages[: turn_at + 1] if m.get("role") in ("user", "assistant")
+        )
+
+    def _offered(self, withdrawn: set[str]) -> set[str]:
+        return {t["function"]["name"] for t in self.tools if t["function"]["name"] not in withdrawn}
+
+    def _repair_calls(self, calls: list[dict], offered: set[str], ctx: Context, salvage: str = ""):
+        """(calls with tool names and arguments repaired, the repair notes of each call). Runs before the repeat
+        guard, so « Taux livret A » and « taux livret a » are the same call."""
+        out, notes = [], []
+        for c in calls:
+            n = [salvage] if salvage else []
+            name, fixed = repair.resolve_tool(c.get("name"), offered)
+            if fixed:
+                n.append(fixed)
+            args, more = repair.repair_args(name, c.get("arguments"), request=ctx.request, workspace=ctx.workspace)
+            out.append({"name": name, "arguments": args})
+            notes.append(n + more)
+        return out, notes
+
+    @staticmethod
+    def _remember(step: Step, result: str, run: Run, memory: dict, key: str) -> None:
+        """The result memory: one note per result (Run.notes), the note of each successful call by its key (recalled
+        on a repeat), and the labelled totals read in files and pages (Run.figures, kept in the turn's memo)."""
+        note = facts.note_of(step.tool, step.arguments, result, step.error)
+        run.notes.append(note)
+        if step.error:
+            return
+        memory[key] = note
+        if step.tool in ("read_file", "read_page"):
+            for label, num in facts.key_figures(result, 6):
+                if [label, num] not in run.figures and len(run.figures) < 8:
+                    run.figures.append([label, num])
+
+    @staticmethod
+    def _delivered(run: Run, ctx: Context, content: str) -> str:
+        """The answer and what the run made: draft subjects and bodies, the arguments of files and charts."""
+        parts = [content or ""]
+        for d in ctx.drafts:
+            parts += [str(d.get("subject") or ""), str(d.get("body") or "")]
+        for s in run.steps:
+            if (s.tool.startswith("make_") or s.tool == "draft_email") and not s.error:
+                parts.append(json.dumps(s.arguments, ensure_ascii=False, default=str))
+        return "\n".join(parts)
+
+    def _figure_gap(self, ctx: Context, text: str) -> list[tuple[str, str]]:
+        """Labelled totals of the results (and of the user's messages) that the request is about, missing from
+        ``text``. Only when the request asks about totals, amounts or VAT."""
+        if not facts.FIGURE_ASK.search(ctx.request or ""):
+            return []
+        src = self._base + "\n" + "\n".join(t for _, t in ctx.fetched)
+        return facts.missing_figures(facts.wanted(facts.key_figures(src), ctx.request), text)[:5]
+
+    def _plan_event(self, tplan, run: Run, ctx: Context, content: str, *, offered_names: set[str], final=False):
+        """The checklist ticked from what really happened; sent to the UI when the plan is active."""
+        if not tplan:
+            return None
+        text = self._delivered(run, ctx, content)
+        statuses = taskplan.status(tplan, run.steps, text, offered_names, figures_ok=not self._figure_gap(ctx, text))
+        if taskplan.active(tplan) and self.hooks.on_plan:
+            self.hooks.on_plan(taskplan.to_dict(statuses, run.lang, final=final))
+        return statuses
+
+    def _final_check(self, tplan, run: Run, ctx: Context, content: str, messages, turn_at, offered: set[str]):
+        """(reminder, reasons) for an answer that lacks something the request asked for, or ('', set())."""
+        text = self._delivered(run, ctx, content)
+        gap = self._figure_gap(ctx, text)
+        statuses = taskplan.status(tplan, run.steps, text, offered, figures_ok=not gap) if tplan else []
+        todo = taskplan.missing(statuses, enforced_only=not taskplan.active(tplan))
+        if _made_file(run, ctx):  # « un document avec un graphique »: no chart reminder after a file (see chart_ask)
+            todo = [s for s in todo if s["kind"] != "chart"]
+        parts, reasons = [], set()
+        if todo:
+            read = next((i.path for i in tplan if i.kind == "read"), "")
+            parts.append(taskplan.nudge(todo, facts.figures_line(gap), read))
+            reasons |= {s["kind"] for s in todo}
+        if gap and "totals" not in reasons:
+            parts.append(
+                "Some figures of the results are missing or changed in your answer. Write them exactly as in the "
+                f"results: {facts.figures_line(gap)}."
+            )
+            reasons.add("figures")
+        if facts.wrong_language(content, run.lang) and not facts.other_language_asked(ctx.request, run.lang):
+            parts.append(LANG_NUDGE["en" if run.lang == "en" else "fr"])
+            reasons.add("lang")
+        return " ".join(parts), reasons
 
     def _generate(self, prompt: str, thinking: bool, deadline: float) -> tuple[dict, AnswerStream | None]:
         hooks = self.hooks
@@ -843,6 +959,12 @@ class Agent:
             gen, ok, content = st["gen"], st["ok"], st.get("content", "")
             forced = "confirmed" if decision is True else "denied_unconfirmed"
             auto_calls = 0
+            tplan = [taskplan.Item(**i) for i in st.get("plan", []) if isinstance(i, dict)]
+            checked, earlier = bool(st.get("checked", True)), None
+            run.notes = [str(n) for n in st.get("notes", [])]
+            memory = {str(k): str(v) for k, v in (st.get("memory") or {}).items()}
+            turn_at = max((i for i, m in enumerate(messages) if m.get("role") == "user"), default=0)
+            self._base = self._base_text(messages, turn_at)
         else:
             run = Run(lang=lang or detect_lang(user))
             ctx = Context(
@@ -874,12 +996,30 @@ class Agent:
                 clock_words = again.args["text"]
             elif again is not None:
                 found = [again]
+            # ---- model router (birds/harness/router.py) -------------------------------------------------------
+            # Bird decides the modules in one short call; the parsers above become its hints, its fallback (router
+            # off, too slow, unusable answer: plan.active is False and nothing below changes) and a veto.
+            plan = router.plan_turn(self, req, history, attached=attached, lang=run.lang, deadline=deadline)
+            if plan.decision is not None:
+                run.router = router.log_meta(plan.decision)
+                if plan.decision.meta.get("usage"):
+                    run.usage.append({**plan.decision.meta["usage"], "kind": "router"})
+            found, clock_words = plan.found(found), plan.clock_words(clock_words)
+            routed = plan.routed(routed)
+            # ---- end of the model router hook ------------------------------------------------------------------
             routed |= set(EXTRA_TOOL_NAMES) - {"make_chart"} - {i.tool for i in found}
             prefill = next((i for i in found if i.args), None)
             # « météo aujourd'hui », « taux du jour »: words that usually call for the web, but the tool has the answer
             own_answer = prefill and prefill.tool in ("convert_currency", "get_weather")
             if prefill and not prefill.keep_web and (own_answer or not _NEEDS_WEB.search(req)):
                 routed |= {"web_search", "read_page"}
+            # ---- maps: « une pharmacie autour de moi »: Bird does not know where the user is; nothing is looked up,
+            # the model asks for a place and the memo keeps the kind for the reply (« gare de Lyon »)
+            if not prefill and any(i.mode == "ask" for i in found):
+                kind = intents.ask_kind(req)
+                routed |= {"find_places", "web_search", "read_page"}
+                messages[-1]["content"] += ASK_NOTE["en" if run.lang == "en" else "fr"]
+                ctx.widgets.append({"type": "ask_place", "kind": kind})
             facts = "" if prefill or not getattr(cfg, "widgets", True) else self._clock(clock_words, run.lang, tz, ctx)
             if facts:
                 # « décalage horaire avec Tokyo »: the harness computes the times and the slot itself (no tool, no
@@ -888,7 +1028,7 @@ class Agent:
                 messages[-1]["content"] += CLOCK_NOTE["en" if run.lang == "en" else "fr"].format(facts=facts)
             sums = (
                 ""
-                if prefill or facts or attached or not getattr(cfg, "widgets", True)
+                if prefill or facts or attached or not getattr(cfg, "widgets", True) or not plan.allows("calculator")
                 else self._calc(req, run.lang, ctx)
             )
             if sums:
@@ -897,13 +1037,14 @@ class Agent:
                 routed |= {"web_search", "read_page"}
                 messages[-1]["content"] += calc.NOTE["en" if run.lang == "en" else "fr"].format(facts=sums)
                 facts = sums
-            slot = "" if prefill or facts or _NEEDS_WEB.search(req) else _event_slot(req, run.lang)
+            no_slot = prefill or facts or _NEEDS_WEB.search(req) or not plan.allows("event")
+            slot = "" if no_slot else _event_slot(req, run.lang)
             if slot:
                 # "cale un déjeuner le 25 décembre à midi": the UI shows an event card (.ics) built from these
                 # words; live model, offered the web, searched "restaurants ouverts le 25 décembre" and refused
                 routed |= {"web_search", "read_page"}
                 messages[-1]["content"] += EVENT_NOTE["en" if run.lang == "en" else "fr"].format(slot=slot)
-            pictures = None if prefill or facts or slot or attached else intents.images(req, run.lang)
+            pictures = None if prefill or facts or slot or attached else plan.images(req, run.lang)
             if pictures is not None and self.search:
                 # « montre-moi une photo de la tour Eiffel »: the harness searches the subject itself; the images
                 # shown are the ones whose page title names it (birds.web.backends.pick_web_images)
@@ -922,10 +1063,11 @@ class Agent:
                 last.get("role") == "assistant"
                 and bool(_CHART_MEMO.search(str(last.get("content") or "") + str(last.get("memo") or "")))
                 and followup.chart_retype(req)
+                and plan.allows("make_chart")
             )
             if retype:
                 routed.discard("make_chart")
-            chartable = "make_chart" not in routed and (chart_ask(req) or trend_ask(req) or retype)
+            chartable = "make_chart" not in routed and plan.chart(chart_ask(req) or trend_ask(req) or retype)
             mine = figures_in(req) if chartable and not prefill else None
             if chartable and not prefill and mine is None and history and (_followup(req) or retype):
                 # « mets ça en graphique », « refais-le en courbe »: the figures are in the previous answer (its
@@ -935,6 +1077,18 @@ class Agent:
                 # « graphique des ventes : janvier 120, février 135, mars 160 »: the figures are the user's own, so
                 # the harness draws the chart itself instead of hoping the small model calls make_chart
                 prefill = intents.Intent("make_chart", chart_call(req, mine, run.lang), keep_web=True)
+            # ---- task plan (plan.py): the deliverables of this request, from the user's own words only
+            turn_at, checked, earlier, memory = len(messages) - 1, False, None, {}
+            # a file attached in an earlier turn (the app sends it with every request) is not « to read first »
+            told = "\n".join(str(m.get("content") or "") for m in history or [] if m.get("role") == "user")
+            fresh = re.sub(r"\[(?:Fichier joint|Attached file)\s*:\s*([^\]\n]+)\]",
+                           lambda m: "" if m.group(0) in told else m.group(0), user)  # fmt: skip
+            tplan = taskplan.extract(req, run.lang, fresh, chart_ask(req)) if getattr(cfg, "task_plan", True) else []
+            if getattr(cfg, "canvas_sink", None) is not None:  # the canvas is the file: never « présentation manque »
+                tplan = taskplan.for_canvas(tplan, getattr(cfg, "canvas_kind", "") or "deck")
+            if taskplan.active(tplan):
+                messages[-1]["content"] += taskplan.note(tplan, run.lang)
+            self._base = self._base_text(messages, turn_at)
             if prefill and prefill.tool in self._allowed():
                 # "prefill": the harness makes the call the parser is sure of, before the first generation, on the
                 # same path as a model call (validation, gate, injection scan); the step is tagged auto for the UI
@@ -942,9 +1096,11 @@ class Agent:
                 messages.append(
                     {"role": "assistant", "content": "", "tool_calls": [{"type": "function", "function": dict(call)}]}
                 )
-                seen.add(call["name"] + " " + json.dumps(call["arguments"], sort_keys=True, ensure_ascii=False))
+                seen.add(repair.canonical(call["name"], call["arguments"]))
                 queue, gen, auto_calls = [call], 1, 1
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
+        pre_notes: list[list[str]] = []  # argument repairs made before validation, one list per queued call
+        self._plan_event(tplan, run, ctx, "", offered_names=self._offered(withdrawn))
 
         while True:
             if not queue:  # ---- ask the model
@@ -1012,6 +1168,22 @@ class Agent:
                 parsed = parse_output(text)
                 content, run.reasoning = guard.redact(parsed["content"]), parsed["reasoning"]
                 calls = parsed["tool_calls"][: cfg.max_calls_per_step]
+                offered_names = {t["function"]["name"] for t in offered}
+                salvage_note = ""
+                if not calls and parsed["content"]:
+                    # « <tool_call>{"name": …, "arguments": …}</tool_call> », a bare JSON call or « read_file(path=…) »
+                    # in the text: the trained parser reads none of them (repair.salvage_calls)
+                    got, before, salvage_note = repair.salvage_calls(
+                        parsed["content"],
+                        offered_names,
+                        code_ask=bool(repair.CODE_ASK.search(ctx.request or "")),
+                        flagged=run.flagged,
+                    )
+                    if got:
+                        calls = got[: cfg.max_calls_per_step]
+                        parsed = {**parsed, "content": before}
+                        content = guard.redact(before)
+                calls, pre_notes = self._repair_calls(calls, offered_names, ctx, salvage_note)
                 if stream is not None:
                     if calls or _TOOL_OPEN in content:
                         if stream.streamed and hooks.on_reset:
@@ -1027,7 +1199,8 @@ class Agent:
                             run.stop_reason = "length"  # cut by max_tokens: kept, but marked as interrupted
                     if out.get("finish_reason") == "repetition":
                         run.stop_reason = "repetition"  # the model looped: stopped early, one copy kept
-                    if run.stop_reason == "answer" and not _made_file(run, ctx):
+                    canvas = getattr(cfg, "canvas_sink", None) is not None  # the canvas shows the content
+                    if run.stop_reason == "answer" and not _made_file(run, ctx) and not canvas:
                         claims = bool(_FILE_CLAIM.search(content))
                         if not file_nudged and claims and _file_edit_ask(ctx.request, attached):
                             if gen < cfg.max_steps - 1 and time.monotonic() < deadline:
@@ -1076,6 +1249,7 @@ class Agent:
                     if (
                         run.stop_reason == "answer"
                         and not file_nudged
+                        and not canvas
                         and "make_chart" not in withdrawn
                         and chart_ask(ctx.request)
                         and not ctx.charts
@@ -1104,17 +1278,37 @@ class Agent:
                         and chart_ask(ctx.request)
                         and not ctx.charts
                         and not _made_file(run, ctx)
+                        and not canvas
                         and chart_claim(content)
                     ):
                         content = NO_CHART[run.lang]  # "Voici la courbe :" with no chart: say so, plainly
+                    if (
+                        run.stop_reason == "answer"
+                        and not checked
+                        and not content.rstrip().endswith("?")
+                        and gen < cfg.max_steps - 1
+                        and time.monotonic() < deadline
+                    ):
+                        # one reminder for everything the answer still lacks: a requested deliverable, the reading
+                        # of an attached file, the figures of the results, the user's language (no extra
+                        # generation when all is in order)
+                        why, reasons = self._final_check(tplan, run, ctx, content, messages, turn_at, offered_names)
+                        if why:
+                            checked, earlier = True, (content, reasons)
+                            if stream is not None and stream.streamed and hooks.on_reset:
+                                hooks.on_reset()
+                            messages.append(
+                                {"role": "assistant", "content": parsed["content"],
+                                 "reasoning_content": parsed["reasoning"]}
+                            )  # fmt: skip
+                            messages.append({"role": "tool", "content": why})
+                            gen += 1
+                            continue
                     break
                 if gen == cfg.max_steps - 1:
                     run.stop_reason = "max_steps"  # the last allowed generation still asks for tools: they are not run
                     break
-                keys = [
-                    c["name"] + " " + json.dumps(c["arguments"], sort_keys=True, ensure_ascii=False, default=str)
-                    for c in calls
-                ]
+                keys = [repair.canonical(c["name"], c["arguments"]) for c in calls]
                 if any(k in seen for k in keys) or len(set(keys)) < len(keys):
                     if nudged:
                         run.stop_reason = "loop"  # the same call with the same arguments again, after a reminder
@@ -1131,13 +1325,14 @@ class Agent:
                             "tool_calls": [{"type": "function", "function": dict(c)} for c in calls],
                         }
                     )
-                    for c in calls:
+                    for c, k in zip(calls, keys, strict=True):
+                        recall = f" Its result: {memory[k]}." if k in memory else ""
                         messages.append(
                             {
                                 "role": "tool",
                                 "content": f"Error: {c['name']} was already called with these exact arguments and its "
-                                "result is above. Do not repeat it: use that result now, either to answer the user or "
-                                "to call the next tool the request needs.",
+                                f"result is above.{recall} Do not repeat it: use that result now, either to answer the "
+                                "user or to call the next tool the request needs.",
                             }
                         )
                     gen += 1
@@ -1157,7 +1352,9 @@ class Agent:
             paused = False
             while queue:
                 c = queue[0]
-                step, result = self._call(c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced, routed)
+                fixes = pre_notes.pop(0) if pre_notes else []
+                step, result = self._call(c["name"], c["arguments"], gen - 1, run, ctx, side_effects, forced, routed,
+                                          pre_notes=fixes)  # fmt: skip
                 forced = None
                 if auto_calls:
                     step.info["auto"], auto_calls = True, 0
@@ -1174,6 +1371,11 @@ class Agent:
                 if hooks.on_step_end:
                     hooks.on_step_end(len(run.steps) - 1, step)
                 messages.append({"role": "tool", "content": result})
+                self._remember(step, result, run, memory, repair.canonical(c["name"], c["arguments"]))
+            if not paused and taskplan.active(tplan) and messages and messages[-1]["role"] == "tool":
+                # the checklist, ticked from what really happened, after the last result of the step
+                shown = self._plan_event(tplan, run, ctx, "", offered_names=self._offered(withdrawn))
+                messages[-1]["content"] += taskplan.progress(shown)
             if paused:
                 run.stop_reason = "confirm"
                 run.pending = {"tool": step.tool, "arguments": step.arguments}
@@ -1211,6 +1413,10 @@ class Agent:
                     "drafts": ctx.drafts,
                     "files": ctx.files,
                     "bytes_fetched": ctx.bytes_fetched,
+                    "plan": taskplan.item_dicts(tplan),
+                    "checked": checked,
+                    "notes": run.notes,
+                    "memory": memory,
                 }
                 break
             bad_streak = 0 if ok else bad_streak + 1
@@ -1218,7 +1424,8 @@ class Agent:
                 run.stop_reason = "invalid_tool_calls"  # one retry after a malformed step, not more
                 break
 
-        if run.stop_reason == "answer" and chartable and not ctx.charts and "make_chart" in self._allowed():
+        if (run.stop_reason == "answer" and chartable and not ctx.charts and "make_chart" in self._allowed()
+                and getattr(cfg, "canvas_sink", None) is None):
             # a chart was asked and the model answered with a table or a list of figures instead of drawing it:
             # the harness draws that table (make_chart checks where the numbers come from and tags them)
             found = figures_in(content)
@@ -1233,7 +1440,7 @@ class Agent:
             # The loop ended without a usable answer (tool calls that kept failing, the step budget, an empty or
             # broken output). Before giving up, one last generation with no tools and no reasoning: answer with what
             # was gathered. Cheap, and far better than a generic "could not answer".
-            last, used = self._last_answer(messages, run.lang, deadline)
+            last, used = self._last_answer(messages, run.lang, deadline, run.notes)
             if used:  # the last generation counts in the receipt like any other
                 run.usage.append(
                     {
@@ -1244,6 +1451,16 @@ class Agent:
                 )
             if last:
                 content, run.stop_reason, run.salvaged = last, "answer", True
+        if run.stop_reason == "answer" and earlier is not None:
+            content = (
+                taskplan.merged(earlier[0], content, earlier[1]) if detect_lang(earlier[0]) == run.lang else content
+            )
+        if tplan and run.stop_reason != "confirm":
+            final = self._plan_event(tplan, run, ctx, content, offered_names=self._offered(withdrawn), final=True)
+            if not taskplan.active(tplan):
+                run.plan = None
+            elif final is not None:
+                run.plan = taskplan.to_dict(final, run.lang, final=True)
         if run.stop_reason == "confirm":
             run.answer = ""
         elif run.stop_reason == "answer":
@@ -1287,13 +1504,16 @@ class Agent:
         side_effects: int,
         forced: str | None = None,
         routed: set[str] | frozenset[str] = frozenset(),
+        pre_notes: list[str] | None = None,
     ) -> tuple[Step, str]:
         """Validate, gate and execute one tool call. Returns the step record and the text given back to the model.
 
         ``forced`` is the user's answer to a confirmation asked in an earlier call of ``run`` (resume).
+        ``pre_notes`` are the repairs already made to the name and arguments (``Agent._repair_calls``).
         """
         t0 = time.monotonic()
         step = Step(generation=gen, tool=name, arguments=raw_args if isinstance(raw_args, dict) else {})
+        step.repairs.extend(pre_notes or [])
         args, err = guard.validate_args(name, raw_args, self.cfg.allowed_tools, step.repairs)
         if not err and name in routed:  # not offered for this request (route): calling it anyway is not allowed
             err = f"unknown tool '{name}': it is not available for this request"
@@ -1340,6 +1560,12 @@ class Agent:
                     )
                 except guard.ToolError as e:
                     step.error, result = str(e), f"Error: {e}"
+                    if name == "read_file" and "not found" in str(e):
+                        # name the files that exist, so the next call can be right (a 4B model otherwise retries
+                        # the same wrong name)
+                        names = repair.workspace_files(ctx.workspace)[:8]
+                        if names:
+                            result += " Files in the workspace: " + ", ".join(f'"{n}"' for n in names) + "."
                 except Exception as e:  # a tool bug must never crash the run, nor leak a stack trace to the model
                     step.error = f"{type(e).__name__}: {guard.redact(str(e))[:200]}"
                     result = f"Error: the tool failed ({type(e).__name__})."

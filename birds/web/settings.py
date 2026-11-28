@@ -97,6 +97,10 @@ class Settings:
     tavily_api_key: str | None = field(default=None, repr=False)
     search_default: str = "wikipedia"  # "wikipedia" (no key) or "none"
     search_contact: str | None = None  # contact in the User-Agent sent to Wikipedia
+    # the canvas (birds.canvas): a creation ask is written in the content format beside the chat. Off
+    # (BIRD_CANVAS_OFF=1): every turn is an ordinary one, the trained make_* tools make the files, and the canvas
+    # only adopts them. A gate measured by scripts/canvas_eval.py (docs/CANVAS.md)
+    canvas: bool = True
     pin_dns: bool = True  # read_page connects to the validated IP; set False only behind a filtering egress proxy
     # user-supplied endpoints ("Mon endpoint" in the settings of the app)
     allow_user_endpoint: bool = False
@@ -145,6 +149,7 @@ class Settings:
     # workspace: None = a fresh temporary folder per request, deleted afterwards (serverless)
     workspace: str | None = None
     demo_delay: float = 1.0
+    demo_energy: bool = False  # demo answers carry a token estimate of energy (labelled démo); off by default
     local_llm: object | None = None  # scripts/serve.py --local
     local_tok: object | None = None
     tokenizer: str | None = None  # scripts/serve.py --tokenizer: real tokenizer instead of the vendored template
@@ -250,6 +255,7 @@ class Settings:
             else "wikipedia",
             search_contact=contact,
             pin_dns=_flag(get("BIRD_PIN_DNS"), default=True),
+            canvas=not _flag(get("BIRD_CANVAS_OFF"), default=False),
             energy_method=method if method in ENERGY_METHODS else "tokens",
             wh_per_1k_out=_num(get("BIRD_WH_PER_1K_OUT"), WH_PER_1K_OUT, float, 0.0),
             wh_per_1k_in=_num(get("BIRD_WH_PER_1K_IN"), WH_PER_1K_IN, float, 0.0),
@@ -282,6 +288,7 @@ class Settings:
             signing_secret=key,
             signing=signing,
             demo_delay=_num(get("BIRD_DEMO_DELAY"), 1.0, float, 0.0),
+            demo_energy=_flag(get("BIRD_DEMO_ENERGY"), False),
             geo=_flag(get("BIRD_GEO"), default=True),
             geo_user_agent=get("BIRD_GEO_USER_AGENT") or "BirdHarness/0.1 (+geo)",
             nominatim_url=get("BIRD_NOMINATIM_URL"),

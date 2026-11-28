@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f6f5f0" />
-    <meta name="description" content="Bird, un petit assistant de travail frugal qui montre ce que coûte chaque réponse." />
+    <meta name="description" content="Bird, le petit assistant de travail léger et rapide, conçu en France : mails, présentations, recherche, cartes et graphiques." />
     <title>Bird — assistant frugal</title>
     <link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png" />
@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/static/app.css" />
     <link rel="stylesheet" href="/static/agents.css" />
     <link rel="stylesheet" href="/static/modules.css" />
+    <link rel="stylesheet" href="/static/canvas.css" />
     <script src="/static/theme.js"></script>
     <script type="module" src="/static/app.js"></script>
   </head>
@@ -65,6 +66,10 @@
           <button id="btn-model" class="btn btn-chip" type="button">
             <span class="chip-dot" aria-hidden="true"></span><span id="model-name">bird</span>
           </button>
+          <button id="btn-deliverables" class="btn btn-chip btn-deliverables" type="button" hidden data-i18n-aria="deliv.open">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3.5 6.5h5l1.5 1.5h6.5v8h-13z" /><path d="M3.5 6.5V4.5h5l1.5 2" /></svg>
+            <span class="deliv-label" data-i18n="deliv.title">Livrables</span><span id="deliverables-n" class="num deliv-n"></span>
+          </button>
           <button id="btn-footprint" class="btn btn-chip btn-footprint" type="button" data-i18n-aria="nav.footprint">
             <svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 16c0-6.5 4.2-11 12-12 .2 7.6-3.6 12-9.6 12.4M4 16.6C6 12.5 8.6 10 12 8.2" /></svg>
             <span id="footprint-total" class="num"></span>
@@ -79,15 +84,17 @@
           <section id="view-chat" class="view">
             <div class="column">
               <section id="empty" class="empty" aria-labelledby="empty-title">
-                <img class="lockup only-light" src="/static/brand/logo-stacked.svg" alt="Bird S 4B" width="102" height="132" />
-                <img class="lockup only-dark" src="/static/brand/logo-stacked-dark.svg" alt="Bird S 4B" width="102" height="132" />
-                <svg class="mark empty-mark" viewBox="0 0 64 56" role="img" aria-label="Bird S 4B" focusable="false"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z" /><path d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z" /><path d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z" /></svg>
-                <h2 id="empty-title" class="empty-title" data-i18n="empty.title">Petit, et fait pour ça.</h2>
-                <p class="empty-lead empty-p1" data-i18n="empty.p1">Je suis Bird, un petit modèle de langage : je consomme bien moins de ressources que les modèles géants.</p>
-                <p class="empty-lead empty-candid" data-i18n="empty.p2">En échange, je fais plus d'erreurs qu'eux. Relisez ce qui compte.</p>
+                <svg class="mark fi-mark" viewBox="0 0 64 56" aria-hidden="true" focusable="false"><path d="M5 49C15 45.5 26 40.5 36 34.5c3-1.8 5.2-5.1 8.4-7.1 3.9-2.4 8.6-1.5 10.8 1.9L61.5 30.4l-5.6 2.3c-1 3.1-3.4 5.7-6.9 7.4C38 45.2 22 49.5 5 49z" /><path class="mark-wing-back" d="M40.5 31.5C38.5 21 30 10.5 14.5 5.5c4.2 6.8 6.2 14.2 8.2 20.9 1.3 4.3 3.3 8.2 6.8 11.3z" /><path class="mark-wing-front" d="M43.5 28.5c.5-7.8 3.8-15.8 10.8-22.3-1 5.9-.3 10.7-.8 15.3-.3 3.2-1.7 5.8-4.6 7.6z" /></svg>
+                <h2 id="empty-title" class="empty-title"><span data-i18n="empty.title">Des petits modèles pour de </span><em data-i18n="empty.title.em">vrais</em><span data-i18n="empty.title.end"> usages.</span></h2>
+                <button id="fi-eco" class="fi-eco" type="button" data-i18n-aria="empty.eco.aria"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 16c0-6.5 4.2-11 12-12 .2 7.6-3.6 12-9.6 12.4M4 16.6C6 12.5 8.6 10 12 8.2" /></svg><span data-i18n="empty.eco">Performants et sobres : une fraction du calcul des géants</span></button>
+                <p class="empty-lead" data-i18n="empty.p1">Mails, présentations, recherches sourcées, cartes, graphiques : Bird s'en charge vite, et chaque réponse affiche son empreinte.</p>
                 <p id="demo-note" class="demo-note" hidden data-i18n="demo.note">Mode démo : réponses écrites à l'avance, aucun modèle ne tourne.</p>
+                <h3 class="eyebrow fi-try" data-i18n="start.title">Essayez</h3>
+                <ul id="starters" class="starters"></ul>
+                <p id="starter-hint" class="sr-only" data-i18n="start.aria">Prépare la demande dans la zone de saisie</p>
                 <h3 id="examples-title" class="eyebrow">Pour commencer</h3>
                 <ul id="examples" class="examples"></ul>
+                <p class="fi-sign"><svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 16c0-6.5 4.2-11 12-12 .2 7.6-3.6 12-9.6 12.4M4 16.6C6 12.5 8.6 10 12 8.2" /></svg><span data-i18n="empty.sign">Léger · Sobre · Conçu en France</span></p>
               </section>
               <div id="conversation" class="conversation"></div>
             </div>
@@ -173,7 +180,7 @@
               </div>
               <p id="send-why" class="sr-only"></p>
             </form>
-            <p class="dock-note"><span data-i18n="composer.caution">Bird est un petit modèle : il peut se tromper.</span><span class="dock-keys"><span data-i18n="composer.keys">/ pour les actions rapides · Entrée pour envoyer</span></span></p>
+            <p class="dock-note"><span data-i18n="composer.caution">Bird peut faire des erreurs. Vérifiez les informations importantes.</span><span class="dock-keys"><span data-i18n="composer.keys">/ pour les actions rapides · Entrée pour envoyer</span></span></p>
           </div>
           </div>
         </footer>
@@ -193,6 +200,18 @@
           </button>
         </div>
         <div id="shortcuts-body"></div>
+      </div>
+    </dialog>
+
+    <dialog id="deliverables" class="modal deliverables" aria-labelledby="deliverables-title">
+      <div class="modal-body">
+        <div class="modal-head">
+          <h2 id="deliverables-title" data-i18n="deliv.title">Livrables</h2>
+          <button id="deliverables-close" class="btn btn-quiet btn-icon" type="button" data-i18n-aria="close">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
+          </button>
+        </div>
+        <div id="deliverables-body"></div>
       </div>
     </dialog>
 

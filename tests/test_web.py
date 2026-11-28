@@ -162,6 +162,21 @@ def test_demo_never_invents_energy(client):
         assert usage["energy_wh"] is None and usage["energy_kind"] is None and usage["co2_g"] is None
 
 
+def test_demo_energy_is_opt_in_and_uses_the_token_formula():
+    """BIRD_DEMO_ENERGY: the scripted counts go through the real token estimate, still tagged scripted."""
+    with TestClient(create_app(settings(demo_energy=True))) as c:
+        usage = one(chat(c, "Bonjour"), "usage")
+    assert usage["tokens_kind"] == "scripted" and usage["energy_kind"] == "estimated"
+    assert usage["energy_method"] == "tokens" and usage["energy_source"].startswith("demo: ")
+    b = usage["energy_basis"]
+    expected = usage["prompt_tokens"] / 1000 * b["wh_per_1k_in"] + usage["completion_tokens"] / 1000 * b["wh_per_1k_out"]
+    assert usage["energy_wh"] == pytest.approx(expected, rel=1e-4)
+    assert b["low_wh"] < usage["energy_wh"] < b["high_wh"]
+    assert 0 <= usage["busy_seconds"] <= usage["seconds"] + 0.01  # the card never works longer than the answer
+    assert usage["co2_g"] is None  # the server never picks a grid; the panel does, with its source
+    assert Settings.from_env({"BIRD_DEMO_ENERGY": "1"}).demo_energy and not Settings.from_env({}).demo_energy
+
+
 def test_demo_is_deterministic(client):
     def strip(events):
         return [{k: v for k, v in e.items() if k != "seconds"} for e in events]
@@ -196,8 +211,8 @@ def test_search_scenario_steps_sources_citations(client):
 @pytest.mark.parametrize(
     ("prompt", "tool", "suffix", "kind"),
     [
-        ("Prépare une présentation de 5 diapositives", "make_slides", ".pptx", "slides"),
-        ("Rédige un document de synthèse", "make_document", ".docx", "document"),
+        ("Prépare une présentation pptx de 5 diapositives", "make_slides", ".pptx", "slides"),
+        ("Rédige un document Word de synthèse", "make_document", ".docx", "document"),
         ("Fais un tableur de budget", "make_sheet", ".xlsx", "sheet"),
     ],
 )
@@ -216,7 +231,7 @@ def test_generated_files_are_inline_with_a_preview(client, prompt, tool, suffix,
 def test_inline_file_size_cap():
     app = create_app(settings(max_inline_file_bytes=100))
     with TestClient(app) as client:
-        (file,) = one(chat(client, "Prépare des diapositives"), "answer")["files"]
+        (file,) = one(chat(client, "Prépare des diapositives pptx"), "answer")["files"]
     assert file["data"] is None and file["error"] == "too_large" and file["size"] > 100
 
 
@@ -639,7 +654,7 @@ def test_index_has_no_inline_code_and_no_external_origin(client):
     assert "@import" not in css and css.count("@font-face") == 2
     for name in ("carlito-regular.woff2", "carlito-bold.woff2", "OFL.txt"):
         assert client.get(f"/static/fonts/{name}").status_code == 200
-    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "previews.js", "chart.js", "richcode.js", "widgets.js", "ics.js", "agents.js"]
+    scripts = ["app.js", "core.js", "turns.js", "views.js", "markdown.js", "i18n.js", "theme.js", "previews.js", "chart.js", "richcode.js", "widgets.js", "ics.js", "agents.js", "editor.js"]
     brand = [
         "mark.svg",
         "mark-dark.svg",
@@ -667,11 +682,15 @@ def test_static_payload_budget():
     # budget, outside the page's
     assert sum(p.stat().st_size for p in fonts.iterdir()) < 400_000
     # raised step by step: images, attachments, previews, the P1 UX backlog, the file previews, the in-chat charts
-    # with web image cards, rich answer text, and the result widgets (maps, company, currency, event cards, .ics), Mode Agent,
-    # and the small modules (research card, relation graph, timeline, matrix, calculator, checklist, chips: +65 kB)
-    assert total < 800_000, f"static payload is {total} bytes"  # well under 200 kB once gzipped
+    # with web image cards, rich answer text, the result widgets (maps, company, currency, event cards, .ics), Mode Agent
+    # and its wave 2 (plan card, live activity, « Vérifications faites », « Livrables »), the footprint module (~65 kB),
+    # the task plan checklist, the map card of lists (groups, full screen, visit order, distances),
+    # the office engine (pictures, charts and tables in the previews, the deck/document editor)
+    # the canvas (decks, documents, code preview, mini-sheet, flowcharts: +126 kB raw, +34 kB gzipped)
+    # and the small modules (research card, relation graph, timeline, matrix, calculator, checklist, chips: +86 kB)
+    assert total < 1_160_000, f"static payload is {total} bytes"  # about 310 kB once gzipped
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
-    assert demo < 400_000, f"demo maps weigh {demo} bytes"
+    assert demo < 520_000, f"demo maps weigh {demo} bytes"  # + the maps of the scripted lists of places
 
 
 def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
@@ -681,7 +700,7 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     fr, en = set(key.findall(fr_block.split("fr: {", 1)[1])), set(key.findall(en_block.split("\n};", 1)[0]))
     assert fr and fr == en, fr ^ en
     used = set()
-    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js"]:
+    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))
     used |= set(re.findall(r'data-i18n(?:-aria|-placeholder)?="([\w.]+)"', (STATIC_DIR / "index.html").read_text()))
     assert not used - fr, sorted(used - fr)
@@ -885,6 +904,20 @@ def test_agent_state_node_unit_tests():
         pytest.skip("Node not installed")
     result = subprocess.run(
         ["node", "--test", str(Path(__file__).parent / "js" / "agents.test.mjs")],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={**os.environ, "CI": "1"},
+    )
+    assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-1000:]
+
+
+def test_footprint_node_unit_tests():
+    """tests/js/footprint.test.mjs: sourced constants, emissions, equivalents, totals, fr/en units, string parity."""
+    if shutil.which("node") is None:
+        pytest.skip("Node not installed")
+    result = subprocess.run(
+        ["node", "--test", str(Path(__file__).parent / "js" / "footprint.test.mjs")],
         capture_output=True,
         text=True,
         timeout=60,

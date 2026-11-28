@@ -1,0 +1,439 @@
+{
+ "1 la canebière marseille|": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      5.374616,
+      43.295496
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Marseille",
+     "label": "1 Voie la canebiere 13001 Marseille",
+     "name": "1 Voie la canebiere",
+     "postcode": "13001",
+     "score": 0.7372324675324675,
+     "type": "housenumber"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "10 rue de rivoli paris|": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      2.36041,
+      48.8555
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Paris",
+     "label": "10 Rue de Rivoli 75004 Paris",
+     "name": "10 Rue de Rivoli",
+     "postcode": "75004",
+     "score": 0.9701581818181818,
+     "type": "housenumber"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "20 avenue de ségur paris|": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      2.308628,
+      48.850699
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Paris",
+     "label": "20 Avenue de Ségur 75007 Paris",
+     "name": "20 Avenue de Ségur",
+     "postcode": "75007",
+     "score": 0.9716281818181818,
+     "type": "housenumber"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "5 place bellecour lyon|": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      4.831766,
+      45.758652
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Lyon",
+     "label": "5 Place Bellecour 69002 Lyon",
+     "name": "5 Place Bellecour",
+     "postcode": "69002",
+     "score": 0.9673672727272726,
+     "type": "housenumber"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "8 boulevard haussmann paris|": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      2.338642,
+      48.872342
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Paris",
+     "label": "8 Boulevard Haussmann 75009 Paris",
+     "name": "8 Boulevard Haussmann",
+     "postcode": "75009",
+     "score": 0.9732063636363636,
+     "type": "housenumber"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "99 rue inexistante nullepart|": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      2.399462,
+      48.870209
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Paris",
+     "label": "99 Rue Pelleport 75020 Paris",
+     "name": "99 Rue Pelleport",
+     "postcode": "75020",
+     "score": 0.3782951948051948,
+     "type": "housenumber"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "annecy|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      6.125296,
+      45.901584
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Annecy",
+     "label": "Annecy",
+     "name": "Annecy",
+     "postcode": "74000",
+     "score": 0.9576945454545454,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "bordeaux|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      -0.587877,
+      44.851939
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Bordeaux",
+     "label": "Bordeaux",
+     "name": "Bordeaux",
+     "postcode": "33000",
+     "score": 0.96091,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "chambéry|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      5.909299,
+      45.583223
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Chambéry",
+     "label": "Chambéry",
+     "name": "Chambéry",
+     "postcode": "73000",
+     "score": 0.9541045454545454,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "grenoble|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      5.724301,
+      45.182828
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Grenoble",
+     "label": "Grenoble",
+     "name": "Grenoble",
+     "postcode": "38000",
+     "score": 0.9584545454545453,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "lille|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      3.045391,
+      50.630951
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Lille",
+     "label": "Lille",
+     "name": "Lille",
+     "postcode": "59000",
+     "score": 0.9603745454545453,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "lyon|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      4.835,
+      45.758
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Lyon",
+     "label": "Lyon",
+     "name": "Lyon",
+     "postcode": "69001",
+     "score": 0.9639145454545454,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "marseille|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      5.405,
+      43.282
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Marseille",
+     "label": "Marseille",
+     "name": "Marseille",
+     "postcode": "13001",
+     "score": 0.9663454545454545,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "nantes|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      -1.555335,
+      47.239367
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Nantes",
+     "label": "Nantes",
+     "name": "Nantes",
+     "postcode": "44000",
+     "score": 0.9618245454545453,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "nice|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      7.255313,
+      43.71273
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Nice",
+     "label": "Nice",
+     "name": "Nice",
+     "postcode": "06000",
+     "score": 0.9622227272727273,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "paris|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      2.347,
+      48.859
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Paris",
+     "label": "Paris",
+     "name": "Paris",
+     "postcode": "75001",
+     "score": 0.9702754545454544,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "rennes|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      -1.68365,
+      48.110899
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Rennes",
+     "label": "Rennes",
+     "name": "Rennes",
+     "postcode": "35000",
+     "score": 0.960231818181818,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "strasbourg|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      7.761454,
+      48.579831
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Strasbourg",
+     "label": "Strasbourg",
+     "name": "Strasbourg",
+     "postcode": "67000",
+     "score": 0.9613272727272727,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ },
+ "toulouse|municipality": {
+  "features": [
+   {
+    "geometry": {
+     "coordinates": [
+      1.433805,
+      43.604082
+     ],
+     "type": "Point"
+    },
+    "properties": {
+     "city": "Toulouse",
+     "label": "Toulouse",
+     "name": "Toulouse",
+     "postcode": "31000",
+     "score": 0.9638772727272726,
+     "type": "municipality"
+    },
+    "type": "Feature"
+   }
+  ],
+  "type": "FeatureCollection"
+ }
+}

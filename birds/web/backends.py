@@ -26,6 +26,7 @@ from birds.harness import guard
 from birds.harness.llm import Cancelled, accepts  # Cancelled: the client went away or pressed stop
 from birds.web.tidy import code_checks, tidy
 
+from . import rescue
 from .widgets import enrich_sources
 
 Event = dict[str, Any]
@@ -171,6 +172,11 @@ class ChatRequest:
     conversation_id: str | None = None  # random UUID from the client: cache salt and log id, never shown
     tz: str | None = None  # the browser's time zone (event card); validated, Europe/Paris otherwise
     agent: str = "auto"  # Mode Agent: "auto" | "on" | "off" (birds.harness.crew.decide)
+    agent_flow: str | None = None  # "plan": a decided team shows its plan card first (birds.web.crew_web)
+    agent_plan: dict | None = None  # {"payload": verified plan token, "edits": typed edits}: « Lancer »
+    agent_slice: dict | None = None  # verified state of the next slice of a long task
+    agent_notes: list[dict] = field(default_factory=list)  # typed instructions not delivered live
+    canvas: dict | None = None  # the artifact open in the canvas, validated (birds.web.canvas_web.canvas_in)
 
 
 @dataclass
@@ -483,9 +489,47 @@ def pick_scenario(text: str, has_attachment: bool = False) -> str:
     return "plain"
 
 
+def demo_plan(text: str, lang: str) -> bool:
+    """The demo's task-plan scenario: one ask that names a deck AND a mail (« prépare une présentation … et un mail
+    … »), read by the harness's own plan extraction."""
+    from birds.harness import plan as taskplan
+
+    kinds = {i.kind for i in taskplan.extract(text, lang, text)}
+    return {"slides", "mail"} <= kinds
+
+
 _DEMO_CHART = re.compile(
     r"\b(?:graphiques?|graphes?|courbes?|diagrammes?|camemberts?|histogrammes?|charts?|graphs?|plots?)\b"
 )
+
+
+DEMO_TOKENS_PER_SECOND = 40  # scripted decode speed, for the demo's GPU time only
+
+
+def demo_energy(cfg: dict | None, prompt: int, completion: int, seconds: float | None = None) -> dict:
+    """The opt-in demo estimate: the real token formula on scripted counts (nothing when ``cfg`` is None)."""
+    if not cfg or cfg.get("energy_method") != "tokens":
+        return {}
+    from birds.harness.meter import estimate_tokens
+
+    est = estimate_tokens(
+        prompt,
+        completion,
+        wh_per_1k_in=cfg["wh_per_1k_in"],
+        wh_per_1k_out=cfg["wh_per_1k_out"],
+        in_range=cfg.get("wh_per_1k_in_range"),
+        out_range=cfg.get("wh_per_1k_out_range"),
+        serving_overhead=cfg.get("serving_overhead"),
+    )
+    return {
+        "energy_wh": est["energy_wh"],
+        "energy_kind": "estimated",
+        "energy_source": "demo: " + est["energy_source"],
+        "energy_method": "tokens",
+        "energy_basis": est["energy_basis"],
+        # never longer than the scripted answer itself took
+        "busy_seconds": round(min(completion / DEMO_TOKENS_PER_SECOND + prompt / 4000, seconds or float("inf")), 2),
+    }
 
 
 @dataclass
@@ -496,6 +540,9 @@ class DemoBackend:
     kind: str = "demo"
     model: str = "bird-demo"
     images: bool = True  # scripted: a fake transcription, labelled as such
+    # Opt-in (BIRD_DEMO_ENERGY / serve.py --demo-energy): the token estimate of Settings.energy_config applied to the
+    # scripted token counts, so the footprint panel can be shown with numbers. Still tagged « démo » everywhere.
+    energy: dict | None = None
     tools: list[str] = field(
         default_factory=lambda: [
             "web_search",
@@ -525,8 +572,13 @@ class DemoBackend:
         if request.images:
             run.scenario_image()
             return
-        from birds.web import crew_web
+        from birds.web import canvas_web, crew_web
 
+        cplan = canvas_web.plan_for(request, own_words(last), lang, attached=bool(request.attachments))  # scripted
+        if cplan is not None and (cplan.mode != "create" or not crew_web.demo_match(last, request)):
+            from birds.web import canvas_demo
+
+            return canvas_demo.run(run, cplan, own_words(last))
         if crew_web.demo_match(last, request):
             return crew_web.demo_crew(run)  # Mode Agent, scripted
         from birds.web import demo_modules  # deep research, calculator, the user's modules: the real code
@@ -539,6 +591,8 @@ class DemoBackend:
         if found:
             return demo_modules.demo_modules(run, found)
         scenario = pick_scenario(last, bool(request.attachments))
+        if demo_plan(last, lang) and not request.attachments:
+            scenario = "plan"  # a deck and a mail in one ask: the task plan's checklist (w1-harness)
         if scenario == "plain" and not request.attachments:
             from birds.harness import followup
 
@@ -548,6 +602,21 @@ class DemoBackend:
             if again is not None and again.tool in names:
                 run.followup, scenario = again, names[again.tool]
         getattr(run, "scenario_" + scenario)()
+
+
+
+def canvas_ref(tool: str, arguments: dict, lang: str) -> dict | None:
+    """A demo file made by a trained tool, as the answer's canvas reference (« Ouvrir dans le canevas »)."""
+    from types import SimpleNamespace
+
+    from birds.web import canvas_web
+
+    try:
+        run = SimpleNamespace(steps=[SimpleNamespace(tool=tool, error=None, arguments=arguments)], canvas=None)
+        canvas_web.adopt_files(run, None, lang)
+        return canvas_web.ref(run)
+    except Exception:  # noqa: BLE001 - the demo answer never fails for the canvas
+        return None
 
 
 class _DemoRun:
@@ -617,7 +686,8 @@ class _DemoRun:
             self.pause(0.035)
 
     def finish(
-        self, content: str, sources=None, files=None, draft_email=None, charts=None, web_images=None, widgets=None
+        self, content: str, sources=None, files=None, draft_email=None, charts=None, web_images=None, widgets=None,
+        plan=None,
     ) -> None:
         from .widgets import enrich_sources
 
@@ -636,21 +706,25 @@ class _DemoRun:
                 "code_checks": code_checks(content),
                 "widgets": widgets or [],
                 **({"memo": self._memo()} if self.context else {}),
+                **({"plan": plan} if plan else {}),
+                **({"canvas": self.adopted} if getattr(self, "adopted", None) else {}),  # the file, in the canvas too
             }
         )
         prompt = 60 + sum(len(m["content"]) for m in self.req.messages) // 4 + self.extra_prompt
         prompt += sum(len(a["content"]) for a in self.req.attachments) // 4
         completion = len(content) // 4 + self.extra_completion
+        seconds = self.carry_seconds + time.monotonic() - self.t0
         self.ctx.emit(
             usage_event(
                 model=self.b.model,
                 thinking=self.req.thinking,
                 prompt_tokens=prompt,
                 completion_tokens=completion,
-                seconds=self.carry_seconds + time.monotonic() - self.t0,
+                seconds=seconds,
                 tool_calls=self.steps,
                 bytes_fetched=self.bytes,
                 tokens_kind="scripted",
+                **demo_energy(self.b.energy, prompt, completion, seconds),
             )
         )
 
@@ -678,6 +752,7 @@ class _DemoRun:
             entry = inline_file(tmp / hctx.files[0], preview, self.ctx.max_inline_file_bytes)
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
+        self.adopted = canvas_ref(tool, arguments, self.lang)  # the file is offered in the canvas too
         self.extra_completion += len(json.dumps(arguments, ensure_ascii=False)) // 4
         self.ctx.emit(step_event(index, tool, shown, "done", summary, time.monotonic() - start))
         return entry
@@ -847,6 +922,9 @@ class _DemoRun:
         widgets = localise_maps(
             build_widgets([step], words, self.lang, now or _now(None), self.ctx.secret or b"demo", geo_on=True)
         )
+        cards = [w for w in widgets if w.get("type") != "event"]
+        if cards:  # as the live harness does: the card shows as soon as the tool returns (birds/web/rescue.py)
+            self.ctx.emit({"type": "widget", "index": index, "widgets": cards})
         return widgets, sources, info
 
     def _sources(self, urls: list[str], titles: dict) -> list[dict]:
@@ -880,6 +958,17 @@ class _DemoRun:
                 f"closest: {names} [1].\n\nOpening hours come from OpenStreetMap: check them before going. I "
                 "give no ratings or prices, which I do not have.",
             )
+        elif w["mode"] == "list" and (w.get("plan") == "order" or w.get("missing") or w.get("unchecked") or w.get("not_shown")):
+            from . import rescue
+
+            # a visit order or places not found: the same words as the answer written from the card
+            text = " ".join(rescue.places_lines(w, self.lang)) + " [1]"
+            if w.get("plan") == "order":
+                by = {p["n"]: p["name"] for p in ps}
+                text += "\n\n" + " → ".join(f"**{by[n]}**" for n in w["order"] if n in by) + self.t(
+                    ". Les distances sont à vol d'oiseau ; le lien « Itinéraire complet » donne la route.",
+                    ". Distances are as the crow flies; the 'Full route' link gives the road route.",
+                )
         elif w["mode"] == "list":
             text = self.t(
                 "Voici les sites placés sur la carte, dans l'ordre donné : "
@@ -1136,6 +1225,70 @@ class _DemoRun:
                 "could you confirm the delivery time and the payment terms?\n\nKind regards,",
             ),
         }
+
+    # ---------------------------------------------------------------- task plan (w1-harness)
+
+    def scenario_plan(self) -> None:
+        """« Prépare une présentation … et un mail … »: the checklist of the request, ticked as the deck then the
+        draft are made; anything else the request named (a spreadsheet…) is left undone and said plainly, as the
+        harness does when the model forgets a deliverable after its one reminder."""
+        from birds.harness import plan as taskplan
+
+        t = self.t
+        last = next((m["content"] for m in reversed(self.req.messages) if m["role"] == "user"), "")
+        items = taskplan.extract(last, self.lang, last)
+        done: set[str] = set()
+
+        def emit(final: bool = False) -> dict:
+            statuses = [{"kind": i.kind, "label": i.label, "status": "done" if i.kind in done else "todo"}
+                        for i in items]  # fmt: skip
+            out = taskplan.to_dict(statuses, self.lang, final=final)
+            self.ctx.emit({"type": "plan", **out})
+            return out
+
+        emit()
+        self.think(
+            "Deux choses sont demandées : la présentation, puis le mail qui l'annonce.",
+            "Two things are asked: the deck, then the email announcing it.",
+        )
+        arguments = {
+            "title": t("Sobriété numérique : plan d'action", "Digital sobriety: action plan"),
+            "slides": [
+                {"title": t("Constat", "Finding"),
+                 "bullets": [t("La plupart des tâches de bureau sont simples", "Most office tasks are simple")]},
+                {"title": t("Proposition", "Proposal"),
+                 "bullets": [t("Petit modèle par défaut", "Small model by default")]},
+                {"title": t("Calendrier", "Timeline"), "bullets": [t("Pilote de quatre semaines", "Four-week pilot")]},
+            ],
+        }  # fmt: skip
+        entry = self.make_file("make_slides", arguments, t("3 diapositives", "3 slides"))
+        done.add("slides")
+        emit()
+        draft = {
+            "to": "equipe@example.org",
+            "subject": t("Présentation : sobriété numérique", "Deck: digital sobriety"),
+            "body": t(
+                "Bonjour à tous,\n\nVous trouverez ci-joint la présentation du plan de sobriété numérique : "
+                "constat, proposition et calendrier du pilote.\n\nBonne journée,",
+                "Hello all,\n\nPlease find attached the digital sobriety deck: finding, proposal and pilot "
+                "timeline.\n\nBest regards,",
+            ),
+        }
+        self.step("draft_email", {**draft, "to": [draft["to"]]}, t("Brouillon prêt (non envoyé)", "Draft ready (not sent)"),
+                  0.6)  # fmt: skip
+        done.add("mail")
+        final = emit(final=True)
+        self.finish(
+            t(
+                "La présentation (3 diapositives) et le brouillon de mail sont prêts, à relire ci-dessous.\n\n"
+                "Contenu d'exemple scripté : ajustez-le avant de l'utiliser.",
+                "The deck (3 slides) and the email draft are ready to review below.\n\n"
+                "Scripted example content: adjust it before use.",
+            ),
+            files=[entry],
+            draft_email=draft,
+            plan=final,
+        )
 
     def scenario_reply(self) -> None:
         """The first example: a reply written from what the user said, nothing read from outside, no approval."""
@@ -1443,6 +1596,24 @@ class _DemoRun:
         )
 
     def scenario_error(self) -> None:
+        from birds.harness import intents
+
+        # « simule une panne : montre sur une carte : … »: the pre-called tool returns, then the model fails; the
+        # answer is written from the card (birds/web/rescue.py), exactly as the live harness does
+        words = re.sub(r"(?i)simule[rz]? une (?:panne|erreur)\s*[:,-]?\s*", "", self._last()).strip()
+        found = next((i for i in intents.detect(words) if i.args and i.tool == "find_places"), None) if words else None
+        if found is not None:
+            from . import rescue
+
+            widgets, urls, _ = self._widget_step("find_places", found.args)
+            text = rescue.summary_text(widgets, self.lang)
+            if text:
+                self.pause(0.6)
+                self.ctx.emit({"type": "answer", "content": text, "fallback": rescue.NOTE[self.lang],
+                               "sources": self._sources(urls, {}), "files": [], "draft_email": None,
+                               "stop_reason": "answer", "charts": [], "web_images": [], "code_checks": [],
+                               "widgets": widgets})  # fmt: skip
+                return
         self.step(
             "web_search",
             {"query": self.t("test de panne", "failure test")},
@@ -1838,6 +2009,7 @@ class HarnessBackend:
             }
         )
         self.images = hasattr(llm, "chat")
+        self.canvas = True  # the canvas (birds.canvas): decks, documents and pages built beside the chat
 
     def _config(self, workspace: Path, request: ChatRequest, ctx: RunContext):
         from birds.harness import Config
@@ -1868,8 +2040,14 @@ class HarnessBackend:
             [
                 {
                     k: u.get(k)
-                    for k in ("prompt_tokens", "completion_tokens", "cached_tokens", "seconds", "busy_seconds",
-                              "first_token_seconds")  # fmt: skip
+                    for k in (
+                        "prompt_tokens",
+                        "completion_tokens",
+                        "cached_tokens",
+                        "seconds",
+                        "busy_seconds",
+                        "first_token_seconds",
+                    )  # fmt: skip
                 }
                 for u in image_usage
             ],
@@ -1984,7 +2162,7 @@ class HarnessBackend:
         from birds.harness.followup import context_of
         from birds.harness.history import memo
         from birds.harness.meter import energy_options, estimate_power_time, estimate_tokens
-        from birds.web import crew_web
+        from birds.web import canvas_web, crew_web
 
         lang = "en" if request.lang == "en" else "fr"
         ephemeral = self.workspace is None
@@ -2011,14 +2189,26 @@ class HarnessBackend:
                 ctx.check()  # stop between two tool calls when the user pressed stop
                 ctx.emit(step_event(index + offset, tool, _plain(arguments), "running"))
 
+            # ---- rich results independent of the model (birds/web/rescue.py): each card is sent as soon as its
+            # tool returns, and kept to answer from if the model then fails
+            live: list[tuple[int, Any, list[dict]]] = []
+
+            def on_step_end(index: int, step) -> None:
+                ctx.emit(self._step_event(index + offset, step, lang))
+                cards = self._live_widgets(step, ctx, lang)
+                if cards:
+                    live.append((index + offset, step, cards))
+                    ctx.emit({"type": "widget", "index": index + offset, "widgets": cards})
+
             hooks = Hooks(
                 on_token=lambda text: ctx.emit({"type": "delta", "content": text}),
                 on_reset=lambda: ctx.emit({"type": "delta_reset"}),
                 on_step_start=on_step_start,
-                on_step_end=lambda index, step: ctx.emit(self._step_event(index + offset, step, lang)),
+                on_step_end=on_step_end,
                 on_status=lambda state, info: ctx.emit({"type": "status", "state": state, **(info or {})}),
                 cancel=ctx.cancel,  # stop closes the endpoint stream and ends the wake-up retries
                 on_agent=crew_web.on_agent(ctx, lang, lambda: offset, self._step_event),
+                on_plan=lambda plan: ctx.emit({"type": "plan", **_plain(plan)}),  # the task plan's live checklist
             )
             agent = Agent(
                 self.llm,
@@ -2061,6 +2251,10 @@ class HarnessBackend:
                         (workspace / (sanitize_filename(name) + ".txt")).write_text(
                             guard.truncate(text or "", IMAGE_TEXT_CHARS), encoding="utf-8"
                         )
+                if request.images:  # the pictures themselves, for a deck or a document made in this run
+                    from birds.harness.office_media import keep_user_images
+
+                    keep_user_images(workspace, request.images, dict(image_texts))
                 # Images from EARLIER messages are not sent again, but what was read in them is in the history:
                 # put it back so read_file("facture.jpg") still works on a follow-up (« reprends les totaux »).
                 for name, text in earlier_image_texts(request.messages[:-1]):
@@ -2087,22 +2281,45 @@ class HarnessBackend:
                     run = self._ocr_answer(image_texts + docs, image_usage, rl, cfg, time.monotonic() - t0)
                     image_usage = []  # already counted in run.report
                 else:
-                    decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
-                    run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
-                                            system=system, lang=rl, names=names, workspace=workspace,
-                                            history=kept)  # fmt: skip
-                if run is None:
-                    run = agent.run(
-                        user_sent,
-                        history=kept or None,
-                        system=system,
-                        thinking=request.thinking,
-                        lang=rl,
-                        request_text=words,
-                        attached=bool(names or image_texts),
-                        tz=request.tz,
-                    )
+                    from birds.harness.llm import EndpointError
+
+                    try:
+                        # the canvas (birds.canvas): a change to the open artifact comes first; a new deck, document or
+                        # page is made after the Mode Agent declined it (its research decks stay the team's)
+                        cplan = canvas_web.plan_for(request, words, rl, self.canvas, attached=bool(names or image_texts))
+                        canvas_kw = dict(user_sent=user_sent, words=words, system=system, history=kept, lang=rl,
+                                         mode="server", attached=bool(names or image_texts))  # fmt: skip
+                        if cplan is not None and cplan.mode != "create":
+                            run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
+                        else:
+                            decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
+                            run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
+                                                    system=system, lang=rl, names=names, workspace=workspace,
+                                                    history=kept)  # fmt: skip
+                            if run is None and cplan is not None:
+                                run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
+                        if run is None:
+                            run = agent.run(
+                                user_sent,
+                                history=kept or None,
+                                system=system,
+                                thinking=request.thinking,
+                                lang=rl,
+                                request_text=words,
+                                attached=bool(names or image_texts),
+                                tz=request.tz,
+                            )
+                    except EndpointError:
+                        # the model failed after a pre-called tool returned (a plain, crew or canvas turn): answer
+                        # from its result, not an error
+                        if not live or not self._rescue(live, request, ctx, rl):
+                            raise
+                        return
             ctx.check()
+            if run.stop_reason in ("plan", "slice"):  # the plan card, or a long task's slice: its events are sent
+                return
+            if run.stop_reason != "confirm":
+                canvas_web.adopt_files(run, ctx, run.lang or lang)  # a file a trained tool made: also in the canvas
             report = run.report or {}
             previews = iter(
                 written_preview(s.tool, s.arguments, getattr(s, "info", None))
@@ -2118,6 +2335,7 @@ class HarnessBackend:
                 ):  # files made before a pause were already delivered with the confirm event
                     files.append(inline_file(path, preview, ctx.max_inline_file_bytes))
             seconds = float(carry.get("seconds") or 0.0) + (time.monotonic() - t0)
+            seconds += float(report.get("carried_seconds") or 0.0)  # the earlier slices of a long task
             energy, energy_kind = report.get("energy_wh"), report.get("energy_kind")
             energy_method, energy_basis = report.get("energy_method"), report.get("energy_basis")
             energy_source = report.get("energy_source")
@@ -2190,7 +2408,10 @@ class HarnessBackend:
                 [r for s in run.steps for r in (getattr(s, "info", {}) or {}).get("results", [])],
                 list(getattr(run, "charts", []) or []),
                 context_of(run.steps, getattr(run, "widgets", None)),
+                figures=list(getattr(run, "figures", None) or []),  # task plan (w1-harness): totals read by tools
+                todo=list((getattr(run, "plan", None) or {}).get("missing") or []),
             )
+            turn_memo = canvas_web.memo_with_canvas(turn_memo, run, lang)
             answer_text = hide_out_paths(strip_tool_echo(strip_memo(str(run.answer))))
             request_words = (
                 str((request.resume or {}).get("state", {}).get("request", ""))
@@ -2200,14 +2421,27 @@ class HarnessBackend:
             tidied = tidy(str(run.answer), run.stop_reason)
             content = hide_out_paths(strip_tool_echo(strip_memo(tidied.text)))
             widgets = self._widgets(run, request, ctx, lang, draft)
+            stop_reason, fallback = tidied.stop_reason, None
+            if run.stop_reason in rescue.NO_ANSWER and widgets and not run.salvaged:
+                # out of time, or no usable output, after a pre-called tool returned: the results answer
+                text = rescue.summary_text(widgets, run.lang)
+                if text:
+                    content, stop_reason = text, "answer"
+                    fallback = rescue.NOTE["en" if run.lang == "en" else "fr"]
             ctx.emit(
                 {
                     "type": "answer",
                     "content": content,
+                    **({"fallback": fallback} if fallback else {}),
                     "sources": enrich_sources(sources, run.steps, ctx.secret, icons=bool(ctx.secret)),
                     "charts": _plain(list(getattr(run, "charts", []) or [])),
                     "web_images": pick_web_images(
-                        run, answer_text, request_words, sources, ctx.sign_image, subject=_picture_subject(request_words)
+                        run,
+                        answer_text,
+                        request_words,
+                        sources,
+                        ctx.sign_image,
+                        subject=_picture_subject(request_words),
                     ),
                     "widgets": widgets,
                     "files": files,
@@ -2221,11 +2455,13 @@ class HarnessBackend:
                         "body": str(draft.get("body") or ""),
                         **({"to_hint": str(draft["to_hint"])} if draft.get("to_hint") else {}),
                     },
-                    "stop_reason": tidied.stop_reason,
+                    "stop_reason": stop_reason,
                     "memo": turn_memo,
                     "code_checks": code_checks(content),
                     "tidy": tidied.repairs,
                     "images": [{"name": n, "text": t[:4000]} for n, t in image_texts],
+                    "plan": _plain(getattr(run, "plan", None)),  # final checklist (None for a one-thing request)
+                    "canvas": canvas_web.ref(run),
                 }
             )
             ctx.emit(
@@ -2254,6 +2490,65 @@ class HarnessBackend:
         finally:
             if ephemeral:
                 shutil.rmtree(workspace, ignore_errors=True)
+            else:  # a persistent workspace keeps no copy of the pictures of one message
+                shutil.rmtree(workspace / ".bird_images", ignore_errors=True)
+
+    # ---- rich results independent of the model (birds/web/rescue.py)
+    @staticmethod
+    def _live_widgets(step, ctx: RunContext, lang: str) -> list[dict]:
+        opts = ctx.geo or {}
+        if not opts.get("on", True):
+            return []
+        return rescue.step_widgets(step, lang, ctx.secret or b"x", layer=opts.get("layer", "osm"))
+
+    def _rescue(self, live: list, request: ChatRequest, ctx: RunContext, lang: str) -> bool:
+        """The answer event of a turn whose model failed after its pre-called tools returned: the cards already
+        shown, a short text written from them and a discreet note. False when the cards carry no answer."""
+        from birds.harness.followup import context_of
+        from birds.harness.history import memo
+
+        widgets = [w for _, _, cards in live for w in cards]
+        text = rescue.summary_text(widgets, lang)
+        if not text:
+            return False
+        steps = [s for _, s, _ in live]
+        urls: list[str] = []
+        for w in widgets:
+            for p in (w.get("places") or [])[:1]:
+                url = f"https://www.openstreetmap.org/#map=16/{p['lat']:.5f}/{p['lon']:.5f}"
+                if url not in urls:
+                    urls.append(url)
+            src = (w.get("source") or {}).get("url")
+            if w.get("type") != "places" and src and src not in urls:
+                urls.append(str(src))
+        sources = [{"n": n, "title": _source_title(u), "url": u} for n, u in enumerate(urls, 1)]
+        turn_memo = memo(
+            lang,
+            [{"tool": s.tool, "arguments": s.arguments} for s in steps],
+            sources,
+            [],
+            None,
+            context=context_of(steps, None),
+        )
+        ctx.emit(
+            {
+                "type": "answer",
+                "content": text,
+                "fallback": rescue.NOTE["en" if lang == "en" else "fr"],
+                "sources": enrich_sources(sources, steps, ctx.secret, icons=bool(ctx.secret)),
+                "charts": [],
+                "web_images": [],
+                "widgets": widgets,
+                "files": [],
+                "draft_email": None,
+                "stop_reason": "answer",
+                "memo": turn_memo,
+                "code_checks": [],
+                "tidy": [],
+                "images": [],
+            }
+        )
+        return True
 
     def _widgets(self, run, request: ChatRequest, ctx: RunContext, lang: str, draft) -> list[dict]:
         """Widgets of the answer, from tool results and the user's own words (never the model's text)."""

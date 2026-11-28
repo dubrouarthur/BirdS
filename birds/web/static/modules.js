@@ -230,7 +230,7 @@ function renderResearch(w, turn) {
     ? h(
         "div",
         { class: "mod-block" },
-        h("h4", { class: "eyebrow", text: t("mod.research.plan") }),
+        h("h4", { class: "eyebrow mod-eyebrow", text: t("mod.research.plan") }),
         h(
           "ol",
           { class: "rs-plan" },
@@ -292,7 +292,7 @@ function renderResearch(w, turn) {
     h(
       "div",
       { class: "mod-block" },
-      h("h4", { class: "eyebrow", text: t("mod.research.sources") }),
+      h("h4", { class: "eyebrow mod-eyebrow", text: t("mod.research.sources") }),
       sources,
     ),
     h(
@@ -614,7 +614,7 @@ function renderGraph(w, turn) {
         ? h(
             "div",
             { class: "mod-block" },
-            h("h5", { class: "eyebrow", text: t("mod.graph.links") }),
+            h("h5", { class: "eyebrow mod-eyebrow", text: t("mod.graph.links") }),
             h(
               "ul",
               { class: "gr-links" },
@@ -636,7 +636,7 @@ function renderGraph(w, turn) {
         ? h(
             "div",
             { class: "mod-block" },
-            h("h5", { class: "eyebrow", text: t("mod.graph.claims") }),
+            h("h5", { class: "eyebrow mod-eyebrow", text: t("mod.graph.claims") }),
             h(
               "ul",
               { class: "gr-claims" },

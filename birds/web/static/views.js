@@ -21,6 +21,7 @@ import {
   toast,
   modelLabel,
 } from "./core.js";
+import { mountFootprintPage, recordFootprint } from "./footprint.js";
 
 let hooks = {};
 // replaceChildren would print null/false as text: drop them first
@@ -41,6 +42,7 @@ export function ledgerAdd(usage, convId) {
   const entries = store.json(LEDGER_KEY, []);
   entries.push({ ...usage, type: undefined, ts: Date.now(), conv: convId });
   store.set(LEDGER_KEY, JSON.stringify(entries.slice(-LEDGER_MAX)));
+  recordFootprint(usage); // ---- footprint.js hook: device totals, kept beyond the ledger's last answers
 }
 export const ledgerAll = () =>
   store
@@ -732,6 +734,7 @@ export function renderFootprint() {
       how,
       h("p", { class: "hint", text: t("fp.note") }),
     );
+    mountFootprintPage(body, { scope, usages, rerender: renderFootprint }); // ---- footprint.js hook
     return;
   }
   const energyStat = s.energyN
@@ -842,6 +845,7 @@ export function renderFootprint() {
         }
       }),
   );
+  mountFootprintPage(body, { scope, usages, rerender: renderFootprint }); // ---- footprint.js hook
 }
 
 // ------------------------------------------------------------------ settings
@@ -1321,6 +1325,13 @@ function setWelcomeLang(lang) {
   openWelcome({ focusLang: lang });
 }
 
+// the tagline with its accent word (three keys, so each language places the accent itself)
+const tagline = () => [
+  h("span", { "data-i18n": "empty.title", text: t("empty.title") }),
+  h("em", { "data-i18n": "empty.title.em", text: t("empty.title.em") }),
+  h("span", { "data-i18n": "empty.title.end", text: t("empty.title.end") }),
+];
+
 export function openWelcome({ focusLang } = {}) {
   const dialog = $("welcome");
   const start = h("button", {
@@ -1330,10 +1341,16 @@ export function openWelcome({ focusLang } = {}) {
     text: t("welcome.start"),
     onclick: () => dialog.close(),
   });
-  // Short on purpose: brand, promise, credo in one line, three words, one button. Examples live on the empty
-  // screen behind the dialog; the philosophy lives on the "À propos" site.
-  const pillar = (ico, key) =>
-    h("li", { class: "w-pill" }, icon(ico), h("span", { text: t(key) }));
+  // Short on purpose: brand, the promise, three strengths, what it makes, one button. The story lives on the
+  // « À propos » site; the starters wait on the empty screen behind the dialog.
+  const value = (ico, key) =>
+    h(
+      "li",
+      { class: "w-value" },
+      h("span", { class: "w-vicon" }, icon(ico)),
+      h("b", { text: t(key) }),
+      h("span", { text: t(`${key}.p`) }),
+    );
   const site = state.health?.site_url;
   put(
     $("welcome-body"),
@@ -1383,25 +1400,38 @@ export function openWelcome({ focusLang } = {}) {
           ),
         ),
       ),
-      h("h2", {
-        id: "welcome-title",
-        class: "w-title",
-        text: t("welcome.title"),
-      }),
+      h(
+        "p",
+        { class: "w-kicker" },
+        h("i", { "aria-hidden": "true" }),
+        t("welcome.france"),
+      ),
+      h("h2", { id: "welcome-title", class: "w-title" }, tagline()),
       h("p", { id: "welcome-lead", class: "w-lead", text: t("welcome.credo") }),
       h(
         "ul",
-        { class: "w-pills", "aria-label": t("welcome.values") },
-        pillar("leaf", "welcome.tiny"),
-        pillar("eye", "welcome.sober"),
-        pillar("shield", "welcome.candid"),
+        { class: "w-values", "aria-label": t("welcome.values") },
+        value("leaf", "welcome.light"),
+        value("spark", "welcome.fast"),
+        value("eye", "welcome.clear"),
+      ),
+      h(
+        "ul",
+        { class: "w-caps", "aria-label": t("start.title") },
+        STARTERS.map(([key, ico]) =>
+          h("li", null, icon(ico), h("span", { text: t(`start.${key}`) })),
+        ),
       ),
       h(
         "div",
         { class: "w-actions" },
-        site
-          ? h("a", { class: "w-more", href: site, text: t("welcome.more") })
-          : h("span"),
+        h(
+          "p",
+          { class: "w-foot" },
+          h("span", { text: t("welcome.local") }),
+          site &&
+            h("a", { class: "w-more", href: site, text: t("welcome.more") }),
+        ),
         start,
       ),
     ),
@@ -1414,6 +1444,84 @@ export function openWelcome({ focusLang } = {}) {
   const lang = focusLang && dialog.querySelector(`[data-lang="${focusLang}"]`);
   (lang || start).focus({ preventScroll: true });
 }
+
+// ------------------------------------------------------------------ first impression (fi-app): starter cards
+// The empty chat shows what Bird does best. A card never sends anything: it fills the message box with a ready
+// request (the same forms as the slash actions, or a full example) and selects the part to make one's own.
+const STARTERS = [
+  ["mail", "draft_email", "slash.mail.tpl"],
+  ["deck", "make_slides", "slash.pres.tpl"],
+  ["search", "web_search", "slash.search.tpl"],
+  ["map", "find_places"],
+  ["chart", "make_chart"],
+  ["weather", "get_weather"],
+];
+
+function fillStarter(key) {
+  const [, , form] = STARTERS.find(([k]) => k === key) || [];
+  const el = $("composer-input");
+  const text = form ? t(form) : t(`start.${key}.tpl`);
+  el.value = text;
+  el.dispatchEvent(new Event("input", { bubbles: true })); // app.js sizes the box and enables Send
+  el.focus();
+  let from = text.length;
+  let to = from;
+  if (form) {
+    // the caret goes to the first field left blank (« Destinataire : »)
+    const blank = text.search(/: ?$/m);
+    const eol = blank >= 0 ? text.indexOf("\n", blank) : -1;
+    if (eol >= 0) from = to = eol;
+  } else {
+    const sel = t(`start.${key}.sel`);
+    const at = text.lastIndexOf(sel);
+    if (at >= 0) [from, to] = [at, at + sel.length];
+  }
+  el.setSelectionRange(from, to);
+}
+
+function renderStarters() {
+  const list = $("starters");
+  if (!list) return;
+  put(
+    list,
+    STARTERS.map(([key, ico]) =>
+      h(
+        "li",
+        null,
+        h(
+          "button",
+          {
+            class: `starter starter-${key}`,
+            type: "button",
+            "data-starter": key,
+            "aria-describedby": "starter-hint",
+            onclick: () => fillStarter(key),
+          },
+          h("span", { class: "starter-icon" }, icon(ico)),
+          h(
+            "span",
+            { class: "starter-text" },
+            h("span", {
+              class: "starter-title",
+              "data-i18n": `start.${key}`,
+              text: t(`start.${key}`),
+            }),
+            h("span", {
+              class: "starter-desc",
+              "data-i18n": `start.${key}.p`,
+              text: t(`start.${key}.p`),
+            }),
+          ),
+        ),
+      ),
+    ),
+  );
+  // the cards arrive one after the other (CSSOM, allowed by the CSP: no inline style attribute)
+  [...list.children].forEach((li, i) => li.style.setProperty("--i", i));
+}
+renderStarters();
+// the eco chip opens « Empreinte »
+$("fi-eco")?.addEventListener("click", () => $("nav-footprint")?.click());
 
 export function openShortcuts() {
   const mac = /Mac|iPhone|iPad/.test(navigator.platform || "");

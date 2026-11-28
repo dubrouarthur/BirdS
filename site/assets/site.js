@@ -166,6 +166,8 @@
       });
       var hold = +scene.getAttribute("data-hold") || 4000;
       var playing = false;
+      // data-first="shown" : le premier échange s'affiche déjà rempli, puis la scène se rejoue.
+      var shownFirst = scene.getAttribute("data-first") === "shown";
       function later(fn, ms) {
         timers.push(setTimeout(fn, ms));
       }
@@ -223,7 +225,13 @@
       new IntersectionObserver(
         function (entries) {
           entries.forEach(function (en) {
-            if (en.isIntersecting && !playing) play();
+            if (en.isIntersecting && !playing) {
+              if (shownFirst) {
+                shownFirst = false;
+                playing = true;
+                later(play, hold);
+              } else play();
+            }
             else if (!en.isIntersecting && playing) stop();
           });
         },

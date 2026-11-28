@@ -245,6 +245,20 @@ ces liens ») ou si rien n'est demandé (« range ce dossier de veille », « qu
 famille `agent_study` de `scripts/trigger_bench.py` (10 oui, 20 demandes de bureau avec un mot d'étude qui ne
 déclenchent rien, même drapeau Auto allumé).
 
+**Mesure live (27/11/2026, Bird S 4B, recherche SearXNG, `scripts/agent_study_eval.py`).** 4 demandes d'étude
+(comparatif CRM, veille IA générative, rapport transition énergétique, benchmark visioconférence), Mode Agent forcé
+contre mode simple :
+
+| | Mode Agent | Mode simple |
+|---|---|---|
+| Livrable Word produit | 3/4 (le 4ᵉ s'est arrêté sur une demande de confirmation) | 0/4 (réponse dans le chat) |
+| Sections du document | 10 à 16 | — |
+| Citations numérotées + section Sources | oui (3/3) | non |
+| Temps total | 29 à 58 s | 14 à 26 s |
+
+Décision : `doc_research` passe en Auto. Une première mesure du même jour, recherche limitée à Wikipédia, n'était pas
+concluante (Wikipédia refusait les recherches parallèles : HTTP 429).
+
 **Qualité de l'équipe.** La recherche prend le premier résultat de chaque requête à tour de rôle et lit une page par
 site d'abord (2 à 3 sources distinctes, pas trois pages d'un même site) ; si moins de 2 pages donnent un extrait et
 qu'il reste du temps, elle lit jusqu'à 2 pages d'autres sites (0 génération, lecture une à une). Pour un document,
@@ -306,3 +320,370 @@ section 9 de la spécification (12 tâches, 60 requêtes) qui doit confirmer ou 
 coûts d'une offre plafonnée (« 16 € par poste au-delà de 90 ») restent mal décrits par l'analyste (15 672 € au lieu
 de 15 480 €), sans changer le verdict ; les touches de cache de préfixe ne sont pas vérifiables (l'endpoint ne
 renvoie pas `cached_tokens`).
+### 11 bis. Mode Agent, vague 2 : plan modifiable, consignes, vérifications, tâches longues, livrables
+
+Modules : `birds/harness/crew_plan.py` (plan typé, consignes typées, file des consignes), `crew_canvas.py` (adaptateur
+Canevas), `crew_checks.ledger` / `renumber` / `autocite` / `near_duplicate`, `birds/web/crew_web.py` (déroulé web),
+`static/agents.js` (carte de plan, activité, carte « Vérifications faites », « Livrables »).
+
+**Plan avant lancement.** L'application envoie `agent_flow: "plan"` : quand `crew.decide()` choisit une équipe, le
+serveur ne génère rien et renvoie `agent_plan {plan, token, auto_start, mode, reason}` (jeton signé, lié à la
+conversation). Le plan est construit en code : étapes de la recette, livrable, public (Grand public / Décideurs /
+Experts), longueur (Courte / Standard / Approfondie), nombre de diapositives (3 à 12), sections à couvrir (8 au plus,
+80 caractères), sites à privilégier ou exclure (noms de domaine validés), accent (100 caractères). « Modifier » ne
+change que ces champs ; le serveur revalide chaque valeur (`crew_plan.apply_edits`) et les rend dans le brief commun
+par des gabarits (« Public : décideurs (l'essentiel d'abord…) »), jamais le texte brut comme instruction. Les
+sections deviennent des points vérifiés comme les autres. En Auto, tout plan part après 5 s (compte à rebours
+visible, « Modifier » l'arrête) : Auto ne bloque jamais, comme avant la carte de plan ; la confiance (haute à partir
+de 3 signaux de charge) est notée sur le plan, pas dans le délai. Activé attend « Lancer » ; « Répondre sans
+l'équipe » renvoie la demande en mode simple. Un client API sans `agent_flow` lance l'équipe aussitôt, comme avant.
+
+**Consignes en cours de route.** « Ajouter une consigne » : `POST /api/agent/note {run, kind, value}` avec un type
+parmi exclure un site, privilégier un site, public, longueur, ajouter une section, mettre l'accent sur. La consigne
+part dans la file de la voie (`crew_plan.REGISTRY`, en mémoire du processus, 15 min au plus) et l'équipe la prend
+entre deux générations (avant la recherche, avant la lecture, avant les versions, avant la correction) : un site
+exclu n'est plus lu, et une page déjà lue sort du brief (faits, extraits, citations) ; une consigne d'écriture
+arrivée après les versions passe par la correction si elle peut encore tourner ; sinon, et toujours au moment du
+fichier, elle est dite « trop tard pour ce livrable ». Chaque consigne est acquittée (`agent_note {id, status:
+applied|late, stage}`). Sur Vercel, une autre instance peut recevoir la consigne : `delivered: false`, le navigateur
+la joint à la tranche suivante (`agent_notes`). « Arrêter » reste visible ; l'arrêt efface le point de reprise.
+
+**Activité en direct.** Repliée, une ligne au présent (« Lit 3 pages · 0:42 », « Rédige 2 versions en
+parallèle »), tirée des voies et des étapes d'outils, jamais du modèle ; dépliée, le plan avec l'étape en cours, les
+sous-questions de la recherche, les sites lus en puces qui arrivent, les voies, les consignes. À la fin, une ligne
+au passé (« Équipe : 5 agents · 3 pages lues · 14 chiffres vérifiés · 2 versions · 48 s ») et « Ce que l'équipe a
+fait » replié.
+
+**« Vérifications faites ».** `agent_checks` : chaque chiffre du livrable, titres et intertitres compris, avec son
+origine (la page qu'il cite et la ligne de cette page, votre texte, un calcul du harnais), les passages retirés faute
+de source, les chiffres à relire, les actions d'un compte rendu vérifiées ligne par ligne. « Vérifié » demande le
+chiffre écrit tel quel sur la page (`on_page`) : un chiffre seulement déduit de deux autres (37 depuis 40 et 3) est
+« à vérifier » (`why: derived`), sauf s'il vient d'un calcul du harnais ; une phrase qui cite [n] est jugée sur la
+page n seule (`why: cited` si n ne contient pas le chiffre, jamais une autre page à sa place) ; `why: claim` quand la
+page contient le chiffre mais pas l'essentiel de la phrase. Un chiffre non sourcé dans un titre en est retiré
+(`drop_figures`), comme d'une puce. Calculé par `crew_checks.ledger` à partir des contrôles déjà faits, sans modèle.
+
+**Qualité de l'équipe.** La recherche est planifiée par le modèle : une génération courte (`plan_search`, 260
+jetons) découpe la demande en 3 sous-questions avec chacune sa requête ; le code garde une requête de 2 à 10 mots,
+sans URL ni opérateur, qui reprend un mot de la demande, sans doublon, et complète avec les requêtes fixes. Pages
+lues : sites privilégiés, puis sources officielles, puis l'ordre du moteur ; forums, réseaux sociaux et vidéo en
+dernier ; un texte quasi identique sur un autre site (Jaccard des 6-grammes ≥ 0,7) compte une fois. Citations
+cohérentes : numérotées dans l'ordre où le livrable les cite (le fichier ne liste que les sources citées), et un
+chiffre écrit sans [n] reçoit le numéro de la page où il est écrit tel quel (`autocite` ; jamais pour un chiffre
+seulement déductible de la page ; vos propres chiffres et les tableaux restent tels quels).
+
+**Tâches longues en tranches.** Après le brief, si l'écriture ne tient plus dans la requête (moins de 110 s) ou si le
+plan est « Approfondie » (5 pages lues au lieu de 3, 20 Ko d'extraits), le serveur s'arrête et envoie
+`agent_slice {token, auto: true}` : état signé (brief, traces, usage, voies, consignes), porté par le navigateur,
+qui relance aussitôt avec `agent_slice`. Rien n'est relu ni régénéré ; le budget de générations est cumulé, temps et
+énergie aussi. Un point de reprise part après le brief : `auto: false` quand l'écriture suit dans la même requête,
+l'état de la tranche suivante lui-même pour une tâche longue. Il est gardé avec la conversation (avec son `exp`), et
+après un rechargement ou une coupure « Reprendre la tâche » repart de la rédaction (jeton valable 15 min) ; il est
+effacé à la fin réussie de la tâche, à l'arrêt ou à expiration. Un jeton de plan ou de tranche ne tourne qu'une fois
+à la fois et plus après une fin normale (409 `agent_state_used`, en mémoire du processus : au mieux sur plusieurs
+instances) ; une requête coupée le libère pour « Reprendre ». Fin de tâche onglet caché : « ✓ » dans le titre, et une notification si l'utilisateur l'a autorisée (« M'avertir
+à la fin »).
+
+**Agents qui construisent.** Pour une présentation ou un document, si le Canevas (`birds.canvas`) est installé et
+`BIRD_CREW_CANVAS` ≠ 0, le livrable vérifié est écrit dans son modèle de document section par section
+(`{"type": "canvas", "phase": "stream"|"final"}`, fonctions publiques `convert.from_tool`, `turn.finish_doc`,
+`turn.new_aid`), et le fichier est créé comme avant. Sans Canevas (`BIRD_CREW_CANVAS=0` ou module absent), le chemin du fichier
+reste seul. `agent_deliverable` décrit le livrable ; « Livrables » (barre du haut) liste tous les fichiers de la
+conversation, du plus récent au plus ancien, avec « Voir dans la conversation » et le téléchargement.
+
+**Mesure live (27/11/2026, Bird S 4B, SearXNG, `scripts/agent_study_eval.py --set=all`, Mode Agent forcé, même
+client, avant = commit `d2899c1`, après = cette branche ; 1 passage par demande, une confirmation acceptée comme le
+ferait l'utilisateur).** Livrable produit, sections (hors Sources), citations valides ([n] présents et tous dans la
+liste des sources), phrases chiffrées citées ou tirées du texte collé, temps total :
+
+| Demande                        | Avant                                   | Après                            |
+| ------------------------------ | --------------------------------------- | -------------------------------- |
+| Étude comparative CRM          | oui · 4 sections · valides · 1/2 · 33 s | oui · 5 · valides · 1/1 · 38 s   |
+| Veille IA générative           | oui · 4 · **non** · 3/3 · 35 s          | oui · 5 · valides · 5/5 · 50 s   |
+| Rapport transition énergétique | oui · 5 · valides · 4/4 · 33 s          | oui · 5 · valides · 6/6 · 30 s ¹ |
+| Benchmark visioconférence      | oui · 5 · valides · 0/0 · 38 s          | oui · 7 · valides · 0/0 · 44 s ¹ |
+| Diapos télétravail             | oui · 6 · valides · 4/4 · 24 s          | oui · 6 · valides · 4/4 · 28 s   |
+| Diapos véhicules électriques   | oui · 6 · valides · 2/2 · 28 s          | oui · 6 · valides · 3/3 · 33 s   |
+| 3 offres + mail                | oui · 1 · valides · 2/3 · 12 s          | oui · 1 · valides · 3/4 · 12 s   |
+| Compte rendu + actions         | oui · 9 · valides · 4/4 · 15 s          | oui · 6 · valides · 3/3 · 24 s   |
+
+¹ Passage du code d'avant `autocite` (même recherche) : au second passage complet, SearXNG renvoyait 0 résultat
+(« google cse : Suspended: too many requests », duckduckgo en timeout) pour ces 4 demandes, ce qui ne mesure pas
+l'équipe.
+
+Ce qui change : la veille IA générative avait des citations invalides et passe à valides ; les requêtes ne sont plus
+la phrase de l'utilisateur plus « tendances » (« l'IA générative en entreprise en 2026 : tendances, chiffres, risques
+tendances ») mais des sous-questions (« marché IA générative entreprise 2026 chiffres », « tendances IA générative
+entreprise 2026 ») ; diapos véhicules électriques : 2 sources officielles au lieu d'1 ; la carte de vérification
+compte 2 à 15 chiffres vérifiés par livrable, 0 retiré, 0 à vérifier. Coût : + 1 génération (le plan de recherche),
+
+- 3 à 15 s sur les demandes recherchées. Le compte rendu est passé de 9 à 6 sections et de 15 à 24 s sur un passage
+  unique : à confirmer sur plusieurs passages (la recette ne change pas, seule la variance du modèle joue). Le plan de
+  recherche n'a pas toujours été valide (CRM, visioconférence : requêtes fixes gardées).
+
+Essais du déroulé complet (même jour) : carte de plan puis « Lancer » avec une consigne « Ajouter une section : Ce qui
+change pour les managers » envoyée 1 s après le départ : appliquée avant la lecture, le livrable a la section (le 4B
+l'a déclinée sur 3 diapositives). Rapport « Approfondie » + « Décideurs » : 2 requêtes (tranche de recherche, puis
+écriture), 110 s, 6 sections dont « Synthèse pour les décideurs » ; aucun [n] écrit par le modèle, d'où `autocite`
+(test dédié ; pas de nouveau passage live après ce correctif, faute de recherche disponible).
+Banc des déclenchements : 875/875 (inchangé, `crew.decide()` n'a pas bougé).
+
+**Événements SSE (vague 2)** : `agent_plan`, `agent_note`, `agent_checks {verified_n, removed_n, review_n, items[{value,
+sentence, status, origin, n, line, site}], actions, sources}`, `agent_slice {token, auto, slice, run}`,
+`agent_deliverable {tool, title, file, parts, canvas}`, `canvas` (si Canevas) ; `agent_start` gagne `run`, `plan`,
+`slice` ; `agent_step` du chercheur gagne `questions`.
+
+**Tests.** `tests/test_crew_w2.py` (plan typé et retouches, consignes appliquées / trop tard, site exclu en cours de
+route, plan de recherche validé, sources officielles et doublons, carte de vérification, tranches et reprise, Canevas
+simulé et absent, déroulé web complet, jetons falsifiés refusés), `tests/js/agents.test.mjs`, et
+`scripts/agent_ui_smoke.js wave2 autoStart` (démo, 360 et 1280 px, clair et sombre).
+
+## 12. Routeur piloté par le modèle
+
+**Principe.** Avant la génération principale, Bird décide lui-même des modules du tour en **un appel court**
+(≤ 80 jetons, température 0) : `{"modules":[{"tool":"get_weather","args":{"place":"Lyon","day":"demain"}}],
+"agent":"off","needs_web":false}`. Une seule source de vérité, `birds/harness/catalog.py` : nom, ligne FR/EN, petit
+schéma d'arguments et exemples de chaque module (météo, lieux, société, devises, horloge, événement, images,
+graphique, et les indices bureautique / recherche / données). Le prompt est le catalogue (statique, en préfixe :
+le cache de vLLM le réutilise), des exemples fixes, puis le tour : contexte du tour précédent (mémo du serveur,
+jamais le texte du modèle), **indices** des analyseurs regex (qui peuvent se tromper) et les mots de l'utilisateur.
+La sortie est contrainte par schéma quand l'endpoint le permet (`structured_outputs: {json}` sur vLLM ≥ 0.10,
+détecté une fois par sonde et mis en cache), sinon réparée et validée. Chaque argument est vérifié
+(`catalog.check_args`) et **ancré** : écrit dans les mots de l'utilisateur ou dans le contexte du tour précédent.
+
+**Rôle des règles écrites à la main** (`intents.py`, `clock.py`, `when.py`) : indices dans le prompt ; **repli**
+quand le routeur est absent, trop lent (budget 3 s, `BIRD_ROUTER_BUDGET_S`) ou illisible ; **veto** seulement pour
+les familles de faux déclenchements connues du banc (« météo des marchés », « charte graphique », « image de
+marque », « heures de pointe »…), et seulement si l'analyseur de la famille ne se déclenche pas lui-même.
+
+**Réglage** `BIRD_ROUTER` : `model` (le routeur décide seul), `hybrid` (le routeur décide, et un appel sûr d'un
+analyseur d'une famille que le routeur a laissée de côté est ajouté, sauf s'il ne vient que d'un texte collé), `regex` (aucun appel : comportement
+d'avant), `auto` (défaut) = **`hybrid`** pour un endpoint distant, `regex` pour un client local ou scripté.
+Journaux : métadonnées seulement (outils, noms d'arguments, durée, source, repli, veto), jamais le texte.
+Le champ `agent` de la décision est mesuré mais ne pilote pas encore le mode Agent (qui reste `crew.decide`).
+
+**Mesure réelle (27/11/2026, endpoint vLLM 0.32, Bird S 4B, `structured_outputs` détecté).**
+`scripts/router_eval.py --per-class 15` : 389 appels, au plus 15 exemples tirés (graine 0) par famille du banc et
+par classe oui/non ; l'hybride est noté sur le même appel. Résumé : `docs/measures/router-eval-2026-11-27.json`.
+
+| Famille | n | routeur seul (exact. / préc. / rappel) | hybride | regex |
+| --- | --- | --- | --- | --- |
+| weather | 30 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| maps | 22 | 0,955 / 1,000 / 0,933 | 0,955 / 1,000 / 0,933 | 0,955 / 1,000 / 0,933 |
+| maps+ | 30 | 0,967 / 1,000 / 0,933 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| company_fx | 30 | 0,933 / 0,933 / 0,933 | 0,967 / 0,938 / 1,000 | 1,000 / 1,000 / 1,000 |
+| clock | 29 | 0,931 / 0,882 / 1,000 | 0,931 / 0,882 / 1,000 | 0,931 / 0,882 / 1,000 |
+| events | 30 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 | 0,967 / 1,000 / 0,933 |
+| images | 30 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| charts | 21 | 0,952 / 1,000 / 0,933 | 0,952 / 1,000 / 0,933 | 0,762 / 1,000 / 0,667 |
+| charts+ | 30 | 0,967 / 1,000 / 0,933 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| chart_howto | 11 | 1,000 / – / – | 1,000 / – / – | 1,000 / – / – |
+| followups | 30 | 0,933 / 1,000 / 0,867 | 0,933 / 1,000 / 0,867 | 1,000 / 1,000 / 1,000 |
+| realistic | 30 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 | 1,000 / 1,000 / 1,000 |
+| **modules (323)** | | **0,969** | **0,978** | **0,972** |
+| agent | 11 | 1,000 / 1,000 / 1,000 | idem | 0,727 / 1,000 / 0,500 |
+| office_agent | 30 | 0,867 / 0,824 / 0,933 | idem | 1,000 / 1,000 / 1,000 |
+| agent_study | 25 | 0,640 / 0,526 / 1,000 | idem | 0,600 / – / 0,000 |
+
+Latence d'un appel : **p50 0,67 s, p95 0,89 s** (≈ 830 jetons de prompt, ≈ 50 de sortie). JSON invalide : 0,3 %
+(1 sur 389, repli sur les analyseurs). Veto appliqué 11 fois. Le routeur seul a raison là où les regex se trompent
+18 fois, l'inverse 19 fois : les erreurs se compensent, d'où le choix de **`hybrid` par défaut** (0,978 contre
+0,972 pour les regex et 0,969 pour le routeur seul sur les familles de modules, pour 0,67 s par tour). Erreurs
+restantes du routeur : deux reprises (« et en yens » sans le montant, « et à New York ? » qui garde Tokyo), « trouve
+un créneau pour une réunion à Lyon » pris pour l'horloge (regex aussi), « montre-moi sur une carte les agences de
+Lyon, Marseille et Lille » manqué (regex aussi), et surtout `agent: "on"` pour des documents internes (« rapport
+d'incident », « note de synthèse sur la réunion d'hier ») : 12 faux positifs sur 23 erreurs, raison pour laquelle le
+champ `agent` ne pilote rien pour l'instant. Lecture franche : le banc a servi à régler les regex, il les avantage ;
+la capacité du routeur à généraliser à des tournures nouvelles se mesure sur `eval.jsonl` de `build_tools_mix.py`
+(gabarits retenus), pas encore fait en réel. Correctif trouvé pendant la mesure : la sonde de sortie structurée
+demandait 16 jetons, vLLM 0.32 répond `{\n  "probe": …\n}` en 20 et la sonde concluait « non pris en charge »
+(`PROBE_TOKENS = 40`).
+
+**Dans l'application** (même jour, `scripts/serve.py` port 9335, `BIRD_ROUTER` par défaut, 360 px et 1 280 px, clair
+et sombre, 8 tours) : « il fera quel temps demain du côté de Strasbourg ? », que les regex **ne voient pas**
+(`hint_tools: []`), est routé vers `get_weather {place, day}` (0,85 à 1,16 s) et la fiche météo s'affiche ; « fais-moi
+la météo des marchés » ne déclenche aucun module (`needs_web: true`, 0,51 à 0,55 s), Bird cherche et cite sa source.
+Aucune requête vers un tiers, aucune erreur CSP, pas de défilement horizontal.
+
+**Texte collé : le modèle n'est plus contredit par les regex (27/11/2026).** En `hybrid`, un appel d'analyseur d'une
+famille que le routeur laissait de côté était toujours rajouté : « Résume ce mail : « … Météo à Lyon demain : pluie… »
+» relançait la fiche météo que le modèle avait, à raison, écartée. Désormais, pour une tâche sur un texte fourni
+(résume, corrige, traduis, reformule, analyse… suivi d'une citation ou de deux-points, `router.own_words`), seuls les
+appels que les analyseurs trouvent **dans la consigne elle-même** sont rajoutés (`merge(model, base, own)`), et le
+veto écarte un appel du routeur dont les arguments ne figurent que dans le texte collé (« only in the pasted text »).
+Nouvelle famille `pasted` dans `router_data.py` (8 « non », 3 « oui » : une consigne qui demande aussi un module) ;
+elle reste hors du banc des déclenchements, car les regex s'y trompent (connu, non corrigé côté regex).
+Mesure réelle, même graine (`--per-class 15 --seed 0`, 400 appels, résumé `docs/measures/router-eval-2026-11-27-pasted.json`) :
+
+| Jeu | routeur seul | hybride (nouveau) | hybride (ancien) | regex |
+| --- | --- | --- | --- | --- |
+| `pasted` (11) | 1,000 (0,545 avant le veto) | **1,000** | 0,273 | 0,273 |
+| familles de modules hors `pasted` (323) | 0,966 | 0,975 | 0,975 | 0,972 |
+| familles de modules (334) | 0,967 | **0,976** | 0,952 | 0,949 |
+
+Hors texte collé, rien ne change (mêmes décisions ; écart de 0,003 avec la mesure précédente : une reprise « et en
+livres ? » sans montant, bruit du tirage). Latence p50 0,64 s, p95 0,84 s ; JSON invalide 0,3 %.
+
+**Légendes et tableaux (27/11/2026).** Vus dans l'application avec le routeur : « rédige la légende d'une photo de la
+tour Eiffel » lançait une recherche d'images, « mets en forme ce tableau : Paris 12, Lyon 8, Marseille 5 » dessinait un
+graphique. Six tournures (FR/EN) rejoignent le banc comme négatifs (`IMAGES_NO`, `CHART_NO2` : 872/875 → 878/881) et
+`build_tools_mix.py` comme négatifs du routeur (gabarits `nt16`, `nt17`, `nte2`, `nte3`, plus `nt18` pour le texte
+collé). En attendant l'entraînement, le veto connaît deux familles de plus : légende / texte alternatif pour les
+images, tableau nommé sans mot de graphique pour `make_chart` (« tableau de bord » exclu). Réel, routeur sur les six
+négatifs : 3 faux déclenchements avant, 0 après ; les deux positifs témoins restent servis.
+
+**Ancrage des nombres et des types de lieux.** Un nombre est comparé en entier (`intents.parse_amount`), jamais comme
+morceau d'un autre : 20 n'est plus « dans » « 2025 », ni « 202 » dans « 2021 » ; un SIREN doit être écrit d'un seul
+tenant. Un type de lieu (`pharmacy`) n'est ancré que par ce même type dans les mots (« un restaurant » n'ancre plus
+une pharmacie).
+
+**Dans l'application** (même jour, port 9337, `BIRD_ROUTER` par défaut, 360 px et 1 280 px, clair et sombre, 12 tours) :
+« mets en forme ce tableau : Paris 12, Lyon 8, Marseille 5 » donne un tableau, aucun graphique (veto `make_chart`) ;
+« rédige la légende d'une photo de la tour Eiffel » donne une réponse écrite, aucune bande d'images (veto `images`) ;
+« Résume ce mail : « … Météo à Lyon demain… » » donne le résumé sans fiche météo (`hint_tools` `get_weather`, non
+rajouté). Aucun widget, aucune requête vers un tiers, aucune erreur CSP, pas de défilement horizontal.
+
+### Apprentissage natif des modules
+
+`scripts/build_tools_mix.py --out out/tools_mix` prépare (sans lancer) un jeu au format exact du mélange
+d'entraînement (`birds/schema.py`, `train.jsonl` / `eval.jsonl` lus par `jobs/bird_job.py`) :
+
+- `router` : le prompt exact du routeur (`router.messages`) et la décision en un seul tour assistant, positifs et
+  **négatifs** (`{"modules":[]}` : faux déclenchements, demandes bureautiques, conversation) ; les indices sont ceux
+  des analyseurs, parfois faux, parfois retirés, pour que le modèle apprenne à les corriger ;
+- `tool_call_extra` : le prompt système de Bird, les outils (bloc entraîné puis `EXTRA_TOOLS`), la demande et l'appel
+  natif de `get_weather` / `find_places` / `find_company` / `convert_currency` / `web_search` (images) / `make_chart` ;
+- `eval.jsonl` : gabarits **retenus en entier** (12 %, jamais vus à l'entraînement) ; `bench_heldout.jsonl` : toutes
+  les tournures du banc, exclues de `train` ; `stats.json`.
+
+Sortie mesurée (graine 0, 8,5 s) : train 5 207 enregistrements (3 205 routeur dont 739 négatifs et 172 reprises,
+2 002 appels natifs ; 86 % FR), eval 517, bench retenu 875 ; 1 235 doublons, 92 recoupements avec le banc et 77
+étiquettes rejetées par les contrôles. Le gisement des gabarits plafonne à ≈ 3 200 décisions : `--n` au-delà ne
+change rien. Taille comptée avec le vrai tokenizer : **7,15 M jetons** en train (dont 170 k de cible), 0,69 M en eval.
+
+**Coût et durée attendus.** La passe v1 a tenu ≈ 2 000 jetons/s (`out/curves/bird-v1.log` : 1 338 pas, 325 min,
+1,78 kWh). Au même réglage (LoRA r 32, `--batch-tokens 8192`, `--grad-accum 4`, 1 époque) : **≈ 1 h** de calcul
+pour le jeu seul (7,15 M jetons), **≈ 2 h** avec un rappel du mélange v1 à parts égales (recommandé contre l'oubli :
+≈ 5 000 enregistrements tirés de `out/mix_v1/train.jsonl`), plus ≈ 10 min de chargement et d'évaluation ; énergie
+≈ 0,33 kWh par heure de calcul (même mesure). Coût : la durée × le tarif horaire publié de la machine du job v1 (même
+`--flavor` que `scripts/launch.py`), soit quelques dollars ; aucun prix n'est repris ici. Ensuite : `router_eval.py`
+sur `bench_heldout` et `eval.jsonl`, et banc complet, avant/après, chiffres notés ici. À valider d'abord par un essai
+court (`--max-steps 50`).
+
+## 13. Entre les actions : plan de tâche, réparations, mémoire des résultats
+
+Code : `birds/harness/plan.py`, `repair.py`, `facts.py` (branchés dans `agent.py`) · tests : `tests/test_task_plan.py`,
+`tests/scenarios/` · navigateur : `tests/e2e/plan_checklist.spec.js` · évaluation réelle : `scripts/harness_eval.py`.
+
+Un modèle de 4 Md enchaîne mal les demandes en plusieurs étapes : il fait le tableau et oublie les totaux et le
+mail, répond avant d'avoir lu la pièce jointe, appelle `google_search` ou `read_file(file=…)`, écrit l'appel en
+JSON, arrondit 1 284,37 € en « environ 1 284 € », répond en anglais à une question en français. Le harnais porte
+cette expérience, sans appel de modèle supplémentaire tant que rien ne manque, et au plus **un** rappel.
+
+**Plan de tâche** (`plan.extract`, mots de l'utilisateur seulement) : liste des livrables demandés — tableau,
+totaux, mail, présentation, document, tableur, graphique, synthèse, comparaison, recherche web, lecture de la page
+donnée, lecture du fichier joint — dans l'ordre de la demande. Un nom ne compte que précédé d'un verbe de
+fabrication ou d'un article indéfini (« prépare un mail », « et un tableur ») ; « résume ce mail », « d'après le
+tableau », « crée un tableur avec les colonnes nom, prénom, email », « envoyer le compte rendu » n'en sont pas.
+Le plan n'est **actif** qu'à partir de deux éléments : une note courte s'ajoute au message (« cette demande
+comporte 3 éléments : 1. tableau ; 2. totaux ; 3. mail »), une ligne « [Bird checklist …] » suit le dernier
+résultat de chaque étape, cochée d'après ce qui s'est réellement passé (outil réussi, texte de la réponse et des
+fichiers). Une demande ordinaire garde son invite octet pour octet (testé). Deux éléments valent même seuls,
+parce que répondre sans eux, c'est répondre avant le résultat : lire un fichier joint **dans ce tour** (pas un
+fichier joint plus tôt, que l'application renvoie à chaque requête), et une recherche explicite : « cherche … » à
+l'impératif en tête de proposition, « sur internet / en ligne », « fais une recherche » (satisfaite aussi par un
+outil de fiche : « cherche un garage à Versailles ») ; jamais « je cherche à comprendre », « je recherche un
+stagiaire ». L'article doit gouverner le livrable : « une formule Excel », « une macro Excel » ne demandent pas de
+tableur, une question « comment faire un tableau croisé » ne demande aucun fichier. Un lien n'est une page à lire
+que si la demande le dit (« lis / résume / que dit cette page », ou un lien seul) ; un lien à insérer (lien
+d'inscription, signature) est du contenu, et la lecture d'un lien n'est vérifiée que dans un plan actif. Banc de
+déclenchement : aucune des 52 demandes de bureau ordinaires n'active de plan ; 936/939 (les 3 mêmes manques).
+
+**Vérification finale** (une fois par requête, avant d'accepter la réponse) : élément manquant, fichier joint non
+lu, chiffres clés absents, mauvaise langue → **un seul** rappel qui liste tout (« Not done yet… mail: call
+draft_email ; totaux: write the totals with their exact figures from the results: Total HT : 250,00 € ; … »).
+Pas après une question de clarification, ni pour un graphique quand un fichier a été produit. Si le modèle ne
+complète pas, le plan final dit ce qui manque (`Run.plan.partial`, `missing`) : l'interface affiche « Partiellement
+fait : mail manque. », et le mémo du tour garde « reste à faire : mail ». La réponse donnée avant un rappel de
+livrable (« Voici le tableau : … ») est gardée devant la nouvelle ; jamais après un rappel de lecture, de recherche,
+de chiffres ou de langue (c'était elle le problème), ni quand la nouvelle réponse la reprend déjà (mêmes lignes de
+tableau au séparateur près, ou l'essentiel de ses mots) ; une phrase antérieure qui refusait le livrable ensuite
+fait (« je ne peux pas envoyer de mail… ») est retirée.
+
+**Chiffres clés** (`facts.key_figures`) : lignes qui commencent par un libellé de total (Total HT/TTC, TVA, montant,
+net à payer…), dernier montant de la ligne (« TVA 20 % : 50,00 € » donne 50,00 €). Vérifiés seulement si la
+demande parle de totaux, montants ou TVA, et seulement ceux qu'elle nomme (« le total TTC » : pas la TVA). Sources :
+résultats d'outils du tour et messages de l'utilisateur et de l'historique (la facture d'un tour précédent).
+**Langue** : réponse d'au moins 40 lettres dont les mots courants sont au moins 3 fois plus ceux de l'autre langue
+(code, citations, liens, tableaux et notes entre crochets ignorés). Pas de vérification quand la demande demande
+une traduction ou une autre langue (« traduis en anglais », « réponds en anglais à ce client », « write it in
+French »).
+
+**Réparations** (`repair.py`, notées sur l'étape comme celles de `coerce.py`) : appel au format JSON
+(`<tool_call>{"name", "arguments"}</tool_call>` suivi de texte), JSON nu ou en bloc de code dans la prose,
+`read_file(path="x")` ; seulement pour un outil proposé à ce tour, et seulement quand la sortie *est* l'appel (en
+tête, après au plus une courte ligne ; jamais dans un exemple de code, jamais depuis une ligne `search()` ou
+`plot()` générique). Quand la demande porte sur du code ou un exemple (`repair.CODE_ASK`), ou après une injection
+repérée dans le tour, seule la balise `<tool_call>` est lue : une page qui fait recopier un appel JSON au modèle
+n'obtient ni `read_page` ni `web_search`. Une phrase qui cite un outil n'est jamais exécutée. Noms inventés (`google_search`, `send_email`, `create_presentation`, `functions.read_file`) ; noms
+d'arguments (`q`, `link`, `file`, `recipient`, `headers`, `data`, `titre`…) ; objet enveloppe `{"arguments": …}` ;
+ton français (« formel ») ; objet de mail absent (première ligne utile du corps) ; requête vide (les mots de
+l'utilisateur) ; `https://` ajouté ; chemin d'un fichier joint mal écrit (même nom dans un autre dossier, ou
+orthographe proche et unique). Un fichier introuvable : l'erreur liste les fichiers présents.
+
+**Mémoire des résultats** : une note par résultat (`Run.notes` : « read_file « facture.jpg »: 412 characters read;
+figures: Total HT : 250,00 € ; … »). Rappelée quand le modèle répète un appel (comparé à la casse et aux espaces
+près), et dans la dernière chance après une boucle ratée ; les totaux lus vont dans le mémo du tour (« chiffres lus :
+… »), donc « envoie ces totaux par mail » les retrouve au tour suivant, et dans le résumé des tours retirés.
+
+**Interface** : `birds/web/static/plan.js`. Événements `plan {items:[{kind,label,status}], done, total, final,
+partial?, missing?}` et `answer.plan`. Liste compacte repliable (pastilles cochées), ouverte pendant le tour, repliée
+quand tout est fait, ouverte avec la ligne « Partiellement fait » sinon ; chaque élément coché est lu par la zone
+`aria-live` (« Fait : présentation »). Démo : « Prépare une présentation … et un mail … » (port 9243 dans
+`tests/e2e/plan_checklist.spec.js`).
+
+**Mesure** (suite de scénarios, `python -m tests.scenarios.runner`, modèle scripté qui reproduit les erreurs d'un
+4B et réagit à ce que le harnais lui rend ; « avant » = e23b517 avec la même suite) :
+
+| famille                               | scénarios | avant  | après  | contrôles avant / après |
+| ------------------------------------- | --------- | ------ | ------ | ----------------------- |
+| OCR → tableau → totaux → mail         | 7         | 1      | 7      | 28/38 → 39/39           |
+| recherche → comparaison → graphique   | 8         | 3      | 8      | 36/43 → 43/43           |
+| fichier → synthèse → présentation     | 8         | 2      | 8      | 34/45 → 45/45           |
+| plusieurs livrables                   | 7         | 2      | 7      | 30/37 → 39/39           |
+| relances sur des résultats antérieurs | 6         | 2      | 6      | 22/31 → 31/31           |
+| erreurs d'outil et reprises           | 7         | 2      | 7      | 21/28 → 26/26           |
+| garde-fous (doublons, langue)         | 3         | 2      | 3      | 10/11 → 11/11           |
+| demandes ordinaires (témoins)         | 6         | 6      | 6      | 26/26 → 26/26           |
+| **total**                             | **52**    | **20** | **52** | **207/259 → 260/260**   |
+
+Générations moyennes 2,38 → 2,65 (le rappel unique, seulement quand il manque quelque chose ; témoins : 1,33 = 1,33).
+Limite : la suite a été écrite en même temps que les correctifs, par la même personne ; elle mesure les modes
+d'échec connus, pas un modèle réel. L'évaluation réelle (20 tâches, même rubrique, bras `on`/`off`) reste à lancer
+quand l'endpoint sera de nouveau disponible : `scripts/harness_eval.py --base-url … --arms on,off`.
+
+**Faux déclenchements corrigés (27/11/2026).** Revue sur le modèle réel : une traduction correcte réécrite en
+français, « je cherche à comprendre … » renvoyé vers `web_search`, « une formule Excel » comptée comme tableur,
+un lien d'inscription pris pour une page à lire, un `draft_email(...)` d'exemple de code exécuté, un tableau
+répété affiché deux fois. Huit scénarios témoins (`ordinary_translate_en`, `ordinary_write_in_french`,
+`ordinary_je_cherche`, `ordinary_excel_formula`, `ordinary_mail_with_link`, `ordinary_signature_link`,
+`ordinary_code_with_call_line`, `ordinary_json_example`) échouent tous sur 78c0c7d et passent ; suite : 60/60.
+
+**Évaluation réelle** (27/11/2026, endpoint vLLM 0.32, Bird S 4B, `scripts/harness_eval.py`, 1 passage par
+tâche, 12 tâches : les 8 témoins ci-dessus, `ordinary_mail`, `ordinary_question`, `ocr_table_totals_mail`,
+`multi_slides_mail`). « Avant » = branche de base ccr-f7b26c02-9v78gg (46bb440, sans plan ni réparations), avec la
+même suite et la même rubrique ; « après » = cette branche, plan actif.
+
+| bras                       | tâches réussies | contrôles | générations moy. | secondes moy. |
+| -------------------------- | --------------- | --------- | ---------------- | ------------- |
+| avant (base 46bb440)       | 5/12            | 51/62     | 1,50             | 3,1           |
+| après (w1-harness)         | 7/12            | 54/62     | 1,67             | 3,5           |
+
+Sur les 8 témoins, le harnais n'ajoute plus aucun rappel : mêmes générations qu'avant sur chacun (le surcoût
+moyen vient de `multi_slides_mail`, 1 → 3 générations, où le plan fait faire la présentation et le mail que la base
+ne faisait pas). Les échecs restants sont du modèle, identiques dans les deux bras : la traduction et l'exemple JSON
+appellent `web_search`, « write it in French » produit un document (2 générations), « je cherche à comprendre »
+et la signature reçoivent un refus prudent. Un passage par tâche, modèle échantillonné : l'écart avant / après sur
+`ocr_table_totals_mail` (TVA 50,00 € absente avant) peut tenir du tirage. Pour les témoins, la rubrique « contient »
+est générale (« welcom », « SOMME.SI | SUMIF », « linkedin.com/in/test ») ; la base a été re-notée sur ses réponses
+enregistrées après cet assouplissement (aucune génération de plus).
