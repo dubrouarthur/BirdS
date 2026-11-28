@@ -181,7 +181,9 @@ def chart_howto(text: str) -> bool:
     words = _chart_words(text)
     if len(_NUMBER.findall(re.sub(r"\b(?:19|20)\d\d\b", " ", words))) >= 2:
         return False
-    if _DO_CHART.match(words) and not re.match(r"^\s*\S+(?:[\s-]+(?:moi|me|nous|us))?\s+(?:comment|how)\b", words, re.I):
+    if _DO_CHART.match(words) and not re.match(
+        r"^\s*\S+(?:[\s-]+(?:moi|me|nous|us))?\s+(?:comment|how)\b", words, re.I
+    ):
         return False  # « fais un graphique des ventes et explique la tendance »: a request that also asks for words
     if _HOWTO.search(words) or _ABOUT_CHARTS.search(words):
         return True
@@ -189,7 +191,9 @@ def chart_howto(text: str) -> bool:
     if not m:
         return False
     if m.group("tool"):
-        return bool(_SHEET_HOWTO.search(words) or _HOWTO.search(words) or re.search(r"\bcomment\b|\bhow\b", words, re.I))
+        return bool(
+            _SHEET_HOWTO.search(words) or _HOWTO.search(words) or re.search(r"\bcomment\b|\bhow\b", words, re.I)
+        )
     return True
 
 
@@ -200,6 +204,39 @@ _PROMISE = re.compile(
     r"m'y (?:mets|remets))|let me (?:check|look|read|search|fix|add|redo|create)|i(?:'ll| will) (?:check|look|go back|"
     r"read|search|fix|add|redo|create|re-?read))\b",
     re.I,
+)
+# an answer that says Bird cannot reach the web, its tools or recent data, cannot show a picture, or sends the user
+# to look elsewhere (« vérifiez sur Yahoo Finance », « demandez à un voisin »). Live model, production 28/11/2026:
+# « Je n'ai pas accès à Internet ni à mes outils de recherche dans cette réponse, donc je ne peux pas afficher
+# d'image » with web_search offered. A hint for the final check only (``no_access_nudge``), never a refusal itself.
+NO_ACCESS = re.compile(
+    r"\b(?:je\s+n['’]ai\s+(?:pas|aucun|ni)\s+(?:d['’]\s*)?(?:accès|acces|connexion)\s+(?:à|a|au|aux|direct\s+à)?\s*"
+    r"(?:l['’]\s*)?(?:internet|web|en\s+ligne|mes\s+outils|outils?|des\s+(?:données|informations)|données|"
+    r"informations|actualit|sources?|recherche|navigat|temps\s+réel|images?|photos?|la\s+bourse|cours)|"
+    r"je\s+(?:ne\s+)?(?:peux|suis)\s+pas\s+(?:en\s+mesure\s+d['’]\s*|capable\s+d['’]\s*)?"
+    r"(?:accéder|acceder|naviguer|me\s+connecter|consulter\s+(?:internet|le\s+web|des\s+sites)|"
+    r"(?:afficher|montrer|chercher|trouver|fournir|partager|envoyer)\s+(?:d['’]\s*|des\s+|une\s+|les\s+)?"
+    r"(?:images?|photos?|illustrations?)|chercher\s+sur\s+(?:internet|le\s+web)|"
+    r"(?:obtenir|donner|fournir)\s+(?:les\s+|des\s+)?(?:données|informations|cours|prix)\s+(?:en\s+temps\s+réel|"
+    r"actuel|récent|du\s+jour))|"
+    r"(?:mes\s+connaissances|mes\s+données)\s+(?:s['’]arrêtent|datent|ne\s+(?:vont|sont)\s+pas)|"
+    r"(?:je\s+vous\s+(?:invite|conseille|recommande)\s+à|veuillez|vous\s+pouvez|pensez\s+à|n['’]hésitez\s+pas\s+à)\s+"
+    r"(?:vérifier|verifier|consulter|regarder|chercher|demander)\s+[^.\n]{0,60}?(?:yahoo|google|boursorama|"
+    r"bloomberg|investing|site\s+(?:officiel|spécialisé|financier)|moteur\s+de\s+recherche|un\s+voisin|vos\s+voisins)|"
+    r"demandez\s+(?:à\s+)?(?:un|vos|votre)\s+voisins?|"
+    r"i\s+(?:do\s+not|don['’]t)\s+have\s+(?:access\s+to\s+)?(?:the\s+)?(?:internet|web|real[- ]time|browsing|"
+    r"live\s+data|current\s+data|my\s+tools|tools|images?)|"
+    r"i\s+(?:can(?:no|['’])t|am\s+(?:not\s+able|unable)\s+to|['’]m\s+(?:not\s+able|unable)\s+to)\s+"
+    r"(?:access|browse|search\s+the\s+(?:web|internet)|display|show|provide|share|look\s+up)\s+"
+    r"(?:the\s+)?(?:internet|web|real[- ]time|live|current|images?|pictures?|photos?)|"
+    r"as\s+an\s+ai[^.\n]{0,40}(?:can(?:no|['’])t|unable)|"
+    r"(?:please\s+)?check\s+(?:yahoo|google)\s+finance)",
+    re.I,
+)
+NO_ACCESS_NUDGE = (
+    "Your answer says you cannot reach the internet, your tools, recent data or pictures. That is wrong: Bird's tools "
+    "are available in this turn ({tools}). {act} Never say you have no access, and never send the user to look "
+    "elsewhere."
 )
 DO_IT_NUDGE = (
     "Do it now, in this turn: call the tool you need (for example read_file on the attached file or image) and then "
@@ -641,6 +678,7 @@ class Run:
     notes: list[str] = field(default_factory=list)  # one short line per tool result (facts.note_of)
     figures: list[list[str]] = field(default_factory=list)  # labelled totals read by the tools ([label, amount])
     reflexion: dict | None = None  # Mode Réflexion (reflexion.py): level, who chose it, budget, checks, summary
+    pictures: dict | None = None  # pictures asked this turn: {"subject", "page", "size"?} (the memo's « images »)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -1040,6 +1078,14 @@ class Agent:
             # the memo the server wrote after it (never from the model's text, see followup.py)
             prev = followup.previous(history) if history and getattr(cfg, "widgets", True) and not attached else None
             again = None if any(i.args for i in found) else followup.resolve(req, prev, run.lang)
+            # « une image » after « parle-moi du cheval tigré », « une autre » after pictures: the subject is the
+            # conversation's (the user's earlier words or the server's memo), never the model's text
+            pic_again = (
+                followup.pictures(req, prev, history, run.lang)
+                if history and getattr(cfg, "widgets", True) and not attached and again is None
+                and not any(i.args for i in found)
+                else None
+            )
             clock_words = req
             if again is not None and again.tool == "clock":
                 clock_words = again.args["text"]
@@ -1064,7 +1110,9 @@ class Agent:
             plan = router.plan_turn(self, req, history, attached=attached, lang=run.lang, deadline=deadline)
             if picker is not None:
                 picker.join(timeout=reflex.BUDGET_S * 1.5 + 0.5)
-                choice = box.get("c") or reflex.Choice(reflex.hint_level(req), "hint", reflex.BUDGET_S, None, "join_timeout")
+                choice = box.get("c") or reflex.Choice(
+                    reflex.hint_level(req), "hint", reflex.BUDGET_S, None, "join_timeout"
+                )
                 if choice.usage:
                     run.usage.append({**choice.usage, "kind": "reflexion"})
             if plan.decision is not None:
@@ -1126,12 +1174,17 @@ class Agent:
                 # words; live model, offered the web, searched "restaurants ouverts le 25 décembre" and refused
                 routed |= {"web_search", "read_page"}
                 messages[-1]["content"] += EVENT_NOTE["en" if run.lang == "en" else "fr"].format(slot=slot)
-            pictures = None if prefill or facts or slot or attached else plan.images(req, run.lang)
+            pictures = None if prefill or facts or slot or attached else plan.images(req, run.lang, pic_again)
             if pictures is not None and self.search:
                 # « montre-moi une photo de la tour Eiffel »: the harness searches the subject itself; the images
-                # shown are the ones whose page title names it (birds.web.backends.pick_web_images)
+                # shown are the ones whose page title names it (birds.web.backends.pick_web_images), free-licence
+                # Wikimedia Commons files first, with their author and licence (_commons_pictures)
                 prefill = pictures
                 routed -= {"web_search", "read_page"}
+                view = dict(pictures.view or {})
+                run.pictures = {"subject": str(pictures.args["query"]), "page": int(view.get("page") or 0),
+                                **({"size": "large"} if view.get("size") == "large" else {})}  # fmt: skip
+                self._commons_pictures(run, ctx)
                 messages[-1]["content"] += IMAGES_NOTE["en" if run.lang == "en" else "fr"].format(
                     subject=pictures.args["query"]
                 )
@@ -1239,7 +1292,10 @@ class Agent:
                             closed = reflex.close_text(out.get("text") or "", reason, run.lang)
                             head = render_prompt(self.tok, messages, offered, True)
                             out, stream = self._generate(head + closed, True, deadline, lead=True)
-                            out = {**out, "text": closed.replace("\n</think>\n\n", "</think>") + (out.get("text") or "")}
+                            out = {
+                                **out,
+                                "text": closed.replace("\n</think>\n\n", "</think>") + (out.get("text") or ""),
+                            }
                 except EndpointError as e:
                     if e.kind != "timeout":
                         raise
@@ -1422,7 +1478,8 @@ class Agent:
                         if not verdict.ok:
                             # what was found, for the evaluation (scripts/reflexion_eval.py); never sent to the page
                             rinfo.setdefault("issues", []).append(
-                                {"calc": verdict.calc_wrong[:4], "missing": [p[:80] for p in verdict.missing[:4]]})
+                                {"calc": verdict.calc_wrong[:4], "missing": [p[:80] for p in verdict.missing[:4]]}
+                            )
                             rinfo["rounds"] = rinfo.get("rounds", 0) + 1
                             rinfo["corrected"] = True
                             # what was sent back, each on its own: a missing point is never shown as a wrong calc
@@ -1570,8 +1627,13 @@ class Agent:
                 run.stop_reason = "invalid_tool_calls"  # one retry after a malformed step, not more
                 break
 
-        if (run.stop_reason == "answer" and chartable and not ctx.charts and "make_chart" in self._allowed()
-                and getattr(cfg, "canvas_sink", None) is None):
+        if (
+            run.stop_reason == "answer"
+            and chartable
+            and not ctx.charts
+            and "make_chart" in self._allowed()
+            and getattr(cfg, "canvas_sink", None) is None
+        ):
             # a chart was asked and the model answered with a table or a list of figures instead of drawing it:
             # the harness draws that table (make_chart checks where the numbers come from and tags them)
             found = figures_in(content)
@@ -1691,7 +1753,12 @@ class Agent:
                     step.decision = "denied_cap" if capped else forced
                 else:
                     step.decision = guard.gate(
-                        name, args, tainted=run.flagged, side_effects=side_effects, cfg=self.cfg, confirm=self.confirm,
+                        name,
+                        args,
+                        tainted=run.flagged,
+                        side_effects=side_effects,
+                        cfg=self.cfg,
+                        confirm=self.confirm,
                         user_text=None
                         if getattr(self.cfg, "confirm_deliverables", False)
                         else f"{ctx.message or ''}\n{ctx.request or ''}",

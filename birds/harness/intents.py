@@ -19,6 +19,7 @@ class Intent:
     args: dict | None  # None: offer the tool, do not call it
     keep_web: bool = True  # False: web_search / read_page withdrawn for this turn
     mode: str = ""  # places: near | route | where | list | address
+    view: dict | None = None  # pictures (mode « images »): {"page": n} for « une autre », {"size": "large"}
 
 
 # ---------------------------------------------------------------- normalisation
