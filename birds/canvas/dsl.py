@@ -651,13 +651,25 @@ def _front_matter(lines: list[str], repairs: list[str]) -> tuple[dict, int]:
             return meta, j
         return {}, i + 1  # a lone separator at the top
     j = i
+    end = 0
     while j < len(lines):
+        if not lines[j].strip() and meta:  # « title: … », a blank line, « image: … » (a 4B habit): still the head
+            j += 1
+            continue
         m = _KV.match(lines[j])
         if not (m and m.group(1).strip().lower() in _FRONT_KEYS):
             break
         meta[_FRONT_KEYS[m.group(1).strip().lower()]] = _clean_inline(m.group(2)).strip("\"'«» ")
         j += 1
-    return meta, (j if meta else 0)
+        end = j
+    if meta and end < len(lines):
+        k = end
+        while k < len(lines) and not lines[k].strip():
+            k += 1
+        if k < len(lines) and re.fullmatch(r"\s*-{3,}\s*", lines[k]):
+            end = k + 1  # the closing « --- » of a front matter whose opening one was left out
+            repairs.append("front matter without its opening line read")
+    return meta, (end if meta else 0)
 
 
 def _clean_heading(text: str) -> tuple[str, str | None]:

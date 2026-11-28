@@ -202,6 +202,40 @@ def pick(b: dict, index: int, total: int) -> str:
     return "bullets"
 
 
+# layouts that draw their main part only: a list beside it would be lost, so ``split`` gives it its own slide
+_MAIN_ONLY = ("compare", "steps", "cards", "timeline", "table", "code", "quote")
+
+
+def split(doc: dict) -> int:
+    """A slide that holds a list of points AND a block drawn on its own (« - … » then ``::: cards``: a 4B habit) is
+    made two slides, the points first, then the block, both under the slide's title. Nothing is lost or invented.
+    Returns the number of slides split."""
+    if doc.get("kind") != "deck":
+        return 0
+    out, n = [], 0
+    for b in doc.get("blocks") or []:
+        main = main_part(b)
+        lists = [p for p in b.get("parts") or [] if p.get("t") in TEXT]
+        items = sum(len(p.get("items") or [1]) for p in lists)
+        if main is None or main["t"] not in _MAIN_ONLY or items < 2 or groups(b) or len(out) >= dsl.MAX_BLOCKS - 1:
+            out.append(b)
+            continue
+        first = {**b, "parts": [p for p in b["parts"] if p.get("t") in TEXT or p.get("t") == "image"]}
+        first.pop("layout", None)
+        second = {"id": "", "title": b.get("title") or "", "parts": [p for p in b["parts"] if p.get("t") not in TEXT
+                                                                     and p.get("t") != "image"], "notes": ""}
+        if b.get("layout"):
+            second["layout"] = b["layout"]
+        out += [first, second]
+        n += 1
+    if n:
+        doc["blocks"] = out
+        for b in out:
+            if not b.get("id"):
+                b["id"] = dsl.new_id(doc)
+    return n
+
+
 def compatible(b: dict) -> list[str]:
     """The layouts this block can take (the « Mise en page » menu), the current one first."""
     return [n for n in CATALOGUE if fits(b, n)]

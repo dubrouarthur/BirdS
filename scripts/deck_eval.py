@@ -61,14 +61,39 @@ def base_layout(b: dict) -> str:
     return "list"
 
 
+def replay(path: Path) -> int:
+    """The raw answers of a live measure, parsed again by this checkout (a parser repair measured on the same
+    generations): layouts, cover query and repairs. Rows without a raw answer are printed as they were."""
+    from birds.canvas import dsl, layouts, turn
+
+    for row in json.loads(path.read_text("utf-8")):
+        raw = row.get("raw") or ""
+        if not raw:
+            print(json.dumps({"n": row["n"], "path": row.get("path"), "layouts": row.get("layouts")}, ensure_ascii=False))
+            continue
+        repairs: list[str] = []
+        before, content, _ = dsl.split_answer(raw)
+        doc = dsl.parse(content, "deck", "fr", repairs)
+        turn.finish_doc(doc, "deck", row["ask"], "fr")
+        blocks = doc["blocks"]
+        drawn = ["cover"] + [layouts.pick(b, j, len(blocks)) for j, b in enumerate(blocks)]
+        print(json.dumps({"n": row["n"], "slides": len(drawn), "distinct": len(set(drawn)), "layouts": drawn,
+                          "cover": (doc.get("cover") or {}).get("query"), "repairs": len(repairs)},
+                         ensure_ascii=False))  # fmt: skip
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=str(Path(__file__).resolve().parents[1]))
     ap.add_argument("--label", default="after")
     ap.add_argument("--out", default="out/deck_eval.json")
     ap.add_argument("--only", default="", help="comma-separated prompt numbers (1-6)")
+    ap.add_argument("--replay", default="", help="re-parse the raw answers of a measure file (no generation)")
     args = ap.parse_args()
     sys.path.insert(0, str(Path(args.root).resolve()))
+    if args.replay:
+        return replay(Path(args.replay))
     if not os.environ.get("BIRD_BASE_URL"):
         print("set BIRD_BASE_URL (and BIRD_MODEL): this script calls the real endpoint")
         return 2

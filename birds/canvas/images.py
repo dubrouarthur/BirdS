@@ -125,9 +125,25 @@ def _big_url(r: dict) -> str:
     return str(r.get("thumbnail") or "")
 
 
+def short_query(query: str) -> str:
+    """« cyclistes et piétons dans une rue urbaine » -> « cyclistes piétons »: the two first content words, for a
+    second search when the long phrase finds nothing."""
+    out = [w for w in re.findall(r"[\wÀ-ÿ'-]{3,}", str(query or "")) if om.words(w)]
+    return " ".join(out[:2])
+
+
 def search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: str = "w1",
                      deadline: float | None = None) -> om.Media | None:  # fmt: skip
-    """The first relevant, free-licence Openverse picture for ``query`` (sources in ``exclude`` skipped)."""
+    """The first relevant, free-licence Openverse picture for ``query``, else for its two first content words."""
+    m = _search_openverse(query, fetch, exclude, mid, deadline)
+    short = short_query(query)
+    if m is None and short and short.lower() != str(query or "").strip().lower():
+        m = _search_openverse(short, fetch, exclude, mid, deadline)
+    return m
+
+
+def _search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: str = "w1",
+                      deadline: float | None = None) -> om.Media | None:  # fmt: skip
     q = re.sub(r"\s+", " ", str(query or "")).strip()[:120]
     if not q or fetch is None:
         return None

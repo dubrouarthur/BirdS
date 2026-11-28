@@ -282,6 +282,9 @@ def finish_doc(doc: dict, kind: str, words: str, lang: str) -> dict:
         doc["theme"] = office.pick_theme(words + " " + doc["title"])
     if kind == "deck":
         convert.enrich(doc)
+        from . import layouts
+
+        layouts.split(doc)  # a list and a cards / steps / comparison block on one slide: two slides, nothing lost
     return doc
 
 

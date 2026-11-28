@@ -275,3 +275,32 @@ def test_known_false_vetoes_of_a_deck_request(words, kind):
     from birds.canvas import intents
 
     assert intents.ask(words) == kind
+
+
+def test_front_matter_with_blank_lines_and_no_opening_dashes():
+    """Live answer (deck-eval 2026-11-28 #2): the cover picture was lost after a blank line."""
+    text = "title: VeloResto\nsubtitle: Livraison à vélo\n\nimage: un livreur à vélo\n\n---\n\n# Problème\n- lent\n# Offre\n- rapide\n"
+    repairs: list[str] = []
+    d = dsl.parse(text, "deck", "fr", repairs)
+    assert d["title"] == "VeloResto" and d["cover"] == {"query": "un livreur à vélo"}
+    assert [b["title"] for b in d["blocks"]] == ["Problème", "Offre"]
+
+
+def test_a_long_query_is_retried_short():
+    images.CACHE.clear()
+    f = FakeFetch([_r(1, title="Cyclistes à Lyon", tags=[])])
+    m = images.search_web("des cyclistes heureux dans une rue urbaine", f)
+    assert m is not None and images.short_query("des cyclistes heureux dans une rue urbaine") == "cyclistes heureux"
+
+
+def test_a_list_beside_a_block_drawn_alone_gets_its_own_slide():
+    """Live answer (deck-eval 2026-11-28 #1): five points then ``::: cards`` on one slide; the cards layout would
+    have dropped the points."""
+    text = "# Contexte\n- un\n- deux\n- trois\n::: cards\nA : a\nB : b\n:::\n# Chiffre\n- x\n- y\n::: kpi\n3 | z\n:::\n"
+    d = dsl.parse(text, "deck")
+    turn.finish_doc(d, "deck", "x", "fr")
+    assert [(b["title"], [p["t"] for p in b["parts"]]) for b in d["blocks"]] == [
+        ("Contexte", ["list"]), ("Contexte", ["cards"]), ("Chiffre", ["list", "kpi"])]  # the figure slide draws its points too
+    assert len({b["id"] for b in d["blocks"]}) == 3
+    bl = d["blocks"]
+    assert [layouts.pick(b, k, 3) for k, b in enumerate(bl)] == ["bullets", "cards", "figure"]
