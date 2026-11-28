@@ -1,0 +1,484 @@
+﻿Export ERP — ventes 2024-2025
+
+Date;Région;Produit;Client;Commercial;Quantité;Prix unitaire (€);CA (€);Remise
+03/01/2024;Sud;Delta;Michel Agro;Camille;5;310,00;1 395,00;0 %
+04/01/2024;Île-de-France;Alpha;Laurent Bâtiment;Hugo;8;120,00;960,00;-
+06/01/2024;Nord;Beta;Martin & Fils;Nathan;4;85,50;307,80;0 %
+06/01/2024;Île-de-France;Alpha;Simon Retail;Nathan;9;120,00;1 080,00;0 %
+08/01/2024;Est;Delta;Petit SARL;Camille;37;310,00;10 896,50;5 %
+09/01/2024;Île-de-France;Epsilon;Michel Agro;Hugo;29;19,90;577,10;0 %
+11/01/2024;Île-de-France;Beta;Moreau Santé;Nathan;26;85,50;2 111,85;-
+13/01/2024;Est;Beta;Petit SARL;Hugo;6;85,50;461,70;10 %
+15/01/2024;Est;Zeta;Moreau Santé;Léa;39;64,00;2 496,00;0 %
+16/01/2024;Sud;Gamma;Petit SARL;Nathan;27;42,00;1 134,00;0 %
+18/01/2024;Est;Zeta;Richard Énergie;Nathan;38;64,00;2 310,40;0 %
+18/01/2024;Est;Delta;Lefebvre Tech;Camille;4;310,00;1 116,00;10 %
+21/01/2024;Est;Zeta;Dubois Logistique;Léa;2;64,00;121,60;10 %
+21/01/2024;Île-de-France;Alpha;Moreau Santé;Camille;19;120,00;2 166,00;5 %
+23/01/2024;Ouest;Delta;Moreau Santé;Camille;11;310,00;3 239,50;-
+25/01/2024;Sud;Delta;Laurent Bâtiment;Léa;27;310,00;7 951,50;-
+26/01/2024;Sud;Alpha;Petit SARL;Hugo;15;120,00;1 620,00;5 %
+27/01/2024;Ouest;Epsilon;Petit SARL;Léa;19;19,90;378,10;5 %
+30/01/2024;Île-de-France;Gamma;Simon Retail;Léa;14;42,00;529,20;0 %
+31/01/2024;Île-de-France;Delta;Dubois Logistique;Nathan;31;310,00;9 610,00;-
+02/02/2024;Nord;Beta;Martin & Fils;Hugo;29;85,50;2 479,50;0 %
+03/02/2024;Île-de-France;Alpha;Martin & Fils;Camille;42;120,00;5 040,00;0 %
+05/02/2024;Île-de-France;Alpha;Martin & Fils;Hugo;45;120,00;5 130,00;5 %
+06/02/2024;Est;Epsilon;Richard Énergie;Nathan;8;19,90;159,20;-
+08/02/2024;Ouest;Delta;Robert Conseil;Camille;10;310,00;3 100,00;10 %
+09/02/2024;Ouest;Zeta;Petit SARL;Camille;14;64,00;806,40;10 %
+10/02/2024;Île-de-France;Alpha;Laurent Bâtiment;Léa;11;120,00;1 188,00;10 %
+12/02/2024;Sud;Gamma;Bernard Industries;Léa;15;42,00;567,00;5 %
+13/02/2024;Ouest;Zeta;Bernard Industries;Hugo;34;64,00;2 067,20;10 %
+14/02/2024;Nord;Gamma;Moreau Santé;Léa;13;42,00;491,40;10 %
+17/02/2024;Est;Gamma;Martin & Fils;Hugo;7;42,00;294,00;-
+18/02/2024;Est;Beta;Moreau Santé;Camille;31;85,50;2 385,45;10 %
+19/02/2024;Nord;Delta;Lefebvre Tech;Hugo;31;310,00;9 610,00;-
+22/02/2024;Nord;Zeta;Dubois Logistique;Nathan;26;64,00;1 497,60;0 %
+22/02/2024;Sud;Beta;Durand SA;Hugo;38;85,50;3 086,55;5 %
+25/02/2024;Est;Beta;Laurent Bâtiment;Hugo;2;85,50;171,00;0 %
+25/02/2024;Ouest;Beta;Bernard Industries;Camille;17;85,50;1 453,50;10 %
+27/02/2024;Île-de-France;Gamma;Robert Conseil;Nathan;14;42,00;588,00;10 %
+29/02/2024;Île-de-France;Epsilon;Dubois Logistique;Hugo;40;19,90;796,00;0 %
+02/03/2024;Sud;Epsilon;Durand SA;Hugo;12;19,90;238,80;-
+02/03/2024;Île-de-France;Alpha;Richard Énergie;Nathan;12;120,00;1 296,00;0 %
+04/03/2024;Sud;Gamma;Durand SA;Camille;33;42,00;1 316,70;0 %
+05/03/2024;Ouest;Gamma;Simon Retail;Hugo;18;42,00;718,20;-
+07/03/2024;Île-de-France;Gamma;Laurent Bâtiment;Hugo;34;42,00;1 428,00;-
+08/03/2024;Ouest;Delta;Richard Énergie;Camille;16;310,00;4 712,00;0 %
+10/03/2024;Est;Alpha;Petit SARL;Léa;10;120,00;1 140,00;5 %
+12/03/2024;Sud;Zeta;Martin & Fils;Nathan;32;64,00;2 048,00;5 %
+13/03/2024;Ouest;Epsilon;Dubois Logistique;Léa;27;19,90;537,30;10 %
+15/03/2024;Nord;Zeta;Richard Énergie;Camille;22;64,00;1 267,20;-
+17/03/2024;Nord;Delta;Richard Énergie;Léa;33;310,00;10 230,00;0 %
+17/03/2024;Nord;Alpha;Robert Conseil;Léa;3;120,00;360,00;10 %
+19/03/2024;Ouest;Zeta;Robert Conseil;Nathan;10;64,00;576,00;-
+21/03/2024;Nord;Gamma;Durand SA;Hugo;28;42,00;1 176,00;10 %
+22/03/2024;Nord;Gamma;Martin & Fils;Hugo;5;42,00;199,50;0 %
+24/03/2024;Nord;Gamma;Laurent Bâtiment;Nathan;18;42,00;680,40;5 %
+25/03/2024;Île-de-France;Zeta;Bernard Industries;Camille;16;64,00;972,80;0 %
+26/03/2024;Sud;Gamma;Michel Agro;Léa;34;42,00;1 428,00;10 %
+29/03/2024;Île-de-France;Zeta;Petit SARL;Léa;28;64,00;1 792,00;10 %
+29/03/2024;Nord;Alpha;Lefebvre Tech;Hugo;33;120,00;3 762,00;5 %
+01/04/2024;Nord;Zeta;Michel Agro;Nathan;32;64,00;1 843,20;-
+03/04/2024;Sud;Beta;Richard Énergie;Hugo;9;85,50;731,02;10 %
+03/04/2024;Sud;Alpha;Martin & Fils;Léa;28;120,00;3 360,00;0 %
+05/04/2024;Ouest;Epsilon;Michel Agro;Léa;39;19,90;776,10;10 %
+06/04/2024;Ouest;Beta;Petit SARL;Léa;29;85,50;2 479,50;10 %
+09/04/2024;Est;Epsilon;Richard Énergie;Hugo;3;19,90;56,71;5 %
+10/04/2024;Sud;Alpha;Richard Énergie;Nathan;6;120,00;684,00;10 %
+11/04/2024;Sud;Epsilon;Durand SA;Camille;17;19,90;338,30;5 %
+13/04/2024;Île-de-France;Alpha;Dubois Logistique;Camille;25;120,00;2 850,00;5 %
+14/04/2024;Île-de-France;Epsilon;Petit SARL;Nathan;26;19,90;465,66;-
+15/04/2024;Est;Zeta;Simon Retail;Hugo;3;64,00;172,80;-
+17/04/2024;Île-de-France;Epsilon;Simon Retail;Camille;43;19,90;770,13;5 %
+18/04/2024;Nord;Alpha;Petit SARL;Léa;7;120,00;798,00;-
+20/04/2024;Nord;Zeta;Laurent Bâtiment;Hugo;32;64,00;1 945,60;0 %
+22/04/2024;Nord;Zeta;Laurent Bâtiment;Camille;34;64,00;2 176,00;-
+24/04/2024;Nord;Gamma;Bernard Industries;Hugo;15;42,00;567,00;-
+25/04/2024;Ouest;Alpha;Moreau Santé;Léa;3;120,00;324,00;5 %
+26/04/2024;Île-de-France;Beta;Richard Énergie;Léa;25;85,50;1 923,75;5 %
+27/04/2024;Ouest;Alpha;Moreau Santé;Léa;7;120,00;756,00;5 %
+30/04/2024;Est;Zeta;Laurent Bâtiment;Léa;30;64,00;1 824,00;-
+30/04/2024;Île-de-France;Beta;Robert Conseil;Camille;36;85,50;3 078,00;10 %
+03/05/2024;Nord;Epsilon;Moreau Santé;Léa;25;19,90;497,50;5 %
+03/05/2024;Île-de-France;Alpha;Petit SARL;Léa;29;120,00;3 480,00;10 %
+05/05/2024;Est;Beta;Moreau Santé;Nathan;26;85,50;2 223,00;5 %
+06/05/2024;Ouest;Zeta;Moreau Santé;Nathan;20;64,00;1 152,00;5 %
+09/05/2024;Est;Delta;Richard Énergie;Camille;22;310,00;6 820,00;10 %
+10/05/2024;Ouest;Alpha;Bernard Industries;Camille;19;120,00;2 166,00;10 %
+11/05/2024;Ouest;Delta;Simon Retail;Camille;24;310,00;7 068,00;10 %
+12/05/2024;Est;Alpha;Durand SA;Léa;10;120,00;1 200,00;10 %
+15/05/2024;Île-de-France;Gamma;Bernard Industries;Léa;33;42,00;1 386,00;-
+15/05/2024;Nord;Alpha;Lefebvre Tech;Nathan;29;120,00;3 132,00;5 %
+18/05/2024;Ouest;Alpha;Laurent Bâtiment;Hugo;11;120,00;1 254,00;-
+20/05/2024;Est;Gamma;Robert Conseil;Léa;26;42,00;982,80;5 %
+21/05/2024;Ouest;Epsilon;Michel Agro;Nathan;8;19,90;159,20;5 %
+22/05/2024;Sud;Epsilon;Moreau Santé;Hugo;29;19,90;548,24;-
+24/05/2024;Sud;Epsilon;Bernard Industries;Hugo;6;19,90;119,40;10 %
+25/05/2024;Est;Beta;Richard Énergie;Léa;37;85,50;3 163,50;0 %
+27/05/2024;Ouest;Delta;Lefebvre Tech;Hugo;25;310,00;7 362,50;10 %
+28/05/2024;Ouest;Gamma;Simon Retail;Léa;9;42,00;340,20;5 %
+29/05/2024;Est;Beta;Dubois Logistique;Nathan;29;85,50;2 355,53;10 %
+31/05/2024;Sud;Alpha;Dubois Logistique;Nathan;38;120,00;4 332,00;0 %
+01/06/2024;Ouest;Epsilon;Moreau Santé;Nathan;16;19,90;318,40;5 %
+03/06/2024;Sud;Epsilon;Michel Agro;Camille;30;19,90;597,00;0 %
+04/06/2024;Sud;Beta;Simon Retail;Camille;20;85,50;1 710,00;10 %
+07/06/2024;Nord;Alpha;Martin & Fils;Léa;34;120,00;3 672,00;5 %
+08/06/2024;Est;Beta;Simon Retail;Camille;1;85,50;76,95;10 %
+10/06/2024;Est;Gamma;Michel Agro;Hugo;31;42,00;1 171,80;5 %
+10/06/2024;Nord;Delta;Lefebvre Tech;Léa;4;310,00;1 240,00;5 %
+13/06/2024;Ouest;Alpha;Robert Conseil;Hugo;28;120,00;3 192,00;5 %
+14/06/2024;Nord;Zeta;Richard Énergie;Nathan;24;64,00;1 382,40;-
+15/06/2024;Nord;Gamma;Lefebvre Tech;Camille;14;42,00;558,60;5 %
+17/06/2024;Sud;Beta;Moreau Santé;Hugo;17;85,50;1 380,83;0 %
+19/06/2024;Île-de-France;Beta;Bernard Industries;Nathan;32;85,50;2 462,40;0 %
+19/06/2024;Ouest;Alpha;Bernard Industries;Camille;39;120,00;4 680,00;-
+21/06/2024;Nord;Beta;Dubois Logistique;Nathan;21;85,50;1 615,95;0 %
+22/06/2024;Sud;Gamma;Bernard Industries;Hugo;34;42,00;1 285,20;-
+24/06/2024;Est;Zeta;Lefebvre Tech;Nathan;24;64,00;1 459,20;-
+25/06/2024;Nord;Alpha;Martin & Fils;Léa;6;120,00;684,00;-
+27/06/2024;Île-de-France;Beta;Dubois Logistique;Léa;25;85,50;2 030,62;0 %
+28/06/2024;Ouest;Beta;Richard Énergie;Nathan;13;85,50;1 055,92;10 %
+01/07/2024;Nord;Zeta;Dubois Logistique;Hugo;26;64,00;1 664,00;-
+02/07/2024;Ouest;Alpha;Durand SA;Léa;13;120,00;1 404,00;0 %
+04/07/2024;Est;Gamma;Richard Énergie;Camille;17;42,00;642,60;10 %
+06/07/2024;Est;Alpha;Lefebvre Tech;Camille;2;120,00;240,00;0 %
+07/07/2024;Ouest;Delta;Robert Conseil;Nathan;32;310,00;9 920,00;-
+08/07/2024;Nord;Zeta;Robert Conseil;Hugo;39;64,00;2 496,00;10 %
+10/07/2024;Ouest;Gamma;Simon Retail;Camille;33;42,00;1 386,00;-
+11/07/2024;Sud;Delta;Martin & Fils;Camille;31;310,00;8 649,00;10 %
+12/07/2024;Ouest;Alpha;Martin & Fils;Léa;40;120,00;4 800,00;5 %
+14/07/2024;Ouest;Delta;Lefebvre Tech;Nathan;12;310,00;3 720,00;5 %
+16/07/2024;Ouest;Epsilon;Michel Agro;Hugo;35;19,90;626,85;0 %
+18/07/2024;Est;Gamma;Simon Retail;Léa;24;42,00;957,60;10 %
+18/07/2024;Ouest;Beta;Petit SARL;Hugo;16;85,50;1 368,00;10 %
+20/07/2024;Est;Alpha;Dubois Logistique;Léa;16;120,00;1 728,00;5 %
+21/07/2024;Ouest;Alpha;Martin & Fils;Camille;31;120,00;3 720,00;-
+24/07/2024;Nord;Gamma;Bernard Industries;Camille;4;42,00;168,00;5 %
+24/07/2024;Est;Epsilon;Petit SARL;Nathan;39;19,90;737,29;0 %
+26/07/2024;Île-de-France;Zeta;Simon Retail;Léa;19;64,00;1 216,00;10 %
+28/07/2024;Sud;Alpha;Bernard Industries;Léa;3;120,00;324,00;5 %
+29/07/2024;Est;Delta;Michel Agro;Léa;12;310,00;3 348,00;10 %
+30/07/2024;Sud;Alpha;Moreau Santé;Nathan;5;120,00;570,00;0 %
+02/08/2024;Île-de-France;Beta;Michel Agro;Camille;16;85,50;1 299,60;10 %
+03/08/2024;Est;Zeta;Robert Conseil;Nathan;4;64,00;243,20;10 %
+05/08/2024;Ouest;Alpha;Richard Énergie;Hugo;26;120,00;2 808,00;-
+05/08/2024;Nord;Delta;Petit SARL;Nathan;8;310,00;2 480,00;-
+08/08/2024;Ouest;Beta;Petit SARL;Camille;4;85,50;307,80;5 %
+09/08/2024;Nord;Epsilon;Simon Retail;Léa;33;19,90;656,70;5 %
+11/08/2024;Est;Beta;Laurent Bâtiment;Hugo;5;85,50;427,50;-
+12/08/2024;Sud;Gamma;Petit SARL;Camille;31;42,00;1 236,90;0 %
+14/08/2024;Nord;Zeta;Simon Retail;Hugo;15;64,00;864,00;-
+14/08/2024;Ouest;Beta;Simon Retail;Hugo;3;85,50;243,67;5 %
+17/08/2024;Est;Alpha;Petit SARL;Hugo;13;120,00;1 560,00;0 %
+19/08/2024;Nord;Delta;Simon Retail;Nathan;36;310,00;10 044,00;10 %
+20/08/2024;Est;Epsilon;Bernard Industries;Nathan;25;19,90;447,75;10 %
+22/08/2024;Île-de-France;Delta;Petit SARL;Camille;6;310,00;1 674,00;-
+23/08/2024;Sud;Delta;Simon Retail;Nathan;12;310,00;3 534,00;-
+24/08/2024;Nord;Beta;Richard Énergie;Nathan;24;85,50;2 052,00;-
+25/08/2024;Nord;Zeta;Petit SARL;Camille;21;64,00;1 209,60;0 %
+27/08/2024;Île-de-France;Delta;Michel Agro;Hugo;7;310,00;2 170,00;0 %
+28/08/2024;Sud;Delta;Robert Conseil;Hugo;15;310,00;4 650,00;10 %
+31/08/2024;Sud;Gamma;Simon Retail;Léa;30;42,00;1 260,00;10 %
+01/09/2024;Sud;Epsilon;Robert Conseil;Hugo;21;19,90;397,00;0 %
+02/09/2024;Sud;Delta;Petit SARL;Léa;21;310,00;6 184,50;5 %
+04/09/2024;Nord;Epsilon;Durand SA;Léa;29;19,90;519,39;0 %
+06/09/2024;Île-de-France;Zeta;Dubois Logistique;Léa;22;64,00;1 337,60;10 %
+06/09/2024;Est;Gamma;Martin & Fils;Nathan;15;42,00;630,00;0 %
+09/09/2024;Île-de-France;Gamma;Robert Conseil;Léa;6;42,00;226,80;0 %
+09/09/2024;Sud;Gamma;Simon Retail;Nathan;27;42,00;1 020,60;10 %
+11/09/2024;Sud;Delta;Bernard Industries;Camille;2;310,00;620,00;0 %
+13/09/2024;Est;Alpha;Laurent Bâtiment;Léa;35;120,00;4 200,00;-
+15/09/2024;Île-de-France;Beta;Bernard Industries;Léa;45;85,50;3 655,12;5 %
+15/09/2024;Nord;Beta;Lefebvre Tech;Hugo;29;85,50;2 479,50;0 %
+17/09/2024;Est;Delta;Robert Conseil;Camille;4;310,00;1 116,00;10 %
+19/09/2024;Île-de-France;Epsilon;Lefebvre Tech;Nathan;21;19,90;417,90;0 %
+20/09/2024;Nord;Epsilon;Durand SA;Nathan;12;19,90;238,80;5 %
+21/09/2024;Nord;Alpha;Simon Retail;Hugo;10;120,00;1 140,00;5 %
+24/09/2024;Île-de-France;Beta;Laurent Bâtiment;Léa;10;85,50;812,25;0 %
+25/09/2024;Île-de-France;Alpha;Dubois Logistique;Nathan;35;120,00;4 200,00;-
+26/09/2024;Sud;Alpha;Robert Conseil;Hugo;3;120,00;360,00;10 %
+28/09/2024;Nord;Gamma;Michel Agro;Nathan;34;42,00;1 356,60;10 %
+29/09/2024;Nord;Epsilon;Durand SA;Hugo;17;19,90;338,30;5 %
+01/10/2024;Est;Beta;Dubois Logistique;Léa;39;85,50;3 334,50;-
+03/10/2024;Ouest;Epsilon;Lefebvre Tech;Camille;2;19,90;37,81;5 %
+05/10/2024;Sud;Delta;Simon Retail;Camille;37;310,00;11 470,00;5 %
+05/10/2024;Nord;Alpha;Martin & Fils;Hugo;23;120,00;2 760,00;0 %
+07/10/2024;Nord;Beta;Lefebvre Tech;Camille;5;85,50;384,75;0 %
+08/10/2024;Île-de-France;Gamma;Bernard Industries;Camille;30;42,00;1 260,00;5 %
+10/10/2024;Sud;Alpha;Durand SA;Camille;6;120,00;648,00;10 %
+12/10/2024;Nord;Beta;Martin & Fils;Hugo;19;85,50;1 543,27;10 %
+14/10/2024;Est;Alpha;Richard Énergie;Léa;19;120,00;2 280,00;10 %
+15/10/2024;Île-de-France;Epsilon;Moreau Santé;Léa;45;19,90;805,95;0 %
+17/10/2024;Nord;Delta;Laurent Bâtiment;Camille;23;310,00;6 773,50;0 %
+17/10/2024;Nord;Epsilon;Robert Conseil;Hugo;28;19,90;557,20;5 %
+20/10/2024;Nord;Alpha;Richard Énergie;Nathan;7;120,00;798,00;5 %
+21/10/2024;Île-de-France;Gamma;Laurent Bâtiment;Léa;42;42,00;1 764,00;10 %
+22/10/2024;Sud;Delta;Petit SARL;Camille;6;310,00;1 767,00;0 %
+24/10/2024;Est;Alpha;Dubois Logistique;Nathan;6;120,00;684,00;0 %
+26/10/2024;Sud;Gamma;Robert Conseil;Nathan;35;42,00;1 323,00;5 %
+27/10/2024;Sud;Delta;Petit SARL;Camille;23;310,00;6 417,00;10 %
+28/10/2024;Ouest;Zeta;Laurent Bâtiment;Léa;11;64,00;668,80;-
+30/10/2024;Île-de-France;Beta;Petit SARL;Léa;35;85,50;2 693,25;5 %
+31/10/2024;Est;Gamma;Lefebvre Tech;Hugo;10;42,00;420,00;10 %
+
+02/11/2024;Sud;Beta;Richard Énergie;Hugo;17;85,50;1 308,15;0 %
+03/11/2024;Nord;Beta;Dubois Logistique;Hugo;10;85,50;812,25;10 %
+05/11/2024;Est;Beta;Martin & Fils;Camille;18;85,50;1 539,00;-
+07/11/2024;Nord;Alpha;Dubois Logistique;Nathan;15;120,00;1 620,00;10 %
+08/11/2024;Nord;Beta;Robert Conseil;Nathan;1;85,50;76,95;5 %
+10/11/2024;Île-de-France;Epsilon;Lefebvre Tech;Nathan;20;19,90;358,20;5 %
+10/11/2024;Nord;Delta;Dubois Logistique;Léa;17;310,00;4 743,00;0 %
+13/11/2024;Sud;Delta;Lefebvre Tech;Hugo;17;310,00;5 006,50;-
+14/11/2024;Nord;Epsilon;Dubois Logistique;Hugo;21;19,90;417,90;-
+16/11/2024;Nord;Alpha;Robert Conseil;Hugo;11;120,00;1 188,00;5 %
+18/11/2024;Nord;Epsilon;Moreau Santé;Hugo;31;19,90;555,21;0 %
+19/11/2024;Île-de-France;Gamma;Dubois Logistique;Nathan;19;42,00;718,20;5 %
+21/11/2024;Île-de-France;Alpha;Lefebvre Tech;Léa;9;120,00;1 026,00;10 %
+22/11/2024;Ouest;Alpha;Durand SA;Camille;27;120,00;3 078,00;10 %
+24/11/2024;Nord;Beta;Robert Conseil;Nathan;34;85,50;2 907,00;-
+25/11/2024;Sud;Beta;Petit SARL;Camille;13;85,50;1 055,92;5 %
+26/11/2024;Est;Zeta;Michel Agro;Nathan;30;64,00;1 824,00;5 %
+28/11/2024;Est;Beta;Robert Conseil;Nathan;17;85,50;1 380,83;5 %
+30/11/2024;Nord;Zeta;Robert Conseil;Léa;16;64,00;921,60;10 %
+01/12/2024;Ouest;Delta;Dubois Logistique;Camille;24;310,00;7 440,00;10 %
+03/12/2024;Nord;Alpha;Simon Retail;Léa;9;120,00;972,00;10 %
+03/12/2024;Nord;Beta;Martin & Fils;Léa;17;85,50;1 308,15;0 %
+05/12/2024;Sud;Beta;Moreau Santé;Léa;10;85,50;855,00;-
+06/12/2024;Île-de-France;Zeta;Simon Retail;Camille;41;64,00;2 361,60;10 %
+08/12/2024;Ouest;Zeta;Bernard Industries;Camille;29;64,00;1 670,40;0 %
+09/12/2024;Est;Delta;Bernard Industries;Hugo;31;310,00;9 129,50;0 %
+12/12/2024;Ouest;Beta;Lefebvre Tech;Nathan;16;85,50;1 299,60;5 %
+12/12/2024;Sud;Gamma;Moreau Santé;Nathan;19;42,00;758,10;10 %
+15/12/2024;Ouest;Zeta;Martin & Fils;Hugo;24;64,00;1 382,40;0 %
+15/12/2024;Île-de-France;Alpha;Michel Agro;Léa;12;120,00;1 296,00;-
+18/12/2024;Sud;Alpha;Bernard Industries;Nathan;9;120,00;1 026,00;0 %
+19/12/2024;Est;Delta;Laurent Bâtiment;Hugo;19;310,00;5 595,50;10 %
+21/12/2024;Est;Epsilon;Durand SA;Léa;19;19,90;359,19;-
+22/12/2024;Est;Epsilon;Robert Conseil;Léa;14;19,90;250,74;-
+23/12/2024;Est;Beta;Richard Énergie;Léa;9;85,50;692,55;0 %
+24/12/2024;Ouest;Zeta;Laurent Bâtiment;Nathan;35;64,00;2 016,00;0 %
+27/12/2024;Est;Alpha;Durand SA;Camille;13;120,00;1 482,00;0 %
+28/12/2024;Île-de-France;Beta;Michel Agro;Camille;19;85,50;1 624,50;-
+29/12/2024;Nord;Zeta;Petit SARL;Camille;27;64,00;1 728,00;0 %
+01/01/2025;Sud;Gamma;Laurent Bâtiment;Léa;23;42,00;966,00;-
+01/01/2025;Est;Alpha;Dubois Logistique;Camille;36;120,00;3 888,00;0 %
+03/01/2025;Ouest;Epsilon;Lefebvre Tech;Nathan;33;19,90;656,70;0 %
+05/01/2025;Île-de-France;Epsilon;Michel Agro;Hugo;40;19,90;756,20;0 %
+06/01/2025;Ouest;Beta;Petit SARL;Camille;32;85,50;2 736,00;0 %
+07/01/2025;Nord;Beta;Martin & Fils;Hugo;35;85,50;2 992,50;10 %
+09/01/2025;Ouest;Zeta;Lefebvre Tech;Hugo;5;64,00;304,00;5 %
+10/01/2025;Est;Zeta;Laurent Bâtiment;Nathan;34;64,00;1 958,40;10 %
+12/01/2025;Nord;Alpha;Durand SA;Camille;45;120,00;5 400,00;-
+14/01/2025;Est;Zeta;Simon Retail;Hugo;36;64,00;2 073,60;0 %
+16/01/2025;Est;Epsilon;Lefebvre Tech;Nathan;35;19,90;626,85;5 %
+16/01/2025;Nord;Gamma;Michel Agro;Hugo;31;42,00;1 236,90;-
+19/01/2025;Est;Epsilon;Richard Énergie;Léa;21;19,90;417,90;10 %
+19/01/2025;Sud;Epsilon;Robert Conseil;Nathan;18;19,90;340,29;-
+22/01/2025;Île-de-France;Beta;Moreau Santé;Léa;7;85,50;568,57;10 %
+23/01/2025;Ouest;Beta;Simon Retail;Camille;22;85,50;1 881,00;5 %
+25/01/2025;Île-de-France;Zeta;Moreau Santé;Léa;45;64,00;2 880,00;-
+26/01/2025;Sud;Zeta;Bernard Industries;Léa;44;64,00;2 816,00;-
+28/01/2025;Sud;Gamma;Simon Retail;Camille;29;42,00;1 157,10;0 %
+29/01/2025;Nord;Beta;Dubois Logistique;Léa;39;85,50;3 167,77;-
+30/01/2025;Sud;Beta;Bernard Industries;Camille;14;85,50;1 077,30;10 %
+01/02/2025;Île-de-France;Epsilon;Richard Énergie;Nathan;44;19,90;875,60;5 %
+02/02/2025;Ouest;Gamma;Martin & Fils;Léa;34;42,00;1 428,00;5 %
+04/02/2025;Île-de-France;Alpha;Richard Énergie;Léa;44;120,00;4 752,00;0 %
+05/02/2025;Nord;Beta;Simon Retail;Nathan;43;85,50;3 308,85;5 %
+07/02/2025;Est;Delta;Martin & Fils;Nathan;43;310,00;11 997,00;5 %
+09/02/2025;Nord;Gamma;Bernard Industries;Hugo;29;42,00;1 218,00;0 %
+09/02/2025;Nord;Epsilon;Richard Énergie;Nathan;36;19,90;716,40;-
+11/02/2025;Nord;Gamma;Richard Énergie;Hugo;7;42,00;264,60;-
+12/02/2025;Ouest;Beta;Richard Énergie;Hugo;17;85,50;1 453,50;0 %
+15/02/2025;Est;Alpha;Laurent Bâtiment;Camille;5;120,00;570,00;-
+16/02/2025;Nord;Beta;Richard Énergie;Camille;15;85,50;1 154,25;10 %
+18/02/2025;Nord;Delta;Richard Énergie;Léa;20;310,00;5 890,00;0 %
+20/02/2025;Ouest;Delta;Petit SARL;Nathan;18;310,00;5 580,00;0 %
+21/02/2025;Sud;Alpha;Petit SARL;Hugo;6;120,00;648,00;10 %
+22/02/2025;Ouest;Alpha;Dubois Logistique;Camille;6;120,00;684,00;10 %
+24/02/2025;Sud;Delta;Martin & Fils;Léa;12;310,00;3 534,00;5 %
+25/02/2025;Sud;Zeta;Moreau Santé;Hugo;33;64,00;2 112,00;10 %
+27/02/2025;Ouest;Beta;Petit SARL;Camille;21;85,50;1 615,95;10 %
+01/03/2025;Sud;Gamma;Moreau Santé;Camille;24;42,00;957,60;-
+01/03/2025;Sud;Epsilon;Durand SA;Hugo;41;19,90;775,10;10 %
+03/03/2025;Est;Beta;Richard Énergie;Nathan;20;85,50;1 710,00;5 %
+04/03/2025;Ouest;Gamma;Dubois Logistique;Hugo;5;42,00;189,00;10 %
+06/03/2025;Nord;Delta;Laurent Bâtiment;Léa;37;310,00;11 470,00;-
+07/03/2025;Île-de-France;Gamma;Petit SARL;Léa;37;42,00;1 554,00;-
+09/03/2025;Est;Epsilon;Petit SARL;Hugo;14;19,90;250,74;5 %
+10/03/2025;Sud;Epsilon;Martin & Fils;Camille;44;19,90;788,04;-
+13/03/2025;Sud;Beta;Petit SARL;Hugo;43;85,50;3 492,67;5 %
+13/03/2025;Nord;Zeta;Lefebvre Tech;Nathan;5;64,00;288,00;10 %
+16/03/2025;Est;Zeta;Moreau Santé;Camille;2;64,00;121,60;-
+16/03/2025;Est;Beta;Petit SARL;Léa;4;85,50;342,00;10 %
+18/03/2025;Est;Epsilon;Moreau Santé;Camille;9;19,90;170,14;5 %
+20/03/2025;Ouest;Epsilon;Durand SA;Léa;8;19,90;143,28;-
+22/03/2025;Île-de-France;Alpha;Laurent Bâtiment;Hugo;8;120,00;960,00;0 %
+22/03/2025;Île-de-France;Beta;Petit SARL;Camille;28;85,50;2 274,30;0 %
+24/03/2025;Nord;Zeta;Lefebvre Tech;Hugo;20;64,00;1 280,00;-
+25/03/2025;Ouest;Alpha;Richard Énergie;Camille;14;120,00;1 680,00;10 %
+27/03/2025;Ouest;Delta;Simon Retail;Léa;9;310,00;2 790,00;0 %
+29/03/2025;Sud;Epsilon;Simon Retail;Hugo;17;19,90;338,30;-
+31/03/2025;Sud;Alpha;Michel Agro;Nathan;31;120,00;3 348,00;0 %
+02/04/2025;Nord;Gamma;Richard Énergie;Nathan;18;42,00;718,20;-
+03/04/2025;Ouest;Epsilon;Durand SA;Léa;39;19,90;776,10;10 %
+04/04/2025;Ouest;Zeta;Michel Agro;Camille;27;64,00;1 728,00;5 %
+05/04/2025;Est;Delta;Bernard Industries;Camille;17;310,00;5 270,00;-
+08/04/2025;Ouest;Zeta;Durand SA;Camille;4;64,00;230,40;10 %
+09/04/2025;Île-de-France;Alpha;Simon Retail;Camille;25;120,00;3 000,00;0 %
+11/04/2025;Sud;Alpha;Robert Conseil;Camille;23;120,00;2 622,00;5 %
+11/04/2025;Nord;Epsilon;Laurent Bâtiment;Léa;7;19,90;132,33;5 %
+14/04/2025;Nord;Epsilon;Petit SARL;Léa;31;19,90;555,21;10 %
+15/04/2025;Sud;Zeta;Martin & Fils;Léa;34;64,00;1 958,40;5 %
+17/04/2025;Sud;Epsilon;Lefebvre Tech;Léa;34;19,90;608,94;10 %
+18/04/2025;Ouest;Gamma;Durand SA;Hugo;25;42,00;1 050,00;5 %
+20/04/2025;Île-de-France;Delta;Durand SA;Léa;18;310,00;5 580,00;10 %
+21/04/2025;Ouest;Gamma;Robert Conseil;Hugo;22;42,00;924,00;0 %
+22/04/2025;Île-de-France;Alpha;Simon Retail;Léa;38;120,00;4 104,00;0 %
+24/04/2025;Ouest;Gamma;Lefebvre Tech;Camille;39;42,00;1 638,00;5 %
+26/04/2025;Est;Zeta;Richard Énergie;Hugo;15;64,00;864,00;10 %
+26/04/2025;Ouest;Gamma;Michel Agro;Hugo;31;42,00;1 302,00;0 %
+29/04/2025;Île-de-France;Epsilon;Martin & Fils;Nathan;35;19,90;626,85;5 %
+30/04/2025;Est;Epsilon;Simon Retail;Camille;29;19,90;548,24;-
+02/05/2025;Est;Gamma;Richard Énergie;Nathan;39;42,00;1 474,20;-
+03/05/2025;Nord;Zeta;Moreau Santé;Nathan;33;64,00;2 006,40;5 %
+05/05/2025;Sud;Delta;Simon Retail;Nathan;43;310,00;13 330,00;0 %
+06/05/2025;Est;Epsilon;Bernard Industries;Léa;16;19,90;302,48;0 %
+07/05/2025;Nord;Gamma;Simon Retail;Nathan;23;42,00;869,40;10 %
+09/05/2025;Île-de-France;Epsilon;Lefebvre Tech;Nathan;34;19,90;642,77;10 %
+10/05/2025;Île-de-France;Zeta;Richard Énergie;Nathan;7;64,00;403,20;0 %
+11/05/2025;Nord;Delta;Richard Énergie;Nathan;41;310,00;11 439,00;5 %
+13/05/2025;Ouest;Delta;Dubois Logistique;Nathan;45;310,00;12 555,00;10 %
+14/05/2025;Sud;Gamma;Richard Énergie;Léa;6;42,00;239,40;5 %
+16/05/2025;Est;Zeta;Richard Énergie;Nathan;13;64,00;748,80;10 %
+18/05/2025;Île-de-France;Beta;Dubois Logistique;Hugo;10;85,50;769,50;0 %
+20/05/2025;Île-de-France;Zeta;Michel Agro;Camille;36;64,00;2 304,00;0 %
+22/05/2025;Île-de-France;Alpha;Robert Conseil;Nathan;13;120,00;1 404,00;0 %
+22/05/2025;Sud;Beta;Moreau Santé;Léa;40;85,50;3 078,00;5 %
+24/05/2025;Ouest;Epsilon;Martin & Fils;Hugo;13;19,90;232,83;0 %
+25/05/2025;Nord;Alpha;Petit SARL;Nathan;34;120,00;3 672,00;-
+27/05/2025;Nord;Zeta;Simon Retail;Léa;12;64,00;691,20;5 %
+29/05/2025;Est;Beta;Durand SA;Léa;8;85,50;615,60;0 %
+31/05/2025;Sud;Delta;Simon Retail;Nathan;3;310,00;930,00;5 %
+01/06/2025;Île-de-France;Alpha;Moreau Santé;Camille;50;120,00;6 000,00;5 %
+02/06/2025;Nord;Beta;Simon Retail;Hugo;24;85,50;2 052,00;-
+04/06/2025;Ouest;Epsilon;Robert Conseil;Nathan;6;19,90;119,40;-
+05/06/2025;Ouest;Gamma;Dubois Logistique;Nathan;3;42,00;126,00;0 %
+06/06/2025;Sud;Gamma;Dubois Logistique;Hugo;2;42,00;79,80;-
+09/06/2025;Nord;Gamma;Laurent Bâtiment;Nathan;25;42,00;997,50;0 %
+09/06/2025;Ouest;Gamma;Laurent Bâtiment;Hugo;29;42,00;1 218,00;-
+12/06/2025;Est;Beta;Dubois Logistique;Camille;21;85,50;1 615,95;0 %
+13/06/2025;Sud;Beta;Lefebvre Tech;Hugo;7;85,50;598,50;10 %
+14/06/2025;Île-de-France;Delta;Moreau Santé;Hugo;18;310,00;5 301,00;10 %
+15/06/2025;Ouest;Delta;Michel Agro;Hugo;23;310,00;6 773,50;5 %
+17/06/2025;Ouest;Zeta;Petit SARL;Léa;44;64,00;2 675,20;10 %
+18/06/2025;Ouest;Epsilon;Laurent Bâtiment;Hugo;11;19,90;218,90;0 %
+21/06/2025;Ouest;Alpha;Michel Agro;Hugo;23;120,00;2 760,00;-
+21/06/2025;Sud;Beta;Richard Énergie;Hugo;8;85,50;684,00;10 %
+24/06/2025;Sud;Alpha;Lefebvre Tech;Léa;7;120,00;840,00;10 %
+24/06/2025;Ouest;Gamma;Richard Énergie;Nathan;34;42,00;1 285,20;5 %
+27/06/2025;Sud;Alpha;Richard Énergie;Léa;31;120,00;3 720,00;-
+27/06/2025;Ouest;Gamma;Michel Agro;Camille;14;42,00;558,60;0 %
+30/06/2025;Île-de-France;Zeta;Bernard Industries;Camille;35;64,00;2 240,00;5 %
+02/07/2025;Sud;Gamma;Petit SARL;Nathan;4;42,00;151,20;10 %
+02/07/2025;Île-de-France;Beta;Simon Retail;Nathan;44;85,50;3 573,90;-
+05/07/2025;Nord;Alpha;Michel Agro;Léa;4;120,00;432,00;0 %
+05/07/2025;Nord;Alpha;Richard Énergie;Hugo;26;120,00;2 808,00;0 %
+08/07/2025;Ouest;Zeta;Simon Retail;Hugo;21;64,00;1 209,60;0 %
+09/07/2025;Ouest;Delta;Richard Énergie;Nathan;37;310,00;11 470,00;5 %
+11/07/2025;Île-de-France;Beta;Moreau Santé;Hugo;9;85,50;692,55;10 %
+11/07/2025;Île-de-France;Beta;Michel Agro;Hugo;45;85,50;3 655,12;5 %
+13/07/2025;Sud;Gamma;Richard Énergie;Nathan;7;42,00;294,00;10 %
+14/07/2025;Sud;Zeta;Lefebvre Tech;Nathan;35;64,00;2 240,00;5 %
+16/07/2025;Île-de-France;Zeta;Moreau Santé;Hugo;31;64,00;1 785,60;10 %
+17/07/2025;Sud;Epsilon;Simon Retail;Hugo;25;19,90;447,75;0 %
+20/07/2025;Sud;Zeta;Michel Agro;Hugo;44;64,00;2 675,20;-
+20/07/2025;Nord;Zeta;Robert Conseil;Camille;27;64,00;1 641,60;5 %
+22/07/2025;Nord;Gamma;Robert Conseil;Hugo;9;42,00;340,20;10 %
+24/07/2025;Nord;Beta;Richard Énergie;Nathan;34;85,50;2 616,30;10 %
+26/07/2025;Sud;Epsilon;Martin & Fils;Camille;2;19,90;37,81;-
+26/07/2025;Est;Zeta;Simon Retail;Léa;8;64,00;460,80;-
+29/07/2025;Ouest;Beta;Laurent Bâtiment;Léa;2;85,50;162,45;0 %
+30/07/2025;Île-de-France;Zeta;Michel Agro;Léa;23;64,00;1 472,00;5 %
+31/07/2025;Nord;Delta;Petit SARL;Léa;27;310,00;8 370,00;5 %
+01/08/2025;Est;Zeta;Simon Retail;Léa;29;64,00;1 856,00;10 %
+04/08/2025;Sud;Gamma;Petit SARL;Léa;20;42,00;840,00;0 %
+04/08/2025;Nord;Epsilon;Michel Agro;Nathan;5;19,90;99,50;-
+07/08/2025;Ouest;Zeta;Petit SARL;Léa;44;64,00;2 534,40;0 %
+07/08/2025;Sud;Beta;Petit SARL;Nathan;30;85,50;2 565,00;0 %
+10/08/2025;Ouest;Beta;Bernard Industries;Léa;2;85,50;171,00;-
+10/08/2025;Est;Alpha;Michel Agro;Camille;37;120,00;3 996,00;-
+13/08/2025;Nord;Delta;Durand SA;Hugo;13;310,00;3 828,50;10 %
+13/08/2025;Ouest;Epsilon;Michel Agro;Léa;42;19,90;835,80;-
+15/08/2025;Île-de-France;Gamma;Laurent Bâtiment;Nathan;37;42,00;1 398,60;5 %
+18/08/2025;Île-de-France;Epsilon;Martin & Fils;Camille;30;19,90;537,30;10 %
+19/08/2025;Est;Delta;Michel Agro;Hugo;23;310,00;6 773,50;0 %
+20/08/2025;Sud;Zeta;Lefebvre Tech;Nathan;7;64,00;448,00;10 %
+22/08/2025;Est;Epsilon;Bernard Industries;Nathan;30;19,90;567,15;0 %
+23/08/2025;Sud;Beta;Laurent Bâtiment;Camille;17;85,50;1 380,83;0 %
+24/08/2025;Île-de-France;Zeta;Robert Conseil;Nathan;22;64,00;1 267,20;-
+26/08/2025;Île-de-France;Epsilon;Lefebvre Tech;Camille;42;19,90;752,22;0 %
+28/08/2025;Nord;Delta;Petit SARL;Camille;37;310,00;11 470,00;-
+30/08/2025;Île-de-France;Beta;Bernard Industries;Nathan;12;85,50;1 026,00;10 %
+30/08/2025;Ouest;Beta;Durand SA;Léa;4;85,50;342,00;5 %
+02/09/2025;Est;Alpha;Lefebvre Tech;Hugo;32;120,00;3 840,00;5 %
+02/09/2025;Est;Beta;Richard Énergie;Léa;2;85,50;162,45;0 %
+04/09/2025;Est;Epsilon;Lefebvre Tech;Léa;36;19,90;716,40;10 %
+05/09/2025;Est;Epsilon;Richard Énergie;Camille;4;19,90;71,64;5 %
+08/09/2025;Est;Beta;Lefebvre Tech;Nathan;3;85,50;230,85;-
+08/09/2025;Nord;Delta;Martin & Fils;Camille;20;310,00;6 200,00;5 %
+11/09/2025;Ouest;Beta;Simon Retail;Léa;40;85,50;3 078,00;10 %
+12/09/2025;Nord;Alpha;Richard Énergie;Hugo;36;120,00;3 888,00;-
+13/09/2025;Nord;Alpha;Petit SARL;Nathan;35;120,00;4 200,00;-
+15/09/2025;Sud;Epsilon;Laurent Bâtiment;Camille;27;19,90;510,43;5 %
+17/09/2025;Sud;Epsilon;Simon Retail;Camille;16;19,90;318,40;10 %
+18/09/2025;Est;Epsilon;Moreau Santé;Nathan;26;19,90;491,53;0 %
+20/09/2025;Île-de-France;Delta;Richard Énergie;Hugo;8;310,00;2 480,00;-
+20/09/2025;Sud;Zeta;Michel Agro;Hugo;21;64,00;1 276,80;10 %
+22/09/2025;Île-de-France;Gamma;Richard Énergie;Hugo;9;42,00;340,20;0 %
+23/09/2025;Ouest;Zeta;Simon Retail;Camille;27;64,00;1 641,60;5 %
+25/09/2025;Nord;Gamma;Richard Énergie;Léa;37;42,00;1 398,60;5 %
+27/09/2025;Île-de-France;Zeta;Dubois Logistique;Léa;10;64,00;576,00;10 %
+29/09/2025;Ouest;Epsilon;Richard Énergie;Hugo;18;19,90;340,29;5 %
+30/09/2025;Sud;Alpha;Michel Agro;Nathan;30;120,00;3 420,00;-
+02/10/2025;Sud;Epsilon;Martin & Fils;Hugo;23;19,90;411,93;10 %
+04/10/2025;Île-de-France;Epsilon;Michel Agro;Léa;11;19,90;218,90;0 %
+04/10/2025;Est;Epsilon;Richard Énergie;Nathan;26;19,90;465,66;-
+06/10/2025;Ouest;Gamma;Petit SARL;Léa;20;42,00;756,00;0 %
+07/10/2025;Est;Beta;Lefebvre Tech;Camille;16;85,50;1 368,00;-
+10/10/2025;Sud;Epsilon;Robert Conseil;Camille;15;19,90;298,50;0 %
+10/10/2025;Île-de-France;Alpha;Martin & Fils;Camille;47;120,00;5 358,00;5 %
+12/10/2025;Sud;Gamma;Laurent Bâtiment;Camille;24;42,00;1 008,00;5 %
+14/10/2025;Est;Zeta;Durand SA;Nathan;30;64,00;1 728,00;10 %
+15/10/2025;Nord;Delta;Durand SA;Camille;45;310,00;13 252,50;-
+17/10/2025;Est;Delta;Durand SA;Camille;24;310,00;6 696,00;10 %
+18/10/2025;Ouest;Epsilon;Lefebvre Tech;Léa;13;19,90;258,70;0 %
+19/10/2025;Sud;Beta;Laurent Bâtiment;Camille;26;85,50;2 111,85;-
+22/10/2025;Île-de-France;Zeta;Simon Retail;Hugo;49;64,00;2 822,40;10 %
+22/10/2025;Île-de-France;Gamma;Lefebvre Tech;Nathan;9;42,00;340,20;10 %
+25/10/2025;Île-de-France;Gamma;Richard Énergie;Léa;16;42,00;638,40;0 %
+26/10/2025;Nord;Zeta;Richard Énergie;Hugo;17;64,00;1 033,60;0 %
+27/10/2025;Île-de-France;Beta;Martin & Fils;Camille;45;85,50;3 462,75;5 %
+28/10/2025;Est;Epsilon;Richard Énergie;Hugo;14;19,90;250,74;5 %
+30/10/2025;Est;Zeta;Bernard Industries;Nathan;36;64,00;2 304,00;10 %
+01/11/2025;Ouest;Beta;Richard Énergie;Camille;8;85,50;615,60;0 %
+02/11/2025;Ouest;Zeta;Richard Énergie;Camille;17;64,00;979,20;-
+04/11/2025;Ouest;Zeta;Michel Agro;Hugo;3;64,00;182,40;0 %
+06/11/2025;Ouest;Beta;Bernard Industries;Léa;16;85,50;1 299,60;-
+07/11/2025;Est;Delta;Bernard Industries;Hugo;35;310,00;10 307,50;5 %
+09/11/2025;Est;Alpha;Richard Énergie;Camille;36;120,00;4 320,00;5 %
+10/11/2025;Île-de-France;Epsilon;Moreau Santé;Hugo;48;19,90;955,20;5 %
+12/11/2025;Nord;Delta;Petit SARL;Nathan;11;310,00;3 239,50;0 %
+12/11/2025;Sud;Alpha;Petit SARL;Léa;12;120,00;1 296,00;10 %
+14/11/2025;Sud;Delta;Michel Agro;Nathan;7;310,00;2 061,50;10 %
+17/11/2025;Est;Alpha;Simon Retail;Hugo;15;120,00;1 620,00;0 %
+17/11/2025;Sud;Epsilon;Simon Retail;Hugo;42;19,90;794,01;0 %
+19/11/2025;Nord;Gamma;Martin & Fils;Camille;9;42,00;359,10;5 %
+21/11/2025;Nord;Beta;Bernard Industries;Hugo;40;85,50;3 078,00;0 %
+23/11/2025;Ouest;Alpha;Richard Énergie;Hugo;17;120,00;1 836,00;0 %
+24/11/2025;Sud;Alpha;Robert Conseil;Léa;6;120,00;720,00;5 %
+25/11/2025;Ouest;Epsilon;Richard Énergie;Léa;2;19,90;37,81;0 %
+27/11/2025;Île-de-France;Gamma;Laurent Bâtiment;Léa;36;42,00;1 360,80;10 %
+29/11/2025;Ouest;Gamma;Laurent Bâtiment;Nathan;29;42,00;1 218,00;-
+30/11/2025;Ouest;Beta;Michel Agro;Camille;18;85,50;1 385,10;10 %
+02/12/2025;Sud;Beta;Michel Agro;Camille;7;85,50;538,65;0 %
+02/12/2025;Ouest;Zeta;Laurent Bâtiment;Léa;33;64,00;1 900,80;10 %
+05/12/2025;Île-de-France;Alpha;Moreau Santé;Nathan;42;120,00;4 788,00;-
+05/12/2025;Ouest;Gamma;Lefebvre Tech;Camille;30;42,00;1 134,00;10 %
+08/12/2025;Nord;Zeta;Laurent Bâtiment;Hugo;45;64,00;2 736,00;10 %
+09/12/2025;Est;Epsilon;Simon Retail;Nathan;42;19,90;835,80;5 %
+10/12/2025;Île-de-France;Gamma;Laurent Bâtiment;Hugo;44;42,00;1 848,00;10 %
+11/12/2025;Sud;Beta;Michel Agro;Nathan;14;85,50;1 077,30;0 %
+14/12/2025;Ouest;Gamma;Dubois Logistique;Camille;31;42,00;1 302,00;10 %
+15/12/2025;Nord;Gamma;Richard Énergie;Léa;33;42,00;1 247,40;0 %
+17/12/2025;Ouest;Gamma;Moreau Santé;Camille;33;42,00;1 247,40;-
+17/12/2025;Île-de-France;Beta;Durand SA;Hugo;32;85,50;2 599,20;5 %
+20/12/2025;Île-de-France;Gamma;Dubois Logistique;Léa;8;42,00;302,40;5 %
+20/12/2025;Île-de-France;Gamma;Durand SA;Hugo;28;42,00;1 058,40;10 %
+23/12/2025;Est;Beta;Robert Conseil;Nathan;7;85,50;538,65;-
+23/12/2025;Sud;Beta;Dubois Logistique;Léa;45;85,50;3 655,12;0 %
+26/12/2025;Ouest;Gamma;Durand SA;Léa;31;42,00;1 236,90;10 %
+27/12/2025;Sud;Delta;Simon Retail;Hugo;45;310,00;13 950,00;10 %
+28/12/2025;Sud;Gamma;Martin & Fils;Camille;33;42,00;1 316,70;-

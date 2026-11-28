@@ -160,6 +160,21 @@ MODULES: tuple[Module, ...] = (
          ("pour et contre du télétravail : pour : moins de trajets ; contre : isolement", {"kind": "proscons"}),
          ("donne-moi les sources de ta réponse", {"kind": "sources"})),
     ),
+    Module(
+        "analyze_table", CARD, "data",
+        "analyse calculée d'un tableau joint : regroupement, filtre, croisement, top, évolution, moyenne mobile, "
+        "et son graphique",
+        "computed analysis of an attached table: group-by, filter, pivot, top, change, moving average, and its chart",
+        {"op": Arg("enum", True, choices=("aggregate", "compare", "corr", "describe"), fr="opération", en="operation"),
+         "chart": Arg("enum", choices=("auto", "bar", "hbar", "line", "area", "scatter", "donut", "stacked", "combo",
+                                       "heatmap"), fr="graphique", en="chart")},
+        (("montant total par région", {"op": "aggregate", "chart": "bar"}),
+         ("how did the amount change from 2024 to 2025?", {"op": "compare", "chart": "bar"}),
+         ("corrélation entre prix et quantité", {"op": "corr", "chart": "scatter"})),
+        # decided by its own planner call, with the table's columns as a schema (birds/harness/analysis/planner.py),
+        # only when a table is attached: never in the router's catalogue
+        available=False,
+    ),
 )  # fmt: skip
 
 BY_NAME = {m.name: m for m in MODULES}

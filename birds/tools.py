@@ -141,8 +141,10 @@ EXTRA_TOOLS: list[dict] = [
             "title": {"type": "string", "description": "Title of the chart."},
             "type": {
                 "type": "string",
-                "enum": ["bar", "line", "pie"],
-                "description": "bar (compare), line (change over time) or pie (share of a whole).",
+                "enum": ["bar", "line", "pie", "donut", "area", "hbar", "stacked", "scatter", "combo", "waterfall",
+                         "funnel"],
+                "description": "bar (compare), line (change over time), pie or donut (share of a whole), hbar "
+                "(ranking), stacked, area, scatter (two measures), combo (bars + line), waterfall, funnel.",
             },
             "columns": {
                 "type": "array",

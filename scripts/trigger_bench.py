@@ -1098,6 +1098,98 @@ def card_kind(q):
     return bool(got) and (kind is None or got.args["kind"] == kind)
 
 
+# ---------------------------------------------------------------- data analysis: questions about an attached table
+# (birds/harness/analysis): YES must become a query the harness computes, NO must be left to the model
+DATA_YES = [
+    ("quel est le CA moyen par mois ?", "aggregate"),
+    ("top 5 des produits", "aggregate"),
+    ("compare 2024 et 2025", "compare"),
+    ("répartition du CA par région", "aggregate"),
+    ("combien de clients ?", "aggregate"),
+    ("corrélation entre prix et quantité", "corr"),
+    ("évolution des ventes", "aggregate"),
+    ("quel est le meilleur commercial ?", "aggregate"),
+    ("les 3 produits les moins vendus", "aggregate"),
+    ("CA par trimestre", "aggregate"),
+    ("nombre de commandes par région", "aggregate"),
+    ("CA de 2025 par rapport à 2024", "compare"),
+    ("distribution du CA", "describe"),
+    ("total des ventes dans l'Est", "aggregate"),
+    ("average revenue per month", "aggregate"),
+    ("top 10 clients by revenue", "aggregate"),
+    ("quantité médiane par produit", "aggregate"),
+    ("calcule le CA total de 2024", "aggregate"),
+]
+DATA_NO = [
+    "résume ce fichier",
+    "traduis ce tableau en anglais",
+    "rédige un mail à Paul avec ces chiffres",
+    "bonjour",
+    "explique-moi ce que contient le fichier",
+    "corrige les fautes du document",
+]
+# the table came with an EARLIER message (the app re-sends it each turn): only a turn about it is computed on
+DATA_EARLIER_YES = [
+    "quel est le CA moyen par mois ?",
+    "top 3 des clients",
+    "et par région ?",
+    "combien de commandes en 2025 ?",
+    "compare 2024 et 2025",
+    "total des ventes dans l'Est",
+    "how many rows are in the file?",
+    "average discount by product",
+]
+DATA_EARLIER_NO = [
+    "Quelle est la population de Canberra ?",
+    "Combien font 17 x 23 ?",
+    "Quel temps fera-t-il demain à Lyon ?",
+    "Combien coûte un abonnement Bird ?",
+    "What is the total population of France?",
+    "Quelle est la meilleure façon de présenter ce fichier à mon chef ?",
+    "Combien de jours de congés me reste-t-il ?",
+    "Écris un mail pour inviter l'équipe à la réunion de lundi",
+    "quel est le meilleur restaurant de Lyon ?",
+    "how many days until Christmas?",
+    "quelle heure est-il à Tokyo ?",
+    "combien de temps pour aller à Marseille en train ?",
+]
+_FRAME = None
+
+
+def _data_frame():
+    global _FRAME
+    if _FRAME is None:
+        from birds.harness.analysis.profile import frame_of
+        from birds.harness.analysis.table import read_table
+
+        _FRAME = frame_of(read_table(Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "data" / "ventes.csv"))
+    return _FRAME
+
+
+def data_planned(item) -> bool:
+    from birds.harness.analysis import plan_question
+
+    q, op = item if isinstance(item, tuple) else (item, None)
+    plan = plan_question(_data_frame(), q)
+    return plan is not None and (op is None or plan["query"]["op"] == op)
+
+
+def _data_earlier(q: str):
+    from birds.harness.analysis import hooks
+
+    return hooks.prepare(Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "data", ["ventes.csv"], q,
+                         fresh=[])  # fmt: skip
+
+
+def data_earlier(q: str) -> bool:
+    prep = _data_earlier(q)
+    return prep is not None and prep.result is not None
+
+
+def data_earlier_touched(q: str) -> bool:
+    return _data_earlier(q) is not None  # a card, a note or a number check on an unrelated turn
+
+
 def bench(name: str, yes: list[str], no: list[str], fn, touched=None) -> tuple[int, int]:
     miss = [q for q in yes if not fn(q)]
     false = [q for q in no if (touched or fn)(q)]
@@ -1134,6 +1226,8 @@ if __name__ == "__main__":
         ("canvas_edit", CANVAS_EDIT_YES, CANVAS_EDIT_NO, canvas_edited),
         ("cards", CARD_YES, CARD_NO, card_kind),
         ("calc_values", CALC_VALUES_YES, CALC_VALUES_NO, calc_value),
+        ("data_analysis", DATA_YES, DATA_NO, data_planned),
+        ("data_earlier", DATA_EARLIER_YES, DATA_EARLIER_NO, data_earlier, data_earlier_touched),
     ):
         ok, n = bench(*args)
         total[0] += ok

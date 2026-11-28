@@ -923,6 +923,159 @@ def _key(text: str, history) -> str:
     return R.fold(text) + "|" + R.fold(prev)
 
 
+# ---------------------------------------------------------------- the data planner (task "data_plan")
+# Synthetic tables of four shapes, each with templated questions and the typed spec Bird must answer
+# (birds/harness/analysis/planner.py). Every label is checked by planner.check (the engine's own validation) and run
+# once on its table; held-out templates go to eval. Negatives: requests that compute nothing ({"analysis": null}).
+DATA_TABLES = {
+    "ventes": ("Date;Région;Produit;Commercial;Montant (€);Quantité",
+               lambda i, r: f"{1 + i % 28:02d}/{1 + i % 12:02d}/{2024 + i % 2};{r.choice(['Nord', 'Sud', 'Est', 'Ouest'])};"
+                            f"{r.choice(['Alpha', 'Beta', 'Gamma', 'Delta'])};{r.choice(['Léa', 'Hugo', 'Nina'])};"
+                            f"{r.randint(80, 4000)},{r.randint(0, 99):02d};{r.randint(1, 40)}"),
+    "rh": ("Mois;Service;Site;Effectif;Absences (j);Salaire moyen (€)",
+           lambda i, r: f"{1 + i % 12:02d}/{2023 + i % 3};{r.choice(['Finance', 'IT', 'Ventes', 'RH'])};"
+                        f"{r.choice(['Paris', 'Lyon', 'Lille'])};{r.randint(5, 80)};{r.randint(0, 30)};{r.randint(2200, 5200)}"),
+    "web": ("Date;Canal;Pays;Visites;Commandes;Revenu (€)",
+            lambda i, r: f"{1 + i % 28:02d}/{1 + i % 12:02d}/2025;{r.choice(['SEO', 'Email', 'Social', 'Pub'])};"
+                         f"{r.choice(['France', 'Belgique', 'Suisse'])};{r.randint(100, 9000)};{r.randint(0, 200)};"
+                         f"{r.randint(0, 20000)}"),
+    "budget": ("Poste;Département;Année;Budget (€);Réalisé (€)",
+               lambda i, r: f"{r.choice(['Loyer', 'Salaires', 'Marketing', 'IT', 'Voyages'])};"
+                            f"{r.choice(['Siège', 'Usine', 'Agence'])};{2023 + i % 3};{r.randint(1000, 90000)};"
+                            f"{r.randint(1000, 90000)}"),
+}  # fmt: skip
+_AGG = {"total": "sum", "moyen": "mean", "médian": "median", "maximum": "max"}
+# (template id, table, FR words, EN words, spec builder) ; {m} measure, {d} dimension, {d2} 2nd dimension, {n} top
+DATA_TEMPLATES = [
+    ("sum_by", None, "{m} total par {dl}", "total {m} by {dl}",
+     lambda m, d, d2, t, n: ({"op": "aggregate", "measure": m, "agg": "sum", "by": d, "sort": "desc"}, "bar")),
+    ("mean_by", None, "{m} moyen par {dl}", "average {m} per {dl}",
+     lambda m, d, d2, t, n: ({"op": "aggregate", "measure": m, "agg": "mean", "by": d, "sort": "desc"}, "bar")),
+    ("top_n", None, "les {n} {dl} avec le plus de {m}", "top {n} {dl} by {m}",
+     lambda m, d, d2, t, n: ({"op": "aggregate", "measure": m, "agg": "sum", "by": d, "sort": "desc", "top": n}, "hbar")),
+    ("bottom_n", None, "les {n} {dl} les plus faibles en {m}", "the {n} {dl} with the least {m}",
+     lambda m, d, d2, t, n: ({"op": "aggregate", "measure": m, "agg": "sum", "by": d, "sort": "asc", "top": n}, "hbar")),
+    ("share", None, "quelle part de {m} pour chaque {dl} ?", "share of {m} for each {dl}",
+     lambda m, d, d2, t, n: ({"op": "aggregate", "measure": m, "agg": "sum", "by": d, "sort": "desc", "share": True},
+                             "donut")),
+    ("pivot", None, "{m} par {dl} et par {d2l}", "{m} by {dl} and {d2l}",
+     lambda m, d, d2, t, n: ({"op": "aggregate", "measure": m, "agg": "sum", "by": d, "pivot": d2}, "stacked")),
+    ("heat", None, "carte de chaleur de {m} par {dl} et {d2l}", "heat map of {m} by {dl} and {d2l}",
+     lambda m, d, d2, t, n: ({"op": "aggregate", "measure": m, "agg": "sum", "by": d, "pivot": d2}, "heatmap")),
+    ("monthly", "time", "évolution mensuelle de {m}", "monthly {m}",
+     lambda m, d, d2, t, n: ({"op": "aggregate", "measure": m, "agg": "sum", "time": t, "period": "month"}, "line")),
+    ("moving", "time", "{m} par mois avec une moyenne mobile sur {n} mois", "{m} per month with a {n}-month moving average",
+     lambda m, d, d2, t, n: ({"op": "aggregate", "measure": m, "agg": "sum", "time": t, "period": "month",
+                              "window": max(2, n)}, "combo")),
+    ("change", "time", "variation en % de {m} d'un trimestre à l'autre", "quarter-on-quarter % change of {m}",
+     lambda m, d, d2, t, n: ({"op": "aggregate", "measure": m, "agg": "sum", "time": t, "period": "quarter",
+                              "change": True}, "combo")),
+    ("filtered", None, "{m} total par {d2l}, seulement pour {v}", "total {m} by {d2l}, only for {v}",
+     lambda m, d, d2, t, n: ({"op": "aggregate", "measure": m, "agg": "sum", "by": d2, "sort": "desc"}, "bar")),
+    ("compare_by", "years", "compare {y1} et {y2} par {dl}", "compare {y1} and {y2} by {dl}",
+     lambda m, d, d2, t, n: ({"op": "compare", "measure": m, "agg": "sum", "time": t, "years": n, "by": d}, "bar")),
+    ("corr", "two", "y a-t-il un lien entre {m} et {m2} ?", "is {m} related to {m2}?",
+     lambda m, d, d2, t, n: ({"op": "corr", "x": m, "y": n}, "scatter")),
+    ("describe", None, "distribution de {m}", "distribution of {m}",
+     lambda m, d, d2, t, n: ({"op": "describe", "measure": m}, "auto")),
+]  # fmt: skip
+DATA_NEGATIVES = [
+    ("résume ce fichier", "summarise this file"), ("traduis les en-têtes en anglais", "translate the headers into French"),
+    ("rédige un mail à l'équipe avec ce tableau", "write an email to the team about this table"),
+    ("explique-moi ce que contient ce tableau", "explain what this table contains"),
+    ("corrige l'orthographe des noms", "fix the spelling of the names"), ("merci !", "thanks!"),
+]  # fmt: skip
+# the table is already in the conversation (an analysis was shown) and the message is about something else: null
+# (review 28/11/2026: the rules turned each of these into « sum of the main measure »)
+DATA_UNRELATED = [
+    ("quelle est la population de Canberra ?", "what is the population of Canberra?"),
+    ("combien font 17 x 23 ?", "what is 17 times 23?"),
+    ("quel temps fera-t-il demain à Lyon ?", "what will the weather be like in Lyon tomorrow?"),
+    ("combien coûte un abonnement Bird ?", "how much is a Bird subscription?"),
+    ("quelle est la meilleure façon de présenter ce fichier à mon chef ?", "what is the best way to present this file "
+     "to my boss?"),
+]  # fmt: skip
+
+
+def _short_col(name: str) -> str:
+    return re.sub(r"\s*\([^)]*\)\s*$", "", name).strip().lower()
+
+
+DATA_HELDOUT = ("heat", "bottom_n")
+
+
+def data_plan_records(seed: int = 0, heldout=DATA_HELDOUT) -> dict:
+    from birds.harness.analysis import planner as P
+    from birds.harness.analysis.profile import frame_of
+    from birds.harness.analysis.query import run_query
+    from birds.harness.analysis.table import read_text_table
+
+    rng = random.Random(f"{seed}-data")
+    out = {"train": [], "eval": []}
+    for tname, (head, row) in DATA_TABLES.items():
+        text = head + "\n" + "\n".join(row(i, rng) for i in range(120))
+        f = frame_of(read_text_table(text, f"{tname}.csv"))
+        nums = [c.name for c in f.columns if c.type == "number"]
+        cats = [c.name for c in f.columns if c.type in ("category", "bool")]
+        dates = [c.name for c in f.columns if c.type == "date"]
+        for tid, need, fr, en, build_spec in DATA_TEMPLATES:
+            years = sorted({v.year for v in f.col(dates[0]).values if v is not None})[-2:] if dates else []
+            if (need in ("time", "years") and not dates) or (need == "years" and len(years) < 2) \
+                    or (need == "two" and len(nums) < 2) or len(cats) < 2:  # fmt: skip
+                continue
+            for lang in ("fr", "en"):
+                m, m2 = rng.sample(nums, 2) if len(nums) > 1 else (nums[0], nums[0])
+                d, d2 = rng.sample(cats, 2)
+                n = rng.choice([3, 5, 10])
+                v = next(x for x in f.col(d).values if x is not None)
+                arg = m2 if tid == "corr" else years if tid == "compare_by" else n
+                spec, chart = build_spec(m, d, d2, dates[0] if dates else None, arg)
+                if tid == "filtered":
+                    spec["filters"] = [{"col": d, "op": "eq", "value": v}]
+                words = (fr if lang == "fr" else en).format(m=_short_col(m), m2=_short_col(m2), dl=_short_col(d),
+                                                          d2l=_short_col(d2), n=n, v=v,
+                                                          y1=years[0] if years else "", y2=years[-1] if years else "")  # fmt: skip
+                plan, why = P.check(f, {"analysis": spec, "chart": chart})
+                if why:
+                    raise SystemExit(f"data template {tid} on {tname}: {why}")
+                run_query(f, plan["query"], lang)
+                hints = P.rule_plan(f, words) if rng.random() < 0.7 else None
+                msgs = P.messages(f, words, hints=hints, lang=lang)
+                msgs.append({"role": "assistant", "content": P._dump({"analysis": spec, "chart": chart})})
+                split = "eval" if tid in heldout else "train"
+                out[split].append({"id": f"{SOURCE}-data-{split}-{tname}-{tid}-{lang}", "source": SOURCE,
+                                   "license": LICENSE, "lang": lang, "task": "data_plan", "thinking": False,
+                                   "messages": msgs, "template": f"data_{tid}"})  # fmt: skip
+        # follow-ups with the previous turn's spec: « par {d2} » edits the category, keeps measure and aggregation;
+        # an unrelated message computes nothing
+        m, d, d2 = nums[0], cats[0], cats[1]
+        prev = {"analysis": {"op": "aggregate", "measure": m, "agg": "mean", "by": d, "sort": "desc"}, "chart": "bar"}
+        follow = [("by", ("par " if lang == "fr" else "by ") + _short_col(d2), lang,
+                   {"analysis": {**prev["analysis"], "by": d2}, "chart": "bar"}) for lang in ("fr", "en")]
+        follow += [(f"unrelated{j}", words, lang, {"analysis": None, "chart": "auto"})
+                   for j, pair in enumerate(DATA_UNRELATED) for lang, words in zip(("fr", "en"), pair, strict=True)]
+        for fid, words, lang, answer in follow:
+            if answer["analysis"]:
+                plan, why = P.check(f, answer)
+                if why:
+                    raise SystemExit(f"data follow-up {fid} on {tname}: {why}")
+                run_query(f, plan["query"], lang)
+            msgs = P.messages(f, words, previous=prev, hints=P.rule_plan(f, words, prev), lang=lang)
+            msgs.append({"role": "assistant", "content": P._dump(answer)})
+            out["train"].append({"id": f"{SOURCE}-data-train-{tname}-follow-{fid}-{lang}", "source": SOURCE,
+                                 "license": LICENSE, "lang": lang, "task": "data_plan", "thinking": False,
+                                 "messages": msgs, "template": "data_none" if answer["analysis"] is None
+                                 else f"data_follow_{fid}"})  # fmt: skip
+        for j, (fr, en) in enumerate(DATA_NEGATIVES):
+            for lang, words in (("fr", fr), ("en", en)):
+                msgs = P.messages(f, words, hints=P.rule_plan(f, words), lang=lang)
+                msgs.append({"role": "assistant", "content": P._dump({"analysis": None, "chart": "auto"})})
+                out["train"].append({"id": f"{SOURCE}-data-train-{tname}-neg{j}-{lang}", "source": SOURCE,
+                                     "license": LICENSE, "lang": lang, "task": "data_plan", "thinking": False,
+                                     "messages": msgs, "template": "data_none"})  # fmt: skip
+    return out
+
+
 def build(n: int = 6000, seed: int = 0, heldout_share: float = 0.12) -> dict:
     import router_data as D
 
@@ -986,18 +1139,22 @@ def build(n: int = 6000, seed: int = 0, heldout_share: float = 0.12) -> dict:
             )
             | {"family": it["family"], "label": it["label"]}  # fmt: skip
         )
+    data = data_plan_records(seed)  # the analysis planner (birds/harness/analysis/planner.py)
     for split in ("train", "eval"):
+        out[split] += data[split]
         rng.shuffle(out[split])
     bad = [(r["id"], errors(r)) for s in out.values() for r in s if errors({k: v for k, v in r.items()
                                                                              if k not in ("family", "label")})]  # fmt: skip
     if bad:
         raise SystemExit(f"invalid records: {bad[:3]}")
-    st = {"filtered": stats, "templates": len(tids), "held_out_templates": sorted(held)}
+    st = {"filtered": stats, "templates": len(tids) + len(DATA_TEMPLATES),
+          "held_out_templates": sorted(held | {f"data_{t}" for t in DATA_HELDOUT})}  # fmt: skip
     for split, rows in out.items():
         st[split] = {
             "records": len(rows),
             "router": sum(r["task"] == "router" for r in rows),
             "tool_call_extra": sum(r["task"] == "tool_call_extra" for r in rows),
+            "data_plan": sum(r["task"] == "data_plan" for r in rows),
             "fr": sum(r["lang"] == "fr" for r in rows),
             "negatives": sum(
                 r["task"] == "router" and _negative(json.loads(r["messages"][-1]["content"])) for r in rows

@@ -15,6 +15,7 @@ import { safeUrl } from "./markdown.js";
 import { buildIcs, icsName } from "./ics.js";
 import { MODULES, moduleText } from "./modules.js";
 import { REPORT_MODULES, reportText } from "./research.js";
+import { dataCardText, renderDataCard } from "./datakit.js"; // data analysis hook: the data card
 
 const OSM_COPYRIGHT = "https://www.openstreetmap.org/copyright";
 const MAP_SRC =
@@ -2216,6 +2217,7 @@ const RENDER = {
   event: renderEvent,
   ...MODULES, // research, graph, timeline, matrix, calc, checklist (modules.js)
   ...REPORT_MODULES, // the deep research report card and its full-screen view (research.js)
+  datacard: renderDataCard, // data analysis hook (datakit.js)
 };
 
 export function renderWidgets(turn, widgets = turn.answer?.widgets || []) {
@@ -2272,6 +2274,8 @@ export function widgetsText(turn, markdown = false) {
       out.push(reportText(w));
     } else if (MODULES[w.type]) {
       out.push(moduleText(w, turn, markdown));
+    } else if (w.type === "datacard") {
+      out.push(dataCardText(w)); // data analysis hook (datakit.js)
     } else if (w.type === "event") {
       out.push(
         `${w.title} — ${String(w.start).slice(0, 16).replace("T", " ")}${w.all_day ? "" : `–${String(w.end).slice(11, 16)}`}${w.location ? ` — ${w.location}` : ""}`,

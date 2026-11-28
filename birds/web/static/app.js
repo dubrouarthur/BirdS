@@ -1402,6 +1402,9 @@ async function runTurn(turn, extra = {}) {
     if (!conv.lang)
       conv.lang = state.prefs.lang === "en" ? "en" : "fr"; // pinned for the conversation
     const docs = conv.attachments.filter((a) => a.content && !a.lost);
+    // the files this message brings: a table of an earlier message is analysed only when the turn asks for it
+    const lastUser = conv.turns.filter((x) => x.role === "user").pop();
+    const brought = new Set((lastUser?.attachments || []).map((a) => a.name));
     const body = {
       messages: apiMessages(!!resend),
       conv_lang: conv.lang,
@@ -1416,6 +1419,7 @@ async function runTurn(turn, extra = {}) {
         name,
         content,
         encoding: encoding || "text",
+        fresh: brought.has(name),
         ...(ocr && encoding === "base64" ? { ocr } : {}),
       })),
       ...canvas.payload(conv), // the artifact open in the canvas, so « ajoute une slide » changes it
@@ -2388,6 +2392,12 @@ async function init() {
     onStop: stop,
     onResume: resumeTask,
     onNotify: askNotify,
+  });
+  // data card hook (datakit.js): « Modifier le graphique » sends its edit as the next message
+  window.addEventListener("bird:send", (e) => {
+    if (state.busy || !state.online || pendingConfirm()) return; // the composer gets the text instead
+    e.preventDefault();
+    send(String(e.detail?.text || ""));
   });
   canvas.setup({
     send: (text) => send(text),

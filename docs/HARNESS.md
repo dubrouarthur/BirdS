@@ -789,3 +789,96 @@ calculatrice n'est plus interdite sur une demande qu'elle calcule (`_rich_but_ca
 plus (404). Aucune génération dépensée. À lancer dès la reprise, avant fusion du module `card` :
 `router_eval.py --mode hybrid --per-class 5 --seed 0` sur le déploiement puis sur la branche (même jeu), en notant
 ici exactitude, précision, rappel par famille et latence.
+## 15. Analyse de données : Bird choisit l'analyse, le moteur la calcule
+
+Code : `birds/harness/analysis/` (lecture `table.py`, profil `profile.py`, moteur `query.py`, planificateur
+`planner.py`, graphiques `charts.py`, crochets `hooks.py`, contrôle des chiffres `verify.py`), `birds/web/data_api.py`,
+`birds/web/static/datakit.js` (fiche) et `charts2.js` (graphiques SVG maison). Tests : `tests/test_analysis.py`,
+`tests/test_analysis_planner.py`, `tests/js/charts2.test.mjs`, `tests/e2e/data_analysis.spec.js`.
+
+- **Lecture** d'un CSV / TSV / XLSX joint ou d'un tableau collé (séparateur, en-tête sur deux lignes, ligne « Total »
+  mise à part, nombres à la française, dates), **fiche** : colonnes, types, valeurs manquantes, statistiques,
+  mini-histogrammes ; **tableau interactif** (tri, filtre, recherche, ligne de totaux, plein écran, 50 000 lignes).
+- **Le modèle décide QUOI calculer** (`planner.decide`) : un appel court (≤ 140 tokens, température 0), contraint
+  par un schéma JSON construit à partir du tableau lui-même (les noms de colonnes sont des énumérations : impossible
+  de nommer une colonne inventée), qui rend `{"analysis": {…} | null, "chart": "…"}`. Les opérations sont une liste
+  fermée : regroupement, filtre, croisement (`pivot`), top-N, parts, comparaison de deux années, **évolution en %
+  d'une période à l'autre** (`change`), **moyenne mobile** (`window`), corrélation, distribution. Aucun code du
+  modèle n'est exécuté : le harnais vérifie la spécification (`query.normalize`, clés inconnues refusées) puis calcule.
+- **Les règles fixes** (`ask.py`) ne sont que des indices dans le prompt et le filet de secours (endpoint endormi,
+  trop lent, JSON inutilisable). Un `null` explicite du modèle est sa décision : aucun gabarit ne le contredit, en
+  mode `hybrid` (le même réglage que `BIRD_ROUTER`) comme en mode `model`.
+- **Graphique choisi par le modèle** parmi barres, barres horizontales, courbe, aire, nuage de points, anneau, empilé,
+  combiné (barres + courbe, 2e axe) et carte de chaleur, dessiné en SVG maison (clair / sombre, tableau de données
+  accessible « Données du graphique », export PNG / SVG / CSV). Un choix qui ne convient pas au résultat (un anneau pour
+  une série temporelle) est écarté.
+- **Chiffres** : la réponse ne cite que ceux du moteur ; une réponse avec un chiffre introuvable est remplacée par la
+  phrase exacte du harnais (`verify.check_numbers`, rapport `data_check`). Le contrôle ne s'applique qu'à un tour qui
+  porte sur le tableau (un résultat calculé, ou une demande qui nomme le fichier ou ses colonnes) : un mail « lundi à
+  14 h 30 en salle 204 » écrit avec un tableau joint reste intact (`data_check: skipped`), et la mention « Chiffres
+  recalculés par Bird » n'est ajoutée qu'à un texte qui cite des chiffres du fichier. Une année ou un petit nombre
+  (≤ 12) n'est accepté d'office qu'écrit nu : « 2 050 € », « 1 999 € », « 8 % » ou « 12 € » doivent être retrouvés
+  comme les autres ; un arrondi juste au dernier chiffre significatif (« environ 35 000 € » pour 34 812) est accepté
+  comme « 35 k€ » (« 34 000 € » ne l'est pas).
+- **Continuité** : sous le graphique, « Modifier le graphique » propose 2 ou 3 suites concrètes (« Par trimestre »,
+  « Avec une moyenne mobile sur 3 mois », « En camembert »…) ; un clic envoie la suite comme message, le serveur écrit
+  la spécification dans le mémo (`[Analyse de « ventes.csv » — {…}]`), le planificateur la modifie, et la réponse
+  réaffiche le graphique à jour avec son numéro de version (fiche compacte, tableau replié) ; les versions
+  précédentes restent dans la conversation. Le numéro ne monte que pour une modification de l'analyse précédente
+  (une suite appliquée par les règles, ou une spécification du modèle sur la même mesure avec la même opération) ;
+  une autre analyse repart à la version 1. Un total seul propose « Par {catégorie} » et « Par mois », une
+  corrélation « {mesure} par mois », « {mesure} par {catégorie} » et « Distribution de {mesure} ».
+- **Module = catalogue + exemples + évaluations** : entrée `analyze_table` de `catalog.py` (hors du catalogue du
+  routeur : décidée par son propre appel, seulement quand un tableau est joint), enregistrements `task: "data_plan"`
+  de `scripts/build_tools_mix.py` (4 formes de tableaux × 14 gabarits FR/EN + négatifs, 2 gabarits tenus à l'écart),
+  cas fixes `DATA_PLAN` / `LIVE_8` de `scripts/router_data.py`, mesure `scripts/data_eval.py`, famille
+  `data_analysis` du banc de déclenchement (24/24) et famille `data_earlier` (tableau joint à un message précédent).
+- **Un tableau d'un message précédent** (l'application renvoie toutes les pièces jointes à chaque tour, marquées
+  `fresh` quand ce message les apporte) n'est repris que si le planificateur demande une analyse : « Quelle est la
+  population de Canberra ? » après une analyse de `ventes.csv` n'a ni fiche, ni note, ni contrôle des chiffres, et la
+  réponse du modèle reste la sienne. Les gabarits des règles ne partent plus d'un simple « quel / combien » : il faut
+  nommer une colonne, une valeur, une année ou une période des dates, les lignes, ou le fichier avec un mot de calcul
+  (`ask.refers_to_table`).
+
+**Faux déclenchements, tableau déjà dans la conversation (revue du 28/11/2026, hors ligne, mêmes jeux avant /
+après)** : famille `data_earlier` du banc de déclenchement (8 demandes sur le tableau, 12 sans rapport) **8/20 → 20/20**
+(12/12 tours sans rapport avec fiche et contrôle avant, 0/12 après ; les 8 demandes sur le tableau restent calculées) ;
+`DATA_PLAN` (règles, 6 cas négatifs ajoutés) **8/20 → 14/20**, puis 2 cas « Par Produit » / « By Commercial »
+après une moyenne de Quantité par région (le jeton « Par {colonne} » perdait mesure et agrégation : somme du CA)
+**0/2 → 2/2**, soit **16/22** ; enregistrements `data_plan` ajoutés (suite « par {catégorie} », 5 messages sans
+rapport avec un tableau déjà montré → `null`) ; banc complet 1485/1485 → 1505/1505 (20 cas ajoutés).
+En `hybrid`, un `null` du modèle sur ces 6 cas donnait avant le gabarit « somme du CA » (6/6) ; après, aucun calcul.
+
+**Mesure hors ligne (règles seules, 14 cas fixes de `DATA_PLAN` d'origine)** : 8/14 analyses justes (2/8 sur les 8 cas
+`LIVE_8`), 12/14 graphiques acceptables. Les règles manquent « quel commercial a vendu le plus d'unités », la
+moyenne mobile, le croisement région × produit, le top 5 filtré sur une région, l'évolution en %, la part par produit.
+
+**Mesure live (28/11/2026, Bird S 4B, endpoint vLLM, `structured_outputs`, mode `hybrid`, `scripts/data_eval.py
+--cases live8`, 25 générations en tout).** Avant = les règles fixes (le comportement de la branche avant le
+planificateur) ; après = Bird choisit l'analyse. Passage 1 avec la réponse complète (planificateur + commentaire du
+modèle, numéros vérifiés) ; passage 2 après les correctifs tirés du passage 1 (réparation d'une moyenne mobile
+demandée sur un classement, deux exemples du prompt : comparaison par catégorie, évolution d'une période à l'autre).
+
+| Demande | Avant (règles) | Après, passage 1 | Après, passage 2 |
+|---|---|---|---|
+| Quel commercial a vendu le plus d'unités ? | non (total des quantités, sans regroupement) | oui (Quantité par Commercial, top 1, hbar) | oui |
+| CA mensuel avec une moyenne mobile sur 3 mois | non (moyenne par mois, sans moyenne mobile) | oui (window 3, aire) | oui |
+| CA par région et par produit | non (par région seulement) | oui (pivot Produit, empilé) | oui |
+| Les 5 clients qui rapportent le plus dans le Sud | non (aucun calcul) | non (« window » sur un classement : refusé, repli sur les règles) | oui (filtre Sud, top 5 ; anneau au lieu de hbar) |
+| Évolution du CA d'un trimestre à l'autre, en % | non (total mensuel) | non (mois au lieu de trimestre, + moyenne mobile) | non (change juste, mois au lieu de trimestre) |
+| Compare 2024 et 2025 par produit | oui | non (comparaison sans « par produit ») | non (idem) |
+| Quelle part du CA fait chaque produit ? | non (aucun calcul) | oui (parts, anneau) | oui |
+| Résume ce fichier en deux phrases | oui (aucun calcul) | oui (null) | oui |
+| **Analyses justes** | **2/8** | **5/8** | **6/8** |
+| Graphique acceptable | 6/8 | 7/8 | 7/8 |
+| Latence du planificateur (p50) | 0 s | 0,9 s | 0,9 s |
+
+Réponses du passage 1 (commentaire du modèle sur le résultat du moteur) : 4/8 avec tous les chiffres retrouvés dans le
+résultat ; 2 remplacées par la phrase exacte du harnais (« autour de 35 000 € », une somme de trois parts écrite par
+le modèle) ; 2 tours sans résultat calculé où le modèle avait écrit des chiffres introuvables (une remise moyenne de
+3,9 % au lieu de 5,03 %, une liste inventée de 5 clients) : ils étaient seulement signalés ; depuis, ces phrases sont
+retirées et, s'il ne reste presque rien, le harnais dit ce qu'il a lu et demande le calcul voulu (test dédié, pas de
+nouveau passage live : budget de 25 générations atteint). Les deux erreurs restantes du planificateur (grain du
+trimestre, « par produit » d'une comparaison) sont couvertes par les enregistrements `data_plan` (gabarits
+`change`, `compare_by`) pour le prochain affinage ; elles ne donnent pas de chiffre faux : l'analyse affichée est
+exacte, seulement moins précise que la demande.

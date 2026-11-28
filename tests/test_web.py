@@ -688,8 +688,9 @@ def test_static_payload_budget():
     # the office engine (pictures, charts and tables in the previews, the deck/document editor)
     # the canvas (decks, documents, code preview, mini-sheet, flowcharts: +126 kB raw, +34 kB gzipped)
     # the small modules (research card, relation graph, timeline, matrix, calculator, checklist, chips: +86 kB)
-    # and deep research's live board and full-screen report (research.js/.css: +48 kB raw, +12 kB gzipped)
-    assert total < 1_195_000, f"static payload is {total} bytes"  # measured 1 189 508 after merging w1-modules
+    # deep research's live board and full-screen report (research.js/.css: +48 kB raw, +12 kB gzipped)
+    # and the data card and the richer charts (datakit.js, charts2.js, their app.css section: ~110 kB raw, ~31 kB gzipped)
+    assert total < 1_305_000, f"static payload is {total} bytes"  # measured 1 298 645 after merging data-analysis
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     assert demo < 520_000, f"demo maps weigh {demo} bytes"  # + the maps of the scripted lists of places
 

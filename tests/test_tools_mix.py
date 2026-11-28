@@ -95,3 +95,17 @@ def test_typos_never_touch_an_argument():
     for _ in range(50):
         for v in M.variants("prévisions météo pour Strasbourg demain", "fr", label, rng):
             assert M.check(v, None, label)
+
+
+def test_data_plan_records_teach_the_analysis_planner(mix):
+    from birds.harness.analysis import planner as P
+
+    rows = [r for r in mix["train"] if r["task"] == "data_plan"]
+    assert len(rows) >= 100 and mix["stats"]["train"]["data_plan"] == len(rows)
+    nulls = [r for r in rows if json.loads(r["messages"][-1]["content"])["analysis"] is None]
+    assert 20 <= len(nulls) < len(rows) // 2  # negatives: requests that compute nothing
+    for r in rows[:40]:
+        assert r["messages"][0]["content"].startswith(P._HEAD[r["lang"]])  # the exact planner prompt
+        obj = json.loads(r["messages"][-1]["content"])
+        assert set(obj) == {"analysis", "chart"} and obj["chart"] in P.CHARTS
+    assert any(r["template"] == "data_heat" for r in mix["eval"])

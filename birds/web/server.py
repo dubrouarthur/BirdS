@@ -73,6 +73,9 @@ class Attachment(BaseModel):
     # what an earlier turn of this conversation read on the scanned pages of this PDF ({"2": "text"}): sent back by
     # the browser so the pages are not read again. Untrusted like the file itself: capped and defanged on use.
     ocr: dict[str, str] | None = Field(default=None, max_length=50)
+    # brought by THIS message (the app re-sends every attachment of the conversation each turn): a table of an
+    # earlier message is computed on only when the turn asks for it (birds/harness/analysis/hooks.brought)
+    fresh: bool | None = None
 
 
 BINARY_ATTACHMENTS = (".pdf", ".docx", ".xlsx", ".pptx")
@@ -715,6 +718,11 @@ def create_app(
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    # ---- data analysis hook (birds/web/data_api.py): the data card's full table and one-click analyses
+    from .data_api import register as _data_routes
+
+    _data_routes(app, guard_request, check_access, ApiError)
+
     @app.get("/api/img")
     def web_image(request: Request):
         """A web image Bird credited in an answer, fetched by the server and re-encoded, so the browser never
@@ -828,6 +836,7 @@ def create_app(
                 "content": a.content,
                 "encoding": a.encoding,
                 **({"ocr": a.ocr} if a.ocr and a.encoding == "base64" else {}),
+                **({"fresh": a.fresh} if a.fresh is not None else {}),
             }
             for a in body.attachments
         ]
