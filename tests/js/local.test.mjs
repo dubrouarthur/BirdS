@@ -193,3 +193,18 @@ test("mode switching: Bird local only when chosen and paired, back to hosted on 
     state.prefs.mode = "";
   }
 });
+
+test("Safari is told to open Bird local directly; a down model server is told apart from a down Bird local", () => {
+  const SAFARI = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15";
+  const IOS_CHROME = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126.0 Mobile/15E148 Safari/604.1";
+  const CHROME = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36";
+  const EDGE = CHROME + " Edg/131.0";
+  const FIREFOX = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14.5; rv:132.0) Gecko/20100101 Firefox/132.0";
+  const ANDROID = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Mobile Safari/537.36";
+  assert.ok(L.isSafari(SAFARI) && L.isSafari(IOS_CHROME)); // every iOS browser is WebKit
+  for (const ua of [CHROME, EDGE, FIREFOX, ANDROID, "", undefined]) assert.ok(!L.isSafari(ua), ua);
+  for (const code of ["unreachable", "endpoint_down", "timeout"]) assert.ok(L.MODEL_DOWN.has(code));
+  assert.ok(!L.MODEL_DOWN.has("pair_required") && !L.MODEL_DOWN.has("local_unreachable"));
+  for (const lang of ["fr", "en"])
+    for (const k of ["local.model.title", "local.model.p", "local.safari"]) assert.ok(LOCAL_STRINGS[lang][k], `${lang} ${k}`);
+});

@@ -14,6 +14,17 @@ const ASSET = /^\/api\/(img|map|icon)\?\S*$/; // pictures signed by the local Bi
 
 export const isLoopback = (hostname) => ["127.0.0.1", "localhost", "[::1]"].includes(String(hostname || "").toLowerCase());
 
+/** Safari (macOS, and every iOS browser, all WebKit) blocks an https page from calling http://127.0.0.1: the page
+ * served by Bird local is the way there. Chrome, Edge, Firefox and their iOS-less cousins accept the loopback. */
+export function isSafari(ua) {
+  const u = String(ua || "");
+  if (/\b(iPhone|iPad|iPod)\b/.test(u)) return true;
+  return /Safari\//.test(u) && !/(Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS|Android)/.test(u);
+}
+
+/** Errors of a local turn that mean the user's model server (vLLM) is down while Bird local itself answers. */
+export const MODEL_DOWN = new Set(["unreachable", "endpoint_down", "timeout", "waking"]);
+
 /** The two exact loopback origins the page may reach (the CSP lists the same two, nothing wider). */
 export const localBases = (port = DEFAULT_PORT) => [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
 
