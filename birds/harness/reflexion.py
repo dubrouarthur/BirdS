@@ -430,11 +430,15 @@ def calc_errors(text: str, lang: str = "fr") -> tuple[int, list[dict]]:
     numbers is read; « ≈ » and words are never judged. A result off by less than its own rounding is right."""
     checked, wrong = 0, []
     plain = text.replace("−", "-").replace("–", "-")
-    plain = re.sub(r"\*\*|__|`", "", plain)  # « = **357,60 €** »: Markdown emphasis around a result
+    plain = re.sub(r"```.*?(?:```|$)|`[^`\n]*`", " ", plain, flags=re.S)  # code is never read as arithmetic
+    # « = **357,60 €** »: Markdown emphasis around a result, only when it wraps text (« 3 ** 2 » is a power)
+    plain = re.sub(r"\*\*(\S(?:[^*\n]*?\S)?)\*\*|__(\S(?:[^_\n]*?\S)?)__", lambda g: g.group(1) or g.group(2), plain)
     for m in _EQ.finditer(plain):
         expr, res = m.group("expr"), m.group("res")
         if expr.count("(") != expr.count(")"):
             continue
+        if re.search(r"(?:[*^/×÷+]|\d\s*-)\s*$", plain[: m.start()]):
+            continue  # « 3 ** 2 + 1 = 10 »: the expression starts with an operation it cannot read
         if re.match(rf"{_OP}\(?\d", plain[m.end() :]):
             continue  # « 1 200 + 15 × 60 = 1 200 + 900 = 2 100 »: an intermediate step, not a result
         py = _python(expr)
@@ -448,6 +452,8 @@ def calc_errors(text: str, lang: str = "fr") -> tuple[int, list[dict]]:
         except (ValueError, SyntaxError, ZeroDivisionError, TypeError, RecursionError):
             continue
         shown = -shown if res.startswith("-") else shown
+        if re.fullmatch(rf"\(?{_NUM}{_UNIT}\s*-\s*{_NUM}{_UNIT}\)?", expr.strip()) and abs(shown + right) < 1e-9:
+            continue  # « 9 h - 17 h = 8 h », « 2020 - 2026 = 6 ans »: a range and its length, not a subtraction
         if "%" in (m.group("runit") or ""):
             # a result in % is compared in percent points: « 69 ÷ 2 300 = 3 % » (a ratio written as a percentage)
             # and « 2 × 5 % = 10 % » (a % operand was divided by 100 above, so the result goes back the same way)

@@ -107,7 +107,11 @@ def test_hint_level_is_only_a_fallback_cue():
      ("69 ÷ 2 300 = 3 %", 0), ("81 ÷ 3 100 = 3,1 %", 1),
      # « n × p % = q % »: compared in percent points, never « 0,10 (not 10) »
      ("2 × 5 % = 10 %", 0), ("3 % × 4 = 12 %", 0), ("10 % ÷ 2 = 5 %", 0), ("2 × 5 % = 12 %", 1),
-     ("2 × 5 % = 0,10", 0)],
+     ("2 × 5 % = 0,10", 0),
+     # code and ranges are not arithmetic to judge; Markdown bold around a result still is
+     ("In Python, 3 ** 2 + 1 = 10", 0), ("`2 + 2 = 5`", 0), ("```\nassert 2 + 2 = 5\n```", 0),
+     ("9 h - 17 h = 8 h", 0), ("17 h - 9 h = 6 h", 1), ("Total : **14,90 € × 24 = 375,60 €**", 1),
+     ("**Total** : 14,90 € × 24 = **357,60 €**", 0)],
 )  # fmt: skip
 def test_calculations_are_recomputed(text, wrong):
     assert len(R.calc_errors(text)[1]) == wrong
