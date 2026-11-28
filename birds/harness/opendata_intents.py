@@ -233,6 +233,8 @@ def own_data(tool: str, text: str) -> bool:
         return bool(_STATS_OWN.search(t)) and not _CREATIONS_ASK.search(t)
     if tool == "work_calendar":
         return bool(_CAL_OWN.search(t))
+    if tool == "find_tenders":
+        return bool(_TENDER_OWN.search(t))
     return False
 
 
@@ -353,8 +355,10 @@ def entity(text: str, lang: str = "fr") -> Intent | None:
 _TENDER = re.compile(r"\b(?:appels?\s+d'offres?|\bAO\b|march[ée]s\s+publics?|march[ée]\s+public|consultations?\s+"
                      r"publiques?|commande\s+publique|boamp|public\s+tenders?|tenders?|calls?\s+for\s+tenders?)\b", re.I)  # fmt: skip
 _TENDER_NO = re.compile(r"\b(?:r[ée]pon\w+|candidat\w*|m[ée]moire\s+technique|dce|dossier|lettre|offre\s+de\s+prix|"
-                        r"remport\w*|gagn\w*|perdu|rejet\w*|attribu\w*|code\s+de\s+la\s+commande|seuils?|r[ée]glement\w*|"
+                        r"remport\w*|gagn\w*|perdu\w*|rejet\w*|attribu\w*|code\s+de\s+la\s+commande|seuils?|r[ée]glement\w*|"
                         r"proc[ée]dures?|formation|respond|bid\s+for|write)\b", re.I)  # fmt: skip
+# the user's own bids (« que nous avons perdus », « nos appels d'offres en cours »): their history, not BOAMP
+_TENDER_OWN = re.compile(r"(?<![\w-])(?:nous|notre|nos|we|our)\b|\b(?:perdu\w*|gagn[ée]\w*|won|lost)\b", re.I)
 _TENDER_ASK = re.compile(r"\b(?:trouve|cherche|liste|montre|affiche|quels?|quelles?|y\s+a-t-il|y\s+a\s+t\s+il|il\s+y\s+a|"
                          r"des|derniers|r[ée]cents|nouveaux|veille|find|list|show|any|latest|new|recent)\b", re.I)  # fmt: skip
 _TOPIC = re.compile(r"(?:\b(?:en|de|pour|sur|concernant|dans\s+le\s+domaine\s+(?:du|de\s+la|de\s+l')|in|for|on)\s+|"
@@ -369,6 +373,8 @@ def tenders(text: str, lang: str = "fr") -> Intent | None:
     """« appels d'offres en nettoyage de locaux publiés cette semaine », « marchés publics informatique dans le 59 »."""
     t = _clean(text)
     if not t or len(t) > 200 or not _TENDER.search(t) or _TENDER_NO.search(t) or _HOWTO.search(t):
+        return None
+    if _TENDER_OWN.search(t):
         return None
     # an ask word, or a search typed as a noun phrase (« marchés publics informatique dans le 59 »)
     if _DELIVERABLE.search(t) or not (_TENDER_ASK.search(t) or _TENDER.match(t)):
@@ -385,8 +391,8 @@ def tenders(text: str, lang: str = "fr") -> Intent | None:
         kw = _TOPIC_STOP.sub("", m.group("k")).strip(" ,.?!")
         if re.fullmatch(r"(?i:publi\w*|ouverts?|r[ée]cents?|en\s+cours|france|ligne)", kw):
             kw = ""
-    if len(kw) < 2:
-        return Intent("find_tenders", None)
+    if len(kw) < 2 or re.match(r"(?i:qu[ei]|qu'|dont|o[uù]|that|which|who)\b", kw):
+        return Intent("find_tenders", None)  # a relative clause (« que nous avons perdus ») is not a subject
     label, deps = fr_where(t)
     days = 7 if re.search(r"\bcette\s+semaine|this\s+week|7\s+derniers\s+jours|last\s+week\b", t, re.I) else (
         1 if re.search(r"\baujourd'hui|today\b", t, re.I) else 30)  # fmt: skip

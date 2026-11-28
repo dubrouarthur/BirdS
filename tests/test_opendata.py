@@ -291,6 +291,15 @@ def test_entity_figures_keep_small_values_and_never_lose_their_currency():
     assert E.facts_of({"claims": {"P1082": _qty("+764", "1")}}, "city", "fr", {})[0]["value"] == "764"
 
 
+def test_the_user_s_own_bids_are_not_a_tender_search():
+    ask = "appels d'offres que nous avons perdus en 2025"
+    assert not any(i.args for i in opendata_intents.detect(ask))
+    model = R.Decision([], None, False, "model", {})
+    assert R.merge(model, R.regex_decision(ask), R.own_decision(ask)).get("find_tenders") is None
+    assert opendata_route.veto_reason(R.Call("find_tenders", {"query": "que nous avons perdus"}), ask)
+    assert "relative clause" in opendata_route.ground(R.Call("find_tenders", {"query": "que nous avons perdus"}), ask, "")
+
+
 def test_the_veto_never_blocks_what_the_parser_itself_starts():
     for q, _tool, _args in OD.OPENDATA_YES:
         got = [i for i in opendata_intents.detect(q, False, "fr", today=OD.TODAY) if i.args]

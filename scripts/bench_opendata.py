@@ -62,6 +62,8 @@ OPENDATA_YES = [
     ("marchés publics de restauration collective dans le Rhône", "find_tenders",
      {"query": "restauration collective", "where": "69"}),
     ("cherche un appel d'offres pour une mission de conseil RH", "find_tenders", {"query": "mission de conseil RH"}),
+    ("trouve-nous des appels d'offres pour de la maintenance d'ascenseurs", "find_tenders",
+     {"query": "maintenance d'ascenseurs"}),
     ("public tenders for cleaning services in France", "find_tenders", {"query": "cleaning services"}),
     # scholarly works (OpenAlex, Crossref)
     ("articles scientifiques sur les batteries sodium-ion", "find_papers", {"query": "batteries sodium-ion"}),
@@ -147,6 +149,10 @@ OPENDATA_NO = [
     "Corrige l'orthographe : l'inflation en France depuis 2020 a ete forte",
     "Mets en forme : PIB de la France et du Japon depuis 2000",
     "Proofread: GDP of Germany since 2000",
+    # the user's own bids: their history, not a BOAMP search
+    "appels d'offres que nous avons perdus en 2025",
+    "les appels d'offres qu'on a gagnés cette année",
+    "our lost tenders in 2025",
 ]
 
 # clear asks the parsers miss: router-only (router_data family "opendata_router"), never on the regex bench

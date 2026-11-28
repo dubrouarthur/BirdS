@@ -70,6 +70,8 @@ def ground(call, text: str, context: str) -> str:
     if call.tool == "find_tenders":
         if not _grounded(a["query"], src):
             return "query not in the user's words"
+        if re.match(r"(?i:qu[ei]|qu'|dont|o[uù]|that|which|who)\b", str(a["query"]).strip()):
+            return "query is a relative clause, not a subject"
         w = str(a.get("where") or "")
         if w and not (_grounded(w, src) or (fr_where(w)[1] and fr_where(w)[1] == fr_where(src)[1])):
             return "where not in the user's words"
