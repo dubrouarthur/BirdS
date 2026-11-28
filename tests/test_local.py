@@ -140,6 +140,11 @@ def test_wrong_codes_lock_the_api_for_a_minute(client):
     assert codes[:3] == [401, 401, 401] and codes[3:] == [429, 429]
     r = client.post("/api/local/pair", headers={**hosted, "X-Bird-Pair": "WRNG-0009"})
     assert r.status_code == 429 and r.json()["detail"]["code"] == "pair_locked"
+    # a real lock: the right code is refused too, so a guesser cannot tell when it hit (no oracle while locked)
+    r = client.post("/api/local/pair", headers={**hosted, "X-Bird-Pair": CODE})
+    assert r.status_code == 429 and r.json()["detail"]["code"] == "pair_locked"
+    assert r.headers["access-control-allow-origin"] == HOSTED  # the page can say « wait a minute »
+    assert client.get("/api/health").status_code == 200  # the health check still answers
 
 
 def test_pair_and_health(client):

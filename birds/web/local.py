@@ -22,6 +22,7 @@ import os
 import re
 import secrets
 import stat
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -143,6 +144,7 @@ def install(app, cfg: LocalConfig) -> None:
 
     limiter = RateLimiter(cfg.rate_per_minute)
     fails = RateLimiter(cfg.fail_per_minute)
+    locked_until = [0.0]  # while locked, every code is refused, the right one too: guessing gets no answer to read
     app.state.bird_local = cfg
 
     def refuse(status: int, code: str, message: str, origin: str | None) -> Response:
@@ -179,11 +181,12 @@ def install(app, cfg: LocalConfig) -> None:
             return refuse(429, "rate_limited", "too many requests, wait a minute", origin if cross else None)
         paired = code_ok(request.headers.get(PAIR_HEADER), cfg.code)
         if api and path not in IMAGE_PATHS and path != "/api/health":
+            now = time.monotonic()
+            if request.headers.get(PAIR_HEADER) and not paired and not fails.allow("pair", now):
+                locked_until[0] = now + 60
+            if now < locked_until[0]:
+                return refuse(429, "pair_locked", "too many wrong pairing codes, wait a minute", origin if cross else None)
             if not paired:
-                if request.headers.get(PAIR_HEADER) and not fails.allow("pair"):
-                    return refuse(
-                        429, "pair_locked", "too many wrong pairing codes, wait a minute", origin if cross else None
-                    )
                 given = bool(request.headers.get(PAIR_HEADER))
                 return refuse(401, "pair_invalid" if given else "pair_required", "a valid pairing code is required",
                               origin if cross else None)  # fmt: skip
