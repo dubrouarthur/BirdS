@@ -133,6 +133,38 @@ gpu_detect() {
   [ -n "$GPU_MB" ] || GPU_MB=0
 }
 
+# stop_previous_vllm : le vLLM d'un essai précédent de ce script (fichier vllm.pid, ou la même commande sur le même port)
+stop_previous_vllm() {
+  old="$(cat "$BIRD_HOME/vllm.pid" 2>/dev/null)"
+  # tous les vLLM de ce compte, moteurs orphelins compris (« VLLM::EngineCore » d'un essai interrompu) : la carte et
+  # la mémoire vive ne peuvent porter qu'un modèle
+  pids="$old $(pgrep -u "$(id -u)" -f "vllm serve|VLLM::|vllm\.entrypoints" 2>/dev/null | grep -vx "$$")"
+  found=""
+  for p in $pids; do
+    if kill -0 "$p" 2>/dev/null; then kill "$p" 2>/dev/null; found=1; fi
+  done
+  rm -f "$BIRD_HOME/vllm.pid"
+  [ -n "$found" ] || return 0
+  say "Arrêt des autres vLLM de cette machine (un seul modèle à la fois sur la carte)…"
+  n=0
+  for p in $pids; do
+    while kill -0 "$p" 2>/dev/null && [ $n -lt 30 ]; do sleep 1; n=$((n + 1)); done
+    kill -9 "$p" 2>/dev/null || true
+  done
+  return 0
+}
+
+# kill_orphan_engines : un moteur vLLM (« VLLM::… ») dont le serveur n'existe plus garde la mémoire de la carte ;
+# ceux d'un serveur vivant ne sont jamais touchés
+kill_orphan_engines() {
+  ps -u "$(id -u)" -o pid= -o ppid= -o args= 2>/dev/null | while read -r pid ppid args; do
+    case "$args" in VLLM::*) ;; *) continue ;; esac
+    parent="$(ps -o args= -p "$ppid" 2>/dev/null)"
+    case "$parent" in *vllm* | *VLLM*) ;; *) kill "$pid" 2>/dev/null && say "Moteur vLLM orphelin arrêté (pid $pid)." ;; esac
+  done
+  return 0
+}
+
 # ---- la barre de suivi du démarrage : les étapes réelles de vLLM, lues dans son journal
 # stage LOG -> "pourcentage|libellé" de l'étape la plus avancée atteinte (jamais en arrière)
 stage() {
@@ -191,6 +223,13 @@ if [ -n "${BIRD_VLLM_URL:-}" ]; then
   ok "Serveur du modèle existant : $BASE_URL"
 else
   BASE_URL="http://127.0.0.1:$VLLM_PORT/v1"
+  # un vLLM qui sert un AUTRE modèle sur ce port : l'arrêter, puis démarrer Bird
+  served="$(curl -fsS -m 3 "$BASE_URL/models" 2>/dev/null | grep -o '"id": *"[^"]*"' | head -n 1 | sed 's/.*"\([^"]*\)"$/\1/')"
+  if [ -n "$served" ] && [ "$served" != "$BIRD_MODEL" ]; then
+    say "Un autre modèle ($served) occupe le port $VLLM_PORT."
+    stop_previous_vllm
+  fi
+  kill_orphan_engines
   if up "$BASE_URL"; then
     ok "vLLM tourne déjà sur $BASE_URL"
     gpu_detect  # pour mesurer l'empreinte sur la carte
@@ -251,10 +290,23 @@ else
     say "Téléchargement du modèle $BIRD_MODEL (une seule fois, ~8 Go)…"
     "$VLLM_VENV/bin/hf" download "$BIRD_MODEL" >/dev/null \
       || die "Téléchargement du modèle impossible : vérifiez votre connexion et votre accès au modèle (hf auth login)."
+    # un démarrage précédent encore en cours (commande relancée, fenêtre fermée) : l'arrêter, jamais deux modèles
+    # sur la même carte
+    stop_previous_vllm
+    # la mémoire vive : les poids (~8 Go) passent par elle pour aller sur la carte
+    ram_mb="$(awk '/MemAvailable/ {print int($2 / 1024)}' /proc/meminfo 2>/dev/null)"
+    if [ -n "$ram_mb" ] && [ "$ram_mb" -lt 3000 ]; then
+      if in_wsl; then
+        say "Peu de mémoire vive disponible pour WSL ($((ram_mb / 1024)) Go) : le chargement sera lent. Fermez des applications Windows, ou donnez plus de mémoire à WSL (fichier %UserProfile%\\.wslconfig : [wsl2] memory=8GB, puis wsl --shutdown)."
+      else
+        say "Peu de mémoire vive disponible ($((ram_mb / 1024)) Go) : le chargement sera lent. Fermez des applications pour l'accélérer."
+      fi
+    fi
     say "Démarrage du modèle $BIRD_MODEL sur la carte graphique…"
     # HF_TOKEN, s'il est défini, est lu par vLLM depuis l'environnement : il n'est jamais écrit sur le disque ni affiché
     # shellcheck disable=SC2086  # VLLM_ARGS: words chosen above, never user input
-    nohup "$VLLM_VENV/bin/vllm" serve "$BIRD_MODEL" --host 127.0.0.1 --port "$VLLM_PORT" $VLLM_ARGS \
+    # --max-num-seqs 8 : une seule personne s'en sert ; moins de mémoire réservée et un démarrage plus court
+    nohup "$VLLM_VENV/bin/vllm" serve "$BIRD_MODEL" --host 127.0.0.1 --port "$VLLM_PORT" --max-num-seqs 8 $VLLM_ARGS \
       >"$LOGS/vllm.log" 2>&1 &
     echo $! >"$BIRD_HOME/vllm.pid"
     wait_model
@@ -286,6 +338,9 @@ else
   set -- "$VENV/bin/python" scripts/serve.py --base-url "$BASE_URL" --model "$MODEL_ID" --api-key local \
     --host 127.0.0.1 --port "$BIRD_PORT"
 fi
+# un Bird local d'un essai précédent garde le port : l'arrêter d'abord
+oldbird="$(cat "$BIRD_HOME/bird.pid" 2>/dev/null)"
+if [ -n "$oldbird" ] && kill -0 "$oldbird" 2>/dev/null; then kill "$oldbird" 2>/dev/null; sleep 2; fi
 nohup "$@" >"$LOGS/bird.log" 2>&1 &
 echo $! >"$BIRD_HOME/bird.pid"
 i=0

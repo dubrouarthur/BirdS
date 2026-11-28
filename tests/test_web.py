@@ -1590,3 +1590,64 @@ def test_installer_sizes_vllm_to_the_graphics_card(tmp_path):
     assert '"$GPU_MB" -lt 11000' in sh and "--quantization fp8 --max-model-len 8192" in sh
     assert "/usr/lib/wsl/lib/nvidia-smi" in sh and "--measure-gpu" in sh
     assert "Aucune carte graphique NVIDIA détectée" in sh and "Accélération graphique active" in sh
+
+
+def test_installer_never_runs_two_models_on_the_card(tmp_path):
+    """Windows report: the first, still-loading vLLM and the second one shared an 8 Go card and 1 Go of RAM.
+    A new run stops the previous start (its pid file) before launching; vLLM is sized for one person."""
+    import os
+    import subprocess
+    import time
+
+    with TestClient(create_app(settings())) as client:
+        sh = client.get("/install.sh").text
+    fns = sh[sh.index("say() {") : sh.index("# ---- 0.")] + sh[sh.index("# stop_previous_vllm") : sh.index("# ---- la barre")]
+    # a detached process (reaped by init, like a real earlier vLLM), not a child of the test left as a zombie
+    pid = int(subprocess.run(["sh", "-c", "sleep 300 >/dev/null 2>&1 & echo $!"], capture_output=True, text=True).stdout)
+    (tmp_path / "vllm.pid").write_text(str(pid))
+
+    def alive() -> bool:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        return True
+
+    env = {"PATH": "/usr/bin:/bin", "BIRD_HOME": str(tmp_path), "BIRD_MODEL": "adubrou/Bird-S-4B", "VLLM_PORT": "8000"}
+    out = subprocess.run(["sh", "-c", fns + "stop_previous_vllm"], capture_output=True, text=True, env=env)
+    for _ in range(50):
+        if not alive():
+            break
+        time.sleep(0.1)
+    assert not alive() and out.returncode == 0 and "Arrêt des autres vLLM" in out.stdout
+    assert not (tmp_path / "vllm.pid").exists()
+    # nothing to stop: silent
+    again = subprocess.run(["sh", "-c", fns + "stop_previous_vllm"], capture_output=True, text=True, env=env)
+    assert again.returncode == 0 and again.stdout == ""
+    assert "--max-num-seqs 8" in sh and "MemAvailable" in sh and ".wslconfig" in sh
+    assert 'pgrep -u "$(id -u)" -f "vllm serve|VLLM::|vllm\\.entrypoints"' in sh  # orphan engines too, this user only
+    assert 'if [ -n "$served" ] && [ "$served" != "$BIRD_MODEL" ]' in sh
+    # an orphan engine (its server gone) is stopped, an engine whose server lives is kept
+    orphans = sh[sh.index("# kill_orphan_engines") : sh.index("# ---- la barre")]
+    # bash names the process like vLLM does (exec -a); its parent shell exits at once: an orphan
+    pid = int(subprocess.run(["bash", "-c", "(exec -a VLLM::EngineCore sleep 300) >/dev/null 2>&1 & echo $!"],
+                             capture_output=True, text=True).stdout)  # fmt: skip
+    assert alive()
+    subprocess.run(["sh", "-c", fns + orphans + "kill_orphan_engines"], env=env, capture_output=True)
+    for _ in range(50):
+        if not alive():
+            break
+        time.sleep(0.1)
+    assert not alive()
+
+
+def test_windows_installer_offers_wsl_more_memory_with_the_users_yes():
+    """« ce serait pas WSL et sa petite RAM qui ferait tout planter ? » — 1 Go available while 8.5 Go of weights went
+    to the card. install.ps1 reads WSL's memory, asks before giving it more ([wsl2] memory= in .wslconfig, the old
+    file kept), restarts WSL (which also stops a vLLM left from an earlier try)."""
+    with TestClient(create_app(settings())) as client:
+        ps = client.get("/install.ps1").text
+    assert "/MemTotal/" in ps and "TotalPhysicalMemory" in ps and "Read-Host" in ps
+    assert "memory=${gb}GB" in ps and ".wslconfig.bak-bird" in ps and "& wsl.exe --shutdown" in ps
+    assert ps.index("Set-WslMemory $wantGb") < ps.index("curl -fsSL $Site/install.sh | sh")
+    assert "'^\\s*(n|non|no)\\s*$'" in ps  # « n » declines; Enter accepts

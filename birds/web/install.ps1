@@ -67,6 +67,33 @@ Write-Host "·  conçu en France" -ForegroundColor DarkGray
 Write-Host "   Votre IA, chez vous. Sans abonnement." -ForegroundColor DarkGray
 Write-Host ""
 
+# WSL gets part of Windows' memory (half by default). Give it more in %UserProfile%\.wslconfig, [wsl2] section only;
+# the previous file is kept as .wslconfig.bak-bird
+function Set-WslMemory($gb) {
+  $path = Join-Path $HOME '.wslconfig'
+  $lines = @()
+  if (Test-Path $path) { $lines = @(Get-Content $path); Copy-Item $path "$path.bak-bird" -Force }
+  $out = New-Object System.Collections.Generic.List[string]
+  $section = ''
+  $done = $false
+  foreach ($l in $lines) {
+    if ($l -match '^\s*\[(.+)\]\s*$') {
+      $section = $Matches[1].Trim().ToLower()
+      $out.Add($l)
+      if ($section -eq 'wsl2' -and -not $done) { $out.Add("memory=${gb}GB"); $done = $true }
+      continue
+    }
+    if ($section -eq 'wsl2' -and $l -match '^\s*memory\s*=') { continue }
+    $out.Add($l)
+  }
+  if (-not $done) {
+    if ($out.Count -gt 0) { $out.Add('') }
+    $out.Add('[wsl2]')
+    $out.Add("memory=${gb}GB")
+  }
+  Set-Content -Path $path -Value $out -Encoding ASCII
+}
+
 function Install-Bird {
   New-Item -ItemType Directory -Force -Path $BirdHome | Out-Null
 
@@ -88,6 +115,25 @@ function Install-Bird {
       if ($freeGb -lt 25) {
         Fail "Il faut environ 25 Go libres sur le disque $($drive.Name): pour vLLM et le modèle ; il en reste $freeGb. Libérez de la place (Paramètres → Système → Stockage), puis relancez la même commande."
       }
+    }
+    # the weights (~8.5 Go) go through WSL's memory on their way to the card: with too little, loading crawls or
+    # Linux stops vLLM. Offer to give WSL more, with the user's yes (WSL restarts)
+    $wslMb = 0
+    $raw = ((& wsl.exe -e awk '/MemTotal/ {print int($2/1024)}' /proc/meminfo 2>$null) -join '').Trim()
+    [void][int]::TryParse($raw, [ref]$wslMb)
+    $winGb = [math]::Floor((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
+    $wantGb = [math]::Min(12, $winGb - 4)
+    if ($wslMb -gt 0 -and $wslMb -lt 10000 -and $wantGb -gt [math]::Floor($wslMb / 1024) + 1) {
+      Write-Host ""
+      Write-Host "WSL n'a que $([math]::Round($wslMb / 1024)) Go de mémoire vive (sur $winGb Go) : le chargement du modèle sera lent, voire interrompu." -ForegroundColor Yellow
+      $answer = Read-Host "Donner $wantGb Go à WSL ? WSL redémarre : ses fenêtres ouvertes se ferment. [O/n]"
+      if ($answer -notmatch '^\s*(n|non|no)\s*$') {
+        Set-WslMemory $wantGb
+        & wsl.exe --shutdown
+        Ok "WSL dispose maintenant de $wantGb Go (réglage : $HOME\.wslconfig)."
+      }
+    } elseif ($wslMb -gt 0 -and $wslMb -lt 10000) {
+      Write-Host "Cette machine a $winGb Go de mémoire vive : fermez les applications gourmandes pendant le chargement du modèle." -ForegroundColor Yellow
     }
     Say "WSL détecté : installation de Bird et du modèle dans WSL (quelques minutes la première fois)…"
     # settings reach WSL through WSLENV (never on a command line, never written to a file: HF_TOKEN stays private)
