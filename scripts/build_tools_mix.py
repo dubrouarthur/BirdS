@@ -917,6 +917,8 @@ DATA_TEMPLATES = [
                               "change": True}, "combo")),
     ("filtered", None, "{m} total par {d2l}, seulement pour {v}", "total {m} by {d2l}, only for {v}",
      lambda m, d, d2, t, n: ({"op": "aggregate", "measure": m, "agg": "sum", "by": d2, "sort": "desc"}, "bar")),
+    ("compare_by", "years", "compare {y1} et {y2} par {dl}", "compare {y1} and {y2} by {dl}",
+     lambda m, d, d2, t, n: ({"op": "compare", "measure": m, "agg": "sum", "time": t, "years": n, "by": d}, "bar")),
     ("corr", "two", "y a-t-il un lien entre {m} et {m2} ?", "is {m} related to {m2}?",
      lambda m, d, d2, t, n: ({"op": "corr", "x": m, "y": n}, "scatter")),
     ("describe", None, "distribution de {m}", "distribution of {m}",
@@ -952,18 +954,22 @@ def data_plan_records(seed: int = 0, heldout=DATA_HELDOUT) -> dict:
         cats = [c.name for c in f.columns if c.type in ("category", "bool")]
         dates = [c.name for c in f.columns if c.type == "date"]
         for tid, need, fr, en, build_spec in DATA_TEMPLATES:
-            if (need == "time" and not dates) or (need == "two" and len(nums) < 2) or len(cats) < 2:
+            years = sorted({v.year for v in f.col(dates[0]).values if v is not None})[-2:] if dates else []
+            if (need in ("time", "years") and not dates) or (need == "years" and len(years) < 2) \
+                    or (need == "two" and len(nums) < 2) or len(cats) < 2:  # fmt: skip
                 continue
             for lang in ("fr", "en"):
                 m, m2 = rng.sample(nums, 2) if len(nums) > 1 else (nums[0], nums[0])
                 d, d2 = rng.sample(cats, 2)
                 n = rng.choice([3, 5, 10])
                 v = next(x for x in f.col(d).values if x is not None)
-                spec, chart = build_spec(m, d, d2, dates[0] if dates else None, m2 if tid == "corr" else n)
+                arg = m2 if tid == "corr" else years if tid == "compare_by" else n
+                spec, chart = build_spec(m, d, d2, dates[0] if dates else None, arg)
                 if tid == "filtered":
                     spec["filters"] = [{"col": d, "op": "eq", "value": v}]
                 words = (fr if lang == "fr" else en).format(m=_short_col(m), m2=_short_col(m2), dl=_short_col(d),
-                                                          d2l=_short_col(d2), n=n, v=v)  # fmt: skip
+                                                          d2l=_short_col(d2), n=n, v=v,
+                                                          y1=years[0] if years else "", y2=years[-1] if years else "")  # fmt: skip
                 plan, why = P.check(f, {"analysis": spec, "chart": chart})
                 if why:
                     raise SystemExit(f"data template {tid} on {tname}: {why}")

@@ -720,10 +720,40 @@ Code : `birds/harness/analysis/` (lecture `table.py`, profil `profile.py`, moteu
   précédentes restent dans la conversation.
 - **Module = catalogue + exemples + évaluations** : entrée `analyze_table` de `catalog.py` (hors du catalogue du
   routeur : décidée par son propre appel, seulement quand un tableau est joint), enregistrements `task: "data_plan"`
-  de `scripts/build_tools_mix.py` (4 formes de tableaux × 13 gabarits FR/EN + négatifs, 2 gabarits tenus à l'écart),
+  de `scripts/build_tools_mix.py` (4 formes de tableaux × 14 gabarits FR/EN + négatifs, 2 gabarits tenus à l'écart),
   cas fixes `DATA_PLAN` / `LIVE_8` de `scripts/router_data.py`, mesure `scripts/data_eval.py`, famille
   `data_analysis` du banc de déclenchement (24/24).
 
 **Mesure hors ligne (règles seules, 14 cas fixes de `DATA_PLAN`)** : 8/14 analyses justes (2/8 sur les 8 cas
 `LIVE_8`), 12/14 graphiques acceptables. Les règles manquent « quel commercial a vendu le plus d'unités », la
 moyenne mobile, le croisement région × produit, le top 5 filtré sur une région, l'évolution en %, la part par produit.
+
+**Mesure live (28/11/2026, Bird S 4B, endpoint vLLM, `structured_outputs`, mode `hybrid`, `scripts/data_eval.py
+--cases live8`, 25 générations en tout).** Avant = les règles fixes (le comportement de la branche avant le
+planificateur) ; après = Bird choisit l'analyse. Passage 1 avec la réponse complète (planificateur + commentaire du
+modèle, numéros vérifiés) ; passage 2 après les correctifs tirés du passage 1 (réparation d'une moyenne mobile
+demandée sur un classement, deux exemples du prompt : comparaison par catégorie, évolution d'une période à l'autre).
+
+| Demande | Avant (règles) | Après, passage 1 | Après, passage 2 |
+|---|---|---|---|
+| Quel commercial a vendu le plus d'unités ? | non (total des quantités, sans regroupement) | oui (Quantité par Commercial, top 1, hbar) | oui |
+| CA mensuel avec une moyenne mobile sur 3 mois | non (moyenne par mois, sans moyenne mobile) | oui (window 3, aire) | oui |
+| CA par région et par produit | non (par région seulement) | oui (pivot Produit, empilé) | oui |
+| Les 5 clients qui rapportent le plus dans le Sud | non (aucun calcul) | non (« window » sur un classement : refusé, repli sur les règles) | oui (filtre Sud, top 5 ; anneau au lieu de hbar) |
+| Évolution du CA d'un trimestre à l'autre, en % | non (total mensuel) | non (mois au lieu de trimestre, + moyenne mobile) | non (change juste, mois au lieu de trimestre) |
+| Compare 2024 et 2025 par produit | oui | non (comparaison sans « par produit ») | non (idem) |
+| Quelle part du CA fait chaque produit ? | non (aucun calcul) | oui (parts, anneau) | oui |
+| Résume ce fichier en deux phrases | oui (aucun calcul) | oui (null) | oui |
+| **Analyses justes** | **2/8** | **5/8** | **6/8** |
+| Graphique acceptable | 6/8 | 7/8 | 7/8 |
+| Latence du planificateur (p50) | 0 s | 0,9 s | 0,9 s |
+
+Réponses du passage 1 (commentaire du modèle sur le résultat du moteur) : 4/8 avec tous les chiffres retrouvés dans le
+résultat ; 2 remplacées par la phrase exacte du harnais (« autour de 35 000 € », une somme de trois parts écrite par
+le modèle) ; 2 tours sans résultat calculé où le modèle avait écrit des chiffres introuvables (une remise moyenne de
+3,9 % au lieu de 5,03 %, une liste inventée de 5 clients) : ils étaient seulement signalés ; depuis, ces phrases sont
+retirées et, s'il ne reste presque rien, le harnais dit ce qu'il a lu et demande le calcul voulu (test dédié, pas de
+nouveau passage live : budget de 25 générations atteint). Les deux erreurs restantes du planificateur (grain du
+trimestre, « par produit » d'une comparaison) sont couvertes par les enregistrements `data_plan` (gabarits
+`change`, `compare_by`) pour le prochain affinage ; elles ne donnent pas de chiffre faux : l'analyse affichée est
+exacte, seulement moins précise que la demande.
