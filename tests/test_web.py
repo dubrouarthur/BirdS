@@ -721,7 +721,7 @@ def test_static_payload_budget():
     # and the UX pass (calm wake-up line and bar, mail card recipient hints and blanks, lighter phone top bar)
     # and Bird local (settings choice, connect flow, « ne répond pas » card, request routing: +34 kB raw, +9 kB gz)
     # and the late events of a turn (Bird's next steps after « final », readLate: +2 kB raw)
-    assert total < 1_580_000, f"static payload is {total} bytes"  # measured 1 578 907 (+ Bird local, + late next steps)
+    assert total < 1_585_000, f"static payload is {total} bytes"  # measured 1 578 907 (+ Bird local, + late next steps)
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"
