@@ -1,0 +1,46 @@
+// Strings of the answer content (answers.js: math, citations, copy, feedback, the work line; tool labels), French
+// first with English parity (tests/js/answers.test.mjs). Kept apart from i18n.js and merged into its STRINGS at load.
+
+export const ANSWER_STRINGS = {
+  fr: {
+    // every tool of the harness has a human label (tests/test_answers.py): never « lookup_entity » on screen
+    "tool.lookup_entity": "Fiche encyclopédique",
+    "tool.find_commune": "Fiche de la commune",
+    "tool.get_statistics": "Statistiques publiques",
+    "tool.find_papers": "Publications scientifiques",
+    "tool.find_tenders": "Appels d'offres publics",
+    "tool.work_calendar": "Calendrier des jours ouvrés",
+    "tool.clock": "Heure et fuseaux",
+    "tool.unknown": "Outil",
+    "live.lookup_entity": "Bird consulte l'encyclopédie",
+    "live.find_commune": "Bird consulte la fiche de la commune",
+    "live.get_statistics": "Bird consulte les statistiques publiques",
+    "live.find_papers": "Bird cherche des publications",
+    "live.find_tenders": "Bird cherche des appels d'offres",
+    "live.work_calendar": "Bird compte les jours ouvrés",
+    "live.find_places": "Bird cherche des lieux",
+    "live.find_company": "Bird consulte l'annuaire des entreprises",
+    "live.convert_currency": "Bird convertit les devises",
+    "live.get_weather": "Bird consulte la météo",
+  },
+  en: {
+    "tool.lookup_entity": "Encyclopedia card",
+    "tool.find_commune": "Municipality profile",
+    "tool.get_statistics": "Public statistics",
+    "tool.find_papers": "Research papers",
+    "tool.find_tenders": "Public tenders",
+    "tool.work_calendar": "Working-day calendar",
+    "tool.clock": "Time and time zones",
+    "tool.unknown": "Tool",
+    "live.lookup_entity": "Bird is checking the encyclopedia",
+    "live.find_commune": "Bird is reading the municipality profile",
+    "live.get_statistics": "Bird is checking public statistics",
+    "live.find_papers": "Bird is looking for research papers",
+    "live.find_tenders": "Bird is looking for public tenders",
+    "live.work_calendar": "Bird is counting working days",
+    "live.find_places": "Bird is looking for places",
+    "live.find_company": "Bird is checking the company register",
+    "live.convert_currency": "Bird is converting currencies",
+    "live.get_weather": "Bird is checking the weather",
+  },
+};

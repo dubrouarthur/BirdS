@@ -19,6 +19,7 @@ import {
   store,
   t,
   toast,
+  toolLabel,
   modelLabel,
 } from "./core.js";
 import { mountFootprintPage, recordFootprint } from "./footprint.js";
@@ -903,7 +904,7 @@ export function toolsPanel() {
           h(
             "span",
             { class: "tool-text" },
-            h("span", { class: "tool-name", text: t(`tool.${x.name}`) }),
+            h("span", { class: "tool-name", text: toolLabel(x.name) }),
             h("span", { class: "tool-why", text: x[lang] || "" }),
           ),
           h("span", {

@@ -728,8 +728,12 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     # Mode Réflexion keeps its strings apart (reflexion-i18n.js, merged at load; parity in tests/js/reflexion.test.mjs)
     rf = (STATIC_DIR / "reflexion-i18n.js").read_text().split("\n  en: {", 1)[0]
     fr |= set(re.findall(r'^\s+"(rf\.[\w.]+)":', rf, re.M))
+    # the answer-content strings (answers-i18n.js, merged at load in core.js; parity in tests/test_answers.py)
+    ans = (STATIC_DIR / "answers-i18n.js").read_text().split("\n  en: {", 1)[0]
+    fr |= set(re.findall(r'^\s+"([a-z][\w.]*)":', ans, re.M))
     used = set()
-    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js"]:
+    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js",
+                 "answers.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))
     used |= set(re.findall(r'data-i18n(?:-aria|-placeholder)?="([\w.]+)"', (STATIC_DIR / "index.html").read_text()))
     assert not used - fr, sorted(used - fr)

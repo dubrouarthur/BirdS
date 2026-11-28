@@ -1,6 +1,10 @@
 // Shared pieces: state, storage, i18n, DOM helpers, icons, formatting, toasts.
 import { normalizeChoice, thinks } from "./reflexion-data.js";
-import { makeT } from "./i18n.js";
+import { STRINGS, makeT } from "./i18n.js";
+import { ANSWER_STRINGS } from "./answers-i18n.js";
+
+// the answer-content strings (tool labels, math, citations, copy, feedback) join the dictionary at load
+for (const [lang, strings] of Object.entries(ANSWER_STRINGS)) Object.assign(STRINGS[lang], strings);
 
 export const $ = (id) => document.getElementById(id);
 
@@ -281,10 +285,11 @@ export function fmtEnergy(wh, kind) {
   return `< ${nf({ maximumFractionDigits: 2 }).format(0.01)} mWh`;
 }
 export const fmtCo2 = (g) => `≈ ${fmtSig(g)} g CO₂e`;
+// a tool id never reaches the screen: an unknown one (a tool added without its label) reads « Outil »
 export const toolLabel = (tool) => {
   const key = `tool.${tool}`;
   const label = t(key);
-  return label === key ? String(tool) : label;
+  return label === key ? t("tool.unknown") : label;
 };
 export function fmtDate(ts) {
   try {
