@@ -208,9 +208,9 @@ Bruno : données
 Chloé : design
 :::
 # Exemple de code
-```python
+::: code lang=python
 print("Bonjour")
-```
+:::
 # Merci
 - Des questions ?
 - contact : l'équipe projet

@@ -257,3 +257,21 @@ def test_the_cover_picture_is_resolved_and_can_be_switched_off():
     d2 = dsl.parse("---\ntitle: T\nimage: montagne\n---\n# A\n- x\n# B\n- y\n", "deck")
     d2["cover"]["off"] = True
     assert images.resolve(d2, images.finder("demo")) == []
+
+
+@pytest.mark.parametrize(
+    "words, kind",
+    [
+        ("Fais une présentation sur la mobilité douce en ville pour un conseil municipal", "deck"),  # not « conseils »
+        ("Fais une présentation qui compare le télétravail et le travail au bureau", "deck"),  # what the deck does
+        ("Compare le télétravail et le bureau", None),
+        ("Quels conseils pour réussir une présentation ?", None),
+        ("des conseils pour le conseil municipal ?", None),
+        ("Explique-moi cette présentation", None),
+    ],
+)
+def test_known_false_vetoes_of_a_deck_request(words, kind):
+    """Two decks of the live measure (docs/CANVAS.md § 9) were vetoed by a guard word: fixed, the guards kept."""
+    from birds.canvas import intents
+
+    assert intents.ask(words) == kind
