@@ -148,7 +148,17 @@ def build(args: argparse.Namespace, status: local.VllmStatus, code: str):
     return app
 
 
+def safe_console(*streams) -> None:
+    """A Windows console or a redirected output in cp1252 cannot print « ─ » or « → »: replace, never crash."""
+    for stream in streams or (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    safe_console()
     args = parse_args(argv)
     lang = args.lang
     print(say("checking", lang, url=args.vllm_url), flush=True)

@@ -303,3 +303,21 @@ def test_command_refuses_wide_origins_and_prints_the_vllm_command(capsys, monkey
     assert mod.main(["--no-browser"]) == 2
     out = capsys.readouterr().out
     assert "vllm serve adubrou/Bird-S-4B --host 127.0.0.1 --port 8000" in out and "Aucun serveur" in out
+
+
+def test_command_output_never_crashes_on_a_cp1252_console():
+    """Windows: a console or redirected output in cp1252 has no « ─ »; the banner is printed with replacements."""
+    import importlib.util
+    import io
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("bird_local", Path(__file__).parents[1] / "scripts" / "bird_local.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    with pytest.raises(UnicodeEncodeError):
+        "─".encode("cp1252")
+    raw = io.BytesIO()
+    out = io.TextIOWrapper(raw, encoding="cp1252")
+    mod.safe_console(out)
+    print("─" * 4 + " → Réglages", file=out, flush=True)
+    assert raw.getvalue().endswith("???? ? Réglages\n".encode("cp1252"))
