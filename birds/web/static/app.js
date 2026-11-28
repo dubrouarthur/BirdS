@@ -64,8 +64,7 @@ import { applyResearchEvent } from "./research.js";
 import { mountPicker, updatePicker } from "./reflexion.js"; // Mode Réflexion: the bird picker
 import { normalizeChoice, thinks } from "./reflexion-data.js";
 
-// Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
-const AGENT_MODES = ["auto", "on", "off"];
+import { loadAgentMode } from "./agent-mode.js"; // Mode Agent: Auto by default; Activé for this session only
 let planTimer = 0; // the plan card's countdown (Auto, high confidence)
 let teamDone = false; // a team finished while the tab was hidden: « ✓ » in the tab title
 // Mode Réflexion and the Settings reasoning switch say the same thing: the bird picked is the more precise choice,
@@ -77,7 +76,7 @@ if (!!state.prefs.thinking !== state.thinking) {
 let prefsThinking = !!state.prefs.thinking;
 // No byte (data or heartbeat) for this long: the stream is dead. Just over 3x the server's heartbeat (10 s).
 const STALL_MS = 35000;
-state.agent = AGENT_MODES.includes(store.get("bird.agent")) ? store.get("bird.agent") : "auto";
+state.agent = loadAgentMode(globalThis.localStorage, globalThis.sessionStorage);
 
 const PASTE_AS_FILE = 3000; // characters: longer pasted text becomes an attached document
 const KEEP_FILE_B64 = 400_000; // larger generated files are not kept in localStorage
@@ -1312,7 +1311,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         code_checks: Array.isArray(event.code_checks) ? event.code_checks.slice(0, 50) : [], // syntax badges
         widgets: Array.isArray(event.widgets) ? event.widgets : [],
         fallback: event.fallback ? String(event.fallback) : "", // written from the results, not by the model
-        canvas: event.canvas?.aid ? { aid: event.canvas.aid, version: event.canvas.version, doc: !!event.canvas.doc } : null,
+        canvas: event.canvas?.aid ? canvasRef(event.canvas) : null,
         reflexion: event.reflexion && typeof event.reflexion === "object" ? event.reflexion : null, // checked when drawn
       };
       if (event.plan !== undefined) turn.plan = cleanPlan(event.plan); // the final checklist, or none
@@ -1423,8 +1422,10 @@ async function runTurn(turn, extra = {}) {
       thinking: !!turn.thinking,
       reflexion: normalizeChoice(turn.reflexion || state.reflexion),
       agent: turn.agent || state.agent, // "off" for the resend of « Revenir au mode simple »
-      // a decided team shows its plan card first (agents.js renderPlan); « Lancer » sends agent_plan
-      ...((turn.agent || state.agent) !== "off" ? { agent_flow: "plan" } : {}),
+      // a decided team starts at once: no plan card to approve (asked for nothing but the task); "run" lets the
+      // server split a long task into slices the app continues on its own
+      // (the plan-card-first flow stays for its tests: localStorage « bird.agentPlan » = "1")
+      ...((turn.agent || state.agent) !== "off" ? { agent_flow: store.get("bird.agentPlan") === "1" ? "plan" : "run" } : {}),
       lang: state.prefs.lang,
       attachments: docs.map(({ name, content, encoding, ocr }) => ({
         name,
@@ -2361,18 +2362,11 @@ async function loadHealth() {
   }
   state.health = health;
   showBanner("");
-  let sessionDemo = false;
-  try {
-    sessionDemo = sessionStorage.getItem("bird.demoSession") === "1";
-  } catch {
-    /* no storage: no demo kept */
-  }
-  if (state.prefs.mode === "demo" && state.health?.modes?.server && !(state.prefs.demoChosen && sessionDemo)) {
-    // the demo is never sticky: a visitor who tried it (or picked it in an earlier visit) comes back on the real model
+  if (state.prefs.mode === "demo" && state.health?.modes?.server) {
+    // a real model is connected: the demo is gone, whatever an earlier visit stored
     state.prefs.mode = "";
     state.prefs.demoChosen = false;
     savePrefs();
-    toast(t("mode.switched"), "ok");
   }
 }
 
@@ -2438,6 +2432,10 @@ async function init() {
     },
     headers: requestHeaders,
     save: (c) => saveConv(c),
+    // a document changed in the canvas (an edit, a chosen variant, a restore): its cards in the chat follow
+    changed: (aid) => {
+      for (const tn of state.conv?.turns || []) if (tn.answer?.canvas?.aid === aid) updateTurn(tn);
+    },
     busy: () => state.busy || !!pendingConfirm(),
     mode: activeMode,
     // on a laptop the canvas takes the sidebar's room while it is open; the saved preference is kept
@@ -2514,3 +2512,29 @@ async function init() {
 }
 
 init();
+
+/** The answer's link to its canvas artifact, as kept on the turn: the next-step chips the harness computed from
+ * the document's structure, the file cards it replaces (a Word document is one card, in the canvas), and for a
+ * code page what it already has (for its next-step chips). */
+function canvasRef(c) {
+  const str = (x) => typeof x === "string";
+  const out = {
+    aid: c.aid,
+    version: c.version,
+    doc: !!c.doc,
+    variants: !!c.variants,
+    next: (Array.isArray(c.next) ? c.next : [])
+      .filter((x) => x && str(x.label) && str(x.prompt))
+      .slice(0, 3)
+      .map((x) => ({ label: x.label.slice(0, 60), prompt: x.prompt.slice(0, 200) })),
+    files: (Array.isArray(c.files) ? c.files : []).filter(str).slice(0, 8),
+  };
+  if (c.kind === "code" && c.hints && typeof c.hints === "object") {
+    out.kind = "code";
+    out.hints = Object.fromEntries(
+      ["web", "dark", "mobile", "js"].map((k) => [k, c.hints[k] === true]),
+    );
+    out.hints.lang = typeof c.hints.lang === "string" ? c.hints.lang.slice(0, 12) : "";
+  }
+  return out;
+}

@@ -239,7 +239,7 @@ function renderSteps(turn) {
           ),
           step.info?.label &&
             h("span", {
-              class: `badge badge-src${step.info.fallback_from ? " badge-warn" : ""}`,
+              class: "badge badge-src", // a fallback is a calm line in the step, never a warning
               title: step.info.fallback_from
                 ? t("steps.fallback", { from: step.info.fallback_from, label: step.info.label })
                 : t("steps.via", { label: step.info.label }),
@@ -626,8 +626,9 @@ function filePreview(preview, onDownload, onEdit = null) {
 }
 
 function renderFiles(turn) {
+  const inCanvas = turn.answer?.canvas?.files || []; // a Word document is one card: the canvas card
   const files = (turn.files || []).filter(
-    (f) => f && typeof f.name === "string",
+    (f) => f && typeof f.name === "string" && !inCanvas.includes(f.name),
   );
   if (!files.length) return null;
   turn.ui.fileOpen = turn.ui.fileOpen || {};

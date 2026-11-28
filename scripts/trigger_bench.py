@@ -1236,6 +1236,8 @@ if __name__ == "__main__":
         ("agent_study", STUDY_YES, STUDY_NO, study_routed, study_touched),
         ("maps_real", bench_maps.MAPS_REAL, bench_maps.MAPS_OFFICE_NO, bench_maps.correct, bench_maps.detected),
         ("maps_heldout", bench_maps.MAPS_HELDOUT, bench_maps.MAPS_HELDOUT_NO, bench_maps.correct, bench_maps.detected),
+        ("maps_category", [(q, k, n, m) for q, k, n, m in bench_maps.MAPS_CATEGORY], bench_maps.MAPS_CATEGORY_NO,
+         bench_maps.category_ok, bench_maps.category_touched),
         ("canvas", CANVAS_YES + CANVAS_CODE_FROM_OFFICE, CANVAS_NO + CANVAS_OFFICE_NO, canvas_opened, canvas_touched),
         ("canvas_edit", CANVAS_EDIT_YES, CANVAS_EDIT_NO, canvas_edited),
         ("cards", CARD_YES, CARD_NO, card_kind),

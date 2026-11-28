@@ -1,0 +1,1043 @@
+[
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Sommaire",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "Le contexte",
+      "Les chiffres",
+      "La méthode",
+      "La suite"
+     ],
+     "ordered": false
+    }
+   ]
+  },
+  "index": 0,
+  "total": 21,
+  "layout": "agenda",
+  "fits": [
+   "section",
+   "agenda",
+   "bullets",
+   "columns",
+   "steps",
+   "cards",
+   "closing"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Première partie",
+   "parts": []
+  },
+  "index": 1,
+  "total": 21,
+  "layout": "section",
+  "fits": [
+   "section",
+   "closing"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Message clé",
+   "parts": [
+    {
+     "t": "text",
+     "text": "La légèreté ouvre la voie : un modèle qui s'installe où l'on veut."
+    }
+   ]
+  },
+  "index": 2,
+  "total": 21,
+  "layout": "statement",
+  "fits": [
+   "section",
+   "statement",
+   "bullets",
+   "columns",
+   "closing"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Les points",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "Un modèle conçu en France",
+      "Installé sur vos serveurs ou dans le nuage",
+      "Des sources d'énergie variées",
+      "Une interface simple"
+     ],
+     "ordered": false
+    }
+   ]
+  },
+  "index": 3,
+  "total": 21,
+  "layout": "bullets",
+  "fits": [
+   "section",
+   "agenda",
+   "bullets",
+   "columns",
+   "steps",
+   "cards",
+   "closing"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Une longue liste",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "Accueil",
+      "Recherche",
+      "Documents",
+      "Diapositives",
+      "Tableaux",
+      "Graphiques",
+      "Cartes",
+      "Agents"
+     ],
+     "ordered": false
+    }
+   ],
+   "layout": "columns"
+  },
+  "index": 4,
+  "total": 21,
+  "layout": "columns",
+  "fits": [
+   "section",
+   "agenda",
+   "bullets",
+   "columns",
+   "closing"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Un chiffre clé",
+   "parts": [
+    {
+     "t": "kpi",
+     "items": [
+      {
+       "value": "92 %",
+       "label": "Des équipes satisfaites (exemple)",
+       "delta": "+6 pts"
+      }
+     ]
+    }
+   ]
+  },
+  "index": 5,
+  "total": 21,
+  "layout": "figure",
+  "fits": [
+   "figure"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Chiffres clés",
+   "parts": [
+    {
+     "t": "kpi",
+     "items": [
+      {
+       "value": "3",
+       "label": "Équipes pilotes",
+       "delta": ""
+      },
+      {
+       "value": "6 semaines",
+       "label": "De test",
+       "delta": ""
+      },
+      {
+       "value": "2",
+       "label": "Indicateurs",
+       "delta": ""
+      }
+     ]
+    }
+   ]
+  },
+  "index": 6,
+  "total": 21,
+  "layout": "kpis",
+  "fits": [
+   "figure",
+   "kpis"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Avant / après",
+   "parts": [
+    {
+     "t": "compare",
+     "columns": [
+      {
+       "title": "Avant",
+       "items": [
+        "Papier",
+        "Lent"
+       ]
+      },
+      {
+       "title": "Après",
+       "items": [
+        "Numérique",
+        "Rapide"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "index": 7,
+  "total": 21,
+  "layout": "versus",
+  "fits": [
+   "versus",
+   "compare"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Trois options",
+   "parts": [
+    {
+     "t": "compare",
+     "columns": [
+      {
+       "title": "Option A",
+       "items": [
+        "Rapide",
+        "Peu chère"
+       ]
+      },
+      {
+       "title": "Option B",
+       "items": [
+        "Équilibrée",
+        "Coût moyen"
+       ]
+      },
+      {
+       "title": "Option C",
+       "items": [
+        "Complète",
+        "Plus chère"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "index": 8,
+  "total": 21,
+  "layout": "compare",
+  "fits": [
+   "compare"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Calendrier",
+   "parts": [
+    {
+     "t": "timeline",
+     "items": [
+      {
+       "when": "Janvier",
+       "what": "cadrage"
+      },
+      {
+       "when": "Mars",
+       "what": "pilote"
+      },
+      {
+       "when": "Juin",
+       "what": "bilan"
+      },
+      {
+       "when": "Septembre",
+       "what": "déploiement"
+      }
+     ]
+    }
+   ]
+  },
+  "index": 9,
+  "total": 21,
+  "layout": "timeline",
+  "fits": [
+   "timeline",
+   "steps"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Méthode",
+   "parts": [
+    {
+     "t": "steps",
+     "items": [
+      {
+       "title": "Cadrer",
+       "text": "objectifs"
+      },
+      {
+       "title": "Tester",
+       "text": "pilote"
+      },
+      {
+       "title": "Mesurer",
+       "text": "indicateurs"
+      },
+      {
+       "title": "Décider",
+       "text": "comité"
+      }
+     ]
+    }
+   ]
+  },
+  "index": 10,
+  "total": 21,
+  "layout": "steps",
+  "fits": [
+   "steps",
+   "cards"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Ce qu'on attend",
+   "parts": [
+    {
+     "t": "quote",
+     "text": "Mesurer avant de généraliser.",
+     "by": "Principe du pilote"
+    }
+   ]
+  },
+  "index": 11,
+  "total": 21,
+  "layout": "quote",
+  "fits": [
+   "quote"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Sur le terrain",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "Des équipes formées en deux jours",
+      "Un pilote suivi chaque semaine",
+      "Des retours partagés"
+     ],
+     "ordered": false
+    },
+    {
+     "t": "image",
+     "query": "atelier équipe",
+     "alt": "atelier équipe",
+     "caption": ""
+    }
+   ]
+  },
+  "index": 12,
+  "total": 21,
+  "layout": "image-right",
+  "fits": [
+   "section",
+   "image-left",
+   "image-right",
+   "closing"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "En ville",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "Des trajets plus courts",
+      "Moins de voitures",
+      "Plus de vélos"
+     ],
+     "ordered": false
+    },
+    {
+     "t": "image",
+     "query": "vélo en ville",
+     "alt": "vélo en ville",
+     "caption": ""
+    }
+   ],
+   "layout": "image-left"
+  },
+  "index": 13,
+  "total": 21,
+  "layout": "image-left",
+  "fits": [
+   "section",
+   "image-left",
+   "image-right",
+   "closing"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Plein cadre",
+   "parts": [
+    {
+     "t": "text",
+     "text": "La forêt, notre meilleure alliée."
+    },
+    {
+     "t": "image",
+     "query": "forêt",
+     "alt": "forêt",
+     "caption": ""
+    }
+   ]
+  },
+  "index": 14,
+  "total": 21,
+  "layout": "image-full",
+  "fits": [
+   "section",
+   "statement",
+   "image-left",
+   "image-right",
+   "image-full",
+   "closing"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Galerie",
+   "parts": [
+    {
+     "t": "image",
+     "query": "mer",
+     "alt": "mer",
+     "caption": ""
+    },
+    {
+     "t": "image",
+     "query": "montagne",
+     "alt": "montagne",
+     "caption": ""
+    },
+    {
+     "t": "image",
+     "query": "ville",
+     "alt": "ville",
+     "caption": ""
+    }
+   ]
+  },
+  "index": 15,
+  "total": 21,
+  "layout": "image-grid",
+  "fits": [
+   "image-grid"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Évolution (exemple)",
+   "parts": [
+    {
+     "t": "chart",
+     "type": "bar",
+     "unit": "%",
+     "title": "Évolution (exemple)",
+     "columns": [
+      "",
+      "%"
+     ],
+     "rows": [
+      [
+       "2023",
+       12.0
+      ],
+      [
+       "2024",
+       18.0
+      ],
+      [
+       "2025",
+       26.0
+      ]
+     ],
+     "source": ""
+    },
+    {
+     "t": "text",
+     "text": "La part progresse chaque année."
+    }
+   ]
+  },
+  "index": 16,
+  "total": 21,
+  "layout": "chart",
+  "fits": [
+   "chart"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Tableau",
+   "parts": [
+    {
+     "t": "table",
+     "rows": [
+      [
+       "Option",
+       "Coût",
+       "Délai"
+      ],
+      [
+       "Pilote",
+       "20 k€",
+       "6 semaines"
+      ],
+      [
+       "Déploiement",
+       "120 k€",
+       "6 mois"
+      ]
+     ]
+    }
+   ]
+  },
+  "index": 17,
+  "total": 21,
+  "layout": "table",
+  "fits": [
+   "table"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "L'équipe",
+   "parts": [
+    {
+     "t": "cards",
+     "items": [
+      {
+       "title": "Alice",
+       "text": "cheffe de projet"
+      },
+      {
+       "title": "Bruno",
+       "text": "données"
+      },
+      {
+       "title": "Chloé",
+       "text": "design"
+      }
+     ]
+    }
+   ]
+  },
+  "index": 18,
+  "total": 21,
+  "layout": "cards",
+  "fits": [
+   "cards"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Exemple de code",
+   "parts": [
+    {
+     "t": "code",
+     "lang": "python",
+     "text": "print(\"Bonjour\")"
+    }
+   ]
+  },
+  "index": 19,
+  "total": 21,
+  "layout": "code",
+  "fits": [
+   "code"
+  ]
+ },
+ {
+  "note": "gallery",
+  "block": {
+   "title": "Merci",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "Des questions ?",
+      "contact : l'équipe projet"
+     ],
+     "ordered": false
+    }
+   ]
+  },
+  "index": 20,
+  "total": 21,
+  "layout": "closing",
+  "fits": [
+   "section",
+   "agenda",
+   "bullets",
+   "columns",
+   "steps",
+   "cards",
+   "closing"
+  ]
+ },
+ {
+  "note": "demo deck",
+  "block": {
+   "title": "Sommaire",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "Contexte",
+      "Chiffres clés",
+      "Méthode",
+      "Prochaines étapes"
+     ],
+     "ordered": false
+    }
+   ]
+  },
+  "index": 0,
+  "total": 7,
+  "layout": "agenda",
+  "fits": [
+   "section",
+   "agenda",
+   "bullets",
+   "columns",
+   "steps",
+   "cards",
+   "closing"
+  ]
+ },
+ {
+  "note": "demo deck",
+  "block": {
+   "title": "Contexte",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "Pourquoi le sujet compte aujourd'hui",
+      "Ce que l'équipe a déjà observé",
+      "Ce qui reste à décider"
+     ],
+     "ordered": false
+    },
+    {
+     "t": "image",
+     "query": "x",
+     "alt": "x",
+     "caption": ""
+    }
+   ]
+  },
+  "index": 1,
+  "total": 7,
+  "layout": "image-left",
+  "fits": [
+   "section",
+   "image-left",
+   "image-right",
+   "closing"
+  ]
+ },
+ {
+  "note": "demo deck",
+  "block": {
+   "title": "Chiffres clés (exemple)",
+   "parts": [
+    {
+     "t": "kpi",
+     "items": [
+      {
+       "value": "3",
+       "label": "Équipes pilotes",
+       "delta": ""
+      },
+      {
+       "value": "6 semaines",
+       "label": "De test",
+       "delta": ""
+      },
+      {
+       "value": "2",
+       "label": "Indicateurs suivis",
+       "delta": ""
+      }
+     ]
+    }
+   ]
+  },
+  "index": 2,
+  "total": 7,
+  "layout": "kpis",
+  "fits": [
+   "figure",
+   "kpis"
+  ]
+ },
+ {
+  "note": "demo deck",
+  "block": {
+   "title": "Aujourd'hui et demain",
+   "parts": [
+    {
+     "t": "compare",
+     "columns": [
+      {
+       "title": "Aujourd'hui",
+       "items": [
+        "Outils dispersés",
+        "Suivi à la main"
+       ]
+      },
+      {
+       "title": "Demain",
+       "items": [
+        "Un seul espace partagé",
+        "Indicateurs communs"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  "index": 3,
+  "total": 7,
+  "layout": "versus",
+  "fits": [
+   "versus",
+   "compare"
+  ]
+ },
+ {
+  "note": "demo deck",
+  "block": {
+   "title": "Méthode",
+   "parts": [
+    {
+     "t": "steps",
+     "items": [
+      {
+       "title": "Cadrer",
+       "text": "objectifs et équipe"
+      },
+      {
+       "title": "Tester",
+       "text": "pilote de six semaines"
+      },
+      {
+       "title": "Mesurer",
+       "text": "deux indicateurs"
+      },
+      {
+       "title": "Décider",
+       "text": "bilan en comité"
+      }
+     ]
+    }
+   ]
+  },
+  "index": 4,
+  "total": 7,
+  "layout": "steps",
+  "fits": [
+   "steps",
+   "cards"
+  ]
+ },
+ {
+  "note": "demo deck",
+  "block": {
+   "title": "Ce qu'on attend",
+   "parts": [
+    {
+     "t": "quote",
+     "text": "Mesurer avant de généraliser.",
+     "by": "Principe du pilote"
+    }
+   ]
+  },
+  "index": 5,
+  "total": 7,
+  "layout": "quote",
+  "fits": [
+   "quote"
+  ]
+ },
+ {
+  "note": "demo deck",
+  "block": {
+   "title": "Prochaines étapes",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "Choisir l'équipe pilote",
+      "Fixer les indicateurs",
+      "Planifier le bilan"
+     ],
+     "ordered": false
+    }
+   ]
+  },
+  "index": 6,
+  "total": 7,
+  "layout": "closing",
+  "fits": [
+   "section",
+   "agenda",
+   "bullets",
+   "columns",
+   "steps",
+   "cards",
+   "closing"
+  ]
+ },
+ {
+  "note": "edge cases",
+  "block": {
+   "title": "Contexte",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "a",
+      "b"
+     ],
+     "ordered": false
+    }
+   ],
+   "layout": "versus"
+  },
+  "index": 0,
+  "total": 6,
+  "layout": "bullets",
+  "fits": [
+   "section",
+   "agenda",
+   "bullets",
+   "columns",
+   "steps",
+   "cards",
+   "closing"
+  ]
+ },
+ {
+  "note": "edge cases",
+  "block": {
+   "title": "Image",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "un point assez long pour ne pas être une légende, vraiment assez long, oui, plus de cent soixante caractères au total pour tester la règle de bascule",
+      "deux"
+     ],
+     "ordered": false
+    },
+    {
+     "t": "image",
+     "query": "x",
+     "alt": "x",
+     "caption": ""
+    }
+   ]
+  },
+  "index": 1,
+  "total": 6,
+  "layout": "image-left",
+  "fits": [
+   "section",
+   "image-left",
+   "image-right",
+   "closing"
+  ]
+ },
+ {
+  "note": "edge cases",
+  "block": {
+   "title": "Image deux",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "un point assez long pour ne pas être une légende, vraiment assez long, oui, plus de cent soixante caractères au total pour tester la règle de bascule",
+      "deux"
+     ],
+     "ordered": false
+    },
+    {
+     "t": "image",
+     "query": "y",
+     "alt": "y",
+     "caption": ""
+    }
+   ]
+  },
+  "index": 2,
+  "total": 6,
+  "layout": "image-right",
+  "fits": [
+   "section",
+   "image-left",
+   "image-right",
+   "closing"
+  ]
+ },
+ {
+  "note": "edge cases",
+  "block": {
+   "title": "Avant",
+   "parts": [
+    {
+     "t": "heading",
+     "text": "Avant",
+     "level": 3
+    },
+    {
+     "t": "list",
+     "items": [
+      "a",
+      "b"
+     ],
+     "ordered": false
+    },
+    {
+     "t": "heading",
+     "text": "Après",
+     "level": 3
+    },
+    {
+     "t": "list",
+     "items": [
+      "c",
+      "d"
+     ],
+     "ordered": false
+    }
+   ]
+  },
+  "index": 3,
+  "total": 6,
+  "layout": "versus",
+  "fits": [
+   "agenda",
+   "bullets",
+   "columns",
+   "versus",
+   "compare",
+   "steps",
+   "cards"
+  ]
+ },
+ {
+  "note": "edge cases",
+  "block": {
+   "title": "Etapes",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "un",
+      "deux",
+      "trois"
+     ],
+     "ordered": true
+    }
+   ],
+   "layout": "steps"
+  },
+  "index": 4,
+  "total": 6,
+  "layout": "steps",
+  "fits": [
+   "section",
+   "agenda",
+   "bullets",
+   "columns",
+   "steps",
+   "cards",
+   "closing"
+  ]
+ },
+ {
+  "note": "edge cases",
+  "block": {
+   "title": "Conclusion",
+   "parts": [
+    {
+     "t": "list",
+     "items": [
+      "merci"
+     ],
+     "ordered": false
+    }
+   ]
+  },
+  "index": 5,
+  "total": 6,
+  "layout": "closing",
+  "fits": [
+   "section",
+   "statement",
+   "bullets",
+   "columns",
+   "closing"
+  ]
+ }
+]

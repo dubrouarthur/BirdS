@@ -1881,6 +1881,7 @@ _SEARCH_CODES = {
     "search_unauthorized": ("Clé de l'API de recherche refusée", "Search API key refused"),
     "search_bad_request": ("Requête refusée par le moteur de recherche", "Query refused by the search engine"),
     "search_failed": ("Le moteur de recherche n'a pas répondu", "The search engine did not answer"),
+    "search_unavailable": ("Recherche web indisponible pour le moment", "Web search unavailable for now"),
 }
 
 
@@ -2026,7 +2027,8 @@ def run_lang(raw_last: str, conv: str) -> str:
     and twice as many as the other language). "ok", "oui" or a bare URL keep the conversation's language."""
     from birds.harness.agent import _EN, _FR
 
-    n_fr, n_en = len(_FR.findall(raw_last or "")), len(_EN.findall(raw_last or ""))
+    raw_last = re.sub(r"«[^»]{0,2000}»", " ", raw_last or "")  # quoted words (an error message) are not the request's
+    n_fr, n_en = len(_FR.findall(raw_last)), len(_EN.findall(raw_last))
     if max(n_fr, n_en) >= 3:
         if n_fr >= 2 * n_en and n_fr > n_en:
             return "fr"
@@ -2394,6 +2396,10 @@ class HarnessBackend:
             def on_step_end(index: int, step) -> None:
                 ctx.emit(self._step_event(index + offset, step, lang))
                 cards = self._live_widgets(step, ctx, lang)
+                from .widgets import _same_card
+
+                shown = {_same_card(w) for _, _, got in live for w in got}
+                cards = [w for w in cards if _same_card(w) not in shown]  # the same places found twice: one card
                 if cards:
                     live.append((index + offset, step, cards))
                     ctx.emit({"type": "widget", "index": index + offset, "widgets": cards})
@@ -2419,6 +2425,7 @@ class HarnessBackend:
                 hooks=hooks,
             )
             carry = {"seconds": 0.0, "energy_wh": None}
+            words = ""  # the user's own words (a resumed confirmation has none of its own)
             if request.resume is not None:
                 if request.resume.get("k") not in ("harness", "crew"):
                     raise ValueError("this confirmation does not belong to this backend")
@@ -2501,10 +2508,10 @@ class HarnessBackend:
                         else:
                             decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
                             if request.reflexion == "albatros" and decision.recipe is None and request.agent == "auto":
-                                # Albatros, Endurance: a request the team can take runs as a team (crew « on »)
-                                strong = crew_web.decide_for(request, words, len(names), len(image_texts), rl,
-                                                             mode="on")  # fmt: skip
-                                decision = strong if strong.recipe and not strong.no_deliverable else decision
+                                # Albatros, Endurance: a team task runs as a team; the router says which ones are
+                                strong = crew_web.albatros_decision(agent, request, words, len(names),
+                                                                    len(image_texts), rl, history=kept)  # fmt: skip
+                                decision = strong or decision
                             run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
                                                     system=system, lang=rl, names=names, workspace=workspace,
                                                     history=kept)  # fmt: skip
@@ -2534,7 +2541,7 @@ class HarnessBackend:
             if run.stop_reason in ("plan", "slice"):  # the plan card, or a long task's slice: its events are sent
                 return
             if run.stop_reason != "confirm":
-                canvas_web.adopt_files(run, ctx, run.lang or lang)  # a file a trained tool made: also in the canvas
+                canvas_web.adopt_files(run, ctx, run.lang or lang, words)  # a trained tool's file: also in the canvas
             report = run.report or {}
             previews = iter(
                 written_preview(s.tool, s.arguments, getattr(s, "info", None))
@@ -2645,6 +2652,10 @@ class HarnessBackend:
                 if text:
                     content, stop_reason = text, "answer"
                     fallback = rescue.NOTE["en" if run.lang == "en" else "fr"]
+            if (fixed := rescue.check_places_answer(content, widgets, run.steps, run.lang)) is not None:
+                # the answer gave up while the map found places (or sent the user to a neighbour): the answer is
+                # written from the tool's results (birds/web/rescue.py)
+                content = fixed
             if data_prep is not None:
                 widgets = [data_prep.card, *widgets]  # data analysis hook: the data card first
             ctx.emit(

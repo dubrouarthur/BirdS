@@ -26,6 +26,9 @@ class Config:
     think_chars: int = 12000  # reasoning longer than this with no answer yet is cut; the step is redone without it
     timeout_s: float = 180.0  # wall clock for the whole run
     max_side_effects: int = 5  # draft_email / make_* / run_python calls per run
+    # after a page that looked like it gave orders: False asks only for a draft addressed to someone the user never
+    # named (guard.needs_approval); True asks before every deck, document, sheet and draft (the stricter old rule)
+    confirm_deliverables: bool = False
     # network
     # web_search backend, first configured wins: SearXNG, Brave, Tavily, then the no-key default (tools/search.py)
     searxng_url: str | None = None  # operator-configured, so not subject to the egress policy

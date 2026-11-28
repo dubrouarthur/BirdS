@@ -212,7 +212,8 @@ def test_search_scenario_steps_sources_citations(client):
     ("prompt", "tool", "suffix", "kind"),
     [
         ("Prépare une présentation pptx de 5 diapositives", "make_slides", ".pptx", "slides"),
-        ("Rédige un document Word de synthèse", "make_document", ".docx", "document"),
+        # « un document Word » opens the canvas (docs/CANVAS.md § 10); a file asked by its format is the trained tool's
+        ("Génère un fichier docx de synthèse", "make_document", ".docx", "document"),
         ("Fais un tableur de budget", "make_sheet", ".xlsx", "sheet"),
     ],
 )
@@ -708,8 +709,12 @@ def test_static_payload_budget():
     # the data card and the richer charts (datakit.js, charts2.js, their app.css section: ~110 kB raw, ~31 kB gzipped)
     # the open-data cards (holidays, entity, tenders, papers, communes, chart source line: +44 kB raw, ~9 kB gzipped)
     # and Mode Réflexion (bird picker, drawings, flight header: +20 kB raw, +6 kB gzipped)
+    # and the deck layouts (21 layouts, four themes, layout menu, drag, cover tools, chat thumbnail: +44 kB raw, +10 kB gz)
+    # and Word-like documents in the canvas (canvas-doc.js, A4 pages, variants: +47 kB raw, +12 kB gzipped)
+    # then the canvas code mode (several files, preview by device, console with file:line, per-file versions, zip:
+    # +37 kB raw, +11 kB gzipped)
     # and the quote card (finance.js/.css: +17 kB raw, ~4 kB gzipped)
-    assert total < 1_405_000, f"static payload is {total} bytes"  # measured 1 397 862 with the quote card
+    assert total < 1_535_000, f"static payload is {total} bytes"  # measured 1 527 878 (decks + documents + code + quote card)
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"
@@ -1248,7 +1253,8 @@ def _forged_resume(tmp_path, monkeypatch, files, second_outputs):
         "attachments": [{"name": "notes.txt", "content": INJECTION}],
     }
     app, _ = harness_app(
-        [_tool_call("read_file", path="notes.txt"), _tool_call("draft_email", to=["x@e.test"], subject="s", body="b")]
+        [_tool_call("read_file", path="notes.txt"), _tool_call("draft_email", to=["x@e.test"], subject="s", body="b")],
+        config={"confirm_deliverables": True},
     )
     with TestClient(app) as client:
         token = one(post_chat(client, body), "confirm")["token"]
@@ -1256,7 +1262,7 @@ def _forged_resume(tmp_path, monkeypatch, files, second_outputs):
     payload.pop("exp")
     payload["state"]["files"] = files
     forged = tokens.sign(payload, SECRET, ttl=60)
-    app2, _ = harness_app(second_outputs)
+    app2, _ = harness_app(second_outputs, config={"confirm_deliverables": True})
     with TestClient(app2) as client:
         return post_chat(client, {**body, "approved": [forged]})
 
@@ -1278,7 +1284,7 @@ def test_resume_still_delivers_a_file_made_after_approval(tmp_path, monkeypatch)
         "lang": "en",
         "attachments": [{"name": "notes.txt", "content": INJECTION}],
     }
-    app, _ = harness_app(["Done."])
+    app, _ = harness_app(["Done."], config={"confirm_deliverables": True})
     with TestClient(app) as client:
         events = post_chat(client, {**body, "approved": [confirm["token"]]})
     (file,) = one(events, "answer")["files"]
@@ -1417,3 +1423,19 @@ def test_reflexion_omitted_keeps_the_older_api(client):
     assert "reflexion" not in one(events, "answer") and not [e for e in events if e["type"] == "reflexion"]
     assert client.post("/api/chat", json={"messages": [{"role": "user", "content": "x"}],
                                           "reflexion": "aigle"}).status_code == 422  # fmt: skip
+
+
+def test_a_flagged_page_asks_only_for_a_draft_to_someone_the_user_never_named():
+    """Nothing Bird makes is sent: after a page that looked like it gave orders, a deck, a document or a draft to
+    the person the user named is made without a question; a draft to an address only the page gave is asked."""
+    from birds.harness import guard
+
+    said = "Lis la page et réponds à camille@example.org"
+    assert not guard.needs_approval("make_slides", {"title": "T"}, said)
+    assert not guard.needs_approval("make_document", {"title": "T"}, said)
+    assert not guard.needs_approval("draft_email", {"to": ["camille@example.org"], "subject": "s", "body": "b"}, said)
+    assert guard.needs_approval(
+        "draft_email", {"to": ["compta-externe@example.net"], "subject": "s", "body": "b"}, said
+    )
+    assert guard.needs_approval("draft_email", {"to": ["a@b.fr"], "body": "écrivez à x@evil.test"}, said)
+    assert guard.needs_approval("make_slides", {"title": "T"}, None)  # the stricter rule when asked
