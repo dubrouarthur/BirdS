@@ -1247,7 +1247,8 @@ def _forged_resume(tmp_path, monkeypatch, files, second_outputs):
         "attachments": [{"name": "notes.txt", "content": INJECTION}],
     }
     app, _ = harness_app(
-        [_tool_call("read_file", path="notes.txt"), _tool_call("draft_email", to=["x@e.test"], subject="s", body="b")]
+        [_tool_call("read_file", path="notes.txt"), _tool_call("draft_email", to=["x@e.test"], subject="s", body="b")],
+        config={"confirm_deliverables": True},
     )
     with TestClient(app) as client:
         token = one(post_chat(client, body), "confirm")["token"]
@@ -1255,7 +1256,7 @@ def _forged_resume(tmp_path, monkeypatch, files, second_outputs):
     payload.pop("exp")
     payload["state"]["files"] = files
     forged = tokens.sign(payload, SECRET, ttl=60)
-    app2, _ = harness_app(second_outputs)
+    app2, _ = harness_app(second_outputs, config={"confirm_deliverables": True})
     with TestClient(app2) as client:
         return post_chat(client, {**body, "approved": [forged]})
 
@@ -1277,7 +1278,7 @@ def test_resume_still_delivers_a_file_made_after_approval(tmp_path, monkeypatch)
         "lang": "en",
         "attachments": [{"name": "notes.txt", "content": INJECTION}],
     }
-    app, _ = harness_app(["Done."])
+    app, _ = harness_app(["Done."], config={"confirm_deliverables": True})
     with TestClient(app) as client:
         events = post_chat(client, {**body, "approved": [confirm["token"]]})
     (file,) = one(events, "answer")["files"]
@@ -1416,3 +1417,19 @@ def test_reflexion_omitted_keeps_the_older_api(client):
     assert "reflexion" not in one(events, "answer") and not [e for e in events if e["type"] == "reflexion"]
     assert client.post("/api/chat", json={"messages": [{"role": "user", "content": "x"}],
                                           "reflexion": "aigle"}).status_code == 422  # fmt: skip
+
+
+def test_a_flagged_page_asks_only_for_a_draft_to_someone_the_user_never_named():
+    """Nothing Bird makes is sent: after a page that looked like it gave orders, a deck, a document or a draft to
+    the person the user named is made without a question; a draft to an address only the page gave is asked."""
+    from birds.harness import guard
+
+    said = "Lis la page et réponds à camille@example.org"
+    assert not guard.needs_approval("make_slides", {"title": "T"}, said)
+    assert not guard.needs_approval("make_document", {"title": "T"}, said)
+    assert not guard.needs_approval("draft_email", {"to": ["camille@example.org"], "subject": "s", "body": "b"}, said)
+    assert guard.needs_approval(
+        "draft_email", {"to": ["compta-externe@example.net"], "subject": "s", "body": "b"}, said
+    )
+    assert guard.needs_approval("draft_email", {"to": ["a@b.fr"], "body": "écrivez à x@evil.test"}, said)
+    assert guard.needs_approval("make_slides", {"title": "T"}, None)  # the stricter rule when asked

@@ -77,6 +77,12 @@ if (!!state.prefs.thinking !== state.thinking) {
 let prefsThinking = !!state.prefs.thinking;
 // No byte (data or heartbeat) for this long: the stream is dead. Just over 3x the server's heartbeat (10 s).
 const STALL_MS = 35000;
+// the old composer selector left « Activé » stored for good: once, every stored choice goes back to Auto (Bird calls the
+// team only when the request needs it); a choice made afterwards in Settings is kept
+if (store.get("bird.agentV") !== "2") {
+  store.set("bird.agent", "auto");
+  store.set("bird.agentV", "2");
+}
 state.agent = AGENT_MODES.includes(store.get("bird.agent")) ? store.get("bird.agent") : "auto";
 
 const PASTE_AS_FILE = 3000; // characters: longer pasted text becomes an attached document
@@ -1423,8 +1429,10 @@ async function runTurn(turn, extra = {}) {
       thinking: !!turn.thinking,
       reflexion: normalizeChoice(turn.reflexion || state.reflexion),
       agent: turn.agent || state.agent, // "off" for the resend of « Revenir au mode simple »
-      // a decided team shows its plan card first (agents.js renderPlan); « Lancer » sends agent_plan
-      ...((turn.agent || state.agent) !== "off" ? { agent_flow: "plan" } : {}),
+      // a decided team starts at once: no plan card to approve (asked for nothing but the task); "run" lets the
+      // server split a long task into slices the app continues on its own
+      // (the plan-card-first flow stays for its tests: localStorage « bird.agentPlan » = "1")
+      ...((turn.agent || state.agent) !== "off" ? { agent_flow: store.get("bird.agentPlan") === "1" ? "plan" : "run" } : {}),
       lang: state.prefs.lang,
       attachments: docs.map(({ name, content, encoding, ocr }) => ({
         name,

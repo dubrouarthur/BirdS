@@ -46,6 +46,8 @@ async function open(browser, options = {}) {
   const page = await ctx.newPage();
   page.errors = [];
   page.on("pageerror", (e) => page.errors.push(String(e)));
+  // this smoke covers the plan-card-first flow (the app starts the team at once unless « bird.agentPlan » is set)
+  await page.addInitScript(() => localStorage.setItem("bird.agentPlan", "1"));
   // every text given to the live region, in order (announce() empties it, then fills it)
   await page.addInitScript(() => {
     window.__said = [];
