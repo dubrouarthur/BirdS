@@ -73,6 +73,14 @@ def _item(family, text, label, tools, expect=None, history=None, agent=False) ->
             "tools": list(tools), "agent": agent}  # fmt: skip
 
 
+def _rich_but_calc(q: str) -> list[str]:
+    """Every rich module, except the calculator card for an ask it computes: « calcule la marge sur un produit vendu
+    120 € acheté 80 € » is an office prompt with no chart or map, and a ``card(calc)`` yes of the cards family."""
+    from birds.harness import calc
+
+    return [t for t in RICH if t != "card"] if calc.detect(q) is not None else list(RICH)
+
+
 def items() -> list[dict]:
     out: list[dict] = []
     for fam, yes, no in (("charts", B.CHART_YES, B.CHART_NO), ("charts+", B.CHART_YES2, B.CHART_NO2)):
@@ -112,11 +120,11 @@ def items() -> list[dict]:
         else:
             exp = {"tool": tool, "args": val}
         out.append(_item("followups", q, "yes", [exp["tool"]], exp, _history(prev)))
-    out += [_item("followups", q, "no", RICH, None, _history(prev)) for prev, q in B.FOLLOWUP_NO]
+    out += [_item("followups", q, "no", _rich_but_calc(q), None, _history(prev)) for prev, q in B.FOLLOWUP_NO]
     for q, fam in B.REALISTIC_YES:
         tool = _REALISTIC.get(fam, fam)
         out.append(_item("realistic", q, "yes", [tool], {"tool": tool, "args": {}}))
-    out += [_item("realistic", q, "no", RICH) for q in B.OFFICE_NO]
+    out += [_item("realistic", q, "no", _rich_but_calc(q)) for q in B.OFFICE_NO]
     out += [_item("cards", q, "yes", ["card"], {"tool": "card", "args": {"kind": k}}) for q, k in B.CARD_YES]
     out += [_item("cards", q, "no", ["card"]) for q in B.CARD_NO]
     out += [_item("pasted", q, "yes", [t], {"tool": t, "args": {}}) for q, t in PASTED_YES]

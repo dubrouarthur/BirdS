@@ -761,5 +761,31 @@ elle ne s'affichait plus).
 - Catalogue : 598 → 665 jetons (FR, tokenizer Qwen3.5), plafond du test relevé à 680.
 - Entraînement : famille `cards` de `build_tools_mix.py` (80 décisions routeur en train, 3 en éval ; « Combien
   font 17 % de 3 450 € ? » passe de négatif à `card(calc)`), négatifs sans données.
-- Évaluation : famille `cards` de `router_data.py` (31 cas) ; banc des déclenchements : famille `cards` 31/31,
-  total 1492/1492 (1461 + 31, aucune régression). Évaluation routeur en réel de cette famille : non faite (budget).
+- Évaluation : famille `cards` de `router_data.py` (35 cas après revue) ; banc des déclenchements : famille
+  `cards` 35/35 et `calc_values` 10/10, total 1506/1506 (1461 du déploiement + 45, aucune régression).
+- Fusion hybride (revue du 28/11) : l'hybride n'ajoute **jamais** une petite fiche que le modèle n'a pas choisie,
+  sauf la calculatrice (ses chiffres viennent du code). Les analyseurs eux-mêmes ne proposent plus de fiche à côté
+  d'un graphique, d'un fichier bureautique ou d'un canevas demandés (« Crée un graphique avec ces KPI : janvier :
+  12 000 €… » donnait `make_chart` + `card(figures)`) : ces trois tournures sont des négatifs de la famille `cards`.
+- Calculatrice en anglais : « 1,200 » se lit 1 200 en anglais, 1,2 en français ; « 1.250.000 » et « 1,250,000 »
+  sont des milliers dans les deux langues ; « a 300,000 € loan » (montant avant le nom) est lu. Avant : mensualité
+  de 0,13 € pour un prêt de 300 000 €.
+
+**Mesure avant / après (28/11/2026).** Jeu fixe : `router_data.items()` (graine 0), les mêmes familles des deux
+côtés, plus `cards` après.
+
+| | Déploiement `60572e5` | Après (branche `w1-modules`) |
+| --- | --- | --- |
+| Banc des déclenchements | 1461/1461 | 1506/1506 (+ `cards` 35, `calc_values` 10) |
+| `router_eval --fake`, hybride (1009 / 1044 cas) | 0,985 (regex 0,990) | 0,986 (regex 0,990) ; `cards` 1,000 |
+| `router_eval` en réel, hybride | **non mesuré** | **non mesuré** |
+
+Le `--fake` ne mesure que la tuyauterie (un routeur scripté) et la justesse des analyseurs (colonne regex) ; il a
+trouvé un conflit d'étiquettes, corrigé : « calcule la marge sur un produit vendu 120 € acheté 80 € » est un
+négatif « aucun module riche » des familles `realistic` / `followups` et un oui `card(calc)` de `cards` ; la
+calculatrice n'est plus interdite sur une demande qu'elle calcule (`_rich_but_calc`). Mesure en réel **bloquée** le
+28/11 de 03 h 10 à 03 h 32 UTC : l'endpoint L4 répond « The endpoint is paused, ask a maintainer to restart it »
+(une pause manuelle, pas la mise en veille automatique : aucune requête ne le réveille), l'autre endpoint n'existe
+plus (404). Aucune génération dépensée. À lancer dès la reprise, avant fusion du module `card` :
+`router_eval.py --mode hybrid --per-class 5 --seed 0` sur le déploiement puis sur la branche (même jeu), en notant
+ici exactitude, précision, rappel par famille et latence.
