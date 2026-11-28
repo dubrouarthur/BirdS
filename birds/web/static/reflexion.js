@@ -86,10 +86,12 @@ function renderMenu() {
   const ticks = LEVELS.map((key) =>
     h("button", { class: "rf-tick", type: "button", tabindex: "-1", "data-level": key, title: valueText(key), onclick: () => pick(key) }, birdIcon(key)),
   );
+  // the bird rides the thumb: a tinted badge that follows the slider and flaps its wings at each new choice
+  const flyer = h("span", { class: "rf-flyer", "aria-hidden": "true" });
   const slider = h(
     "div",
     { class: "rf-slider" },
-    range,
+    h("div", { class: "rf-track" }, range, flyer),
     h("div", { class: "rf-ticks", "aria-hidden": "true" }, ...ticks),
     h("div", { class: "rf-scale", "aria-hidden": "true" }, h("span", { text: t("rf.slider.fast") }), h("span", { text: t("rf.slider.deep") })),
   );
@@ -108,7 +110,7 @@ function renderMenu() {
     now,
     slider,
   );
-  picker.ui = { range, autoSwitch, now, nowIcon, nowName, nowLabel, nowHint, ticks, slider, shown: null };
+  picker.ui = { range, autoSwitch, now, nowIcon, nowName, nowLabel, nowHint, ticks, slider, flyer, shown: null };
   syncMenu();
 }
 
@@ -125,7 +127,10 @@ function syncMenu() {
   ui.autoSwitch.checked = auto;
   if (ui.range.value !== String(index)) ui.range.value = String(index);
   ui.range.setAttribute("aria-valuetext", auto ? `${t("rf.level.auto")} · ${t("rf.level.auto.hint")}` : valueText(shown));
-  ui.slider.style.setProperty("--rf-pos", `${(index / (LEVELS.length - 1)) * 100}%`);
+  const n = index / (LEVELS.length - 1);
+  ui.slider.style.setProperty("--rf-pos-n", String(n));
+  // the filled track ends under the thumb's centre (half a thumb in from each end)
+  ui.slider.style.setProperty("--rf-pos", `calc(11px + (100% - 22px) * ${n})`);
   ui.slider.dataset.level = shown;
   ui.slider.classList.toggle("is-auto", auto);
   ui.now.hidden = auto; // « Auto » is already said by the switch row: the card names a bird only when one is chosen
@@ -139,6 +144,18 @@ function syncMenu() {
   ui.nowLabel.textContent = auto ? "" : ` · ${t(`rf.level.${shown}.label`)}`;
   ui.nowHint.textContent = t(`rf.level.${key}.hint`);
   ui.ticks.forEach((b, i) => b.classList.toggle("is-on", !auto && i === index));
+  if (ui.flyer.dataset.drawn !== key) {
+    const first = !ui.flyer.dataset.drawn;
+    ui.flyer.dataset.drawn = key;
+    ui.flyer.dataset.level = key;
+    ui.flyer.replaceChildren(birdIcon(key));
+    if (!first) {
+      // restart the flight: remove, force a layout, add again
+      ui.flyer.classList.remove("is-flying");
+      void ui.flyer.offsetWidth;
+      ui.flyer.classList.add("is-flying");
+    }
+  }
 }
 
 /** A choice applies at once and the popover stays open: Escape, Tab past the slider or a click outside closes it. */
