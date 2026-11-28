@@ -48,14 +48,14 @@ def sample(data: list[dict], per_class: int, seed: int = 0) -> list[dict]:
     return [it for i, it in enumerate(data) if i in keep]
 
 
-def run(llm, tok, data, *, mode: str, structured: str, budget: float, lang_of) -> list[dict]:
+def run(llm, tok, data, *, mode: str, structured: str, budget: float, lang_of, names=None) -> list[dict]:
     rows = []
     for i, it in enumerate(data):
         lang = lang_of(it["text"])
         base = R.regex_decision(it["text"], history=it["history"], lang=lang)
         t0 = time.monotonic()
         d = R.decide(llm, tok, it["text"], history=it["history"], lang=lang, mode=mode, structured=structured,
-                     budget=budget, base=base)  # fmt: skip
+                     budget=budget, base=base, names=names)  # fmt: skip
         wall = time.monotonic() - t0
         # hybrid is the same call, merged afterwards with the parsers: scored from this one call. ``plain`` is the
         # merge before own_words (every parser call of a family the model left out comes back), kept for comparison
@@ -127,6 +127,7 @@ def main(argv=None) -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--fake", action="store_true", help="scripted stand-in, no network (plumbing check)")
     ap.add_argument("--out", default="", help="JSON lines of every row")
+    ap.add_argument("--without-family", default="", help="catalogue without this family's modules (a 'before' run)")
     a = ap.parse_args(argv)
     from birds.harness.agent import detect_lang
 
@@ -148,7 +149,12 @@ def main(argv=None) -> int:
         else:
             structured = "" if a.structured == "none" else a.structured
         print(f"structured outputs: {structured or 'none (prompt + JSON repair)'}", file=sys.stderr)
-    rows = run(llm, tok, data, mode=a.mode, structured=structured, budget=a.budget, lang_of=detect_lang)
+    from birds.harness import catalog
+
+    names = None
+    if a.without_family:
+        names = {m.name for m in catalog.MODULES if m.available and m.family != a.without_family}
+    rows = run(llm, tok, data, mode=a.mode, structured=structured, budget=a.budget, lang_of=detect_lang, names=names)
     out = report(rows)
     if a.out:
         with open(a.out, "w", encoding="utf-8") as f:
