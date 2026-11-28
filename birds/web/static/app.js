@@ -2380,6 +2380,12 @@ async function init() {
     onResume: resumeTask,
     onNotify: askNotify,
   });
+  // data card hook (datakit.js): « Modifier le graphique » sends its edit as the next message
+  window.addEventListener("bird:send", (e) => {
+    if (state.busy || !state.online || pendingConfirm()) return; // the composer gets the text instead
+    e.preventDefault();
+    send(String(e.detail?.text || ""));
+  });
   canvas.setup({
     send: (text) => send(text),
     compose: (text) => {

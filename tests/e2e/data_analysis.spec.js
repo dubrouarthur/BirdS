@@ -174,6 +174,27 @@ async function send(page, text) {
         `${name}: a cell click did not fill the composer (${composed})`,
       );
     await page.fill("#composer-input", "");
+    // ---- « Modifier le graphique »: 2-3 edits; a click sends one, the next turn re-shows the updated chart
+    await card.locator(".dk-chip.is-asked").click();
+    await page.waitForTimeout(200);
+    if (!(await card.locator(".dk-stage .c2-card").count())) await card.locator(".dk-chip.is-asked").click();
+    const nexts = await card.locator(".dk-next-chip").count();
+    if (nexts < 2 || nexts > 3) problems.push(`${name}: ${nexts} « Modifier le graphique » chips`);
+    if (!(await card.locator(".dk-stage details, .dk-stage .c2-data").count()))
+      problems.push(`${name}: no data table alternative under the chart`);
+    const turns = await page.locator(".turn-bird").count();
+    await card.locator(".dk-next-chip", { hasText: "Par trimestre" }).click();
+    await page.waitForFunction((n) => document.querySelectorAll(".turn-bird").length > n &&
+      !document.querySelector('.turn-bird[aria-busy="true"]'), turns, { timeout: 60000 }); // prettier-ignore
+    await page.waitForTimeout(600);
+    const card2 = page.locator(".turn-bird").last().locator(".dk-card");
+    if (!(await card2.locator(".dk-version", { hasText: "Version 2" }).count()))
+      problems.push(`${name}: the follow-up card has no « Version 2 »`);
+    const bars = await card2.locator(".dk-stage .c2-card svg .c2-mark").count();
+    if (bars < 8) problems.push(`${name}: the quarterly chart has ${bars} marks`);
+    if (!(await card2.locator(".dk-fold").count())) problems.push(`${name}: the table is not folded in the follow-up`);
+    if ((await card2.locator(".dk-next-chip").count()) < 2) problems.push(`${name}: no next steps after the edit`);
+    await card2.screenshot({ path: path.join(OUT, `datacard-v2-${name}.png`) });
     await page.setViewportSize(vp);
     // ---- gallery of every chart type
     await page.evaluate(async (specs) => {
@@ -183,7 +204,9 @@ async function send(page, text) {
       box.className = "cards";
       box.style.cssText =
         "display:grid;gap:14px;padding:12px;background:var(--bg)";
-      document.body.replaceChildren(box);
+      // the app stays in the page (its handlers keep their elements): hidden under the gallery
+      for (const el of document.body.children) el.style.display = "none";
+      document.body.append(box);
       for (const sp of specs) {
         const el = renderChart2(
           {

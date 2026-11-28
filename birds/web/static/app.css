@@ -9837,3 +9837,101 @@ ol.a4-list > li::before {
   }
 }
 /* ==================================================================== end of data analysis section */
+/* ==================================================================== data analysis: « Modifier le graphique »
+   The 2-3 edits under the asked chart, the version badge and the compact card of a follow-up. Tokens only. */
+.dk-next {
+  display: grid;
+  gap: 8px;
+  padding-block: 4px 2px;
+}
+.dk-next-h {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.dk-next-h .icon {
+  inline-size: 14px;
+  block-size: 14px;
+}
+.dk-next-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dk-next-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 36px;
+  max-inline-size: 100%;
+  padding: 0 10px 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: start;
+  cursor: pointer;
+}
+.dk-next-chip .icon {
+  inline-size: 14px;
+  block-size: 14px;
+  color: var(--ink-2);
+  transform: rotate(90deg);
+}
+.dk-next-chip:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.dk-next-chip:hover .icon {
+  color: var(--accent);
+}
+.dk-next-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.dk-version {
+  margin-inline-start: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+.dk-fold-sum {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 32px;
+  color: var(--ink-2);
+  font-size: 0.86rem;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+.dk-fold-sum::-webkit-details-marker {
+  display: none;
+}
+.dk-fold-sum .icon {
+  inline-size: 14px;
+  block-size: 14px;
+  transition: transform 0.15s ease;
+}
+.dk-fold[open] .dk-fold-sum .icon {
+  transform: rotate(90deg);
+}
+.dk-fold-body {
+  padding-block-start: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dk-fold-sum .icon {
+    transition: none;
+  }
+}
+/* ==================================================================== end of « Modifier le graphique » */

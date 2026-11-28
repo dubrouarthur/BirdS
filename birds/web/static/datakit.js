@@ -23,6 +23,8 @@ const WORDS = {
     types: { number: "Nombre", date: "Date", category: "Catégorie", text: "Texte", bool: "Oui / non", id: "Identifiant" },
     op: { contains: "contient", eq: "=", gt: ">", lt: "<" }, value: "valeur", result: "Résultat", more: "+ {n} lignes",
     asked: "Votre question", outliers: "{n} valeur(s) extrême(s)", source: "Source : {name} — analyse calculée par Bird, sans modèle",
+    edit: "Modifier le graphique", version: "Version {n}", tableOf: "Tableau complet ({n} lignes)",
+    sourceAsked: "Source : {name} — analyse recalculée par Bird sur le fichier",
   },
   en: {
     rows: "rows", cols: "columns", complete: "complete", read: "Read by Bird", suggestions: "One-click analyses",
@@ -36,6 +38,8 @@ const WORDS = {
     types: { number: "Number", date: "Date", category: "Category", text: "Text", bool: "Yes / no", id: "Identifier" },
     op: { contains: "contains", eq: "=", gt: ">", lt: "<" }, value: "value", result: "Result", more: "+ {n} rows",
     asked: "Your question", outliers: "{n} outlier(s)", source: "Source: {name} — analysis computed by Bird, no model",
+    edit: "Edit the chart", version: "Version {n}", tableOf: "Full table ({n} rows)",
+    sourceAsked: "Source: {name} — analysis recomputed by Bird on the file",
   },
 }; // prettier-ignore
 const L = (lang) => WORDS[lang === "en" ? "en" : "fr"];
@@ -580,6 +584,24 @@ function resultTable(res, lang) {
   );
 }
 
+/** « Modifier le graphique »: 2 or 3 edits computed by the harness for the chart just shown; a click sends the edit
+ * as the next message, and the next turn shows the updated chart (its own version). */
+function nextSteps(item, lang) {
+  const w = L(lang);
+  const steps = Array.isArray(item.next) ? item.next.slice(0, 3) : [];
+  if (!steps.length) return null;
+  return h("div", { class: "dk-next", role: "group", "aria-label": w.edit },
+    h("span", { class: "dk-next-h" }, icon("edit"), h("span", { text: w.edit })),
+    h("div", { class: "dk-next-list" }, steps.map((st) =>
+      h("button", { type: "button", class: "dk-next-chip", onclick: () => askNext(st.ask || st.label) },
+        h("span", { text: st.label }), icon("send"))))); // prettier-ignore
+}
+
+function askNext(text) {
+  const ev = new CustomEvent("bird:send", { cancelable: true, detail: { text } });
+  if (window.dispatchEvent(ev)) composerInsert(text, { replace: true }); // nobody sent it: the composer gets it
+}
+
 function analysisView(item, card, lang) {
   const chart = item.chart && renderChart2(item.chart, { lang, onDrill: (label) =>
     composerInsert(`${lang === "en" ? "Detail" : "Détaille"} « ${label} » (${item.label}, ${card.name}) : `, { replace: true }) }); // prettier-ignore
@@ -587,6 +609,7 @@ function analysisView(item, card, lang) {
     "div",
     { class: "dk-analysis" },
     chart,
+    item.id === "answer" ? nextSteps(item, lang) : null,
     item.result &&
       item.result.kind !== "scalar" &&
       resultTable(item.result, lang),
@@ -632,6 +655,7 @@ export function renderDataCard(card) {
         c.hist ? miniBars(c.hist) : c.spark && c.spark.length > 1 ? miniLine(c.spark) : c.top ? miniTop(c.top, c.count) : null,
         h("span", { class: "dk-col-stat", text: columnStat(c, lang) })))))); // prettier-ignore
 
+  if (card.compact && card.answer) return compactCard(card, lang, head);
   // suggested analyses: chips, one result shown at a time (the question's own result first)
   const items = [
     ...(card.answer
@@ -678,6 +702,24 @@ export function renderDataCard(card) {
   // first one open at once, so the card never looks empty (also before the next frame, for tests and print)
   if (items.length) select(items[0], bar.querySelector(".dk-chip"));
   return el;
+}
+
+/** A follow-up that edited the chart: the new version first (continuity rule), the table folded; the earlier
+ * versions stay in the conversation above. */
+function compactCard(card, lang, head) {
+  const w = L(lang);
+  const item = { id: "answer", label: w.asked, ...card.answer };
+  const n = Number(card.answer.version) || 2;
+  const table = h("details", { class: "dk-fold" },
+    h("summary", { class: "dk-fold-sum" }, icon("chevron"), h("span", { text: fill(w.tableOf, { n: fmtValue(card.rows, "", lang) }) })),
+    h("div", { class: "dk-fold-body" }, interactiveTable(card, lang))); // prettier-ignore
+  return h("article", { class: "card widget dk-card is-compact", "data-card": card.id, lang },
+    h("div", { class: "dk-top" }, head),
+    h("section", { class: "dk-section" },
+      h("h4", { class: "dk-h" }, h("span", { text: w.asked }), h("span", { class: "dk-version", text: fill(w.version, { n }) })),
+      h("div", { class: "dk-stage" }, analysisView(item, card, lang))),
+    h("section", { class: "dk-section" }, table),
+    h("p", { class: "dk-source" }, icon("shield"), fill(w.sourceAsked, { name: card.name }))); // prettier-ignore
 }
 
 function chipGlyph(kind) {
