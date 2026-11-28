@@ -116,7 +116,157 @@ function onClick(e) {
   if (el) copyText(texOf(el), t("md.math.copied"));
 }
 
+// ------------------------------------------------------------------ citations: the bubble and the sources panel
+
+/** Open or close the « N sources » panel that a pill controls. */
+export function setSourcesOpen(pill, open) {
+  const panel = pill && document.getElementById(pill.getAttribute("aria-controls"));
+  if (!panel) return;
+  pill.setAttribute("aria-expanded", String(open));
+  panel.hidden = !open;
+  pill.closest(".sources")?.classList.toggle("is-open", open);
+}
+
+/** What the bubble of citation [n] says, read from the source card it points to (never from the model's text). */
+export function citeFacts(item) {
+  const link = item.querySelector(".source-body > a");
+  const title = (link || item.querySelector(".source-body > span"))?.textContent?.trim() || "";
+  return {
+    n: item.querySelector(".source-n")?.textContent?.trim() || "",
+    title,
+    url: link?.href || "",
+    host: item.querySelector(".source-host > span:not(.source-mono):not(.badge)")?.textContent?.trim() || "",
+    snippet: item.querySelector(".source-snippet")?.textContent?.trim() || "",
+  };
+}
+
+let bubble = null; // {el, anchor}
+let hideTimer = 0;
+
+function hideBubble(refocus = false) {
+  clearTimeout(hideTimer);
+  if (!bubble) return;
+  const { el, anchor } = bubble;
+  anchor.removeAttribute("aria-describedby");
+  anchor.setAttribute("aria-expanded", "false");
+  el.remove();
+  bubble = null;
+  if (refocus) anchor.focus();
+}
+
+function place(el, anchor) {
+  const r = anchor.getBoundingClientRect();
+  const w = Math.min(320, innerWidth - 24);
+  el.style.width = `${w}px`;
+  const left = Math.min(Math.max(12, r.left + r.width / 2 - w / 2), innerWidth - w - 12);
+  const h = el.offsetHeight;
+  const above = r.top - h - 8 >= 12;
+  el.style.left = `${left}px`;
+  el.style.top = `${above ? r.top - h - 8 : Math.min(r.bottom + 8, innerHeight - h - 12)}px`;
+  el.dataset.side = above ? "above" : "below";
+}
+
+function showBubble(anchor) {
+  const item = document.getElementById(decodeURIComponent((anchor.getAttribute("href") || "").slice(1)));
+  if (!item) return;
+  if (bubble?.anchor === anchor) return;
+  hideBubble();
+  const f = citeFacts(item);
+  const el = document.createElement("div");
+  el.className = "cite-bubble";
+  el.id = `cb-${item.id}`;
+  el.setAttribute("role", "tooltip");
+  const head = document.createElement("p");
+  head.className = "cite-bubble-host";
+  head.textContent = `${f.n} · ${f.host}`.replace(/^ · /, "");
+  const title = document.createElement(f.url ? "a" : "p");
+  title.className = "cite-bubble-title";
+  title.textContent = f.title;
+  if (f.url) Object.assign(title, { href: f.url, target: "_blank", rel: "noopener noreferrer", referrerPolicy: "no-referrer" });
+  el.append(head, title);
+  if (f.snippet) {
+    const p = document.createElement("p");
+    p.className = "cite-bubble-snippet";
+    p.textContent = f.snippet;
+    el.append(p);
+  }
+  const all = document.createElement("button");
+  all.type = "button";
+  all.className = "cite-bubble-all";
+  all.textContent = t("src.bubble.all");
+  all.addEventListener("click", () => {
+    const pill = item.closest(".sources")?.querySelector(".src-pill");
+    if (pill) setSourcesOpen(pill, true);
+    hideBubble();
+    item.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    item.focus({ preventScroll: true });
+  });
+  el.append(all);
+  el.addEventListener("pointerenter", () => clearTimeout(hideTimer));
+  el.addEventListener("pointerleave", () => !bubble?.pinned && (hideTimer = setTimeout(hideBubble, 250)));
+  document.body.append(el);
+  place(el, anchor);
+  anchor.setAttribute("aria-describedby", el.id);
+  anchor.setAttribute("aria-expanded", "true");
+  bubble = { el, anchor };
+}
+
+const citeOf = (target) => target?.closest?.("sup.cite > a");
+
+function onCiteClick(e) {
+  const a = citeOf(e.target);
+  if (a) {
+    // a tap (or a click) opens the bubble instead of jumping to a list that is folded
+    e.preventDefault();
+    // a second click closes the bubble that the first one pinned; a bubble opened by hover or focus stays
+    if (bubble?.anchor === a && bubble.pinned) hideBubble();
+    else {
+      showBubble(a);
+      if (bubble) bubble.pinned = true;
+    }
+    return;
+  }
+  if (bubble && !bubble.el.contains(e.target)) hideBubble();
+}
+
 if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
   document.addEventListener("copy", onCopy);
   document.addEventListener("click", onClick);
+  document.addEventListener("click", onCiteClick);
+  const fine = () => matchMedia("(hover: hover) and (pointer: fine)").matches;
+  document.addEventListener("pointerover", (e) => {
+    const a = citeOf(e.target);
+    if (a && fine()) {
+      clearTimeout(hideTimer);
+      showBubble(a);
+    }
+  });
+  document.addEventListener("pointerout", (e) => {
+    const a = citeOf(e.target);
+    if (a && bubble?.anchor === a && !bubble.pinned && fine() && !bubble.el.contains(e.relatedTarget))
+      hideTimer = setTimeout(hideBubble, 250);
+  });
+  document.addEventListener("focusin", (e) => {
+    const a = citeOf(e.target);
+    if (a) showBubble(a);
+    else if (bubble && !bubble.el.contains(e.target)) hideBubble();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && bubble) {
+      e.stopPropagation();
+      hideBubble(true);
+    }
+  }, true);
+  // the bubble follows its mark while the conversation scrolls, and goes when the mark leaves the screen
+  addEventListener(
+    "scroll",
+    () => {
+      if (!bubble) return;
+      const r = bubble.anchor.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > innerHeight) hideBubble();
+      else place(bubble.el, bubble.anchor);
+    },
+    true,
+  );
+  addEventListener("resize", () => bubble && hideBubble());
 }

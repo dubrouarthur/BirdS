@@ -36,7 +36,7 @@ import { canvasCard } from "./canvas.js";
 import { enhanceAnswer } from "./modules.js";
 import { renderChips, transforms } from "./followups.js";
 import { flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
-import { typeset } from "./answers.js"; // math, citations, rich copy, feedback (chat audit C2)
+import { setSourcesOpen, typeset } from "./answers.js"; // math, citations, rich copy, feedback (chat audit C2)
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -454,13 +454,40 @@ function renderSources(turn) {
   if (!sources.length) return null;
   // « donne-moi tes sources »: the source cards module shows them (modules.js), with the same anchors
   if ((turn.answer?.widgets || []).some((w) => w?.type === "sourcecards")) return null;
+  // « 3 sources »: a pill with the sites' marks; the list opens under it (and from a citation's bubble, answers.js)
+  const panelId = `srcp-${turn.id}`;
+  turn.ui = turn.ui || {};
+  const open = Boolean(turn.ui.sourcesOpen);
+  const marks = sources.slice(0, 3).map((source) => {
+    const url = safeUrl(source.url);
+    const domain = String(source.domain || (url ? hostOf(url) : ""));
+    return h("span", { class: `src-pill-mark source-mono mono-${monoHue(domain)}`, "aria-hidden": "true", text: (domain[0] || "?").toUpperCase() });
+  });
+  const pill = h(
+    "button",
+    {
+      type: "button",
+      class: "src-pill",
+      "aria-expanded": String(open),
+      "aria-controls": panelId,
+      "data-act": "sources",
+      onclick: () => {
+        const now = pill.getAttribute("aria-expanded") !== "true";
+        setSourcesOpen(pill, now);
+        turn.ui.sourcesOpen = now;
+      },
+    },
+    h("span", { class: "src-pill-marks" }, marks),
+    h("span", { class: "src-pill-text", text: sources.length === 1 ? t("src.pill.one") : t("src.pill.many", { n: sources.length }) }),
+    icon("chevron", "src-pill-chev"),
+  );
   return h(
     "section",
-    { class: "sources", "aria-label": t("sources.title") },
-    h("h3", { class: "eyebrow", text: t("sources.title") }),
+    { class: `sources${open ? " is-open" : ""}`, "aria-label": t("sources.title") },
+    pill,
     h(
       "ol",
-      { class: "source-list" },
+      { class: "source-list src-panel", id: panelId, hidden: !open },
       sources.map((source) => {
         const url = safeUrl(source.url);
         const title = String(source.title || source.url || "");

@@ -239,7 +239,7 @@
    "files": [],
    "reasoning": "Les résultats de recherche confirment que la mission Artemis II a eu lieu en avril 2026, avec un vol de neuf jours autour de la Lune et un retour réussi. Le commandant Reid Wiseman a été nommé directeur de Caltech. Je peux maintenant formuler une réponse concise en citant les sources.",
    "answer": {
-    "content": "La mission Artemis II a eu lieu en avril 2026 : quatre astronautes ont effectué un vol de neuf jours autour de la Lune dans le vaisseau Orion, puis sont rentrés sur Terre en sécurité. Le commandant Reid Wiseman a ensuite été nommé directeur de Caltech.",
+    "content": "La mission Artemis II a eu lieu en avril 2026 : quatre astronautes ont effectué un vol de neuf jours autour de la Lune dans le vaisseau Orion, puis sont rentrés sur Terre en sécurité [1]. Le commandant Reid Wiseman a ensuite été nommé directeur de Caltech.",
     "sources": [
      {
       "n": 1,

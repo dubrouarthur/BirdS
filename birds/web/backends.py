@@ -26,7 +26,7 @@ from birds.harness import guard
 from birds.harness.llm import Cancelled, accepts  # Cancelled: the client went away or pressed stop
 from birds.web.tidy import code_checks, tidy
 
-from . import rescue
+from . import citations, rescue
 from .widgets import enrich_sources
 
 Event = dict[str, Any]
@@ -2644,6 +2644,10 @@ class HarnessBackend:
             )
             tidied = tidy(str(run.answer), run.stop_reason)
             content = hide_out_paths(strip_tool_echo(strip_memo(tidied.text)))
+            # a sourced answer the model left unmarked: [n] after each sentence the page read really holds (R27)
+            content, _cited = citations.attribute(
+                content, sources, citations.source_texts(run.messages, run.steps, sources)
+            )
             widgets = self._widgets(run, request, ctx, lang, draft)
             stop_reason, fallback = tidied.stop_reason, None
             if run.stop_reason in rescue.NO_ANSWER and widgets and not run.salvaged:

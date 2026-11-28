@@ -109,6 +109,43 @@ async function shot(page, el, file) {
     const eq = photo.locator(".md-math--block, .md p:has-text('\\[')").first();
     if (await eq.count()) await shot(page, eq, `math-${name}.png`);
 
+    // ---- R27 citations: the [1] the harness added (backed by the entity card), its bubble, the « 1 source » pill
+    const artemis = birds(page).nth(1);
+    const cite = artemis.locator("sup.cite > a").first();
+    check((await cite.count()) === 1, `${name}: no inline citation`);
+    const pill = artemis.locator(".src-pill");
+    check((await pill.count()) === 1 && /1 source/.test(await pill.innerText().catch(() => "")), `${name}: no « 1 source » pill`);
+    if (await pill.count()) {
+      check(await artemis.locator(".src-panel").isHidden(), `${name}: sources panel open by itself`);
+      await shot(page, pill, `sources-pill-${name}.png`);
+    }
+    if (await cite.count()) {
+      await cite.scrollIntoViewIfNeeded();
+      if (opts.hasTouch) await cite.tap();
+      else await cite.hover();
+      await page.waitForTimeout(300);
+      const bub = page.locator(".cite-bubble");
+      check((await bub.count()) === 1 && /wikipedia/i.test(await bub.innerText().catch(() => "")), `${name}: no citation bubble`);
+      check((await cite.getAttribute("aria-describedby")) === (await bub.getAttribute("id").catch(() => "")), `${name}: bubble not tied to its mark`);
+      const box = await bub.boundingBox().catch(() => null);
+      const vp = page.viewportSize();
+      check(box && box.x >= 0 && box.x + box.width <= vp.width, `${name}: bubble outside the screen`);
+      await page.screenshot({ path: path.join(OUT, `cite-bubble-${name}.png`), clip: { x: 0, y: Math.max(0, (box?.y || 0) - 40), width: vp.width, height: Math.min(260, vp.height) } });
+      if (await bub.count()) await bub.locator(".cite-bubble-all").click();
+      await page.waitForTimeout(400);
+      check(await artemis.locator(".src-panel").isVisible(), `${name}: « Voir toutes les sources » did not open the panel`);
+      check((await page.locator(".cite-bubble").count()) === 0, `${name}: bubble stayed open`);
+      check((await page.evaluate(() => document.activeElement?.className || "")).includes("source-card"), `${name}: focus not on the source`);
+      if (await artemis.locator(".sources").count()) await shot(page, artemis.locator(".sources"), `sources-open-${name}.png`);
+      // keyboard: focus shows the bubble, Escape closes it and keeps the focus on the mark
+      await cite.focus();
+      await page.waitForTimeout(150);
+      check((await page.locator(".cite-bubble").count()) === 1, `${name}: focus shows no bubble`);
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(150);
+      check((await page.locator(".cite-bubble").count()) === 0, `${name}: Escape did not close the bubble`);
+    }
+
     const [sw, cw] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
     check(sw <= cw + 1, `${name}: horizontal scroll ${sw} > ${cw}`);
 

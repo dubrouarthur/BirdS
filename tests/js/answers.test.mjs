@@ -76,3 +76,23 @@ test("math: the vendored KaTeX renders without inline styles (CSP style-src 'sel
   assert.equal(texOf(fake("x^2", false)), "$x^2$");
   assert.equal(texOf(fake("E=mc^2", true)), "$$E=mc^2$$");
 });
+
+test("the citation bubble reads the source card, never the model's text", async () => {
+  const { citeFacts } = await import("../../birds/web/static/answers.js");
+  const q = (map) => (sel) => (map[sel] === undefined ? null : map[sel]);
+  const item = {
+    querySelector: q({
+      ".source-body > a": { textContent: " Artemis II ", href: "https://fr.wikipedia.org/wiki/Artemis_II" },
+      ".source-n": { textContent: "1" },
+      ".source-host > span:not(.source-mono):not(.badge)": { textContent: "fr.wikipedia.org · 2 avr. 2026" },
+      ".source-snippet": { textContent: "Mission habitée autour de la Lune." },
+    }),
+  };
+  assert.deepEqual(citeFacts(item), {
+    n: "1",
+    title: "Artemis II",
+    url: "https://fr.wikipedia.org/wiki/Artemis_II",
+    host: "fr.wikipedia.org · 2 avr. 2026",
+    snippet: "Mission habitée autour de la Lune.",
+  });
+});

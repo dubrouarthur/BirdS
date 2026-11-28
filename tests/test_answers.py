@@ -158,3 +158,81 @@ def test_image_fetch_retries_once_when_wikimedia_is_busy(monkeypatch):
         guard.fetch_image(_client(gone), cfg, "https://upload.wikimedia.org/a/330px-x.png")
     except guard.FetchError:
         assert len(calls) == 1  # a missing picture is not retried
+
+
+# ------------------------------------------------------------------ R27: inline citations the harness stands behind
+
+PAGE_1 = (
+    "URL: https://www.nasa.gov/artemis-ii\nTitle: Artemis II\n\nArtemis II est la première mission habitée du "
+    "programme Artemis. Lancée le 1er avril 2026, elle a emmené quatre astronautes autour de la Lune pendant "
+    "neuf jours à bord du vaisseau Orion, avant un amerrissage dans le Pacifique."
+)
+PAGE_2 = (
+    "URL: https://www.esa.int/orion\nTitle: Orion ESM\n\nLe module de service européen d'Orion fournit l'électricité, "
+    "l'eau et la propulsion. Il pèse 13,5 tonnes et a été construit par Airbus à Brême."
+)
+SOURCES = [{"n": 1, "url": "https://www.nasa.gov/artemis-ii", "title": "Artemis II"},
+           {"n": 2, "url": "https://www.esa.int/orion", "title": "Orion ESM"}]  # fmt: skip
+MESSAGES = [{"role": "user", "content": "Artemis II ?"}, {"role": "tool", "content": PAGE_1},
+            {"role": "tool", "content": PAGE_2}, {"role": "tool", "content": "URL: https://elsewhere.test/\n\nx"}]  # fmt: skip
+
+
+def test_each_sentence_gets_the_number_of_the_page_that_holds_it():
+    from birds.web import citations as C
+
+    texts = C.source_texts(MESSAGES, [], SOURCES)
+    assert sorted(texts) == [1, 2]  # a page read that is not in the sources list is not a source
+    answer = (
+        "Artemis II a emmené quatre astronautes autour de la Lune pendant neuf jours à bord du vaisseau Orion. "
+        "Son module de service européen pèse 13,5 tonnes et a été construit par Airbus.\n\n"
+        "Le commandant a ensuite été nommé directeur de Caltech, une première historique."
+    )
+    out, n = C.attribute(answer, SOURCES, texts)
+    assert n == 2
+    assert "à bord du vaisseau Orion [1]." in out and "construit par Airbus [2]." in out
+    assert "première historique." in out and "historique [" not in out  # backed by no page: no mark, nothing invented
+
+
+def test_a_figure_not_on_the_page_gets_no_mark_and_cited_answers_are_left_alone():
+    from birds.web import citations as C
+
+    texts = C.source_texts(MESSAGES, [], SOURCES)
+    wrong = "Le module de service européen d'Orion pèse 27 tonnes et a été construit par Airbus à Brême."
+    assert C.attribute(wrong, SOURCES, texts) == (wrong, 0)
+    cited = "Artemis II a emmené quatre astronautes autour de la Lune [2]. Orion a amerri dans le Pacifique."
+    assert C.attribute(cited, SOURCES, texts) == (cited, 0)  # the model's own marks are its choice
+    code = "```python\n# quatre astronautes autour de la Lune pendant neuf jours à bord du vaisseau Orion\n```"
+    table = "| Mission | Durée |\n|---|---|\n| quatre astronautes autour de la Lune pendant neuf jours | 9 |"
+    for text in (code, table):
+        assert C.attribute(text, SOURCES, texts) == (text, 0)
+    assert C.attribute("Artemis II a emmené quatre astronautes autour de la Lune.", SOURCES, {}) == (
+        "Artemis II a emmené quatre astronautes autour de la Lune.",
+        0,
+    )
+
+
+def test_the_entity_card_is_a_source_text():
+    from types import SimpleNamespace
+
+    from birds.web import citations as C
+
+    w = {"type": "entity", "title": "Artemis II", "extract": "Mission spatiale habitée de la NASA lancée en avril "
+         "2026 avec quatre astronautes autour de la Lune.", "facts": [{"label": "Pays", "value": "États-Unis"}],
+         "source": {"url": "https://fr.wikipedia.org/wiki/Artemis_II"}}  # fmt: skip
+    steps = [SimpleNamespace(tool="lookup_entity", info={"widget": w})]
+    sources = [{"n": 1, "url": "https://fr.wikipedia.org/wiki/Artemis_II"}]
+    texts = C.source_texts([], steps, sources)
+    out, n = C.attribute(
+        "Artemis II est une mission spatiale habitée de la NASA, lancée en avril 2026.", sources, texts
+    )
+    assert n == 1 and out.endswith("en avril 2026 [1].")
+
+
+def test_the_answer_event_carries_the_citations():
+    """backends: the attribution runs on the final content of a sourced answer, before it is sent."""
+    from birds.web import backends
+
+    src = Path(backends.__file__).read_text()
+    i = src.index("content, _cited = citations.attribute(")
+    assert src.rindex("content = hide_out_paths(strip_tool_echo(strip_memo(tidied.text)))", 0, i) > i - 300
+    assert src.index('"content": content', i) > i
