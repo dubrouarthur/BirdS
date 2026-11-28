@@ -40,7 +40,16 @@ async function send(page, text, wait = true) {
   if (wait) await idle(page);
 }
 
+async function closeDrawer(page) {
+  if (await page.evaluate(() => innerWidth < 900 && document.body.classList.contains("side-open"))) {
+    await page.click("#btn-side-close").catch(() => {});
+    await page.waitForTimeout(250);
+  }
+}
+
 async function newChat(page) {
+  await page.evaluate(() => document.querySelectorAll("dialog[open]").forEach((d) => d.close()));
+  await closeDrawer(page);
   const narrow = await page.evaluate(() => innerWidth < 900);
   await page.click(narrow ? "#btn-new-top" : "#btn-new").catch(() => {});
   await page.waitForTimeout(200);

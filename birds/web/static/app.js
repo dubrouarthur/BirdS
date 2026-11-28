@@ -465,7 +465,10 @@ function renderSidebar() {
         renderSidebar();
       };
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") done(true);
+        if (e.key === "Enter") {
+          e.preventDefault(); // focus moves to the row: the same Enter must not open it (and close the drawer)
+          done(true);
+        }
         if (e.key === "Escape") {
           e.stopPropagation();
           done(false);
