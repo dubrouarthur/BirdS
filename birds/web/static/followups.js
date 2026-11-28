@@ -134,7 +134,7 @@ export function suggestions(answer) {
   return out;
 }
 
-const LABEL_MAX = 42;
+const LABEL_MAX = 48; // nextsteps.LABEL_HARD: a longer label was cut, its chip is dropped (never trimmed)
 const PROMPT_MAX = 200;
 const fold = (x) =>
   String(x || "")
@@ -145,15 +145,15 @@ const fold = (x) =>
     .trim();
 
 /** The next steps Bird wrote for this answer (the ``suggestions`` event, validated by the server in
- * birds/harness/nextsteps.py), checked again here: strings only, lengths, at most 3, no duplicates. */
+ * birds/harness/nextsteps.py), checked again here: strings only, lengths (a too long label drops its chip: a
+ * trimmed label would promise another request than the one sent), at most 3, no duplicates. */
 export function cleanSuggestions(items) {
   const out = [];
   for (const it of Array.isArray(items) ? items : []) {
-    if (!it || typeof it !== "object") continue;
+    if (!it || typeof it.label !== "string" || typeof it.prompt !== "string") continue;
     const prompt = String(it.prompt ?? "").replace(/\s+/g, " ").trim().slice(0, PROMPT_MAX);
     let label = String(it.label ?? "").replace(/\s+/g, " ").trim();
-    if (!prompt || !label) continue;
-    if (label.length > LABEL_MAX) label = `${label.slice(0, LABEL_MAX - 1).trimEnd()}…`;
+    if (!prompt || !label || label.length >= LABEL_MAX) continue;
     if (out.some((x) => fold(x.prompt) === fold(prompt) || fold(x.label) === fold(label))) continue;
     out.push({ label, prompt });
     if (out.length === 3) break;

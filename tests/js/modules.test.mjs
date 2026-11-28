@@ -97,7 +97,7 @@ test("Bird's question is never cut into chips any more (the bug of « Vous aide 
 });
 
 test("Bird's next steps: cleaned (strings, lengths, three at most, no duplicate), widget chips fill in", () => {
-  const long = "Compare les trois offres sur le prix et la durée d'engagement";
+  const long = "Compare les trois offres sur le prix et la durée d'engagement annuel";
   const got = cleanSuggestions([
     { label: long, prompt: "Compare les trois offres." },
     { label: "compare les trois offres", prompt: "Compare les trois offres !" },
@@ -106,7 +106,7 @@ test("Bird's next steps: cleaned (strings, lengths, three at most, no duplicate)
     { label: "Fais un tableau", prompt: "Fais un tableau." }, { label: "Quatrième", prompt: "Quatrième." },
   ]);
   assert.equal(got.length, 3);
-  assert.ok(got[0].label.length <= 42 && got[0].label.endsWith("…"));
+  assert.deepEqual(got.map((x) => x.label), ["compare les trois offres", "Rédige le mail", "Fais un tableau"]); // the long one dropped, not trimmed
   assert.deepEqual(cleanSuggestions("nope"), []);
   const weather = { widgets: [{ type: "weather", day: "aujourd'hui" }], suggestions: [
     { label: "Prévois une tenue adaptée", prompt: "Que faut-il prévoir comme tenue pour demain à Lyon ?" }] };

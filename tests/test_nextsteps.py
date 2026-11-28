@@ -50,6 +50,11 @@ class Probeable(FakeClient):
         return super().generate(prompt, max_tokens, stop, **kw)
 
 
+def _label(text: str) -> str:
+    """A whole short label for a test prompt: its verb."""
+    return text.split()[0].rstrip(",.")
+
+
 def obj(*items):
     return {"suggestions": [{"label": a, "prompt": b} for a, b in items]}
 
@@ -72,16 +77,19 @@ def test_user_voice_is_kept_and_birds_question_fragments_are_dropped():
 
 
 def test_lengths_language_duplicates_and_three_at_most():
-    long = "Compare les trois offres sur le prix et la durée"
+    long = "Compare les trois offres sur le prix et la durée d'engagement"
     kept, dropped = N.validate(obj(
         (long, "Compare les trois offres sur le prix et la durée."),
-        ("compare les trois offres sur le prix et la durée", "Compare les offres."),
+        ("compare les offres", "Compare les offres."),
+        ("Compare les offres", "Compare les offres !"),
         ("Translate it into the language of your choice", "Translate the email into the language of your choice"),
         ("Rédige le mail", "Rédige le mail d'annonce à l'équipe."),
         ("Fais un tableau", "Fais un tableau des trois offres."),
         ("Ajoute une conclusion", "Ajoute une conclusion."),
     ))  # fmt: skip
-    assert len(kept) == 3 and kept[0]["label"] == "Compare les trois offres sur le prix" and len(kept[0]["label"]) <= N.LABEL_MAX
+    assert len(kept) == 3 and [k["label"] for k in kept] == ["Compare les offres", "Rédige le mail", "Fais un tableau"]
+    assert kept[0]["prompt"] == "Compare les offres."
+    assert (long, "cut") in dropped
     assert ("Translate it into the language of your choice", "language") in dropped
     assert any(why == "duplicate" for _, why in dropped)
     en, _ = N.validate(obj(("Draft the invitation", "Draft the invitation for the team offsite.")), lang="en")
@@ -102,12 +110,19 @@ def test_short_chips_in_the_other_language_are_dropped():
         assert N.validate(obj((label, prompt)), lang=lang)[0], label
 
 
-def test_labels_cut_by_the_schema_end_on_a_whole_word():
-    # the labels the live run of 28/11/2026 got cut at 42 characters by the endpoint (docs/HARNESS.md § 17)
-    assert N.tidy_label("Ajoute une diapositive sur les modalités d") == "Ajoute une diapositive sur les modalités"
-    assert N.tidy_label("Change le titre en « Formation continue") == "Change le titre"
-    assert N.tidy_label("Raccourcis le texte") == "Raccourcis le texte"
-    assert len(N.tidy_label("Compare le temps de trajet en métro, en bus et en voiture")) <= N.LABEL_MAX
+def test_a_cut_label_drops_the_chip_it_is_never_trimmed():
+    """Issue: tidy_label cut « Change le titre en « Formation continue » » down to « Change le titre », a label that
+    promises another request than the prompt it sends. A cut label (the schema's bound, a dangling word, an open
+    quote) now drops the chip; a whole label stays exactly as written."""
+    assert N.schema()["properties"]["suggestions"]["items"]["properties"]["label"]["maxLength"] == N.LABEL_HARD
+    title = ("Change le titre en « Formation continue »", "Change le titre de la présentation en « Formation continue ».")
+    assert N.validate(obj(title))[0] == [{"label": title[0], "prompt": title[1]}]
+    for label in ("Ajoute une diapositive sur les modalités d", "Change le titre en « Formation continue",
+                  "Compare le temps de trajet en métro, en bus et en voi", "Ajoute une section sur la", "Résume…"):
+        assert N.validate(obj((label, "Ajoute une diapositive sur les modalités d'inscription.")))[1] == [
+            (label, "cut")], label
+    assert N.validate(obj(("Raccourcis le texte.", "Raccourcis le texte")))[0] == [
+        {"label": "Raccourcis le texte", "prompt": "Raccourcis le texte."}]
 
 
 def test_what_the_user_does_himself_is_not_a_suggestion():
@@ -127,19 +142,19 @@ def test_vetoes_aim_at_the_actor_and_the_capability_not_at_a_word():
                        "policy.", "en"), ("Share a one-paragraph summary of the policy.", "en"),
                        ("Confirme les chiffres de croissance avec un calcul.", "fr"),
                        ("Donne-moi ce que tu sais du marché.", "fr")):  # fmt: skip
-        assert N.validate(obj((text[:40].rstrip(" ."), text)), lang=lang)[0], text
+        assert N.validate(obj((_label(text), text)), lang=lang)[0], text
     for text in ("Convertis le tableau en liste à puces.", "Fais une carte mentale du projet.",
                  "Rédige un paragraphe autour du thème de la sobriété.", "Ajoute les sources de chaque chiffre.",
                  "Ajoute des images illustrant les trois parcours à la diapositive."):  # the prompt's own example
-        assert N.validate(obj((text[:40].rstrip(" ."), text)), available=set())[0], text
+        assert N.validate(obj((_label(text), text)), available=set())[0], text
     # the actor is the user: still dropped
     for text, lang in (("Provide the client's email address.", "en"), ("Fournis un document sur le marché.", "fr"),
                        ("Donne mes objectifs de l'année.", "fr")):
-        assert N.validate(obj((text[:40].rstrip(" ."), text)), lang=lang)[0] == [], text
+        assert N.validate(obj((_label(text), text)), lang=lang)[0] == [], text
     # a module that is off, named without doubt: still dropped without a label
     for text in ("Donne la météo de Paris demain.", "Convertis 100 € en dollars.",
                  "Trouve des restaurants près du musée.", "Cherche sur le web les derniers chiffres."):
-        assert N.validate(obj((text[:40].rstrip(" ."), text)), available=set())[1][0][1] == "off", text
+        assert N.validate(obj((_label(text), text)), available=set())[1][0][1] == "off", text
 
 
 def test_bare_domains_and_short_links_are_not_chips():
@@ -201,7 +216,7 @@ def test_the_models_capability_label_vetoes_what_bird_cannot_do_here():
 def test_schema_and_parse():
     s = N.schema()
     item = s["properties"]["suggestions"]["items"]
-    assert s["properties"]["suggestions"]["maxItems"] == 3 and item["properties"]["label"]["maxLength"] == 42
+    assert s["properties"]["suggestions"]["maxItems"] == 3 and item["properties"]["label"]["maxLength"] == N.LABEL_HARD
     assert item["additionalProperties"] is False and s["required"] == ["suggestions"]
     assert N.validate(N.parse('[{"label":"a"}]'))[0] == [] and N.parse("not json") is None
     assert N.parse('"label":"Fais-le","prompt":"Fais-le."}]}', N.PREFIX) is None  # broken JSON: nothing

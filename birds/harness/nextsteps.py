@@ -25,7 +25,8 @@ import unicodedata
 
 MAX_TOKENS = 200  # three suggestions, compact JSON: ≈ 150 tokens measured
 BUDGET_S = 6.0  # beyond it no chips from the model: the widget chips of followups.js stay
-LABEL_MAX = 42
+LABEL_MAX = 42  # what the guide asks for
+LABEL_HARD = 48  # the schema's bound: a label that reaches it was cut by the endpoint, and is dropped
 PROMPT_MAX = 160
 MAX_ITEMS = 3
 MAX_REQUEST_CHARS = 400
@@ -42,7 +43,7 @@ def schema(ids: list[str] | None = None) -> dict:
         "type": "object",
         "properties": {
             "needs": {"type": "string", "enum": list(ids or all_ids())},
-            "label": {"type": "string", "minLength": 2, "maxLength": LABEL_MAX},
+            "label": {"type": "string", "minLength": 2, "maxLength": LABEL_HARD},
             "prompt": {"type": "string", "minLength": 4, "maxLength": PROMPT_MAX},
         },
         "required": ["needs", "label", "prompt"],
@@ -285,26 +286,23 @@ _CANT_DO = re.compile(
     r"^(?:upload|joins|attach|t[ée]l[ée]verse)\b",
     re.I,
 )
-# a label the schema's maxLength cut short (« Ajoute une diapositive sur les modalités d »): end on a whole word
+# a label the schema's maxLength cut short (« Ajoute une diapositive sur les modalités d »), or that stops on an
+# article, a preposition or an open « quote »: never shortened here (a cut label promises another request than the
+# prompt it sends), the chip is dropped
 _DANGLING = re.compile(
-    r"(?:\s+(?:de|d|du|des|la|le|les|l|un|une|en|à|au|aux|sur|pour|et|ou|avec|dans|par|of|the|to|a|an|and|"
-    r"for|on|in|with|by|or)|[\s,;:'’-])+$",
+    r"(?:\s(?:de|d|du|des|la|le|les|l|un|une|en|à|au|aux|sur|pour|et|ou|avec|dans|par|of|the|to|a|an|and|"
+    r"for|on|in|with|by|or)|[\s,;:'’-])$",
     re.I,
 )
 
 
-def tidy_label(label: str, limit: int = LABEL_MAX) -> str:
-    """A short label that reads as a whole: at most ``limit`` characters, cut at a word, without a dangling
-    article or preposition, an unclosed « quote » or an ellipsis in the middle of a word."""
+def cut_label(label: str) -> bool:
+    """Was this label cut short (by the schema's bound or by the model)? Then the chip is dropped, not trimmed."""
     s = label.strip()
-    if len(s) > limit:
-        s = s[:limit].rsplit(" ", 1)[0] if " " in s[:limit] else s[:limit]
-    if s.count("«") > s.count("»"):
-        s = s[: s.rfind("«")]
-    if s.count("(") > s.count(")"):
-        s = s[: s.rfind("(")]
-    s = _DANGLING.sub("", s).strip()
-    return s
+    return (len(s) >= LABEL_HARD or bool(_DANGLING.search(s)) or s.count("«") > s.count("»")
+            or s.count("(") > s.count(")") or s.endswith(("…", "...")))  # fmt: skip
+
+
 # a capability that can be off on a deployment, when the model gave no ``needs`` label (an endpoint without
 # structured outputs) or a wrong one: unambiguous phrases only, never a common word (« convertis le tableau »,
 # « une carte mentale », « autour du thème », « les sources de chaque chiffre » are writing requests)
@@ -349,7 +347,9 @@ def wrong_language(text: str, lang: str) -> bool:
 
 
 def _clean(v) -> str:
-    s = " ".join(str(v or "").split()).strip(" -–•*\"'«»")
+    s = " ".join(str(v or "").split()).strip(" -–•*\"'")
+    if s.startswith("«") and s.endswith("»") and s.count("«") == 1:  # the whole label quoted, not a title in it
+        s = s[1:-1].strip()
     return s
 
 
@@ -370,16 +370,18 @@ def validate(obj, *, lang: str = "fr", available: set[str] | None = None) -> tup
         label, prompt = _clean(it.get("label")), _clean(it.get("prompt"))
         if not prompt and label:
             prompt = label
-        if not label and prompt and len(prompt) <= LABEL_MAX:
-            label = prompt
+        if not label and prompt and len(prompt) < LABEL_HARD:
+            label = prompt.rstrip(".")
         both = f"{label} {prompt}"
         needs = it.get("needs")
         needs = needs.strip().lower() if isinstance(needs, str) and needs.strip() else None
         why = ""
         if len(label) < 2 or len(prompt) < 4:
             why = "empty"
-        elif len(label) > LABEL_MAX + 8 or len(prompt) > PROMPT_MAX + 40:
+        elif len(prompt) > PROMPT_MAX + 40:
             why = "length"
+        elif cut_label(label):
+            why = "cut"
         elif _UNSAFE.search(both):
             why = "unsafe"
         elif _BIRD_VOICE.search(label) or _BIRD_VOICE.search(prompt):
@@ -400,10 +402,7 @@ def validate(obj, *, lang: str = "fr", available: set[str] | None = None) -> tup
         if why:
             dropped.append((label, why))
             continue
-        label = tidy_label(label)
-        if len(label) < 2:
-            dropped.append((label, "length"))
-            continue
+        label = label.rstrip(".").strip()
         label = label[:1].upper() + label[1:]
         prompt = prompt[:1].upper() + prompt[1:]
         if prompt[-1] not in ".?!":
