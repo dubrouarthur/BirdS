@@ -21,6 +21,7 @@ import {
   toast,
   modelLabel,
 } from "./core.js";
+import { mountFootprintPage, recordFootprint } from "./footprint.js";
 
 let hooks = {};
 // replaceChildren would print null/false as text: drop them first
@@ -41,6 +42,7 @@ export function ledgerAdd(usage, convId) {
   const entries = store.json(LEDGER_KEY, []);
   entries.push({ ...usage, type: undefined, ts: Date.now(), conv: convId });
   store.set(LEDGER_KEY, JSON.stringify(entries.slice(-LEDGER_MAX)));
+  recordFootprint(usage); // ---- footprint.js hook: device totals, kept beyond the ledger's last answers
 }
 export const ledgerAll = () =>
   store
@@ -732,6 +734,7 @@ export function renderFootprint() {
       how,
       h("p", { class: "hint", text: t("fp.note") }),
     );
+    mountFootprintPage(body, { scope, usages, rerender: renderFootprint }); // ---- footprint.js hook
     return;
   }
   const energyStat = s.energyN
@@ -842,6 +845,7 @@ export function renderFootprint() {
         }
       }),
   );
+  mountFootprintPage(body, { scope, usages, rerender: renderFootprint }); // ---- footprint.js hook
 }
 
 // ------------------------------------------------------------------ settings

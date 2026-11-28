@@ -34,7 +34,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=float,
         default=None,
         metavar="G_PER_KWH",
-        help="grid carbon intensity in g CO2e/kWh; without it no CO2 figure is shown",
+        help="grid carbon intensity of the server, in g CO2e/kWh (fills co2_g and the panel's « this server » grid); "
+        "without it the Empreinte panel lets the reader pick France, Europe or World as a stated hypothesis",
+    )
+    p.add_argument(
+        "--demo-energy",
+        action="store_true",
+        help="--demo: estimate energy from the scripted tokens (labelled démo), so the footprint panel shows numbers",
     )
     p.add_argument("--tokenizer", default=None, help="real tokenizer instead of the vendored chat template")
     p.add_argument("--measure-gpu", action="store_true", help="sample nvidia-smi during generation")
@@ -77,6 +83,7 @@ def build_settings(args: argparse.Namespace):
         allow_user_endpoint=args.allow_user_endpoint or (not args.base_url and not args.local),
         workspace=args.workspace,
         tokenizer=args.tokenizer,
+        demo_energy=args.demo_energy or base.demo_energy,
     )
     if args.demo:
         s.base_url = None

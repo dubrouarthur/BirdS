@@ -603,10 +603,12 @@ def test_static_map_frame_has_no_stray_text_node():
     got = run_js(
         "const el = render(data.w); const f = el.querySelector('.map-frame');"
         "out({ kinds: f.childNodes.map((n) => n.nodeType), text: f.childNodes.filter((n) => n.nodeType === 3)"
-        ".map((n) => n.data), zoom: !!f.querySelector('.map-zoom') });",
+        ".map((n) => n.data), zoom: !!f.querySelector('.map-zoom-in, .map-zoom-out'), "
+        "full: !!f.querySelector('.map-full') });",
         w=w,
     )
-    assert got["kinds"] and set(got["kinds"]) == {1} and not got["text"] and not got["zoom"]
+    # one pre-rendered image: no zoom buttons, but full screen still works
+    assert got["kinds"] and set(got["kinds"]) == {1} and not got["text"] and not got["zoom"] and got["full"]
 
 
 def test_pin_tip_is_on_the_coordinate():

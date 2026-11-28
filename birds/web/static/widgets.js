@@ -17,6 +17,8 @@ import { buildIcs, icsName } from "./ics.js";
 const OSM_COPYRIGHT = "https://www.openstreetmap.org/copyright";
 const MAP_SRC =
   /^(\/api\/map\?t=[A-Za-z0-9_\-.]+|\/static\/demo\/[0-9a-f]{16}\.webp)$/;
+const CLUSTER_MIN = 9; // pins on the map before close ones are grouped
+const CLUSTER_R = 26; // px: pins closer than this to a group's first pin join it
 const TEL = /^\+?[0-9 .()-]{6,20}$/;
 const locale = () => (state.prefs.lang === "en" ? "en-GB" : "fr-FR");
 const nf = (o) => new Intl.NumberFormat(locale(), o);
@@ -316,6 +318,53 @@ function mapFrame(w, places, center, opts = {}) {
     layer.append(ring);
   }
   for (const p of places) addPin(p, String(p.n), "");
+  // dense maps: pins that would overlap are drawn as one numbered group; a tap zooms in (or opens the list)
+  const clusters = h("div", { class: "map-clusters" });
+  layer.append(clusters);
+  const group = (pts) => {
+    clusters.replaceChildren();
+    const solo = pts.filter((q) => !q.ring);
+    if (solo.length < CLUSTER_MIN) return pts;
+    const groups = [];
+    for (const q of solo) {
+      const g = groups.find((x) => Math.hypot(x.x - q.x, x.y - q.y) < CLUSTER_R);
+      if (g) g.members.push(q);
+      else groups.push({ x: q.x, y: q.y, members: [q] });
+    }
+    const out = pts.filter((q) => q.ring);
+    for (const g of groups) {
+      if (g.members.length < 3) {
+        out.push(...g.members);
+        continue;
+      }
+      const cx = g.members.reduce((s, q) => s + q.x, 0) / g.members.length;
+      const cy = g.members.reduce((s, q) => s + q.y, 0) / g.members.length;
+      for (const q of g.members) {
+        q.pin.hidden = true;
+        q.leader.hidden = true;
+      }
+      const ps = g.members.map((q) => q.p);
+      const bubble = h(
+        "button",
+        {
+          class: "map-cluster",
+          type: "button",
+          tabindex: "-1",
+          "aria-hidden": "true",
+          title: t("map.cluster", { n: ps.length, list: ps.map((p) => p.n).join(", ") }),
+        },
+        h("span", { text: String(ps.length) }),
+      );
+      bubble.style.setProperty("--x", `${((cx / (frame.clientWidth || 1)) * 100).toFixed(2)}%`);
+      bubble.style.setProperty("--y", `${((cy / (frame.clientHeight || 1)) * 100).toFixed(2)}%`);
+      bubble.addEventListener("click", () => {
+        if (!m.static && dz < 3) zoom(1)();
+        else opts.onCluster?.(ps);
+      });
+      clusters.append(bubble);
+    }
+    return out;
+  };
   const place = () => {
     const z = (m.z || 15) + dz;
     const W = frame.clientWidth || 0;
@@ -337,8 +386,10 @@ function mapFrame(w, places, center, opts = {}) {
           pin,
           leader,
           ring: !leader,
+          p,
         });
     }
+    pts.splice(0, pts.length, ...(W ? group(pts) : pts));
     // overlapping pins are fanned out (in CSS px, once the frame has a size), each with a leader to its point
     const moves = W ? declutter(pts) : pts.map(() => [0, 0]);
     pts.forEach((q, i) => {
@@ -423,10 +474,18 @@ function mapFrame(w, places, center, opts = {}) {
       },
       h("span", { text: w.attribution || "© OpenStreetMap contributors" }),
     ),
-    !m.static && h("div", { class: "map-zoom" }, zin, zout),
+    (!m.static || opts.onFull) &&
+      h(
+        "div",
+        { class: "map-zoom" },
+        !m.static && zin,
+        !m.static && zout,
+        opts.onFull && button("btn-icon map-full", "expand", t("map.full"), () => opts.onFull()),
+      ),
   ];
   frame.append(...children.filter(Boolean));
   frame._pins = pins;
+  frame._place = place;
   return frame;
 }
 
@@ -446,16 +505,22 @@ function linkPins(frame, list) {
 
 // ------------------------------------------------------------------ places
 
-function placeCard(p, mode, uidPrefix) {
+const LIST_MAX = 25; // tools/places.py MAX_LIST
+const MAX_CARDS = 8;
+
+function placeCard(p, mode, uidPrefix, leg = null) {
   const meta = [
     p.kind && kindLabel(p.kind),
     p.detail && detailLabel(p.detail),
     mode !== "list" && mode !== "where" && fmtDist(p.distance_m),
+    leg && t("places.leg", { d: fmtDist(leg.m), n: leg.a }),
   ].filter(Boolean);
   const site = safeUrl(p.website || "");
   const tel = TEL.test(String(p.phone || ""))
     ? `tel:${String(p.phone).replace(/[^+0-9]/g, "")}`
     : null;
+  const address = p.address && p.address !== p.name ? p.address : "";
+  const copy = p.address || p.name;
   return h(
     "li",
     {
@@ -471,11 +536,24 @@ function placeCard(p, mode, uidPrefix) {
       h("h4", { class: "place-name", text: p.name }),
       meta.length > 0 &&
         h("p", { class: "place-meta", text: meta.join(" · ") }),
-      p.address && h("p", { class: "place-address", text: p.address }),
+      address && h("p", { class: "place-address", text: address }),
       p.hours && hoursBlock(p.hours),
       h(
         "p",
         { class: "place-actions" },
+        ext(safeUrl(p.directions || ""), t("places.route")),
+        h(
+          "button",
+          {
+            class: "widget-link place-copy",
+            type: "button",
+            onclick: () => copyText(copy, t("places.copied")),
+          },
+          h("span", { text: t("places.copy") }),
+        ),
+        ext(safeUrl(p.osm || ""), t("places.osm"), "widget-link", {
+          title: t("widget.openOsm"),
+        }),
         site && ext(site, t("places.site")),
         tel &&
           h(
@@ -483,8 +561,6 @@ function placeCard(p, mode, uidPrefix) {
             { class: "widget-link", href: tel },
             h("span", { text: t("places.call") }),
           ),
-        ext(safeUrl(p.directions || ""), t("places.route")),
-        ext(safeUrl(p.osm || ""), t("places.map")),
         ext(safeUrl(p.wiki || ""), "Wikipédia"),
       ),
     ),
@@ -507,20 +583,150 @@ function placesTitle(w) {
       a: w.center.name,
       b: w.places[1]?.name || "",
     });
-  if (w.mode === "list") return t("places.title.list");
+  if (w.mode === "list")
+    return n > 1 ? t("places.title.listN", { n }) : t("places.title.list");
   return t("places.title.where", { q: w.places?.[0]?.name || w.query });
 }
 
+/** "1 → 3 → 2 → 4": the visit order of a list (card numbers). */
+export function orderLine(order) {
+  return (order || []).map(String).join(" → ");
+}
+
+function planBlock(w, prefix) {
+  if (w.mode !== "list" || !w.plan || !(w.legs || []).length) return null;
+  const total = fmtDist(w.total_m);
+  const head =
+    w.plan === "order"
+      ? h(
+          "p",
+          { class: "place-plan-line" },
+          h("strong", { text: `${t("places.order")} · ` }),
+          h("span", {
+            class: "place-plan-seq",
+            text: t("places.orderLine", { seq: orderLine(w.order), d: total }),
+          }),
+        )
+      : h(
+          "p",
+          { class: "place-plan-line" },
+          h("strong", { text: `${t("places.legs")} · ` }),
+          h("span", {
+            text: w.legs
+              .map((x) => `${x.a}–${x.b} ${fmtDist(x.m)}`)
+              .join(" · "),
+          }),
+        );
+  const matrix =
+    Array.isArray(w.matrix) &&
+    w.matrix.length > 2 &&
+    h(
+      "details",
+      { class: "place-matrix" },
+      h("summary", { text: t("places.matrix") }),
+      h(
+        "div",
+        { class: "place-matrix-scroll" },
+        h(
+          "table",
+          null,
+          h(
+            "thead",
+            null,
+            h(
+              "tr",
+              null,
+              h("th", { scope: "col", text: "" }),
+              w.matrix.map((_, j) =>
+                h("th", { scope: "col", text: String(j + 1) }),
+              ),
+            ),
+          ),
+          h(
+            "tbody",
+            null,
+            w.matrix.map((row, i) =>
+              h(
+                "tr",
+                null,
+                h("th", { scope: "row", text: String(i + 1) }),
+                row.map((m, j) =>
+                  h("td", { text: i === j ? "—" : fmtDist(m) }),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  return h(
+    "div",
+    { class: "place-plan", id: `${prefix}-plan` },
+    head,
+    matrix,
+    ext(
+      safeUrl(w.itinerary || ""),
+      t("places.itinerary"),
+      "btn btn-outline btn-small",
+    ),
+  );
+}
+
+// the places of a list that are not on the map, each kind said for what it is: not found (the provider answered
+// with nothing), not checked (the map service failed or was busy: never shown as « not found ») or not shown
+// (past the 25 places or the size of one card)
+const LEFT_OUT = [
+  ["missing", "places.missing"],
+  ["unchecked", "places.unchecked"],
+  ["not_shown", "places.notShown"],
+];
+
+function missingLine(w) {
+  const lines = LEFT_OUT.map(([field, key]) => {
+    const names = (w[field] || []).map(String).filter(Boolean);
+    if (!names.length) return null;
+    return h(
+      "p",
+      { class: "place-missing", role: "note" },
+      icon("alert"),
+      h("span", {
+        text: t(names.length === 1 ? `${key}.one` : `${key}.many`, {
+          n: names.length,
+          list: names.join(" ; "),
+        }),
+      }),
+    );
+  }).filter(Boolean);
+  return lines.length ? lines : null;
+}
+
 function renderPlaces(w, turn) {
+  const max = w.mode === "list" ? LIST_MAX : MAX_CARDS;
   const places = (w.places || [])
     .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon))
-    .slice(0, 8);
+    .slice(0, max);
   if (!places.length) return null;
   const prefix = `pl-${turn.id}-${Math.random().toString(36).slice(2, 6)}`;
+  const shown = w.mode === "list" ? 5 : 3;
+  let sec = null;
+  let cards = [];
+  let open = false;
+  let more = null;
+  const showAll = (on) => {
+    open = on;
+    cards.forEach(
+      (c, i) => (c.hidden = !open && i >= shown && cards.length > shown + 1),
+    );
+    if (more) {
+      more.setAttribute("aria-expanded", String(open));
+      more.querySelector(".btn-label").textContent = moreLabel();
+      more.classList.toggle("is-open", open);
+    }
+  };
   const focusCard = (p) => {
     const card = document.getElementById(`${prefix}-${p.n}`);
     if (!card) return;
-    card.hidden = false;
+    if (card.hidden) showAll(true);
     card.scrollIntoView({
       block: "nearest",
       behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -536,38 +742,41 @@ function renderPlaces(w, turn) {
     w.mode === "near" && w.center
       ? t("map.alt", { n: places.length, near: w.center.name })
       : t("map.alt.list", { names: places.map((p) => p.name).join(", ") });
-  const frame = mapFrame(w, places, center, { alt, onPin: focusCard });
-  const shown = 3;
-  const cards = places.map((p) => placeCard(p, w.mode, prefix));
-  cards.forEach((c, i) => (c.hidden = i >= shown && places.length > shown + 1));
+  const frame = mapFrame(w, places, center, {
+    alt,
+    onPin: focusCard,
+    onCluster: (members) => focusCard(members[0]),
+    onFull: () => toggleFull(),
+  });
+  // a planned list (« dans quel ordre les visiter ») is listed in its visit order, each card with its leg
+  const byN = new Map(places.map((p) => [p.n, p]));
+  const legTo = new Map((w.legs || []).map((x) => [x.b, x]));
+  const ordered =
+    w.mode === "list" && w.plan === "order" && Array.isArray(w.order)
+      ? w.order.map((n) => byN.get(n)).filter(Boolean)
+      : places;
+  cards = ordered.map((p) => placeCard(p, w.mode, prefix, legTo.get(p.n)));
   const list = h(
     "ol",
-    { class: "place-list", "aria-label": placesTitle(w) },
+    { class: "place-list", "aria-label": placesTitle(w), id: `${prefix}-list` },
     cards,
   );
-  const hiddenN = cards.filter((c) => c.hidden).length;
+  const hiddenN = Math.max(0, cards.length - shown);
+  const moreLabel = () =>
+    open ? t("places.less") : t("places.more", { n: hiddenN });
   // a toggle, not a self-removing button: keyboard focus never drops to <body>
-  let more = null;
-  if (hiddenN > 0) {
-    list.id = `${prefix}-list`;
-    let open = false;
-    const label = () =>
-      open ? t("places.less") : t("places.more", { n: hiddenN });
+  if (cards.length > shown + 1)
     more = button(
       "btn-outline btn-small place-more",
       "down",
-      label(),
+      moreLabel(),
       () => {
-        open = !open;
-        cards.forEach((c, i) => (c.hidden = !open && i >= shown));
-        more.setAttribute("aria-expanded", String(open));
-        more.querySelector(".btn-label").textContent = label();
-        more.classList.toggle("is-open", open);
+        showAll(!open);
         if (open) cards[shown].focus();
       },
       { "aria-expanded": "false", "aria-controls": `${prefix}-list` },
     );
-  }
+  showAll(false);
   linkPins(frame, list);
   const first = places[0];
   const osmAll = safeUrl(
@@ -587,14 +796,88 @@ function renderPlaces(w, turn) {
         "btn btn-primary btn-small",
       ),
     );
-  return section(
+  // full screen: the map and its list fill the window (the list is a bottom sheet on a phone); Escape closes
+  let back = null;
+  const close = button(
+    "btn-icon map-full-close",
+    "cross",
+    t("map.fullClose"),
+    () => toggleFull(false),
+  );
+  // a modal: Escape closes, Tab wraps inside it, and the page behind is inert (keyboard and screen readers)
+  let inerted = [];
+  const onKey = (e) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      toggleFull(false);
+    } else if (e.key === "Tab") {
+      const all = focusables(sec);
+      if (!all.length) return;
+      const first = all[0];
+      const last = all[all.length - 1];
+      const inside = sec.contains(document.activeElement);
+      if (e.shiftKey && (!inside || document.activeElement === first)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (!inside || document.activeElement === last)) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  };
+  // the turn is redrawn while the model writes: what it adds next to the card is not inert yet, focus comes back
+  const onFocus = (e) => {
+    if (!sec.contains(e.target)) close.focus({ preventScroll: true });
+  };
+  function toggleFull(force) {
+    const on = force ?? !sec.classList.contains("is-full");
+    if (on === sec.classList.contains("is-full")) return;
+    sec.classList.toggle("is-full", on);
+    document.documentElement.classList.toggle("has-map-full", on);
+    if (on) {
+      back = document.activeElement;
+      sec.setAttribute("role", "dialog");
+      sec.setAttribute("aria-modal", "true");
+      document.addEventListener("keydown", onKey, true);
+      document.addEventListener("focusin", onFocus, true);
+      inerted = inertAround(sec);
+      showAll(true);
+      close.focus({ preventScroll: true });
+    } else {
+      sec.removeAttribute("role");
+      sec.removeAttribute("aria-modal");
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("focusin", onFocus, true);
+      for (const el of inerted) el.inert = false;
+      inerted = [];
+      showAll(false);
+      // the button that opened it may be gone (the card was drawn again): this card's own button then
+      (back?.isConnected ? back : sec.querySelector(".map-full"))?.focus?.({
+        preventScroll: true,
+      });
+    }
+    frame?._place?.();
+  }
+  const itinerary =
+    w.mode === "list" && !w.plan && places.length >= 2
+      ? ext(safeUrl(w.itinerary || ""), t("places.itinerary"))
+      : null;
+  sec = section(
     "places",
     placesTitle(w),
-    h("div", { class: "widget-head-links" }, ext(osmAll, t("widget.openOsm"))),
+    close,
+    h(
+      "div",
+      { class: "widget-head-links" },
+      ext(osmAll, t("widget.openOsm")),
+      itinerary && " · ",
+      itinerary,
+    ),
     frame,
     route,
-    list,
-    more,
+    planBlock(w, prefix),
+    missingLine(w),
+    h("div", { class: "place-sheet" }, list, more),
     footer(
       h("span", { text: t("places.attr") }),
       " · ",
@@ -610,6 +893,53 @@ function renderPlaces(w, turn) {
         h("span", { class: "muted", text: ` — ${t("places.incomplete")}` }),
     ),
   );
+  sec._full = toggleFull; // turns.js: a card drawn again hands its full screen over (moveFull)
+  // turns.js, after each redraw of the turn: what was drawn next to an open card is made inert too, and a focus
+  // lost when the card was moved in the page comes back to it
+  sec._reinert = () => {
+    if (!sec.classList.contains("is-full")) return;
+    for (const el of inerted) el.inert = false;
+    inerted = inertAround(sec);
+    // the turn may be drawn before it is put back in the page: the focus is checked once it is there
+    requestAnimationFrame(() => {
+      if (sec.classList.contains("is-full") && !sec.contains(document.activeElement))
+        close.focus({ preventScroll: true });
+    });
+  };
+  return sec;
+}
+
+const FOCUSABLE =
+  'a[href],button:not([disabled]),input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])';
+
+function focusables(root) {
+  return [...root.querySelectorAll(FOCUSABLE)].filter(
+    (el) => !el.closest("[hidden],[inert]") && el.getClientRects().length,
+  );
+}
+
+/** Make everything but ``el`` and its ancestors inert; returns what was changed (to undo it). */
+function inertAround(el) {
+  const out = [];
+  for (let n = el; n && n.parentElement && n !== document.body; n = n.parentElement) {
+    for (const sib of n.parentElement.children) {
+      if (sib === n || sib.inert || sib.tagName === "SCRIPT") continue;
+      sib.inert = true;
+      out.push(sib);
+    }
+  }
+  return out;
+}
+
+/** A card list drawn again (the answer's cards replace the early ones): a map open in full screen in ``old`` is
+ * closed there, so the page is never left locked, and opened on the same card of ``next``. */
+export function moveFull(old, next) {
+  const cards = (root) => [...(root?.querySelectorAll?.(".widget-places") || [])];
+  const i = cards(old).findIndex((s) => s.classList.contains("is-full"));
+  if (i < 0) return;
+  cards(old)[i]._full?.(false);
+  const target = cards(next)[i];
+  if (target?._full) requestAnimationFrame(() => target.isConnected && target._full(true));
 }
 
 // ------------------------------------------------------------------ company
@@ -1884,8 +2214,8 @@ const RENDER = {
   event: renderEvent,
 };
 
-export function renderWidgets(turn) {
-  const list = (turn.answer?.widgets || []).filter((w) => w && RENDER[w.type]);
+export function renderWidgets(turn, widgets = turn.answer?.widgets || []) {
+  const list = (widgets || []).filter((w) => w && RENDER[w.type]);
   if (!list.length) return null;
   const els = [];
   for (const w of list) {

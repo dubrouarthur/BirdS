@@ -21,8 +21,13 @@
   du site corporate comme de l'accueil du chat.
 - Interface claire et simple, au niveau de Claude ou ChatGPT : peu d'éléments à l'écran, beaucoup d'espace, la
   richesse apparaît quand elle sert (modules), jamais d'encombrement.
+- **Continuité des échanges.** Quand un échange fait évoluer un élément (document, diapos, site web, graphique, carte,
+  tableau…), chaque tour réaffiche l'élément à jour (nouvelle version visible, jamais seulement « c'est fait ») et propose
+  2-3 suites pertinentes et concrètes (puces cliquables) ; l'historique des versions reste accessible.
 - CSP stricte : le navigateur ne contacte aucun tiers ; tout passe côté serveur par le garde d'egress.
 - Français d'abord, parité anglaise.
 - Feuille de route et priorités : `docs/ROADMAP.md`.
 - Python : `.venv/bin/python -I` pour les scripts ; tests `pytest -q`, lint `ruff check birds tests scripts`,
   banc des déclenchements `.venv/bin/python -I scripts/trigger_bench.py` (ne doit jamais régresser).
+- Dans un worktree au `.venv` en lien symbolique, lancer pytest et les scripts **sans** `-I` (`.venv/bin/python -m pytest -q`,
+  `.venv/bin/python scripts/trigger_bench.py`) : avec `-I`, Python importe le paquet `birds` du dépôt principal.

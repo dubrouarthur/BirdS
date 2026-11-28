@@ -29,6 +29,8 @@ MEMO_LABELS = {
         "notsent": "non envoyé",
         "chart": "graphique affiché",
         "columns": "colonnes",
+        "figures": "chiffres lus",
+        "todo": "reste à faire",
     },
     "en": {
         "head": "Memo of this turn",
@@ -40,6 +42,8 @@ MEMO_LABELS = {
         "notsent": "not sent",
         "chart": "chart shown",
         "columns": "columns",
+        "figures": "figures read",
+        "todo": "still to do",
     },
 }
 
@@ -90,11 +94,15 @@ def memo(
     results: list[dict] | None = None,
     charts: list[dict] | None = None,
     context: dict | None = None,
+    figures: list | None = None,
+    todo: list[str] | None = None,
 ) -> str:
     """Deterministic, compact record of what the tools did in one turn: tool names and key arguments, search result
     titles and URLs (so "the second source" can be answered later), pages read, files made, draft subject, the data
     of the charts shown (so "refais-le en courbe" can chart it again), and the arguments of the rich result shown (so « et
-    à Lyon ? » can ask it again, see followup.py).
+    à Lyon ? » can ask it again, see followup.py). ``figures`` are the labelled totals the tools read
+    (facts.key_figures: « Total TTC 300,00 € », label and amount only), so « envoie ces totaux par mail » has them
+    next turn; ``todo`` is what the task plan could not complete, so « vas-y, fais le mail » knows what is left.
     Never raw tool output, never excerpts, never an image transcription (it lives in the user turn)."""
     lab = MEMO_LABELS["en" if lang == "en" else "fr"]
     parts = []
@@ -129,6 +137,10 @@ def memo(
         part = memo_part(context, lang)
         if part:
             parts.append(part)
+    if figures:
+        parts.append(f"{lab['figures']} : " + " ; ".join(f"{_plain(f[0], 32)} {_plain(f[1], 24)}" for f in figures[:6]))
+    if todo:
+        parts.append(f"{lab['todo']} : " + ", ".join(_plain(t, 40) for t in todo[:4]))
     for c in (charts or [])[:3]:
         parts.append(chart_line(c, lab))
     out = f"[{lab['head']} — " + " | ".join(parts) + "]" if parts else ""
@@ -172,7 +184,7 @@ def _summary(turns: list[list[dict]], lang: str) -> str:
         first = _plain((str(user.get("content") or "").strip().splitlines() or [""])[0], 120) if user else ""
         extra = []
         for m in t:
-            for chunk in re.findall(r"\b(?:fichiers créés|files created|sources) : [^|\]]+", str(m.get("memo") or "")):
+            for chunk in re.findall(r"\b(?:fichiers créés|files created|sources|chiffres lus|figures read) : [^|\]]+", str(m.get("memo") or "")):
                 extra.append(_plain(chunk, 160))
         lines.append("- " + first + (" → " + " ; ".join(extra)[:160] if extra else ""))
     out = NOTE["en" if lang == "en" else "fr"] + "\n" + "\n".join(lines[-12:])

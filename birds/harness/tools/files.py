@@ -231,9 +231,83 @@ def _show(ctx, preview: dict) -> None:
     ctx.step_info = {**(getattr(ctx, "step_info", None) or {}), "preview": preview}
 
 
+MEDIA_SECONDS = 20.0  # at most this long fetching web pictures and map tiles for one file
+
+
+def file_media(ctx, topic: str, *, web: bool = True) -> list:
+    """The pictures a deck or document of this run can use: the user's attached images, free-licence pictures the
+    research step saw (Wikimedia Commons, licence checked, credited), the charts drawn in the run and a map of the
+    places found. Each source that fails is left out; the file is made anyway."""
+    import time
+
+    from birds.harness import office_media as om
+
+    t0 = time.monotonic()
+    media: list = []
+    try:
+        media += om.user_images(ctx.workspace, getattr(ctx, "request", "") or "")
+    except OSError:
+        pass
+    for i, spec in enumerate(getattr(ctx, "charts", None) or [], 1):
+        if om.chart_spec_ok(spec):
+            media.append(om.chart_media(spec, f"c{i}"))
+    http = getattr(ctx, "http", None)
+    fetch = om.Fetcher(http, ctx.config) if http is not None and web else None
+    if fetch is not None and getattr(ctx, "images", None):
+        media += om.web_images(ctx.images, fetch, topic, limit=3, deadline=t0 + MEDIA_SECONDS)
+    places = getattr(ctx, "places", None) or []
+    if fetch is not None and places and time.monotonic() - t0 < MEDIA_SECONDS:
+        m = om.map_image(places, fetch, "m1", title=str(places[0].get("near") or ""))
+        if m is not None:
+            media.append(m)
+    return om.budget(media)
+
+
+def read_sources(ctx) -> list[dict]:
+    """The pages read in this run, numbered as the answer cites them, with their titles when the page gave one."""
+    titles = {}
+    for kind, text in getattr(ctx, "fetched", None) or []:
+        m = re.match(r"URL: (\S+)\nTitle: ([^\n]+)", text or "") if kind == "web" else None
+        if m:
+            titles[m.group(1)] = m.group(2).strip()
+    out = []
+    for n, url in enumerate(getattr(ctx, "sources", None) or [], 1):
+        if isinstance(url, str) and url.startswith(("https://", "http://")):
+            host = re.sub(r"^www\.", "", url.split("/")[2]) if url.count("/") >= 2 else url
+            out.append({"n": n, "title": titles.get(url) or host, "url": url})
+    return out
+
+
+def _options(args: dict) -> dict:
+    """What the editor chose (harness-level arguments, never offered to the model)."""
+    out = {}
+    for k in ("cover", "agenda", "closing", "toc"):
+        if k in args:
+            out[k] = args[k]
+    return out
+
+
+def _added_note(added: list[str], media: list, lang: str) -> str:
+    names = {"agenda": "an agenda", "sources": "a sources slide", "credits": "an image credits slide",
+             "closing": "a closing slide", "chart": "a chart slide", "map": "a map", "grid": "a picture grid",
+             "image": "a picture slide"}  # fmt: skip
+    parts = [names[a] for a in dict.fromkeys(added) if a in names]
+    kinds = [m.kind for m in media]
+    if kinds.count("user"):
+        parts.append(f"{kinds.count('user')} picture(s) the user attached")
+    if kinds.count("web"):
+        parts.append(f"{kinds.count('web')} free-licence web picture(s), credited")
+    if kinds.count("map"):
+        parts.append("a map (© OpenStreetMap contributors)")
+    return f" The harness added: {', '.join(parts)}." if parts else ""
+
+
 def make_slides(args: dict, ctx) -> str:
+    if (sink := getattr(ctx.config, "canvas_sink", None)) is not None:  # a canvas turn (birds.canvas.turn)
+        return sink("make_slides", args, ctx)
     _need("pptx", "python-pptx")
-    from birds.harness.office import KEY_FIGURES, build_pptx, figure_bullets, missing_figures, plain
+    from birds.harness.office import KEY_FIGURES, figure_bullets, missing_figures, plain
+    from birds.harness.office_deck import build
 
     slides = [dict(s) for s in args["slides"]]
     # A small model drops figures the user gave ("CA 1,2 M€ (+8 %), marge 31 %") and then says they are in the
@@ -246,30 +320,53 @@ def make_slides(args: dict, ctx) -> str:
                           "bullets": figure_bullets(ctx.request, missing)})
         added = f" A 'key figures' slide was added first with figures from the request that were missing: " \
                 f"{', '.join(missing)}."
+    lang = getattr(ctx, "lang", "fr") or "fr"
+    topic = " ".join([args["title"]] + [str(s.get("title") or "") for s in slides])
+    media = args.pop("_media", None)
+    if media is None:
+        media = file_media(ctx, topic)
     p = _new_path(ctx, args["title"], ".pptx")
     preview: dict = {}
-    n = build_pptx(p, args["title"], slides, args.get("subtitle") or "", getattr(ctx, "lang", "fr") or "fr", preview)
+    out = build(p, args["title"], slides, args.get("subtitle") or "", lang, preview, media=media,
+                theme=args.get("theme"), sources=args.get("sources") or read_sources(ctx),
+                request=getattr(ctx, "request", "") or "", options=_options(args))  # fmt: skip
     _show(ctx, preview)
-    extra = f", {n - 1} after splitting long slides" if n - 1 != len(slides) else ""
+    n = out["total"]
     titles = "; ".join(f"{i}. {plain(str(s.get('title') or ''))[:60]}" for i, s in enumerate(slides, 2))
+    extra = f", {n - 1} in all after splitting and additions" if n - 1 != len(slides) else ""
     return _done(ctx, p, f"title slide + {len(slides)} slides{extra}") + (
-        f"\nSlides: {titles}.{added}\nDescribe the deck from this list only: do not claim content that is not in it."
+        f"\nSlides: {titles}.{added}{_added_note(out['added'], media, lang)}\n"
+        "Describe the deck from this list only: do not claim content that is not in it."
     )
 
 
 def make_document(args: dict, ctx) -> str:
+    if (sink := getattr(ctx.config, "canvas_sink", None)) is not None:  # a canvas turn (birds.canvas.turn)
+        return sink("make_document", args, ctx)
     _need("docx", "python-docx")
     from birds.harness.office import build_docx
 
+    lang = getattr(ctx, "lang", "fr") or "fr"
+    topic = " ".join([args["title"]] + [str(s.get("heading") or "") for s in args["sections"]])
+    media = args.pop("_media", None)
+    if media is None:
+        media = file_media(ctx, topic)
     p = _new_path(ctx, args["title"], ".docx")
     preview: dict = {}
-    stats = build_docx(p, args["title"], args["sections"], args.get("subtitle") or "", preview)
+    stats = build_docx(p, args["title"], args["sections"], args.get("subtitle") or "", preview, media=media,
+                       theme=args.get("theme"), sources=args.get("sources") or read_sources(ctx), lang=lang,
+                       request=getattr(ctx, "request", "") or "", options=_options(args))  # fmt: skip
     _show(ctx, preview)
     tables = f", {stats['tables']} table(s)" if stats["tables"] else ""
-    return _done(ctx, p, f"{len(args['sections'])} sections{tables}")
+    figs = f", {stats['figures']} figure(s)" if stats.get("figures") else ""
+    return _done(ctx, p, f"{len(args['sections'])} sections{tables}{figs}") + _added_note(
+        stats.get("added", []), media, lang
+    )
 
 
 def make_sheet(args: dict, ctx) -> str:
+    if (sink := getattr(ctx.config, "canvas_sink", None)) is not None:  # a canvas turn (birds.canvas.turn)
+        return sink("make_sheet", args, ctx)
     _need("openpyxl", "openpyxl")
     from birds.harness.office import build_xlsx
 

@@ -26,9 +26,13 @@ import { renderBlocks, renderMarkdown, safeUrl, stabilize } from "./markdown.js"
 import { wrapPref } from "./richcode.js";
 import { docCard, imageCard, kindOf, middle } from "./attach.js";
 import { deckPreview, docPreview, sheetPreview } from "./previews.js";
+import { openEditor } from "./editor.js";
 import { chartMarkdown, renderChart } from "./chart.js";
-import { renderWidgets, widgetsText } from "./widgets.js";
-import { renderAgents } from "./agents.js";
+import { moveFull, renderWidgets, widgetsText } from "./widgets.js";
+import { renderAgents, renderChecks } from "./agents.js";
+import { footprintAnswer } from "./footprint.js";
+import { renderPlan } from "./plan.js"; // task plan checklist (w1-harness)
+import { canvasCard } from "./canvas.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -534,15 +538,15 @@ function slideStrip(preview) {
   );
 }
 
-function filePreview(preview, onDownload) {
+function filePreview(preview, onDownload, onEdit = null) {
   if (!preview || typeof preview !== "object") return null;
   if (preview.v === 2) {
     // what the file really holds (read back by the server), drawn in the file's own design
     if (preview.kind === "slides") {
-      const deck = deckPreview(preview, { onDownload });
+      const deck = deckPreview(preview, { onDownload, onEdit });
       return deck && h("div", null, deck, preview.notes > 0 && h("p", { class: "hint", text: t("files.notes", { n: preview.notes }) }));
     }
-    if (preview.kind === "document") return docPreview(preview, { onDownload });
+    if (preview.kind === "document") return docPreview(preview, { onDownload, onEdit });
     if (preview.kind === "sheet") return sheetPreview(preview);
   }
   if (preview.kind === "slides") {
@@ -660,7 +664,9 @@ function renderFiles(turn) {
               new Blob([b64ToBytes(file.data)], { type: file.mime || "application/octet-stream" }),
             )
         : null;
-      const preview = filePreview(p, save);
+      // a deck or document Bird made carries its plan: it can be edited and rebuilt here (editor.js)
+      const edit = p.v === 2 && p.plan ? () => openEditor(file, { onDone: () => handlers.onChange?.(turn) }) : null;
+      const preview = filePreview(p, save, edit);
       return h(
         "section",
         { class: `card file-card${p.v === 2 ? ` file-${p.kind}` : ""}`, "data-file": name },
@@ -871,7 +877,7 @@ function energyWhy(usage) {
   if (usage.energy_method === "power_time")
     return [
       "why.energy.power",
-      { gpu: b.gpu || "GPU", s: fmtSig(b.busy_seconds || 0), pue: fmtSig(b.pue || 1) },
+      { s: fmtSig(b.busy_seconds || 0), pue: fmtSig(b.pue || 1) },
     ];
   if (usage.energy_method === "tokens") {
     const range =
@@ -1027,6 +1033,8 @@ function fullReceipt(turn) {
       { class: "receipt-chips" },
       chips.map((c) => h("span", { text: c })),
     ),
+    // ---- footprint.js mount hook: the answer's emissions, water, graphics-card time and equivalents
+    footprintAnswer(u, state.conv, { onOpenPage: () => handlers.onOpenFootprint() }),
     details(
       "receipt-detail",
       turn.ui.meter ?? false,
@@ -1256,7 +1264,8 @@ function moreMenu(items) {
 // anything else ("internal", or a code this page does not know) is shown as a plain sentence, the raw text folded away
 const FRIENDLY_ERRORS = new Set(
   (
-    "waking endpoint_down network offline dropped stopped access_code rate_limited confirm_invalid unauthorized wrong_route " +
+    "waking endpoint_down network offline dropped stopped access_code rate_limited confirm_invalid agent_state_used " +
+    "unauthorized wrong_route " +
     "unknown_model blocked disabled not_configured host_not_allowed https_only invalid_url address bad_request " +
     "demo invalid_model invalid_token port server timeout unreachable attachment_invalid attachment_too_long " +
     "attachment_type cross_origin image_invalid image_too_large image_too_small image_type invalid_mode " +
@@ -1482,10 +1491,21 @@ function basedOn(turn) {
 }
 
 function widgetsFor(turn, entry) {
-  if (!turn.answer?.widgets?.length) return null;
-  if (entry.widgetsOf !== turn.answer) {
-    entry.widgetsOf = turn.answer;
-    entry.widgets = renderWidgets(turn);
+  // the answer's cards, or the ones sent as each pre-called tool returned (`widget` event): shown while the model
+  // writes, and kept when it fails
+  const list = turn.answer?.widgets?.length ? turn.answer.widgets : turn.widgets || [];
+  if (!list.length) return null;
+  if (entry.widgetsOf !== list) {
+    entry.widgetsOf = list;
+    // the answer's cards are most often the early ones again: the same cards keep their DOM (and its state: an
+    // open full screen, an expanded list); others are drawn again and take over a full screen left open
+    const key = JSON.stringify(list);
+    if (key !== entry.widgetsKey) {
+      entry.widgetsKey = key;
+      const old = entry.widgets;
+      entry.widgets = renderWidgets(turn, list);
+      moveFull(old, entry.widgets);
+    }
   }
   return entry.widgets;
 }
@@ -1494,6 +1514,8 @@ function widgetsFor(turn, entry) {
 function focusKey(el) {
   const a = document.activeElement;
   if (!a || a === el || !el.contains(a)) return null;
+  // a map open in full screen keeps its node across redraws: the focused control itself is given back
+  if (a.closest(".widget-places.is-full")) return { node: a };
   const sel = a.hasAttribute("data-crew-summary")
     ? "[data-crew-summary]"
     : a.dataset.act
@@ -1504,10 +1526,14 @@ function focusKey(el) {
 }
 
 function restoreFocus(el, key) {
+  if (key?.node) {
+    if (key.node.isConnected && document.activeElement !== key.node) key.node.focus({ preventScroll: true });
+    return;
+  }
   if (!key || el.contains(document.activeElement)) return;
   const all = el.querySelectorAll(key.sel);
   // the way out of a team that just finished is gone: its folded line takes the focus, never <body>
-  const next = all[key.rank] || all[0] || (key.crew && el.querySelector("[data-crew-summary]"));
+  const next = all[key.rank] || all[0] || (key.crew ? el.querySelector("[data-crew-summary]") : null);
   next?.focus({ preventScroll: true });
 }
 
@@ -1526,6 +1552,7 @@ function fillAssistant(el, turn, isLast) {
   const children = [
     byline(entry, turn, mode),
     renderAgents(turn, handlers),
+    renderPlan(turn),
     renderSteps(turn.crew ? { ...turn, steps: turn.steps.filter((s) => !s.agent) } : turn), // crew steps sit in their lane
     turn.reasoning &&
       details(
@@ -1536,9 +1563,12 @@ function fillAssistant(el, turn, isLast) {
         h("div", { class: "reasoning-body", text: turn.reasoning }),
       ),
     hasText && entry.md,
+    turn.answer?.fallback && h("p", { class: "answer-note", "data-notice": "fallback", text: turn.answer.fallback }),
     renderCharts(turn),
     renderWebImages(turn),
     widgetsFor(turn, entry),
+    turn.crew?.done && renderChecks(turn), // « Vérifications faites »: the team's checks, figure by figure
+    canvasCard(turn), // the deck, document, page or sheet of this turn, in the canvas
     basedOn(turn),
     (!turn.crew || turn.crew.done || turn.live?.state === "waking") && liveLine(turn),
     renderConfirm(turn),
@@ -1580,6 +1610,7 @@ function fillAssistant(el, turn, isLast) {
     el.replaceChildren(...kids);
   }
   restoreFocus(el, focus);
+  el.querySelector(".widget-places.is-full")?._reinert?.();
   el.setAttribute("aria-busy", String(turn.status === "running"));
 }
 

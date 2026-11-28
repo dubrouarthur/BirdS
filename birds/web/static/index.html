@@ -12,6 +12,7 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="/static/app.css" />
     <link rel="stylesheet" href="/static/agents.css" />
+    <link rel="stylesheet" href="/static/canvas.css" />
     <script src="/static/theme.js"></script>
     <script type="module" src="/static/app.js"></script>
   </head>
@@ -63,6 +64,10 @@
           <h1 id="top-title" class="top-title">Bird</h1>
           <button id="btn-model" class="btn btn-chip" type="button">
             <span class="chip-dot" aria-hidden="true"></span><span id="model-name">bird</span>
+          </button>
+          <button id="btn-deliverables" class="btn btn-chip btn-deliverables" type="button" hidden data-i18n-aria="deliv.open">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M3.5 6.5h5l1.5 1.5h6.5v8h-13z" /><path d="M3.5 6.5V4.5h5l1.5 2" /></svg>
+            <span class="deliv-label" data-i18n="deliv.title">Livrables</span><span id="deliverables-n" class="num deliv-n"></span>
           </button>
           <button id="btn-footprint" class="btn btn-chip btn-footprint" type="button" data-i18n-aria="nav.footprint">
             <svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M4 16c0-6.5 4.2-11 12-12 .2 7.6-3.6 12-9.6 12.4M4 16.6C6 12.5 8.6 10 12 8.2" /></svg>
@@ -194,6 +199,18 @@
           </button>
         </div>
         <div id="shortcuts-body"></div>
+      </div>
+    </dialog>
+
+    <dialog id="deliverables" class="modal deliverables" aria-labelledby="deliverables-title">
+      <div class="modal-body">
+        <div class="modal-head">
+          <h2 id="deliverables-title" data-i18n="deliv.title">Livrables</h2>
+          <button id="deliverables-close" class="btn btn-quiet btn-icon" type="button" data-i18n-aria="close">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
+          </button>
+        </div>
+        <div id="deliverables-body"></div>
       </div>
     </dialog>
 

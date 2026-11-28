@@ -16,6 +16,7 @@ class Config:
     allow_python: bool = False  # run_python is NOT a sandbox: enable only inside a disposable container
     cache_salt: str | None = None  # vLLM prefix-cache isolation, one value per conversation (backends.cache_salt)
     route_tools: bool = True  # hide web tools for a plain "make me a file" request (agent.route)
+    task_plan: bool = True  # checklist of the deliverables asked, checked before the final answer (plan.py)
     # loop limits
     max_steps: int = 6  # model generations per run
     max_calls_per_step: int = 3
@@ -103,6 +104,7 @@ class Context:
     geo_calls: int = 0  # upstream geocoder requests of this run (cap: geo.MAX_LOOKUPS_PER_RUN)
     place_calls: int = 0  # successful find_places calls of this run
     widgets: list[dict] = field(default_factory=list)  # cards the harness computed itself, no tool (world clock)
+    places: list[dict] = field(default_factory=list)  # places find_places showed in this run (maps in office files)
 
     @property
     def workspace(self) -> Path:

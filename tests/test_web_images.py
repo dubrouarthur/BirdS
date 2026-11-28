@@ -25,6 +25,7 @@ from birds.web.settings import Settings
 SECRET = b"img-test-secret"
 CSP_TODAY = (
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; connect-src 'self'; "
+    "frame-src 'self'; "  # the canvas preview frame only (sandboxed, no network: canvas_web.FRAME_CSP)
     "manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 )
 

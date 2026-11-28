@@ -17,7 +17,8 @@ from birds.harness import geo, when
 from . import mapimg
 
 MAX_WIDGET_BYTES = 8_000
-MAX_TOTAL_BYTES = 24_000
+MAX_LIST_BYTES = 16_000  # a map of up to 25 places (« montre sur une carte : a ; b ; c … »)
+MAX_TOTAL_BYTES = 32_000
 DEFAULT_TZ = "Europe/Paris"
 
 _TITLE = re.compile(
@@ -182,12 +183,20 @@ def build_widgets(steps, request_text: str, lang: str, now: datetime, secret: by
             ev["weather"] = hint
         out.append(ev)
     kept, total = [], 0
-    for w in out:  # caps of the history: each widget <= 8 KB, all <= 24 KB
+    for w in out:  # caps of the history: each widget <= 8 KB (a list of places 16 KB), all <= 32 KB
+        cap = MAX_LIST_BYTES if w.get("type") == "places" and w.get("mode") == "list" else MAX_WIDGET_BYTES
         n = _size(w)
-        while n > MAX_WIDGET_BYTES and w.get("places") and len(w["places"]) > 1:
+        if n > cap and cap == MAX_LIST_BYTES:
+            from birds.harness.tools.places import fit_list
+
+            # the order, legs, total and route are computed again on the places kept; the others are named
+            if fit_list(w, cap) and w.get("map"):
+                w["map"] = _map_for([(p["lat"], p["lon"]) for p in w["places"]], secret, "", layer)
+            n = _size(w)
+        while n > cap and w.get("places") and len(w["places"]) > 1:
             w["places"] = w["places"][:-1]
             n = _size(w)
-        if n <= MAX_WIDGET_BYTES and total + n <= MAX_TOTAL_BYTES:
+        if n <= cap and total + n <= MAX_TOTAL_BYTES:
             kept.append(w)
             total += n
     return kept
