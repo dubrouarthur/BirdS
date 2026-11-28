@@ -152,6 +152,13 @@ class ExportBody(BaseModel):
     content: str = Field(min_length=1, max_length=120_000)
 
 
+class TitleBody(BaseModel):
+    question: str = Field(min_length=1, max_length=4000)
+    answer: str = Field(default="", max_length=4000)
+    lang: Literal["fr", "en"] = "fr"
+    subject: str = Field(default="", max_length=300)  # a mail drafted in the answer: its subject is the title
+
+
 class ToolBody(BaseModel):
     tool: Literal["make_slides", "make_document", "make_sheet"]
     arguments: dict
@@ -718,6 +725,23 @@ def create_app(
             raise ApiError(422, "note_invalid", "this instruction is not valid for its kind")
         return {"ok": True, "delivered": crew_plan.REGISTRY.deliver(body.run, note), "id": note.id,
                 "kind": note.kind, "value": note.value}  # fmt: skip
+
+    @app.post("/api/title")
+    def title(body: TitleBody, request: Request) -> dict:
+        """The conversation's title after its first answer: a mail's subject when there is one (from the result),
+        else one short structured call to the model, checked (birds/harness/titles.py). ``title`` is "" when
+        nothing usable came back: the app keeps the start of the question."""
+        guard_request(request)
+        from birds.harness import titles
+
+        mode = resolve_mode(request)
+        subject = titles.from_result({"subject": body.subject})
+        if subject:
+            return {"title": subject, "source": "result"}
+        backend, _ = backend_for(mode, request)
+        llm, tok = getattr(backend, "llm", None), getattr(backend, "tok", None)
+        got = titles.propose(llm, tok, body.question, body.answer, lang=body.lang)
+        return {"title": got["title"], "source": got["source"]}
 
     @app.post("/api/export")
     def export(body: ExportBody, request: Request):

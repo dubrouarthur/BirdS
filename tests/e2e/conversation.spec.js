@@ -275,6 +275,9 @@ part("search", async (page, name, fail, shot) => {
   await newChat(page);
   await send(page, "Écris un mail à mon propriétaire pour signaler une fuite");
   await openDrawer(page);
+  // R14: the title comes from the result (the mail's subject), not the first words of the question
+  await page.waitForFunction(() => /Votre offre/.test(document.querySelector(".conv.is-current .conv-title")?.textContent || ""), null, { timeout: 5000 })
+    .catch(() => fail("R14: the mail's subject did not become the title"));
   await page.fill("#conv-search", "Camille"); // in the answer only, not in the title
   await page.waitForTimeout(200);
   const row = page.locator(".conv").first();

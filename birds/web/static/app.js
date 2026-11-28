@@ -65,7 +65,7 @@ import { applyResearchEvent } from "./research.js";
 import { mountPicker, updatePicker } from "./reflexion.js"; // Mode Réflexion: the bird picker
 import { normalizeChoice, thinks } from "./reflexion-data.js";
 import * as cx from "./conversation.js"; // versions, inline edit, documents in context, dialogs, back button
-import { contextDocs, convText, findIn, fork, switchVersion, validGroup } from "./conversation-data.js";
+import { cleanTitle, contextDocs, convText, findIn, fork, switchVersion, validGroup } from "./conversation-data.js";
 
 import { loadAgentMode } from "./agent-mode.js"; // Mode Agent: Auto by default; Activé for this session only
 let planTimer = 0; // the plan card's countdown (Auto, high confidence)
@@ -275,6 +275,38 @@ function openConv(id) {
   closeDrawer();
 }
 
+/** After the first answer: a short title summarised by the model (or a mail's subject), checked here too; the
+ * start of the question stays when nothing usable comes back, or when the user renamed it meanwhile. */
+async function proposeTitle(conv, turn) {
+  const users = conv.turns.filter((x) => x.role === "user" && !x.hidden);
+  if (users.length !== 1 || !turn.answer?.content) return;
+  conv.titled = true;
+  const before = conv.title;
+  try {
+    const response = await fetch("/api/title", {
+      method: "POST",
+      headers: requestHeaders(),
+      body: JSON.stringify({
+        question: users[0].content.slice(0, 4000),
+        answer: String(turn.answer.content).slice(0, 1500),
+        lang: conv.lang === "en" ? "en" : "fr",
+        subject: String(turn.answer.draft_email?.subject || "").slice(0, 300),
+      }),
+    });
+    if (!response.ok) return;
+    const title = cleanTitle((await response.json())?.title, "");
+    if (!title || conv.title !== before || title === before) return;
+    conv.title = title;
+    if (state.convs.some((c) => c.id === conv.id)) saveConv(conv);
+    if (state.conv === conv) {
+      updateTop();
+      syncTitle();
+    }
+  } catch {
+    /* the start of the question stays */
+  }
+}
+
 function autoTitle(text) {
   const clean = String(text).replace(/\s+/g, " ").trim();
   if (clean.length <= 52) return clean;
@@ -377,6 +409,7 @@ function renderSidebar() {
           const conv = current ? state.conv : loadConv(c.id);
           if (conv) {
             conv.title = value;
+            conv.titled = true; // the user's own title: never replaced by a proposed one
             store.set(`bird.conv.${c.id}`, JSON.stringify(slim(conv)));
           }
           store.set("bird.convs", JSON.stringify(state.convs));
@@ -1742,6 +1775,7 @@ async function runTurn(turn, extra = {}) {
       delete turn.cont; // « Continuer » is over: the answer is one text again
       delete turn.stepBase;
     }
+    if (turn.status === "done" && !conv.titled) proposeTitle(conv, turn);
     if (turn.usage && turn.status === "done" && !turn.counted) {
       turn.counted = true;
       ledgerAdd(turn.usage, conv.id);
