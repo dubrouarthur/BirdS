@@ -4,9 +4,10 @@
 #
 # Ce que fait ce script, sans rien cacher :
 #   1. vérifie python3 (3.10+), git et curl ;
-#   2. récupère Bird dans ~/.bird/app (ou le met à jour) et l'installe dans un environnement Python à part ;
-#   3. démarre le modèle avec vLLM sur http://127.0.0.1:8000 (sauf si un serveur tourne déjà ou si BIRD_VLLM_URL
-#      désigne le vôtre) ;
+#   2. récupère Bird dans ~/.bird/app (ou le met à jour) et l'installe dans son environnement Python (~/.bird/venv) ;
+#   3. installe vLLM dans un second environnement (~/.bird/vllm-venv), vous connecte à Hugging Face (hf auth login)
+#      si besoin, et sert le modèle sur http://127.0.0.1:8000 (sauf si un serveur tourne déjà ou si BIRD_VLLM_URL
+#      désigne le vôtre), puis lui pose une première question ;
 #   4. démarre Bird sur http://127.0.0.1:8765, uniquement sur votre machine, et ouvre le navigateur.
 # Rien n'est envoyé ailleurs : le modèle, vos messages et les outils tournent chez vous.
 #
@@ -76,13 +77,27 @@ else
   else
     command -v nvidia-smi >/dev/null 2>&1 \
       || say "Pas de carte graphique NVIDIA détectée : vLLM sera lent ou indisponible. Vous pouvez désigner un serveur existant avec BIRD_VLLM_URL."
-    if ! "$VENV/bin/python" -c 'import vllm' >/dev/null 2>&1; then
+    # vLLM dans son propre environnement : ses dépendances (torch, CUDA) ne touchent jamais celles de Bird
+    VLLM_VENV="$BIRD_HOME/vllm-venv"
+    [ -d "$VLLM_VENV" ] || "$PY" -m venv "$VLLM_VENV"
+    if ! "$VLLM_VENV/bin/python" -c 'import vllm' >/dev/null 2>&1; then
       say "Installation de vLLM (quelques minutes la première fois)…"
-      "$VENV/bin/python" -m pip install -q vllm || die "L'installation de vLLM a échoué (voir https://docs.vllm.ai)."
+      "$VLLM_VENV/bin/python" -m pip install -q --upgrade pip
+      "$VLLM_VENV/bin/python" -m pip install -q vllm "huggingface_hub[cli]" \
+        || die "L'installation de vLLM a échoué (voir https://docs.vllm.ai)."
+    fi
+    # le modèle est sur Hugging Face : HF_TOKEN s'il est fourni, sinon la connexion « hf auth login »
+    if [ -z "${HF_TOKEN:-}" ] && ! "$VLLM_VENV/bin/hf" auth whoami >/dev/null 2>&1; then
+      if [ -r /dev/tty ]; then
+        say "Connexion à Hugging Face (le modèle $BIRD_MODEL demande un compte autorisé) :"
+        "$VLLM_VENV/bin/hf" auth login </dev/tty || die "Connexion à Hugging Face refusée."
+      else
+        die "Connectez-vous d'abord : $VLLM_VENV/bin/hf auth login (ou définissez HF_TOKEN)."
+      fi
     fi
     say "Démarrage du modèle $BIRD_MODEL avec vLLM…"
     # HF_TOKEN, s'il est défini, est lu par vLLM depuis l'environnement : il n'est jamais écrit sur le disque ni affiché
-    nohup "$VENV/bin/vllm" serve "$BIRD_MODEL" --host 127.0.0.1 --port "$VLLM_PORT" --served-model-name bird \
+    nohup "$VLLM_VENV/bin/vllm" serve "$BIRD_MODEL" --host 127.0.0.1 --port "$VLLM_PORT" \
       >"$LOGS/vllm.log" 2>&1 &
     echo $! >"$BIRD_HOME/vllm.pid"
     i=0
@@ -96,6 +111,12 @@ else
   fi
 fi
 MODEL_ID="$(curl -fsS -m 5 "$BASE_URL/models" | "$VENV/bin/python" -c 'import json,sys; print(json.load(sys.stdin)["data"][0]["id"])')"
+# un premier échange avec le modèle (API compatible OpenAI) : il répond avant que Bird ne démarre
+REPLY="$(curl -fsS -m 120 -X POST "$BASE_URL/chat/completions" -H "Content-Type: application/json" \
+  --data "{\"model\": \"$MODEL_ID\", \"max_tokens\": 20, \"messages\": [{\"role\": \"user\", \"content\": \"Dis bonjour en un mot.\"}]}" \
+  | "$VENV/bin/python" -c 'import json,sys; print(json.load(sys.stdin)["choices"][0]["message"]["content"].strip()[:60])' 2>/dev/null)" \
+  || die "Le modèle ne répond pas à une première question sur $BASE_URL/chat/completions."
+ok "Le modèle $MODEL_ID répond : « $REPLY »"
 
 # ---- 4. Bird, sur votre machine uniquement
 cd "$APP"
@@ -128,6 +149,9 @@ URL="http://127.0.0.1:$BIRD_PORT/"
 ok "Bird tourne sur votre machine : $URL"
 grep -m1 -i "code" "$LOGS/bird.log" 2>/dev/null || true # the pairing code of bird_local.py, when it prints one
 echo "   Journaux : $LOGS   ·   Arrêter : sh $BIRD_HOME/stop.sh"
+echo "   Le modèle seul, en API compatible OpenAI :"
+echo "     curl -X POST \"$BASE_URL/chat/completions\" -H \"Content-Type: application/json\" \\"
+echo "       --data '{\"model\": \"$MODEL_ID\", \"messages\": [{\"role\": \"user\", \"content\": \"Bonjour\"}]}'"
 if command -v open >/dev/null 2>&1; then open "$URL" >/dev/null 2>&1 || true
 elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL" >/dev/null 2>&1 || true
 fi
