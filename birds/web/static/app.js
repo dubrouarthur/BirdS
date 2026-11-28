@@ -59,6 +59,8 @@ import {
 import { addNote, applyAgentEvent, countdownText, deliverablesOf } from "./agents.js";
 import { cleanPlan, planNews } from "./plan.js"; // task plan checklist (w1-harness)
 import * as canvas from "./canvas.js"; // the canvas beside the chat (decks, documents, code, sheets)
+import { mountPicker, updatePicker } from "./reflexion.js"; // Mode Réflexion: the bird picker
+import { normalizeChoice, thinks } from "./reflexion-data.js";
 
 // Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
 const AGENT_MODES = ["auto", "on", "off"];
@@ -839,7 +841,7 @@ function updateComposer() {
     count.classList.toggle("is-long", text.length > 6000);
   } else count.hidden = true;
   $("editing").hidden = !state.editing;
-  $("btn-thinking").setAttribute("aria-checked", String(state.thinking));
+  updatePicker();
   $("agent-mode").value = state.agent;
   $("agent-pill-value").textContent = t(`composer.agent.${state.agent}.short`); // phones: the select is see-through
   $("agent-pill").dataset.state = state.agent;
@@ -1098,7 +1100,8 @@ function newAssistantTurn() {
     confirm: null,
     status: "running",
     started: Date.now(),
-    thinking: state.thinking,
+    thinking: thinks(state.reflexion),
+    reflexion: state.reflexion, // Mode Réflexion: « auto » or the bird chosen when the turn was sent
     mode: activeMode(),
     ts: Date.now(),
     feedback: null,
@@ -1284,6 +1287,9 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
       turn.status = "confirm";
       announce(t("live.confirm"));
       break;
+    case "reflexion": // the bird the server chose or was given, before the first word (birds/harness/reflexion.py)
+      turn.flight = { level: String(event.level || ""), auto: !!event.auto };
+      break;
     case "reasoning":
       turn.reasoning +=
         (turn.reasoning ? "\n\n" : "") + String(event.content ?? "");
@@ -1302,6 +1308,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         widgets: Array.isArray(event.widgets) ? event.widgets : [],
         fallback: event.fallback ? String(event.fallback) : "", // written from the results, not by the model
         canvas: event.canvas?.aid ? { aid: event.canvas.aid, version: event.canvas.version, doc: !!event.canvas.doc } : null,
+        reflexion: event.reflexion && typeof event.reflexion === "object" ? event.reflexion : null, // checked when drawn
       };
       if (event.plan !== undefined) turn.plan = cleanPlan(event.plan); // the final checklist, or none
       canvas.onAnswer(conv, turn, event.canvas);
@@ -1400,6 +1407,7 @@ async function runTurn(turn, extra = {}) {
       conversation_id: conv.cid,
       tz: browserTz(),
       thinking: !!turn.thinking,
+      reflexion: normalizeChoice(turn.reflexion || state.reflexion),
       agent: turn.agent || state.agent, // "off" for the resend of « Revenir au mode simple »
       // a decided team shows its plan card first (agents.js renderPlan); « Lancer » sends agent_plan
       ...((turn.agent || state.agent) !== "off" ? { agent_flow: "plan" } : {}),
@@ -2160,8 +2168,11 @@ function bind() {
   });
   bindLightbox();
   $("btn-stop").addEventListener("click", stop);
-  $("btn-thinking").addEventListener("click", () => {
-    state.thinking = !state.thinking;
+  mountPicker($("rf-slot"), (choice) => {
+    state.reflexion = choice;
+    state.thinking = thinks(choice);
+    store.set("bird.reflexion", choice);
+    announce(t("rf.changed", { name: t(`rf.level.${choice}`) }));
     updateComposer();
   });
   $("agent-mode").addEventListener("change", (e) => {
@@ -2410,12 +2421,18 @@ async function init() {
   });
   setViewHooks({
     onPrefs: () => {
-      state.thinking = !!state.prefs.thinking;
+      // the Settings switch: off is the hummingbird (no reasoning); on again gives the choice back to Bird
+      if (!state.prefs.thinking) state.reflexion = "colibri";
+      else if (state.reflexion === "colibri") state.reflexion = "auto";
+      store.set("bird.reflexion", state.reflexion);
+      state.thinking = thinks(state.reflexion);
       refreshAll();
     },
     onReset: () => {
       state.convs = [];
-      state.thinking = !!state.prefs.thinking;
+      state.reflexion = "auto";
+      store.set("bird.reflexion", "auto");
+      state.thinking = thinks(state.reflexion);
       state.conv = newConv();
       refreshAll();
     },

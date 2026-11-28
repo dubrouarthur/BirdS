@@ -686,8 +686,22 @@ class _DemoRun:
             )
         )
 
+    def _level(self):
+        """The demo's bird: as asked, or « Auto » read by the fallback cues (no model to ask)."""
+        from birds.harness import reflexion
+
+        want = getattr(self.req, "reflexion", None)
+        if want is None:
+            return None
+        last = next((m["content"] for m in reversed(self.req.messages) if m["role"] == "user"), "")
+        return reflexion.level(reflexion.hint_level(last) if want == "auto" else want)
+
     def think(self, fr: str, en: str) -> None:
-        if self.req.thinking:
+        lv = self._level()
+        if lv is not None and not getattr(self, "flown", False):
+            self.flown = True
+            self.ctx.emit({"type": "reflexion", "level": lv.key, "auto": self.req.reflexion == "auto"})
+        if self.req.thinking if lv is None else lv.thinking:
             self.pause(0.7)
             content = self.t(fr, en)
             self.extra_completion += len(content) // 4
@@ -700,11 +714,10 @@ class _DemoRun:
         from birds.harness import reflexion
 
         want = getattr(self.req, "reflexion", None)
-        if want is None:
+        lv = self._level()
+        if lv is None:
             return None
         last = next((m["content"] for m in reversed(self.req.messages) if m["role"] == "user"), "")
-        key = reflexion.hint_level(last) if want == "auto" else want
-        lv = reflexion.level(key)
         reasoning = getattr(self, "reasoned", "") if lv.thinking else ""
         verdict = reflexion.verify(last, content, reasoning, self.lang) if lv.checks else None
         info = {"level": lv.key, "auto": want == "auto", "source": "demo" if want == "auto" else "user",
@@ -752,7 +765,7 @@ class _DemoRun:
         self.ctx.emit(
             usage_event(
                 model=self.b.model,
-                thinking=self.req.thinking,
+                thinking=self.req.thinking if (lv := self._level()) is None else lv.thinking,
                 prompt_tokens=prompt,
                 completion_tokens=completion,
                 seconds=seconds,

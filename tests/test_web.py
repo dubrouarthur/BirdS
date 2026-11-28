@@ -687,7 +687,8 @@ def test_static_payload_budget():
     # the task plan checklist, the map card of lists (groups, full screen, visit order, distances),
     # the office engine (pictures, charts and tables in the previews, the deck/document editor)
     # and the canvas (decks, documents, code preview, mini-sheet, flowcharts: +126 kB raw, +34 kB gzipped)
-    assert total < 1_070_000, f"static payload is {total} bytes"  # about 310 kB once gzipped
+    # and Mode Réflexion (bird picker, drawings, flight header: +20 kB raw, +6 kB gzipped)
+    assert total < 1_095_000, f"static payload is {total} bytes"  # about 310 kB once gzipped
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     assert demo < 520_000, f"demo maps weigh {demo} bytes"  # + the maps of the scripted lists of places
 
@@ -698,6 +699,9 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     key = re.compile(r'^\s+"?([a-z][\w.]*)"?:(?=\s*$|\s*")', re.M)
     fr, en = set(key.findall(fr_block.split("fr: {", 1)[1])), set(key.findall(en_block.split("\n};", 1)[0]))
     assert fr and fr == en, fr ^ en
+    # Mode Réflexion keeps its strings apart (reflexion-i18n.js, merged at load; parity in tests/js/reflexion.test.mjs)
+    rf = (STATIC_DIR / "reflexion-i18n.js").read_text().split("\n  en: {", 1)[0]
+    fr |= set(re.findall(r'^\s+"(rf\.[\w.]+)":', rf, re.M))
     used = set()
     for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))
@@ -1362,3 +1366,32 @@ def test_energy_wording_states_its_scope():
 )
 def test_hide_out_paths_keeps_markdown_and_quotes(text, expected):
     assert hide_out_paths(text) == expected
+
+
+# ------------------------------------------------------------------ Mode Réflexion (demo)
+
+CALC = "Un abonnement coûte 14,90 € par mois, ou 149 € par an. Sur deux ans, lequel est le moins cher ?"
+
+
+def test_reflexion_chosen_bird_in_the_answer(client):
+    events = chat(client, CALC, reflexion="faucon")
+    assert one(events, "reflexion") == {"type": "reflexion", "level": "faucon", "auto": False}
+    rf = one(events, "answer")["reflexion"]
+    assert rf["line"] == "Bird a pris son vol en Faucon" and rf["source"] == "user" and not rf["auto"]
+    assert rf["checks"]["calcs"] == 2 and rf["checks"]["calc_wrong"] == 0 and len(rf["summary"]) >= 2
+    assert one(events, "usage")["thinking"] is True
+
+
+def test_reflexion_auto_and_colibri(client):
+    rf = one(chat(client, "bonjour", reflexion="auto"), "answer")["reflexion"]
+    assert rf["level"] == "colibri" and rf["auto"] and rf["source"] == "demo" and rf["summary"] == []
+    events = chat(client, CALC, reflexion="colibri", lang="en")
+    assert not [e for e in events if e["type"] == "reasoning"]
+    assert one(events, "answer")["reflexion"]["line"] == "Bird took flight as a Hummingbird"
+
+
+def test_reflexion_omitted_keeps_the_older_api(client):
+    events = chat(client, CALC, thinking=True)
+    assert "reflexion" not in one(events, "answer") and not [e for e in events if e["type"] == "reflexion"]
+    assert client.post("/api/chat", json={"messages": [{"role": "user", "content": "x"}],
+                                          "reflexion": "aigle"}).status_code == 422  # fmt: skip
