@@ -33,7 +33,7 @@
       <button class="icon-btn menu-btn" type="button" aria-expanded="false" aria-controls="nav" aria-label="Menu"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M4 8h16M4 16h16"/></svg></button>
     </div>
     <nav class="nav" id="nav" aria-label="Main navigation">
-      <ul><li><a href="/en/">Home</a></li><li><a href="/en/training">Train Bird</a></li><li><a href="/en/approach">Our approach</a></li><li><a href="/en/footprint" aria-current="page">CSR &amp; frugality</a></li><li><a href="#contact">Contact</a></li></ul>
+      <ul><li><a href="/en/">Home</a></li><li><a href="/en/training">Train Bird</a></li><li><a href="/en/approach">Our approach</a></li><li><a href="/en/footprint" aria-current="page">CSR &amp; frugality</a></li><li data-contact-only hidden><a href="#contact">Contact</a></li></ul>
     </nav>
   </div>
 </header>
@@ -135,12 +135,12 @@
     <div class="cta-row"><a class="btn btn-lg" href="#essayer" data-try>Try Bird <span aria-hidden="true">→</span></a></div>
   </div>
 </section>
-<section class="section contact" id="contact" aria-labelledby="contact-h">
+<section class="section contact" id="contact" aria-labelledby="contact-h" data-contact-only hidden>
   <div class="wrap contact-grid">
     <div><p class="eyebrow">Contact</p><h2 class="h2" id="contact-h">Let’s talk.</h2></div>
     <div class="contact-body">
       <p class="prose">Companies, partners, press: let’s talk about your project.</p>
-      <p><a class="contact-mail" href="/en/training#etapes" data-contact>Write to us <span aria-hidden="true">→</span></a></p>
+      <p><a class="contact-mail" href="#contact" data-contact>Write to us <span aria-hidden="true">→</span></a></p>
     </div>
   </div>
 </section>
@@ -155,7 +155,7 @@
       </div>
       <nav class="footer-nav" aria-label="The site">
         <p class="footer-k">The site</p>
-        <ul><li><a href="/en/">Home</a></li><li><a href="/en/training">Train Bird</a></li><li><a href="/en/approach">Our approach</a></li><li><a href="/en/footprint">CSR &amp; frugality</a></li><li><a href="#contact">Contact</a></li></ul>
+        <ul><li><a href="/en/">Home</a></li><li><a href="/en/training">Train Bird</a></li><li><a href="/en/approach">Our approach</a></li><li><a href="/en/footprint">CSR &amp; frugality</a></li><li data-contact-only hidden><a href="#contact">Contact</a></li></ul>
       </nav>
       <div class="footer-nav">
         <p class="footer-k">Bird</p>

@@ -5,8 +5,8 @@
 // Checks, at 360, 768 and 1280 px, light and dark, French and English:
 //   site   no third-party request, no CSP or script error, no horizontal scroll, nothing left invisible after a
 //          scroll through the page (reveal), the hero mail draft is filled on load and again when scrolled back to,
-//          the gallery stays short on phones and tablets, no placeholder address, « Nous écrire » leads to a real
-//          section, the freedom-to-install section comes right after the hero
+//          the gallery stays short on phones and tablets, no placeholder address, no contact link without an address (and with
+//          one, the Contact section and buttons open a mail), the freedom-to-install section comes right after the hero
 //   chat   the welcome says lightness and freedom to install, fits the screen, and closes on an uncluttered chat
 // Screenshots of every section (look at them). ONLY=<tag part> narrows.
 const { chromium } = require("playwright");
@@ -71,7 +71,10 @@ async function site(browser, lang, w, theme) {
     }
     const ids = [...document.querySelectorAll(sel)].map((s) => s.id || s.className);
     const gallery = document.querySelector("#fonctions, #features");
-    const contacts = [...document.querySelectorAll(".contact-mail")].map((a) => a.getAttribute("href"));
+    // Without CONTACT_EMAIL nothing visible promises a way to write (no « Nous écrire » looping to an explainer).
+    const contacts = [...document.querySelectorAll('a[href="#contact"], [data-contact], [data-contact-href]')]
+      .filter((a) => a.getClientRects().length > 0)
+      .map((a) => a.textContent.trim());
     return {
       hidden,
       ids,
@@ -85,7 +88,7 @@ async function site(browser, lang, w, theme) {
   check(info.overflow <= 0, `${tag} no horizontal scroll`);
   check(w >= 900 || info.gallery < 1900, `${tag} gallery stays short (${info.gallery} px)`);
   check(!/birdmodels\.example|TODO/.test(info.body), `${tag} no placeholder address`);
-  check(info.contacts.length > 0 && info.contacts.every((h) => !h.startsWith("mailto:")), `${tag} « Nous écrire » leads to a page`);
+  check(info.contacts.length === 0, `${tag} no contact link shown without an address (${info.contacts.slice(0, 2)})`);
   check(info.ids[1] === (lang === "fr" ? "installer" : "install"), `${tag} freedom to install right after the hero`);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(500);
@@ -102,6 +105,32 @@ async function site(browser, lang, w, theme) {
     await page.waitForTimeout(200);
     await s.screenshot({ path: path.join(OUT, `${tag}-${String(i++).padStart(2, "0")}.png`) });
   }
+  await ctx.close();
+}
+
+// With an address in config.js, the Contact section, the menu link and every contact button appear and open a mail.
+async function contactWithAddress(browser, lang) {
+  const tag = `contact-${lang}`;
+  if (ONLY && !tag.includes(ONLY)) return;
+  const { ctx, page, third, errors } = await context(browser, 360, "light", lang === "fr" ? "fr-FR" : "en-US");
+  await page.route("**/config.js", (r) =>
+    r.fulfill({ contentType: "text/javascript", body: 'window.BIRD_CONFIG = Object.freeze({ TRY_URL: "/", CONTACT_EMAIL: "contact@bird.invalid" });' }),
+  );
+  for (const p of lang === "fr" ? ["", "entrainer"] : ["en/", "en/training"]) {
+    await page.goto(`${BASE}/a-propos/${p}`, { waitUntil: "networkidle" });
+    const r = await page.evaluate(() => ({
+      section: !!document.querySelector("#contact")?.getClientRects().length,
+      hrefs: [...document.querySelectorAll("[data-contact], [data-contact-href]")].map((a) => a.getAttribute("href")),
+      hidden: document.querySelectorAll("[data-contact-only][hidden]").length,
+    }));
+    check(r.section && r.hidden === 0, `${tag} /${p} Contact section and buttons shown with an address`);
+    check(r.hrefs.length > 1 && r.hrefs.every((h) => h.startsWith("mailto:contact@bird.invalid")), `${tag} /${p} they open a mail`);
+    if (p.endsWith("entrainer") || p.endsWith("training")) {
+      await page.locator("#contact").scrollIntoViewIfNeeded();
+      await page.locator("#contact").screenshot({ path: path.join(OUT, `${tag}-with-address.png`) });
+    }
+  }
+  check(third.length === 0 && errors.length === 0, `${tag} no third-party request, no script error`);
   await ctx.close();
 }
 
@@ -141,6 +170,7 @@ async function chat(browser, lang, w, theme) {
 
 (async () => {
   const browser = await chromium.launch();
+  for (const lang of ["fr", "en"]) await contactWithAddress(browser, lang);
   for (const lang of ["fr", "en"])
     for (const w of [360, 768, 1280])
       for (const theme of ["light", "dark"]) {

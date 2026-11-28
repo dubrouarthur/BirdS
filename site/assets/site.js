@@ -39,6 +39,10 @@
         ? cfg.CONTACT_EMAIL
         : "";
     if (mail) {
+      // Sans adresse, la section Contact et les boutons qui y mènent restent cachés (aucun lien « Nous écrire »
+      // qui ne permette pas d'écrire). Avec une adresse, ils apparaissent et ouvrent un mail.
+      var only = document.querySelectorAll("[data-contact-only]");
+      for (var o = 0; o < only.length; o++) only[o].removeAttribute("hidden");
       // [data-contact-href] : boutons « Nous écrire », seul le lien change.
       var ch = document.querySelectorAll("[data-contact-href]");
       for (var h = 0; h < ch.length; h++)

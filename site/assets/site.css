@@ -379,6 +379,21 @@ strong {
   display: inline-flex;
 }
 
+/* L'attribut hidden l'emporte sur les display des composants (contact sans adresse, etc.). */
+[hidden] {
+  display: none !important;
+}
+/* Sans adresse de contact, le bouton secondaire restant devient le bouton principal. */
+.cta-row > [data-contact-only][hidden] + .btn-ghost {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: transparent;
+}
+.final .cta-row > [data-contact-only][hidden] + .btn-ghost {
+  background: #fff;
+  color: var(--navy);
+  border-color: transparent;
+}
 .btn {
   display: inline-flex;
   align-items: center;

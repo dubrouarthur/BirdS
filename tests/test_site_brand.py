@@ -22,17 +22,26 @@ def text(p: Path) -> str:
 
 
 @pytest.mark.parametrize("page", PAGES, ids=lambda p: str(p.relative_to(SITE)))
-def test_no_placeholder_address_and_contact_leads_somewhere_real(page):
+def test_no_placeholder_address_and_no_contact_link_that_cannot_write(page):
+    """Without an address, every way to « write to us » is hidden: no label promises a mail it cannot open."""
     html = text(page)
     assert "birdmodels.example" not in html and "TODO" not in html
-    for href in re.findall(r'<a class="contact-mail" href="([^"]+)"', html):
-        target, _, anchor = href.partition("#")
-        if target:  # another page of the site, with the anchor it names
-            other = SITE / (target.strip("/") + ".html")
-            assert other.is_file(), href
-            assert f'id="{anchor}"' in text(other), href
-        else:
-            assert f'id="{anchor}"' in html, href
+    m = re.search(r'<section class="section contact" id="contact"[^>]*>.*?</section>', html, re.S)
+    assert "data-contact-only hidden" in m.group(0)[:200]
+    rest = html[: m.start()] + html[m.end() :]  # outside the (hidden) Contact section
+    for a in re.findall(r'<(?:a|li)\b[^>]*>(?:<a [^>]*>)?', rest):
+        if "#contact" in a or "data-contact" in a:
+            assert "data-contact-only hidden" in a, a
+    for a, label in re.findall(r'(<a [^>]*>)([^<]*)', rest):  # a « write to us » label is hidden without an address
+        if re.search(r"Nous écrire|Write to us|Parler de votre|Tell us about|Talk about your", label):
+            assert "data-contact-only hidden" in a, a
+
+
+def test_site_script_shows_the_contact_elements_only_with_a_real_address():
+    js = text(SITE / "assets" / "site.js")
+    block = js[js.index("var mail =") : js.index("// Bouton de thème")]
+    assert block.index("if (mail)") < block.index('removeAttribute("hidden")')
+    assert "[hidden]" in text(SITE / "assets" / "site.css")
 
 
 @pytest.mark.parametrize("page", PAGES, ids=lambda p: str(p.relative_to(SITE)))
