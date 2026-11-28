@@ -687,3 +687,43 @@ et la signature reçoivent un refus prudent. Un passage par tâche, modèle éch
 `ocr_table_totals_mail` (TVA 50,00 € absente avant) peut tenir du tirage. Pour les témoins, la rubrique « contient »
 est générale (« welcom », « SOMME.SI | SUMIF », « linkedin.com/in/test ») ; la base a été re-notée sur ses réponses
 enregistrées après cet assouplissement (aucune génération de plus).
+
+## 14. Analyse de données : Bird choisit l'analyse, le moteur la calcule
+
+Code : `birds/harness/analysis/` (lecture `table.py`, profil `profile.py`, moteur `query.py`, planificateur
+`planner.py`, graphiques `charts.py`, crochets `hooks.py`, contrôle des chiffres `verify.py`), `birds/web/data_api.py`,
+`birds/web/static/datakit.js` (fiche) et `charts2.js` (graphiques SVG maison). Tests : `tests/test_analysis.py`,
+`tests/test_analysis_planner.py`, `tests/js/charts2.test.mjs`, `tests/e2e/data_analysis.spec.js`.
+
+- **Lecture** d'un CSV / TSV / XLSX joint ou d'un tableau collé (séparateur, en-tête sur deux lignes, ligne « Total »
+  mise à part, nombres à la française, dates), **fiche** : colonnes, types, valeurs manquantes, statistiques,
+  mini-histogrammes ; **tableau interactif** (tri, filtre, recherche, ligne de totaux, plein écran, 50 000 lignes).
+- **Le modèle décide QUOI calculer** (`planner.decide`) : un appel court (≤ 140 tokens, température 0), contraint
+  par un schéma JSON construit à partir du tableau lui-même (les noms de colonnes sont des énumérations : impossible
+  de nommer une colonne inventée), qui rend `{"analysis": {…} | null, "chart": "…"}`. Les opérations sont une liste
+  fermée : regroupement, filtre, croisement (`pivot`), top-N, parts, comparaison de deux années, **évolution en %
+  d'une période à l'autre** (`change`), **moyenne mobile** (`window`), corrélation, distribution. Aucun code du
+  modèle n'est exécuté : le harnais vérifie la spécification (`query.normalize`, clés inconnues refusées) puis calcule.
+- **Les règles fixes** (`ask.py`) ne sont que des indices dans le prompt, le filet de secours (endpoint endormi, trop
+  lent, JSON inutilisable) et, en mode `hybrid` (le même réglage que `BIRD_ROUTER`), un gabarit sûr que le modèle
+  aurait laissé de côté.
+- **Graphique choisi par le modèle** parmi barres, barres horizontales, courbe, aire, nuage de points, anneau, empilé,
+  combiné (barres + courbe, 2e axe) et carte de chaleur, dessiné en SVG maison (clair / sombre, tableau de données
+  accessible « Données du graphique », export PNG / SVG / CSV). Un choix qui ne convient pas au résultat (un anneau pour
+  une série temporelle) est écarté.
+- **Chiffres** : la réponse ne cite que ceux du moteur ; une réponse avec un chiffre introuvable est remplacée par la
+  phrase exacte du harnais (`verify.check_numbers`, rapport `data_check`).
+- **Continuité** : sous le graphique, « Modifier le graphique » propose 2 ou 3 suites concrètes (« Par trimestre »,
+  « Avec une moyenne mobile sur 3 mois », « En camembert »…) ; un clic envoie la suite comme message, le serveur écrit
+  la spécification dans le mémo (`[Analyse de « ventes.csv » — {…}]`), le planificateur la modifie, et la réponse
+  réaffiche le graphique à jour avec son numéro de version (fiche compacte, tableau replié) ; les versions
+  précédentes restent dans la conversation.
+- **Module = catalogue + exemples + évaluations** : entrée `analyze_table` de `catalog.py` (hors du catalogue du
+  routeur : décidée par son propre appel, seulement quand un tableau est joint), enregistrements `task: "data_plan"`
+  de `scripts/build_tools_mix.py` (4 formes de tableaux × 13 gabarits FR/EN + négatifs, 2 gabarits tenus à l'écart),
+  cas fixes `DATA_PLAN` / `LIVE_8` de `scripts/router_data.py`, mesure `scripts/data_eval.py`, famille
+  `data_analysis` du banc de déclenchement (24/24).
+
+**Mesure hors ligne (règles seules, 14 cas fixes de `DATA_PLAN`)** : 8/14 analyses justes (2/8 sur les 8 cas
+`LIVE_8`), 12/14 graphiques acceptables. Les règles manquent « quel commercial a vendu le plus d'unités », la
+moyenne mobile, le croisement région × produit, le top 5 filtré sur une région, l'évolution en %, la part par produit.
