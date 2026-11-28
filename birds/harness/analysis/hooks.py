@@ -47,6 +47,25 @@ CHECKED = {
 }
 
 
+UNCOMPUTED = {
+    "fr": "J'ai lu « {name} » ({rows} lignes × {cols} colonnes) : la fiche ci-dessous montre chaque colonne, le "
+    "tableau complet et des analyses en un clic. Dites-moi le calcul voulu (par exemple « CA par région » ou « top 5 "
+    "des clients ») et Bird le fera sur le fichier.",
+    "en": "I read '{name}' ({rows} rows × {cols} columns): the card below shows every column, the full table and "
+    "one-click analyses. Tell me the computation you want (for example \"revenue by region\" or \"top 5 "
+    "customers\") and Bird will run it on the file.",
+}
+
+
+def _without_unverified(answer: str, allowed: list[float], request: str) -> tuple[str, int]:
+    """(the answer without its sentences or list lines that carry an unverified number, how many were dropped)."""
+    import re
+
+    parts = re.split(r"(?<=[.!?])[ \t]+|\n", answer)
+    kept = [p for p in parts if not check_numbers(p, allowed, request)]
+    return " ".join(p.strip() for p in kept if p.strip()), len(parts) - len(kept)
+
+
 MARKERS = ("\n\n[Bird a analysé « ", "\n\n[Bird analysed '", "\n\n[Bird a lu « ", "\n\n[Bird read '")
 
 
@@ -259,7 +278,15 @@ def finish(run, prep: Prep | None, request: str = "") -> None:
         run.answer = explain(prep.result, lang) + CHECKED[lang].format(name=prep.name)
         run.report = {**(getattr(run, "report", None) or {}), "data_check": {"replaced": True, "unverified": bad[:10]}}
     elif bad:
-        run.report = {**(getattr(run, "report", None) or {}), "data_check": {"unverified": bad[:10]}}
+        # no computed result (the card only): the sentences carrying a number found nowhere are taken out; when
+        # little is left, the harness says what it read and asks for the computation (never an invented figure)
+        kept, dropped = _without_unverified(answer, prep.allowed + [float(prep.frame.n)], request)
+        if dropped and len(kept.split()) >= 12 and len(kept) >= 0.4 * len(answer):
+            run.answer = kept + CHECKED[lang].format(name=prep.name)
+        else:
+            run.answer = UNCOMPUTED[lang].format(name=prep.name, rows=prep.frame.n, cols=len(prep.frame.columns))
+        run.report = {**(getattr(run, "report", None) or {}),
+                      "data_check": {"unverified": bad[:10], "stripped": dropped}}  # fmt: skip
     else:
         run.report = {**(getattr(run, "report", None) or {}), "data_check": {"ok": True}}
 

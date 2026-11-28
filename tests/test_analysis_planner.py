@@ -112,7 +112,7 @@ def test_model_null_is_respected_unless_a_confident_template_hybrid(frame):
     [
         ('{"analysis":{"op":"aggregate","measure":"Bénéfice","agg":"sum"},"chart":"bar"}', "invalid"),
         (
-            '{"analysis":{"op":"aggregate","measure":"CA (€)","agg":"sum","by":"Région","window":3},"chart":"bar"}',
+            '{"analysis":{"op":"aggregate","measure":"CA (€)","agg":"sum","by":"Région","pivot":"Région","top":0.5},"chart":"bar"}',
             "invalid",
         ),
         ("je pense qu'il faut sommer le CA", "invalid_json"),
@@ -251,3 +251,33 @@ def test_eval_cases_are_sound_and_the_rules_baseline_holds(frame):
             q["sort"] = "desc"
         assert D.data_judge({"query": q, "chart": sorted(charts)[0]}, gold, charts)["ok"], gold
         run_query(frame, q)
+
+
+def test_a_moving_average_on_a_ranking_is_repaired_not_refused(frame):
+    # live 28/11/2026: « les 5 clients qui rapportent le plus dans le Sud » came with "window": 3
+    answer = {"analysis": {"op": "aggregate", "measure": "CA (€)", "agg": "sum", "by": "Client", "sort": "desc",
+                           "top": 5, "window": 3, "filters": [{"col": "Région", "op": "eq", "value": "Sud"}]},
+              "chart": "hbar"}  # fmt: skip
+    got = P.decide(Scripted(answer), TOK, frame, "Les 5 clients qui rapportent le plus dans le Sud", structured="x")
+    assert got.source == "model" and got.meta["repaired"] == ["window"]
+    assert got.plan["query"]["top"] == 5 and "window" not in got.plan["query"] and got.plan["query"]["filters"]
+
+
+def test_a_card_only_answer_loses_its_invented_figures():
+    from types import SimpleNamespace
+
+    from birds.harness.analysis.hooks import finish
+
+    prep = prepare(DATA, ["ventes.csv"], "résume ce fichier en deux phrases")
+    assert prep.result is None
+    # live 28/11/2026: the mean discount is 5,03 %, the model wrote 3,9 %: that sentence goes, the rest stays
+    run = SimpleNamespace(answer="Le fichier contient 480 ventes de 2024 à 2025 réparties sur cinq régions et six "
+                                 "produits. La remise moyenne est de 3,9 %. Les clients sont des entreprises.",
+                          charts=[], report={})  # fmt: skip
+    finish(run, prep, "résume ce fichier en deux phrases")
+    assert "3,9" not in run.answer and "480 ventes" in run.answer and run.report["data_check"]["stripped"] == 1
+    # a list of invented figures: nothing usable is left, the harness says what it read and asks for the computation
+    run = SimpleNamespace(answer="1. Richard Énergie : 15 500 €.\n2. Simon Retail : 12 600 €.\n3. Petit SARL : "
+                                 "10 000 €.", charts=[], report={})  # fmt: skip
+    finish(run, prep, "les 5 clients qui rapportent le plus")
+    assert "15 500" not in run.answer and "Dites-moi le calcul voulu" in run.answer

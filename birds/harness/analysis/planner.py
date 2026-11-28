@@ -97,9 +97,12 @@ EXAMPLES: tuple[tuple[str, str, dict], ...] = (  # (previous spec or "", message
                    "filters": [{"col": "Région", "op": "eq", "value": "Nord"}]}, "chart": "hbar"}),
     ("", "montant par région et par produit", {"analysis": {"op": "aggregate", "measure": "Montant (€)", "agg": "sum",
                                                              "by": "Région", "pivot": "Produit"}, "chart": "stacked"}),
-    ("", "how did the amount change from 2024 to 2025?",
-     {"analysis": {"op": "compare", "measure": "Montant (€)", "agg": "sum", "time": "Date", "years": [2024, 2025]},
-      "chart": "bar"}),
+    ("", "how did the amount change from 2024 to 2025 in each region?",
+     {"analysis": {"op": "compare", "measure": "Montant (€)", "agg": "sum", "time": "Date", "years": [2024, 2025],
+                   "by": "Région"}, "chart": "bar"}),
+    ("", "variation de la quantité en % d'une semaine à l'autre",
+     {"analysis": {"op": "aggregate", "measure": "Quantité", "agg": "sum", "time": "Date", "period": "week",
+                   "change": True}, "chart": "combo"}),
     ("", "résume ce fichier en trois lignes", {"analysis": None, "chart": "auto"}),
     ('{"analysis":{"op":"aggregate","measure":"Montant (€)","agg":"sum","by":"Région","sort":"desc"},"chart":"bar"}',
      "plutôt en camembert", {"analysis": {"op": "aggregate", "measure": "Montant (€)", "agg": "sum", "by": "Région",
@@ -254,10 +257,18 @@ def check(f: Frame, obj) -> tuple[dict | None, str]:
     if isinstance(q.get("filters"), list) and len(q["filters"]) > MAX_FILTERS:
         return None, "too many filters"
     try:
-        q = normalize(f, q)
+        return {"query": normalize(f, q), "chart": chart, "why": "model"}, ""
     except QueryError as e:
+        # call repair: a moving average or a period change asked of a query that is not a time series (a small
+        # model adds « window » to a ranking): dropped, the rest of its spec is kept
+        extras = [k for k in ("window", "change") if k in q]
+        if extras and ("window" in str(e) or "change" in str(e)):
+            try:
+                kept = normalize(f, {k: v for k, v in q.items() if k not in extras})
+            except QueryError:
+                return None, f"invalid: {e}"
+            return {"query": kept, "chart": chart, "why": "model", "repaired": extras}, ""
         return None, f"invalid: {e}"
-    return {"query": q, "chart": chart, "why": "model"}, ""
 
 
 # ---------------------------------------------------------------- the rules (hints, fallback, no model)
@@ -405,6 +416,8 @@ def decide(llm, tok, f: Frame, question: str, *, history=None, lang: str = "fr",
     if why:
         meta.update({"fallback": why, "invalid": True})
         return Planned(base, "fallback", meta)
+    if plan and plan.get("repaired"):
+        meta["repaired"] = plan.pop("repaired")
     meta["model"] = {"analysis": plan["query"] if plan else None, "chart": plan.get("chart") if plan else None}
     if (
         plan is None
