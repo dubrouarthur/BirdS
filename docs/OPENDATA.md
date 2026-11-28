@@ -98,6 +98,39 @@ Le mode démo rejoue les vraies fonctions sur ces réponses enregistrées (`scri
 birds/web/demo_data/opendata.json`, 60 ko, dates normalisées) ; la phrase de la démo est écrite à partir de la fiche
 (`birds/web/opendata_demo.py`).
 
+## Mesure du routeur en réel (28/11/2026, Bird S 4B, vLLM `structured_outputs`, `BIRD_ROUTER=hybrid`)
+
+Jeu fixe : `scripts/router_eval.py --families … --per-class N --seed 0` (budget de la piste : 25 générations au plus).
+« Avant » = le déploiement d'avant (aucun module de données ouvertes) ; pour les familles existantes, même appel avec
+le catalogue sans la famille `opendata` (`--without-family opendata`).
+
+| Jeu | n | avant (déploiement) | analyseurs seuls (hors ligne) | routeur réel, après |
+| --- | --- | --- | --- | --- |
+| `opendata` (3 oui, 3 non) | 6 | 0,500 (aucune fiche : 3 oui manqués) | 1,000 | **1,000** |
+| `opendata_router` (3 oui que les analyseurs ne voient pas) | 3 | 0,000 | 0,000 | **1,000** |
+| familles existantes `charts+`, `maps+`, `company_fx` (1 oui, 1 non chacune) | 6 | 1,000 (routeur réel, ancien catalogue) | 1,000 | **1,000** |
+
+Latence d'un appel : p50 0,77 s (ouvertes), 0,70 s (existantes, 0,72 s avant) ; le premier appel après le réveil de
+l'endpoint a dépassé le budget de 3 s et s'est replié sur les analyseurs (qui avaient raison). Aucun JSON invalide,
+aucun veto. Constat en passant : avec l'ancien catalogue, le routeur proposait `get_weather` (Paris, demain) pour « la
+population de Paris depuis 2012 » ; avec le nouveau, `get_statistics {population, Paris, 2012}`. Échantillon minuscule
+(15 demandes) : il dit que l'intégration ne casse rien de visible, pas plus ; la mesure complète
+(`--per-class 15`) reste à faire avec un budget plus large.
+
+Tour complet dans l'application (même jour, `scripts/serve.py` sur l'endpoint réel, 1 280 px clair et 360 px sombre) :
+« le chômage en France et en Allemagne depuis 2015 » → routeur `get_statistics` (+ `make_chart`, retiré par le harnais),
+une étape `get_statistics` (0,4 s), courbe Eurostat avec source, jeu de données, licence et rupture de série, source
+[1] Eurostat ; aucune requête vers un tiers, pas de défilement horizontal. Phrase du modèle : chiffres justes (10,4 → 7,7 %
+et 4,4 → 3,8 %), mais « l'écart s'élargit » est faux (6,0 → 3,9 points) : le commentaire de tendance n'est pas
+vérifié par le harnais (voir « Non vérifié »).
+
+## Non vérifié
+
+- Faits Wikidata et images Commons en direct de façon répétée : la sortie partagée de l'environnement reçoit des 429 ;
+  la fiche Unesco de la démo a été enregistrée lors d'une fenêtre où Wikidata a répondu (faits, sans image).
+- Le commentaire de tendance écrit par le modèle sous un graphique (sens d'un écart) n'est pas contrôlé.
+- La mesure du routeur sur le jeu complet, et l'effet de l'entraînement (`build_tools_mix.py`) : pas de fine-tuning ici.
+
 ## Tests
 
 `tests/test_opendata.py` (outils sur réponses enregistrées, hôtes, plafond, cache, 429, ancrage, veto, indices,

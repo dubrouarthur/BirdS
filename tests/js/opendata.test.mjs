@@ -9,6 +9,7 @@ import {
   calendarAsks,
   chartSourceText,
   daysLeft,
+  entityAsks,
   monthWeeks,
   opendataText,
   tt,
@@ -69,4 +70,17 @@ test("plain-text copy carries the data and the source with its licence", () => {
   assert.equal(opendataText({ type: "weather" }), "");
   assert.equal(chartSourceText({ label: "Eurostat", dataset: "une_rt_a", license: "CC BY 4.0" }), "Données : Eurostat (une_rt_a) · CC BY 4.0");
   assert.equal(tt("ten.left", { n: 3 }), "J-3");
+});
+
+test("next asks of an entity card use the asked name and follow its kind", () => {
+  state.prefs.lang = "fr";
+  const long = "Organisation des Nations unies pour l'éducation, la science et la culture";
+  assert.deepEqual(entityAsks({ name: "Unesco", title: long, kind: "other" }), [
+    "Montre-moi des photos de Unesco",
+    "Actualités récentes sur Unesco",
+  ]);
+  assert.deepEqual(entityAsks({ name: "Airbus", kind: "company" }), ["Fiche entreprise Airbus", "Actualités récentes sur Airbus"]);
+  assert.equal(entityAsks({ name: "Rennes", kind: "city" })[0], "Où se trouve Rennes ?");
+  assert.equal(entityAsks({ name: "Portugal", kind: "country" })[0], "PIB : Portugal, depuis 2010");
+  assert.deepEqual(entityAsks({ title: long }), []); // no short name: no ask built from a 70-character title
 });

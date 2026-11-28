@@ -85,6 +85,7 @@ export const OPENDATA_STRINGS = {
     "ask.ent.company": "Fiche entreprise {name}",
     "ask.ent.gdp": "PIB : {name}, depuis 2010",
     "ask.ent.news": "Actualités récentes sur {name}",
+    "ask.ent.photos": "Montre-moi des photos de {name}",
     "ask.ten.week": "Appels d'offres {query} publiés cette semaine",
     "ask.ten.today": "Appels d'offres {query} publiés aujourd'hui",
     "ask.ten.france": "Appels d'offres {query} dans toute la France",
@@ -167,6 +168,7 @@ export const OPENDATA_STRINGS = {
     "ask.ent.company": "Look up the company {name}",
     "ask.ent.gdp": "GDP of {name} since 2010",
     "ask.ent.news": "Recent news about {name}",
+    "ask.ent.photos": "Show me pictures of {name}",
     "ask.ten.week": "Public tenders for {query} published this week",
     "ask.ten.today": "Public tenders for {query} published today",
     "ask.ten.france": "Public tenders for {query} across France",
@@ -261,6 +263,19 @@ const monthName = (y, m) =>
     year: "numeric",
     timeZone: "UTC",
   });
+
+/** The entity card's next asks, on the name the user asked for (« Unesco », not the article's long title). */
+export function entityAsks(w) {
+  const name = String(w.name || w.title || "").trim();
+  if (!name || name.length > 60) return [];
+  return [
+    w.kind === "company" && tt("ask.ent.company", { name }),
+    w.kind === "country" && tt("ask.ent.gdp", { name }),
+    w.kind === "city" && tt("ask.ent.map", { name }),
+    (w.kind === "city" || w.kind === "other") && tt("ask.ent.photos", { name }),
+    tt("ask.ent.news", { name }),
+  ].filter(Boolean);
+}
 
 export function calendarAsks(w) {
   const zone =
@@ -641,14 +656,7 @@ function renderEntity(w) {
       ),
     ),
     kv,
-    w.title &&
-      nextSteps([
-        w.kind === "company" && tt("ask.ent.company", { name: w.title }),
-        w.kind === "country" && tt("ask.ent.gdp", { name: w.title }),
-        (w.kind === "city" || w.kind === "other") &&
-          tt("ask.ent.map", { name: w.title }),
-        tt("ask.ent.news", { name: w.title }),
-      ]),
+    entityAsks(w).length > 0 && nextSteps(entityAsks(w)),
     h(
       "footer",
       { class: "widget-source od-source" },

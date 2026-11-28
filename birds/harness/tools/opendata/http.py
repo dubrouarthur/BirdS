@@ -132,6 +132,17 @@ def cite(ctx, link: str) -> int:
     return ctx.sources.index(link) + 1
 
 
+def link(u) -> str:
+    """An https link the browser's ``safeUrl`` accepts: quotes, brackets and spaces percent-encoded (« l'éducation »
+    in a Wikipedia title made the link plain text); anything that is not https is dropped."""
+    u = str(u or "").strip()
+    if not u.startswith("https://"):
+        return ""
+    for a, b in (("'", "%27"), ('"', "%22"), ("<", "%3C"), (">", "%3E"), (" ", "%20"), ("`", "%60"), ("\\", "%5C")):
+        u = u.replace(a, b)
+    return u
+
+
 def lang_of(ctx) -> str:
     return ctx.lang if getattr(ctx, "lang", "fr") in ("fr", "en") else "fr"
 

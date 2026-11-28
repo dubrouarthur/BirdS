@@ -1,0 +1,112 @@
+{
+ "items": 9,
+ "router_accuracy": 1.0,
+ "hybrid_accuracy": 1.0,
+ "plain_merge_accuracy": 1.0,
+ "regex_accuracy": 0.667,
+ "latency_p50": 0.771,
+ "latency_p95": 3.107,
+ "invalid_json_rate": 0.0,
+ "fallback_rate": 0.111,
+ "vetoed": 0,
+ "router_only_right": 3,
+ "regex_only_right": 0,
+ "families": {
+  "router": {
+   "opendata": {
+    "n": 6,
+    "ok": 6,
+    "tp": 3,
+    "fp": 0,
+    "fn": 0,
+    "wrong_args": 0,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0
+   },
+   "opendata_router": {
+    "n": 3,
+    "ok": 3,
+    "tp": 3,
+    "fp": 0,
+    "fn": 0,
+    "wrong_args": 0,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0
+   }
+  },
+  "hybrid": {
+   "opendata": {
+    "n": 6,
+    "ok": 6,
+    "tp": 3,
+    "fp": 0,
+    "fn": 0,
+    "wrong_args": 0,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0
+   },
+   "opendata_router": {
+    "n": 3,
+    "ok": 3,
+    "tp": 3,
+    "fp": 0,
+    "fn": 0,
+    "wrong_args": 0,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0
+   }
+  },
+  "plain_merge": {
+   "opendata": {
+    "n": 6,
+    "ok": 6,
+    "tp": 3,
+    "fp": 0,
+    "fn": 0,
+    "wrong_args": 0,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0
+   },
+   "opendata_router": {
+    "n": 3,
+    "ok": 3,
+    "tp": 3,
+    "fp": 0,
+    "fn": 0,
+    "wrong_args": 0,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0
+   }
+  },
+  "regex": {
+   "opendata": {
+    "n": 6,
+    "ok": 6,
+    "tp": 3,
+    "fp": 0,
+    "fn": 0,
+    "wrong_args": 0,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0
+   },
+   "opendata_router": {
+    "n": 3,
+    "ok": 0,
+    "tp": 0,
+    "fp": 0,
+    "fn": 3,
+    "wrong_args": 0,
+    "accuracy": 0.0,
+    "precision": null,
+    "recall": 0.0
+   }
+  }
+ }
+}

@@ -72,7 +72,7 @@ def find_tenders(args: dict, ctx) -> str:
             "deps": [str(d)[:3] for d in (r.get("code_departement") or []) if d][:4],
             "published": str(r.get("dateparution") or "")[:10], "deadline": deadline,
             "kind": ", ".join(http.clean(t, 20) for t in (r.get("type_marche") or [])[:2]),
-            "procedure": http.clean(r.get("procedure_libelle"), 60), "url": link,
+            "procedure": http.clean(r.get("procedure_libelle"), 60), "url": http.link(link),
         })  # fmt: skip
     total = int(data.get("total_count") or len(items))
     w = {"type": "tenders", "v": 1, "query": kw, "where": label, "days": days, "since": since.isoformat(),

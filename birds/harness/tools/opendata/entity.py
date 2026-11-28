@@ -156,7 +156,7 @@ def facts_of(ent: dict, kind: str, lang: str, labels: dict) -> list[dict]:
                 date = _time({**qv, "precision": min(9, int(qv.get("precision") or 9))}, lang)
         if values:
             out.append({"p": prop, "label": fr if lang == "fr" else en, "value": ", ".join(values)[:160],
-                        "date": date, "url": values[0] if vk == "url" else ""})  # fmt: skip
+                        "date": date, "url": http.link(values[0]) if vk == "url" else ""})  # fmt: skip
     return out[:8]
 
 
@@ -244,14 +244,14 @@ def lookup_entity(args: dict, ctx) -> str:
     except ToolError:
         labels, ent = {}, {}
     facts = facts_of(ent, kind, lang, labels) if ent else []
-    page = str(((summary.get("content_urls") or {}).get("desktop") or {}).get("page") or "")
+    page = http.link(((summary.get("content_urls") or {}).get("desktop") or {}).get("page"))
     if not page.startswith(f"https://{lang}.wikipedia.org/"):
         page = ""
     extract = http.clean(summary.get("extract"), 700)
     image = _image(ctx, summary) if summary.get("thumbnail") else None
     wd_url = f"https://www.wikidata.org/wiki/{qid}" if re.fullmatch(r"Q\d{1,12}", qid or "") else ""
     w = {
-        "type": "entity", "v": 1, "title": http.clean(summary.get("title") or name, 100),
+        "type": "entity", "v": 1, "title": http.clean(summary.get("title") or name, 100), "name": name,
         "description": http.clean(summary.get("description"), 160), "extract": extract, "kind": kind,
         "facts": facts, "image": image, "url": page, "qid": qid if wd_url else "", "wikidata": wd_url,
         "source": {"label": "Wikipédia" if lang == "fr" else "Wikipedia", "url": page or wd_url},

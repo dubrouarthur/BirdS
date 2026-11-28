@@ -275,3 +275,12 @@ def test_recorded_dates_are_normalised_so_replays_match_any_day():
     assert demo_widgets.opendata_key("https://x/y?d=2026-10-29&e=2027-01-01") == "https://x/y?d=DATE&e=DATE"
     _, ctx = _run(*_ask("appels d'offres maintenance informatique"), today=date(2027, 3, 1))
     assert ctx.step_info["widget"]["items"]
+
+
+def test_links_reach_the_browser_as_https_it_accepts():
+    u = "https://fr.wikipedia.org/wiki/Organisation_des_Nations_unies_pour_l'%C3%A9ducation"
+    assert odhttp.link(u).endswith("pour_l%27%C3%A9ducation") and "'" not in odhttp.link(u)
+    assert odhttp.link("javascript:alert(1)") == "" and odhttp.link("http://x.fr") == ""
+    _, ctx = _run("lookup_entity", {"name": "Unesco"})
+    w = ctx.step_info["widget"]
+    assert w["url"].startswith("https://fr.wikipedia.org/") and "'" not in w["url"] and w["name"] == "Unesco"
