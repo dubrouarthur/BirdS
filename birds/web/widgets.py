@@ -156,10 +156,20 @@ def _map_for(points: list[tuple[float, float]], secret: bytes, single_kind: str 
     return mapimg.map_src(secret, center, z, layer)
 
 
+def _same_card(w: dict) -> str:
+    """What a card shows, without how it was asked: a places card is its mode and its places (name, position);
+    any other card is its content less the signed map picture."""
+    if w.get("type") == "places":
+        pts = [(p.get("name"), p.get("lat"), p.get("lon")) for p in w.get("places") or []]
+        return json.dumps(["places", w.get("mode"), pts], ensure_ascii=False)
+    return json.dumps({k: v for k, v in w.items() if k not in ("map", "auto")}, sort_keys=True, ensure_ascii=False)
+
+
 def build_widgets(steps, request_text: str, lang: str, now: datetime, secret: bytes, *, draft: dict | None = None,
                   holidays=None, layer: str = "osm", geo_on: bool = True, extra=None) -> list[dict]:  # fmt: skip
     """``extra``: cards the harness computed itself without a tool (the world clock), kept as they are."""
     out: list[dict] = []
+    seen: set[str] = set()
     for s in steps:
         info = getattr(s, "info", None) or {}
         w = info.get("widget")
@@ -180,6 +190,10 @@ def build_widgets(steps, request_text: str, lang: str, now: datetime, secret: by
             w = opendata_widgets.prepare(w, secret, layer, geo_on)
         elif w.get("type") not in ("fx", "weather"):
             continue
+        key = _same_card(w)
+        if key in seen:  # two calls that found the same thing (« Saint-Cloud », « Saint-Cloud, France »): one card
+            continue
+        seen.add(key)
         out.append(w)
     for w in extra or []:
         if isinstance(w, dict) and (w.get("type") == "clock" or w.get("type") in HARNESS_CARDS):

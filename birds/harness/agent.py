@@ -1076,6 +1076,9 @@ class Agent:
             # ---- end of the model router hook ------------------------------------------------------------------
             routed |= set(EXTRA_TOOL_NAMES) - {"make_chart"} - {i.tool for i in found}
             prefill = next((i for i in found if i.args), None)
+            if not opendata_intents.usable(prefill, cfg):  # markets: shares need the licensed feed's key
+                routed.add(prefill.tool)
+                prefill = None
             # « météo aujourd'hui », « taux du jour »: words that usually call for the web, but the tool has the answer
             own_answer = prefill and prefill.tool in ("convert_currency", "get_weather")
             # --- open data: the card answers by itself; a statistics chart is drawn once (no second make_chart)

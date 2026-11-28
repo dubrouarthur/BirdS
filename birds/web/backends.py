@@ -462,6 +462,8 @@ def widget_scenario(text: str) -> str:
     from birds.harness import clock, intents, opendata_intents
 
     found = [i for i in opendata_intents.merge(intents.detect(text), text) if i.args]
+    # markets: the demo has no licensed feed for shares (crypto and ECB rates are recorded): not a market card
+    found = [i for i in found if opendata_intents.usable(i, None)]
     if found:
         return {"find_places": "places", "find_company": "company", "convert_currency": "fx",
                 "get_weather": "weather"}.get(found[0].tool, "opendata")  # fmt: skip
@@ -1909,6 +1911,7 @@ _SEARCH_CODES = {
     "search_unauthorized": ("Clé de l'API de recherche refusée", "Search API key refused"),
     "search_bad_request": ("Requête refusée par le moteur de recherche", "Query refused by the search engine"),
     "search_failed": ("Le moteur de recherche n'a pas répondu", "The search engine did not answer"),
+    "search_unavailable": ("Recherche web indisponible pour le moment", "Web search unavailable for now"),
 }
 
 
@@ -2440,6 +2443,10 @@ class HarnessBackend:
             def on_step_end(index: int, step) -> None:
                 ctx.emit(self._step_event(index + offset, step, lang))
                 cards = self._live_widgets(step, ctx, lang)
+                from .widgets import _same_card
+
+                shown = {_same_card(w) for _, _, got in live for w in got}
+                cards = [w for w in cards if _same_card(w) not in shown]  # the same places found twice: one card
                 if cards:
                     live.append((index + offset, step, cards))
                     ctx.emit({"type": "widget", "index": index + offset, "widgets": cards})
@@ -2550,10 +2557,10 @@ class HarnessBackend:
                         else:
                             decision = crew_web.decide_for(request, words, len(new_names), len(image_texts), rl)
                             if request.reflexion == "albatros" and decision.recipe is None and request.agent == "auto":
-                                # Albatros, Endurance: a request the team can take runs as a team (crew « on »)
-                                strong = crew_web.decide_for(request, words, len(new_names), len(image_texts), rl,
-                                                             mode="on")  # fmt: skip
-                                decision = strong if strong.recipe and not strong.no_deliverable else decision
+                                # Albatros, Endurance: a team task runs as a team; the router says which ones are
+                                strong = crew_web.albatros_decision(agent, request, words, len(new_names),
+                                                                    len(image_texts), rl, history=kept)  # fmt: skip
+                                decision = strong or decision
                             run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
                                                     system=system, lang=rl, names=names, workspace=workspace,
                                                     history=kept)  # fmt: skip
@@ -2694,6 +2701,10 @@ class HarnessBackend:
                 if text:
                     content, stop_reason = text, "answer"
                     fallback = rescue.NOTE["en" if run.lang == "en" else "fr"]
+            if (fixed := rescue.check_places_answer(content, widgets, run.steps, run.lang)) is not None:
+                # the answer gave up while the map found places (or sent the user to a neighbour): the answer is
+                # written from the tool's results (birds/web/rescue.py)
+                content = fixed
             if data_prep is not None:
                 widgets = [data_prep.card, *widgets]  # data analysis hook: the data card first
             ctx.emit(

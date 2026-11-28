@@ -489,3 +489,60 @@ def correct(item) -> bool:
 def office_clean(text: str) -> bool:
     """An office prompt: no place intent at all (not even offered)."""
     return _intent(text) is None
+
+
+# ---- category near a town (production report of 28/11/2026, « supermarchés à Saint-Cloud »): the user's ask, the
+# category and anchor the parsers must read, and the query the model wrote for it (« supermarché »); the code must
+# map that query to the OSM category, never look the word up as a name across the world
+MAPS_CATEGORY: list[tuple[str, str, str, str]] = [
+    ("quels sont les supermarchés à Saint-Cloud", "supermarket", "saint-cloud", "supermarché"),
+    ("supermarchés à Montreuil", "supermarket", "montreuil", "supermarchés"),
+    ("un supermarché à Annecy", "supermarket", "annecy", "les supermarchés"),
+    ("pharmacie de garde à Lyon 3e", "pharmacy", "lyon 3e", "pharmacie de garde"),
+    ("une pharmacie à Nantes", "pharmacy", "nantes", "pharmacies"),
+    ("boulangerie près de la gare de Rennes", "bakery", "gare de rennes", "boulangerie"),
+    ("boulangeries à Quimper", "bakery", "quimper", "boulangeries"),
+    ("parking près de l'hôpital de Nantes", "parking", "hôpital de nantes", "parking"),
+    ("restaurants végétariens à Bordeaux", "restaurant", "bordeaux", "restaurants végétariens"),
+    ("un restaurant à Colmar", "restaurant", "colmar", "restaurant"),
+    ("distributeur près de la Défense", "atm", "défense", "distributeur"),
+    ("un dab à Brest", "atm", "brest", "dab"),
+    ("station-service à Annecy", "fuel", "annecy", "station-service"),
+    ("hôpital à Versailles", "hospital", "versailles", "hôpital"),
+    ("une gare près de Chantilly", "train station", "chantilly", "gare"),
+    ("banque à Saint-Malo", "bank", "saint-malo", "banque"),
+    ("bureau de poste à Vannes", "post office", "vannes", "bureau de poste"),
+    ("écoles à Versailles", "school", "versailles", "écoles"),
+    ("supermarkets in Lyon", "supermarket", "lyon", "supermarkets"),
+    ("pharmacy near Montparnasse station", "pharmacy", "montparnasse station", "pharmacy"),
+    # « De Paris à pizzeria » (production, Chouette): a ranked category is the category, the rank a qualifier
+    ("Où se situent les 3 meilleures pizzerias de Paris", "pizza", "paris", "3 meilleures pizzerias"),
+    ("les meilleures boulangeries à Lyon", "bakery", "lyon", "meilleures boulangeries"),
+    ("best bakeries in Lyon", "bakery", "lyon", "the best bakeries"),
+    ("top 5 restaurants à Lille", "restaurant", "lille", "top 5 restaurants"),
+]
+# names that start with a kind word: a name, never a category
+MAPS_CATEGORY_NO: list[str] = [
+    "gare de Lyon", "école des Mines", "Hôtel de Ville", "Pharmacie Lafayette", "boulangerie Paul",
+    "restaurant Le Train Bleu", "Carrefour Market", "tour Eiffel", "banque de France", "musée d'Orsay",
+    "Meilleurtaux", "Best Western", "Top Gun",
+]  # fmt: skip
+
+
+def category_ok(item) -> bool:
+    """The parsers read the category and the anchor, and the model's own wording maps to the same category."""
+    from birds.harness.tools.places import category
+
+    text, kind, near, model_query = item
+    got = _intent(text)
+    args = (got.args or {}) if got is not None else {}
+    parsed = got is not None and got.mode == "near" and args.get("query") == kind and _f(args.get("near")) == _f(near)
+    mapped = (category(model_query) or ("",))[0] == kind
+    return parsed and mapped
+
+
+def category_touched(name: str) -> bool:
+    """A name must stay a name: ``category`` is None."""
+    from birds.harness.tools.places import category
+
+    return category(name) is not None

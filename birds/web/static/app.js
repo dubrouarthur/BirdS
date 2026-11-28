@@ -67,8 +67,7 @@ import { normalizeChoice, thinks } from "./reflexion-data.js";
 import * as cx from "./conversation.js"; // versions, inline edit, documents in context, dialogs, back button
 import { contextDocs, fork, switchVersion, validGroup } from "./conversation-data.js";
 
-// Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
-const AGENT_MODES = ["auto", "on", "off"];
+import { loadAgentMode } from "./agent-mode.js"; // Mode Agent: Auto by default; Activé for this session only
 let planTimer = 0; // the plan card's countdown (Auto, high confidence)
 let teamDone = false; // a team finished while the tab was hidden: « ✓ » in the tab title
 // Mode Réflexion and the Settings reasoning switch say the same thing: the bird picked is the more precise choice,
@@ -80,13 +79,7 @@ if (!!state.prefs.thinking !== state.thinking) {
 let prefsThinking = !!state.prefs.thinking;
 // No byte (data or heartbeat) for this long: the stream is dead. Just over 3x the server's heartbeat (10 s).
 const STALL_MS = 35000;
-// the old composer selector left « Activé » stored for good: once, every stored choice goes back to Auto (Bird calls the
-// team only when the request needs it); a choice made afterwards in Settings is kept
-if (store.get("bird.agentV") !== "2") {
-  store.set("bird.agent", "auto");
-  store.set("bird.agentV", "2");
-}
-state.agent = AGENT_MODES.includes(store.get("bird.agent")) ? store.get("bird.agent") : "auto";
+state.agent = loadAgentMode(globalThis.localStorage, globalThis.sessionStorage);
 
 const PASTE_AS_FILE = 3000; // characters: longer pasted text becomes an attached document
 const KEEP_FILE_B64 = 400_000; // larger generated files are not kept in localStorage
