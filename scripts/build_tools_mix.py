@@ -53,7 +53,8 @@ from birds.tools import BIRD_TOOLS, EXTRA_TOOLS  # noqa: E402
 
 SOURCE, LICENSE = "bird_tools", "apache-2.0"
 NOW = datetime(2026, 11, 23, 10, 0, tzinfo=ZoneInfo("Europe/Paris"))
-NATIVE = {"get_weather", "find_places", "find_company", "convert_currency"}
+NATIVE = {"get_weather", "find_places", "find_company", "convert_currency", "work_calendar", "lookup_entity",
+          "get_statistics", "find_tenders", "find_papers", "find_commune"}
 
 # ---------------------------------------------------------------- slot lists
 TOWNS_FR = [
@@ -764,6 +765,131 @@ def followups(rng):
             yield "fu10", "fr", f"et {n} ?", h, _lab([m], native=m)
 
 
+# ---------------------------------------------------------------- open data (catalogue family "opendata")
+OD_YEARS = ["2026", "2027", "2028"]
+OD_MONTHS = [("janvier", "01", "January"), ("mai", "05", "May"), ("juin", "06", "June"), ("août", "08", "August"),
+             ("novembre", "11", "November"), ("décembre", "12", "December")]  # fmt: skip
+OD_ZONES = [("en Alsace-Moselle", "alsace-moselle"), ("en Guadeloupe", "guadeloupe"), ("à La Réunion", "la-reunion"),
+            ("en Allemagne", "DE"), ("en Belgique", "BE"), ("en Espagne", "ES"), ("en Italie", "IT")]  # fmt: skip
+OD_ZONES_EN = [("in Germany", "DE"), ("in Spain", "ES"), ("in the UK", "GB"), ("in Ireland", "IE")]
+OD_ENTITIES = ["Airbus", "l'OCDE", "l'Unesco", "la Banque mondiale", "Bpifrance", "le CNRS", "l'Insee", "Eurostat",
+               "le Portugal", "la Slovénie", "Rennes", "Strasbourg", "le Mont-Saint-Michel", "l'ONU"]  # fmt: skip
+OD_ENTITIES_EN = ["Airbus", "the OECD", "UNESCO", "the World Bank", "Portugal", "the Louvre"]
+OD_INDICATORS = [("le chômage", "unemployment"), ("le taux de chômage", "unemployment"), ("l'inflation", "inflation"),
+                 ("le PIB", "gdp"), ("la croissance du PIB", "gdp_growth"), ("la population", "population"),
+                 ("les exportations", "exports")]  # fmt: skip
+OD_INDICATORS_EN = [("unemployment", "unemployment"), ("inflation", "inflation"), ("GDP", "gdp"),
+                    ("GDP growth", "gdp_growth"), ("population", "population")]  # fmt: skip
+OD_COUNTRIES = [("en France", "France"), ("en Allemagne", "Allemagne"), ("en Espagne", "Espagne"),
+                ("en Italie", "Italie"), ("au Japon", "Japon"), ("en Suède", "Suède"), ("aux Pays-Bas", "Pays-Bas")]  # fmt: skip
+OD_COUNTRIES_EN = [("in France", "France"), ("in Germany", "Germany"), ("in Japan", "Japan"), ("in Spain", "Spain")]
+OD_TENDERS = ["nettoyage de locaux", "maintenance informatique", "travaux de voirie", "restauration collective",
+              "formation bureautique", "audit énergétique", "transport scolaire", "fourniture de mobilier"]  # fmt: skip
+OD_WHERE = [("dans le Nord", "Nord"), ("en Bretagne", "Bretagne"), ("en Gironde", "Gironde"),
+            ("dans le Rhône", "Rhône"), ("en Occitanie", "Occitanie")]  # fmt: skip
+OD_TOPICS = ["batteries sodium-ion", "microbiote intestinal", "apprentissage fédéré", "pompes à chaleur",
+             "agrivoltaïsme", "télétravail et productivité", "hydrogène vert"]  # fmt: skip
+OD_TOPICS_EN = ["sodium-ion batteries", "federated learning", "heat pumps", "CRISPR gene editing", "green hydrogen"]
+OD_DOIS = ["10.1038/nature14539", "10.1126/science.aaa8415", "10.1145/3065386"]
+OD_COMMUNES = ["Roubaix", "Vierzon", "Saint-Malo", "Annecy", "Colmar", "Bayonne", "Saint-Denis", "Montauban"]
+OD_ADDRESSES = ["20 av de segur paris", "8 bd du port 95000 cergy", "1 place de la mairie 69001 lyon",
+                "12 rue nationale lille"]  # fmt: skip
+OD_NEG = [  # (template id, text): the words of a card in writing, a how-to or the user's own data
+    ("odn1", "rédige un mail pour prévenir que le bureau est fermé le jour férié"),
+    ("odn1", "fais une note sur la politique des jours fériés"),
+    ("odn2", "comment compter les jours ouvrés dans Excel ?"), ("odn2", "explique les jours ouvrables"),
+    ("odn3", "c'est quoi un KPI ?"), ("odn3", "c'est quoi le chômage partiel ?"), ("odn3", "explique-moi le PIB"),
+    ("odn4", "comment répondre à un appel d'offres ?"), ("odn4", "rédige notre mémoire technique pour l'appel d'offres"),
+    ("odn5", "nos chiffres de ventes depuis 2015"), ("odn5", "la population cible de notre campagne"),
+    ("odn6", "résume cet article scientifique"), ("odn6", "traduis le résumé de cette publication"),
+    ("odn7", "corrige l'adresse dans la signature de mon mail"), ("odn7", "mets à jour l'adresse du client"),
+    ("odne1", "how do I count working days in Google Sheets?"), ("odne1", "what is a call for tenders?"),
+    ("odne2", "summarize this paper for me"), ("odne2", "write an email about the bank holiday"),
+]  # fmt: skip
+
+
+def opendata(rng):
+    for y in OD_YEARS:
+        for tid, t in (("od1", f"quels sont les jours fériés en {y} ?"), ("od2", f"liste des jours fériés {y}"),
+                       ("od3", f"les fériés de {y} stp")):  # fmt: skip
+            m = _m("work_calendar", period=y)
+            yield tid, "fr", t, None, _lab([m], native=m)
+        for z, code in OD_ZONES:
+            m = _m("work_calendar", period=y, zone=code)
+            yield "od4", "fr", f"jours fériés {z} en {y}", None, _lab([m], native=m)
+        for z, code in OD_ZONES_EN:
+            m = _m("work_calendar", period=y, zone=code)
+            yield "ode1", "en", f"public holidays {z} in {y}", None, _lab([m], native=m)
+        for mo, num, en in OD_MONTHS:
+            m = _m("work_calendar", period=f"{y}-{num}")
+            yield "od5", "fr", f"combien de jours ouvrés en {mo} {y} ?", None, _lab([m], native=m)
+            yield "od6", "fr", f"jours fériés de {mo} {y}", None, _lab([m], native=m)
+            yield "ode2", "en", f"how many working days in {en} {y}?", None, _lab([m], native=m)
+    for n in (10, 15, 30, 45):
+        m = _m("work_calendar", period="2026-12-03", add_days=n)
+        yield "od7", "fr", f"J+{n} ouvrés à partir du 2026-12-03", None, _lab([m], native=m)
+        yield "od8", "fr", f"quelle date à {n} jours ouvrés du 2026-12-03 ?", None, _lab([m], native=m)
+    for e in OD_ENTITIES:
+        name = re.sub(r"^(?:l'|le |la |les )", "", e)
+        m = _m("lookup_entity", name=name)
+        for tid, t in (("od9", f"c'est quoi {e} ?"), ("od10", f"fiche Wikipédia de {name}"),
+                       ("od11", f"présente-moi {e} en bref")):  # fmt: skip
+            yield tid, "fr", t, None, _lab([m], native=m)
+    for e in OD_ENTITIES_EN:
+        name = e.removeprefix("the ")
+        m = _m("lookup_entity", name=name)
+        yield "ode3", "en", f"tell me about {e}", None, _lab([m], native=m)
+    for w, key in OD_INDICATORS:
+        for place, name in rng.sample(OD_COUNTRIES, 3):
+            for y in ("2010", "2015"):
+                m = _m("get_statistics", indicator=key, places=name, since=y)
+                for tid, t in (("od12", f"évolution de {w} {place} depuis {y}"),
+                               ("od13", f"courbe de {w} {place} depuis {y}")):  # fmt: skip
+                    yield tid, "fr", t, None, _lab([m], native=m)
+        (p1, n1), (p2, n2) = rng.sample(OD_COUNTRIES, 2)
+        m = _m("get_statistics", indicator=key, places=f"{n1}, {n2}", since="2012")
+        yield "od14", "fr", f"compare {w} {p1} et {p2} depuis 2012", None, _lab([m], native=m)
+    for w, key in OD_INDICATORS_EN:
+        for place, name in OD_COUNTRIES_EN:
+            m = _m("get_statistics", indicator=key, places=name, since="2010")
+            yield "ode4", "en", f"{w} {place} since 2010", None, _lab([m], native=m)
+    for c in OD_COMMUNES[:4]:
+        m = _m("get_statistics", indicator="population", places=c, since="1990")
+        yield "od15", "fr", f"évolution de la population de {c} depuis 1990", None, _lab([m], native=m)
+    for q in OD_TENDERS:
+        m = _m("find_tenders", query=q)
+        yield "od16", "fr", f"appels d'offres {q}", None, _lab([m], native=m)
+        yield "od17", "fr", f"trouve des marchés publics de {q}", None, _lab([m], native=m)
+        for wtxt, w in rng.sample(OD_WHERE, 2):
+            m = _m("find_tenders", query=q, where=w)
+            yield "od18", "fr", f"appels d'offres {q} {wtxt}", None, _lab([m], native=m)
+    for q in OD_TOPICS:
+        for tid, t, order in (("od19", f"articles scientifiques sur {q}", None),
+                              ("od20", f"publications récentes sur {q}", "recent"),
+                              ("od21", f"les études les plus citées sur {q}", "cited")):  # fmt: skip
+            m = _m("find_papers", query=q, **({"order": order} if order else {}))
+            yield tid, "fr", t, None, _lab([m], native=m)
+    for q in OD_TOPICS_EN:
+        m = _m("find_papers", query=q)
+        yield "ode5", "en", f"find papers on {q}", None, _lab([m], native=m)
+    for d in OD_DOIS:
+        m = _m("find_papers", query=d)
+        yield "od22", "fr", f"vérifie ce DOI {d}", None, _lab([m], native=m)
+        yield "ode6", "en", f"check DOI {d}", None, _lab([m], native=m)
+    for c in OD_COMMUNES:
+        m = _m("find_commune", name=c)
+        for tid, t in (("od23", f"code postal de {c}"), ("od24", f"code INSEE de {c}"),
+                       ("od25", f"dans quel département est {c} ?")):  # fmt: skip
+            yield tid, "fr", t, None, _lab([m], native=m)
+        yield "ode7", "en", f"postcode of {c}", None, _lab([m], native=m)
+    for a in OD_ADDRESSES:
+        m = _m("find_commune", name=a)
+        yield "od26", "fr", f"normalise l'adresse {a}", None, _lab([m], native=m)
+        yield "od27", "fr", f"vérifie cette adresse : {a}", None, _lab([m], native=m)
+    for tid, t in OD_NEG:
+        yield tid, "en" if tid.startswith("odne") else "fr", t, None, _lab([], web=False)
+
+
 FAMILIES = (
     weather,
     places,
@@ -777,6 +903,7 @@ FAMILIES = (
     negatives,
     false_triggers,
     followups,
+    opendata,
 )
 
 
@@ -822,6 +949,8 @@ def check(text: str, history, label: dict) -> bool:
             return False
         if m["tool"] == "event" and when.event_ask(text, NOW, detect_lang(text)) is None:
             return False
+        if catalog.BY_NAME[m["tool"]].family == "opendata" and R.veto_reason(R.Call(m["tool"], args), text):
+            return False  # a label the harness would refuse is never taught
     return True
 
 
@@ -855,7 +984,7 @@ def native_record(text, lang, history, label, rid: str) -> dict | None:
 
 # share of the positive router records per family (the rest of the budget goes to negatives)
 FAMILY_SHARE = {"weather": 0.09, "places": 0.10, "company": 0.05, "fx": 0.08, "clock_items": 0.07, "events": 0.05,
-                "charts": 0.04, "images": 0.04, "office": 0.06, "followups": 0.06}  # fmt: skip
+                "charts": 0.04, "images": 0.04, "office": 0.06, "followups": 0.06, "opendata": 0.09}  # fmt: skip
 
 
 def _negative(label: dict) -> bool:
