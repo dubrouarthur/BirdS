@@ -126,6 +126,8 @@ class SearxngBackend:
             data, used = self._ask(query, lang, spare), "fallback"
             down = [str(e[0]) for e in data.get("unresponsive_engines") or [] if isinstance(e, (list, tuple)) and e]
         results = data.get("results") or []
+        if used == "fallback":  # bing and yahoo through SearXNG add home pages and broken links: kept out
+            results = [x for x in results if _article(x.get("url"))]
         if not results and down:
             raise SearchError("search_unavailable", f"{self.label}: no engine answered ({', '.join(down[:4])})")
         if results and used == "default":
@@ -140,6 +142,17 @@ class SearxngBackend:
             }
             for x in results[:n]
         ]
+
+
+def _article(url) -> bool:
+    """A result that points at a page: an http(s) URL with a host and a path (not a bare home page)."""
+    from urllib.parse import urlsplit
+
+    try:
+        p = urlsplit(str(url or ""))
+    except ValueError:
+        return False
+    return p.scheme in ("http", "https") and "." in p.netloc and (p.path.strip("/") != "" or bool(p.query))
 
 
 def probe(base_url: str, http, *, query: str = "Paris", timeout: float = 4.0) -> dict:
