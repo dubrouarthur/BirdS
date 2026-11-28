@@ -362,6 +362,27 @@ def test_cross_check_corroborates_across_sites_and_flags_contradictions():
     assert [c["conf"] for c in alone] == ["high", "high"] and rr.key_figures(alone)[0]["conf"] == "high"
 
 
+
+def test_scale_words_are_part_of_the_value_never_compared_on_their_first_letters():
+    from birds.harness import research_report as rr
+
+    assert rr.figures_of("1,2 million d'euros")[0][1:] == (1_200_000.0, "eur")
+    assert rr.figures_of("1,2 milliard d'euros")[0][1:] == (1_200_000_000.0, "eur")
+    assert rr.figures_of("9 Md€")[0][1:] == rr.figures_of("9 milliards d'euros")[0][1:] == (9e9, "eur")
+    assert rr.figures_of("45 M€")[0][1:] == rr.figures_of("45 millions d'euros")[0][1:]
+    pages = [{"n": 1, "domain": "a.fr"}, {"n": 2, "domain": "b.fr"}]
+    s = "Le marché français de l'hydrogène vert représente {} d'euros en 2023."
+    claims = [{"n": 1, "claim": s.format("1,2 million"), "quote": "x"},
+              {"n": 2, "claim": s.format("1,2 milliard"), "quote": "x"}]  # fmt: skip
+    out, contra = rr.cross_check(claims, pages)
+    assert out[0]["also"] == [] and out[1]["also"] == [] and "high" not in {c["conf"] for c in out}
+    assert contra and {contra[0]["a"]["value"], contra[0]["b"]["value"]} == {"1,2 million d'euros",
+                                                                             "1,2 milliard d'euros"}  # fmt: skip
+    same = [{"n": 1, "claim": s.format("45 millions"), "quote": "x"},
+            {"n": 2, "claim": "Le marché français de l'hydrogène vert représente 45 M€ en 2023.", "quote": "x"}]
+    out, contra = rr.cross_check(same, pages)
+    assert [c["conf"] for c in out] == ["high", "high"] and not contra
+
 def test_the_writers_comparison_is_kept_only_with_sourced_figures():
     from birds.harness import research_report as rr
 

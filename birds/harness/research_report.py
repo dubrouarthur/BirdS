@@ -74,8 +74,32 @@ def figures_of(text: str) -> list[tuple[str, float, str]]:
         m = _UNIT.match(clean, at)
         unit = (m.group(1) or "") if m else ""
         written = " ".join(clean[i : m.end() if (m and unit) else at].split())  # as written in the text
-        out.append((written, v, cc.fold(unit)[:5]))
+        scale, key = _unit_key(unit, (m.group(2) or "") if (m and unit) else "")
+        out.append((written, v * scale, key))
     return out
+
+
+# scale words go into the value (« 1,2 million » is 1 200 000, « 1,2 milliard » 1 200 000 000): never compared on
+# their first letters, where « million » and « milliard » would look alike
+_SCALES = (
+    (re.compile(r"^(?:md€?|mds|milliards?|billions?)$"), 1e9),
+    (re.compile(r"^(?:m€|millions?)$"), 1e6),
+    (re.compile(r"^(?:k€|milliers?|mille|thousands?)$"), 1e3),
+)
+_CURRENCY = (("€", "eur"), ("euro", "eur"), ("$", "usd"), ("dollar", "usd"), ("£", "gbp"))
+
+
+def _unit_key(unit: str, tail: str) -> tuple[float, str]:
+    """(scale, comparable unit key) of a figure's unit: « M€ » and « millions d'euros » are both (1e6, « eur »)."""
+    raw, t = unit.lower().strip(), tail.lower().strip()
+    u = cc.fold(unit).strip()
+    scale = next((f for rx, f in _SCALES if rx.match(raw)), 1.0)
+    money = next((k for w, k in _CURRENCY if w in raw or w in t), "")
+    if money:
+        return scale, money
+    if scale != 1.0:  # « 3 millions d'habitants », or a bare « 3 millions »
+        return scale, cc.fold(re.sub(r"^(?:d['’]|de |of )", "", t))[:5] or "#"
+    return scale, u[:5]
 
 
 def _years(text: str) -> set[str]:
