@@ -14,7 +14,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from birds.harness.analysis.ask import plan_question
+from birds.harness.analysis import planner
 from birds.harness.analysis.card import build_card, explain, profile_text, result_text
 from birds.harness.analysis.charts import chart_from_result
 from birds.harness.analysis.profile import Frame, frame_of, profile_table
@@ -22,6 +22,7 @@ from birds.harness.analysis.query import QueryError, result_numbers, run_query
 from birds.harness.analysis.suggest import slim_result, suggestions
 from birds.harness.analysis.table import TableError, is_tabular, looks_like_table, read_table, read_text_table
 from birds.harness.analysis.verify import check_numbers
+from birds.harness.guard import ToolError
 
 log = logging.getLogger(__name__)
 
@@ -67,6 +68,8 @@ class Prep:
     chart: dict | None = None
     allowed: list[float] = field(default_factory=list)
     lang: str = "fr"
+    plan: dict | None = None  # the analysis spec computed this turn (planner.py), written in the memo
+    planned: dict = field(default_factory=dict)  # how it was chosen: source (model, hybrid, rules, fallback), meta
 
 
 def _load(workspace: Path, names: list[str], words: str) -> tuple[str, object, str] | None:
@@ -95,7 +98,12 @@ def _load(workspace: Path, names: list[str], words: str) -> tuple[str, object, s
     return None
 
 
-def prepare(workspace: Path, names: list[str], words: str, lang: str = "fr") -> Prep | None:
+def prepare(workspace: Path, names: list[str], words: str, lang: str = "fr", *, llm=None, tok=None, history=None,
+            mode: str = "rules", structured: str = "", budget: float = planner.BUDGET_S,
+            cache_salt: str | None = None) -> Prep | None:  # fmt: skip
+    """``llm`` / ``tok`` given and ``mode`` model or hybrid: Bird chooses the analysis (``planner.decide``, one short
+    structured call); otherwise, or when that call fails, the fixed rules do. ``history``: the conversation before
+    this message (a follow-up edits the previous turn's analysis)."""
     lang = "en" if lang == "en" else "fr"
     try:
         loaded = _load(workspace, names, words)
@@ -108,18 +116,25 @@ def prepare(workspace: Path, names: list[str], words: str, lang: str = "fr") -> 
         prof = profile_table(f)
         sugg = suggestions(f, lang, source_label=name)
         question = words if origin == "attachment" else _question_part(words)
-        plan = plan_question(f, question) if question else None
+        planned = planner.decide(llm if mode != "rules" else None, tok, f, question or "", history=history,
+                                 lang=lang, mode=mode, structured=structured, budget=budget,
+                                 cache_salt=cache_salt)  # fmt: skip
+        plan = planned.plan
         result = chart = None
         if plan:
             try:
                 result = run_query(f, plan["query"], lang)
-                chart = chart_from_result(result, lang, "analysis", name)
+                chart = chart_from_result(result, lang, "analysis", name, type_=_chart_type(plan, result))
                 chart["id"] = "a1"
-            except QueryError:
-                result = chart = None
-        answer = {"label": result["title"], "query": result["query"], "result": slim_result(result),
-                  "chart": chart} if result else None  # fmt: skip
+            except (QueryError, ToolError):
+                result = chart = plan = None
+        previous = planner.previous_spec(history)
+        version = int((previous or {}).get("version") or 1) + 1 if previous and plan else 1
+        answer = {"label": result["title"], "query": result["query"], "result": slim_result(result), "chart": chart,
+                  "next": next_steps(f, result, lang), "version": version} if result else None  # fmt: skip
         card = build_card(f, prof, sugg, name=name, origin=origin, lang=lang, answer=answer)
+        if answer and version > 1:
+            card["compact"] = True  # a follow-up that edits the chart: the chart first, the profile folded
         if result:
             note = NOTE[lang].format(name=name, rows=f.n, cols=len(f.columns), title=result["title"],
                                      table=result_text(result, lang))  # fmt: skip
@@ -127,10 +142,90 @@ def prepare(workspace: Path, names: list[str], words: str, lang: str = "fr") -> 
         else:
             note = PROFILE_NOTE[lang].format(name=name, profile=profile_text(prof, lang))
             allowed = _profile_numbers(prof)
-        return Prep(name, f, prof, card, note, result, chart, allowed, lang)
+        if plan is not None:
+            plan = {**plan, "version": version}
+        return Prep(name, f, prof, card, note, result, chart, allowed, lang, plan,
+                    {"source": planned.source, **planned.meta})  # fmt: skip
     except Exception:  # noqa: BLE001 - the analysis must never lose the turn
         log.warning("data analysis failed", exc_info=True)
         return None
+
+
+def _chart_type(plan: dict, result: dict) -> str | None:
+    """The chart the planner chose, when it suits the result (a donut of a time series is not drawn)."""
+    want = plan.get("chart")
+    kind = result.get("kind")
+    if not want:
+        return None
+    if kind == "scatter" or kind == "scalar":
+        return None
+    if kind == "describe":
+        return want if want in ("box", "histogram") else None
+    if want == "donut" and (kind == "time" or len(result.get("columns") or []) > 2 and kind != "share"):
+        return None
+    if want == "scatter":
+        return None
+    return want
+
+
+_NEXT = {
+    "fr": {"donut": "En camembert", "line": "En courbe", "bar": "En barres", "top5": "Seulement le top 5",
+           "quarter": "Par trimestre", "month": "Par mois", "year": "Par année", "window": "Avec une moyenne mobile sur 3 mois",
+           "change": "Évolution en % d'une période à l'autre", "by": "Par {name}", "heatmap": "En carte de chaleur"},
+    "en": {"donut": "As a donut", "line": "As a line", "bar": "As bars", "top5": "Only the top 5",
+           "quarter": "By quarter", "month": "By month", "year": "By year", "window": "With a 3-month moving average",
+           "change": "Percent change from one period to the next", "by": "By {name}", "heatmap": "As a heat map"},
+}  # fmt: skip
+
+
+def next_steps(f: Frame, result: dict, lang: str = "fr") -> list[dict]:
+    """2 or 3 concrete edits of the chart just shown (« Modifier le graphique »): each one is sent as the user's next
+    message, and the planner edits the analysis (continuity rule: the updated chart is shown again)."""
+    w = _NEXT["en" if lang == "en" else "fr"]
+    q = result.get("query") or {}
+    kind = result.get("kind")
+    rows = result.get("rows") or []
+    dates = [c for c in f.columns if c.type == "date"]
+    cats = [c for c in f.columns if c.type in ("category", "bool") and c.name not in (q.get("by"), q.get("pivot"))
+            and 2 <= len({v for v in c.values if v is not None}) <= 12]  # fmt: skip
+    out: list[str] = []
+    if kind == "time" and not q.get("pivot"):
+        out.append(w["quarter"] if q.get("period") != "quarter" else w["month"])
+        if not q.get("window"):
+            out.append(w["window"])
+        if not q.get("change"):
+            out.append(w["change"])
+    elif kind in ("ranking", "category", "share") and q.get("by"):
+        if kind != "share" and len(rows) <= 8 and q.get("agg") in ("sum", "count"):
+            out.append(w["donut"])
+        elif kind == "share":
+            out.append(w["bar"])
+        if len(rows) > 5 and not q.get("top"):
+            out.append(w["top5"])
+        if dates:
+            out.append(w["month"])
+        if cats and len(out) < 3:
+            out.append(w["by"].format(name=cats[0].name))
+    elif kind == "compare":
+        if cats and not q.get("by"):
+            out.append(w["by"].format(name=cats[0].name))
+        out.append(w["line"])
+    elif q.get("pivot"):
+        out.append(w["heatmap"])
+        if dates and not q.get("period"):
+            out.append(w["month"])
+    elif kind == "describe" and cats:
+        out.append(w["by"].format(name=cats[0].name))
+    return [{"label": x, "ask": x} for x in out[:3]]
+
+
+def memo_line(prep: Prep | None) -> str:
+    """The analysis spec of this turn, for the memo (a follow-up edits it), or ''."""
+    if prep is None or not prep.plan:
+        return ""
+    line = planner.memo_line(prep.name, prep.plan, prep.lang)
+    spec = {"analysis": prep.plan["query"], "chart": prep.plan.get("chart") or "auto", "version": prep.plan["version"]}
+    return line.rsplit(" — ", 1)[0] + " — " + planner._dump(spec) + "]" if line else ""
 
 
 def _question_part(words: str) -> str:
@@ -156,8 +251,7 @@ def finish(run, prep: Prep | None, request: str = "") -> None:
     if prep is None:
         return
     lang = prep.lang
-    if prep.chart and not any(c.get("v") == 2 and c.get("id") == prep.chart.get("id") for c in run.charts):
-        run.charts.insert(0, prep.chart)
+    # the chart of the result is drawn in the data card (with « Modifier le graphique »), not a second time below
     answer = str(getattr(run, "answer", "") or "")
     bad = check_numbers(answer, prep.allowed + [float(prep.frame.n)], request) if answer else []
     if prep.result is not None and (bad or not answer.strip()):
@@ -170,4 +264,4 @@ def finish(run, prep: Prep | None, request: str = "") -> None:
         run.report = {**(getattr(run, "report", None) or {}), "data_check": {"ok": True}}
 
 
-__all__ = ["MARKERS", "Prep", "finish", "prepare", "strip_note"]
+__all__ = ["MARKERS", "Prep", "finish", "memo_line", "next_steps", "prepare", "strip_note"]

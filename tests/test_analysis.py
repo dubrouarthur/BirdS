@@ -389,7 +389,8 @@ def test_prepare_and_finish(tmp_path):
     good = SimpleNamespace(answer="Richard Énergie mène avec 124 158 €, devant Simon Retail (119 274 €).", charts=[],
                            report={})  # fmt: skip
     finish(good, prep)
-    assert good.answer.startswith("Richard") and good.charts[0]["v"] == 2 and good.report["data_check"] == {"ok": True}
+    assert good.answer.startswith("Richard") and good.report["data_check"] == {"ok": True}
+    assert not good.charts and prep.card["answer"]["chart"]["v"] == 2  # the chart is drawn in the card only
     bad = SimpleNamespace(answer="Richard Énergie mène avec 150 000 €.", charts=[], report={})
     finish(bad, prep)
     assert "150 000" not in bad.answer and "124" in bad.answer and bad.report["data_check"]["replaced"]
@@ -454,7 +455,21 @@ def test_demo_chat_with_a_csv_shows_the_card(client):
     answer = next(e for e in events if e["type"] == "answer")
     card = answer["widgets"][0]
     assert card["type"] == "datacard" and card["rows"] == 480 and card["answer"]["chart"]["type"] == "line"
-    assert answer["charts"][0]["v"] == 2 and "Moyenne de CA" in answer["content"]
+    assert not answer["charts"] and "Moyenne de CA" in answer["content"]  # the chart is drawn in the card only
+    # « Modifier le graphique »: 2 or 3 edits, and the memo carries the spec a follow-up edits
+    nexts = card["answer"]["next"]
+    assert 2 <= len(nexts) <= 3 and nexts[0]["label"] == "Par trimestre"
+    assert "[Analyse de « ventes.csv » — {" in answer["memo"] and card["answer"]["version"] == 1
+    # the follow-up re-shows the updated chart (continuity rule), version 2, compact card
+    body["messages"] += [{"role": "assistant", "content": answer["content"], "memo": answer["memo"]},
+                         {"role": "user", "content": nexts[0]["ask"]}]  # fmt: skip
+    r = client.post("/api/chat", json=body)
+    events = [json.loads(f[6:]) for f in r.text.split("\n\n") if f.startswith("data: ")]
+    answer2 = next(e for e in events if e["type"] == "answer")
+    card2 = answer2["widgets"][0]
+    assert card2["answer"]["query"]["period"] == "quarter" and card2["answer"]["query"]["agg"] == "mean"
+    assert card2["answer"]["version"] == 2 and card2.get("compact") is True
+    assert len(card2["answer"]["chart"]["labels"]) == 8 and '"version":2' in answer2["memo"]
 
 
 def test_csv_text_is_not_bigger_than_needed():

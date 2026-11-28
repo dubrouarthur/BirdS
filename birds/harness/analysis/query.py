@@ -6,6 +6,11 @@ every operation is from a fixed list, so a question can be turned into one witho
     {"op": "aggregate", "measure": "CA", "agg": "mean", "time": "Date", "period": "month"}
     {"op": "compare", "measure": "CA", "time": "Date", "years": [2024, 2025], "by": "Produit"}
     {"op": "corr", "x": "Prix", "y": "Volume"}
+    {"op": "aggregate", "measure": "CA", "agg": "sum", "time": "Date", "period": "month", "window": 3, "change": true}
+
+``window`` adds a moving average over that many periods, ``change`` the percent change from the previous period
+(both on a time series without pivot). The model writes such a query as structured output (``planner.py``); the
+harness checks it here and computes it: no code from the model is ever run.
 """
 
 from __future__ import annotations
@@ -24,6 +29,7 @@ FILTER_OPS = ("eq", "ne", "gt", "ge", "lt", "le", "in", "contains", "year", "bet
 PERIODS = ("day", "week", "month", "quarter", "year")
 MAX_GROUPS = 60
 MAX_TOP = 50
+MAX_WINDOW = 24
 _AGG_FR = {"sum": "Total", "mean": "Moyenne", "median": "Médiane", "count": "Nombre", "min": "Minimum",
            "max": "Maximum", "distinct": "Nombre distinct"}  # fmt: skip
 _AGG_EN = {"sum": "Total", "mean": "Average", "median": "Median", "count": "Count", "min": "Minimum",
@@ -223,6 +229,21 @@ def normalize(f: Frame, q: dict) -> dict:
         out["top"] = top
     if q.get("share"):
         out["share"] = True
+    for key in ("window", "change"):
+        if q.get(key) in (None, False, 0):
+            continue
+        if not out.get("period") or out.get("pivot") or out.get("by") or op != "aggregate":
+            raise QueryError(f"{key} needs a time series: op aggregate with time and period, no by, no pivot")
+        if key == "change":
+            out["change"] = True
+            continue
+        try:
+            w = int(q["window"])
+        except (TypeError, ValueError):
+            raise QueryError("window must be a whole number of periods") from None
+        if not 2 <= w <= MAX_WINDOW:
+            raise QueryError(f"window must be between 2 and {MAX_WINDOW}")
+        out["window"] = w
     return out
 
 
@@ -320,6 +341,8 @@ def run_query(f: Frame, q: dict, lang: str = "fr") -> dict:
             out["columns"] = [*columns, "Part (%)" if lang != "en" else "Share (%)"]
             out["rows"] = [[*r, _r(100 * (r[1] or 0) / total, 1)] for r in rows]
             out["kind"] = "share"
+    if pivot is None and grain and (q.get("window") or q.get("change")):
+        _time_extras(out, q, lang)
     if pivot is None and rows:
         total = math.fsum(r[1] or 0 for r in rows if isinstance(r[1], int | float))
         if q["agg"] in ("sum", "count"):
@@ -336,6 +359,28 @@ def run_query(f: Frame, q: dict, lang: str = "fr") -> dict:
     else:
         out["facts"] = [f"{title}: {len(rows)} rows × {len(out['columns']) - 1} series"]
     return out
+
+
+def _time_extras(out: dict, q: dict, lang: str) -> None:
+    """A moving average over ``window`` periods and / or the percent change from the previous period, as extra
+    columns of a time series (first periods without enough history stay empty)."""
+    rows = out["rows"]
+    vals = [r[1] for r in rows]
+    cols = list(out["columns"])
+    if q.get("window"):
+        w = q["window"]
+        cols.append(f"Moyenne mobile ({w})" if lang != "en" else f"Moving average ({w})")
+        for i, r in enumerate(rows):
+            win = vals[i - w + 1 : i + 1] if i >= w - 1 else []
+            r.append(_r(statistics.fmean(win)) if win and all(v is not None for v in win) else None)
+    if q.get("change"):
+        cols.append("Évolution (%)" if lang != "en" else "Change (%)")
+        for i, r in enumerate(rows):
+            prev = vals[i - 1] if i else None
+            r.append(_r(100 * (vals[i] - prev) / abs(prev), 1) if prev not in (None, 0) and vals[i] is not None
+                     else None)  # fmt: skip
+    out["columns"] = cols
+    out["kind"] = "time"
 
 
 def _compare(f: Frame, q: dict, keep: list[int], lang: str) -> dict:

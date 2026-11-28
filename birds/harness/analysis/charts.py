@@ -376,6 +376,22 @@ def chart_from_result(res: dict, lang: str = "fr", source: str = "analysis", sou
                                "labels": [cols[0] if cols else ""],
                                "series": [{"name": res.get("title"), "values": [res.get("scalar")], "unit": unit}]},
                               lang, kind=kind)  # fmt: skip
+    elif kind == "time" and ((res.get("query") or {}).get("window") or (res.get("query") or {}).get("change")):
+        # a time series with its moving average (a line on the same axis) and / or its change from the previous
+        # period (a line on a second axis, in %): bars + line by default, as a reader expects it
+        q = res.get("query") or {}
+        labels = [r[0] for r in rows]
+        series = [{"name": cols[1], "values": [r[1] for r in rows], "unit": unit, "mark": "bar"}]
+        j = 2
+        if q.get("window"):
+            series.append({"name": cols[j], "values": [r[j] for r in rows], "unit": unit, "mark": "line"})
+            j += 1
+        if q.get("change") and not q.get("window"):
+            series.append({"name": cols[j], "values": [r[j] for r in rows], "unit": "%", "mark": "line",
+                           "axis": "y2"})  # fmt: skip
+        args.update({"labels": labels, "series": series, "type": type_ or "combo"})
+        spec = normalize_spec(args, lang, kind="time")
+        spec["alts"] = ["combo", "line", "bar"]
     else:
         width = len(cols)
         use = cols[:2] if kind == "share" else cols
