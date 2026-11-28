@@ -505,6 +505,11 @@ et sombre, 8 tours) : « il fera quel temps demain du côté de Strasbourg ? »,
 la météo des marchés » ne déclenche aucun module (`needs_web: true`, 0,51 à 0,55 s), Bird cherche et cite sa source.
 Aucune requête vers un tiers, aucune erreur CSP, pas de défilement horizontal.
 
+**Données ouvertes (28/11/2026).** Six modules de plus au catalogue (`work_calendar`, `lookup_entity`, `get_statistics`,
+`find_tenders`, `find_papers`, `find_commune`, famille `opendata`), ancrage et veto dans `opendata_route.py`, analyseurs
+`opendata_intents.py` en indices et en repli ; catalogue 598 → 918 jetons. Mesure réelle avant / après (15 demandes,
+`router_eval.py --without-family opendata` pour l'avant) et règles des clients : `docs/OPENDATA.md`.
+
 **Texte collé : le modèle n'est plus contredit par les regex (27/11/2026).** En `hybrid`, un appel d'analyseur d'une
 famille que le routeur laissait de côté était toujours rajouté : « Résume ce mail : « … Météo à Lyon demain : pluie… »
 » relançait la fiche météo que le modèle avait, à raison, écartée. Désormais, pour une tâche sur un texte fourni
@@ -758,7 +763,8 @@ liste des sources de la réponse devient une grille de cartes, mêmes ancres [n]
 le routeur (elle dépendait d'un module que le routeur ne proposait jamais : avec `BIRD_ROUTER` hybride par défaut,
 elle ne s'affichait plus).
 
-- Catalogue : 598 → 665 jetons (FR, tokenizer Qwen3.5), plafond du test relevé à 680.
+- Catalogue : 598 → 665 jetons (FR, tokenizer Qwen3.5), plafond du test relevé à 680 ; 985 (FR) / 922 (EN) après la
+  fusion avec les six modules open data, plafond 1000.
 - Entraînement : famille `cards` de `build_tools_mix.py` (80 décisions routeur en train, 3 en éval ; « Combien
   font 17 % de 3 450 € ? » passe de négatif à `card(calc)`), négatifs sans données.
 - Évaluation : famille `cards` de `router_data.py` (35 cas après revue) ; banc des déclenchements : famille

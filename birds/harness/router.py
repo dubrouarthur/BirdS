@@ -123,6 +123,11 @@ def regex_decision(
     text = text or ""
     mods: list[Call] = []
     found = intents.detect(text, attached, lang)
+    # --- open data (birds/harness/opendata_route.py): the open-data parsers are hints too, as in Agent.run
+    from birds.harness import opendata_intents
+
+    found = opendata_intents.merge(found, text, attached, lang)
+    # --- end open data
     prev = followup.previous(history) if history and not attached else None
     again = None if any(i.args for i in found) else followup.resolve(text, prev, lang)
     clock_text = text
@@ -247,6 +252,10 @@ def ground(call: Call, text: str, context: str, lang: str = "fr") -> str:
     from birds.harness.tools.places import _KIND_KEYS
 
     a = call.args
+    from birds.harness import opendata_route  # open data: its own grounding rules (birds/harness/opendata_route.py)
+
+    if call.tool in opendata_route.NAMES:
+        return opendata_route.ground(call, text, context)
     if call.tool == "get_weather":
         return "" if grounded(a["place"], text, context) else "place not in the user's words"
     if call.tool == "find_places":
@@ -358,6 +367,12 @@ def veto_reason(call: Call, text: str, *, attached: bool = False, lang: str = "f
         if ground(call, own, context, lang):
             return "only in the pasted text"
     follow = bool(context) and f": {call.tool} " in context
+    from birds.harness import opendata_route  # open data: writing, how-tos and own data veto (opendata_route.py)
+
+    if call.tool in opendata_route.NAMES:
+        if own is not None and ground(call, own, context, lang):
+            return "only in the pasted text"
+        return "" if follow else opendata_route.veto_reason(call, t)
     if call.tool == "get_weather":
         bad = intents._WX_NEVER.search(t) or intents._WX_FALSE_ASK.search(t)
         fires = (w := intents.weather(t)) is not None and w.args
@@ -983,7 +998,9 @@ def available_names(cfg, agent=None) -> set[str]:
     """The catalogue for this deployment: modules whose tool is allowed (and data analysis when run_python is)."""
     names = {m.name for m in catalog.MODULES if m.available}
     allowed = agent._allowed() if agent is not None else set(getattr(cfg, "allowed_tools", ()))
-    for tool in ("get_weather", "find_places", "find_company", "convert_currency", "make_chart"):
+    from birds.opendata_schemas import OPENDATA_NAMES
+
+    for tool in ("get_weather", "find_places", "find_company", "convert_currency", "make_chart", *OPENDATA_NAMES):
         if tool not in allowed:
             names.discard(tool)
     if "web_search" not in allowed:

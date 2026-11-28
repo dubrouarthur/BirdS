@@ -987,6 +987,11 @@ class Agent:
             # widget tools (find_places, find_company, convert_currency) are offered only when the user's own words
             # ask for them: an ordinary turn keeps the trained tool block byte for byte (see intents.py)
             found = intents.detect(req, attached, run.lang) if getattr(cfg, "widgets", True) else []
+            # --- open data (birds/harness/opendata_intents.py): holidays, entity cards, statistics, tenders...
+            from birds.harness import opendata_intents
+
+            found = opendata_intents.merge(found, req, attached, run.lang) if getattr(cfg, "widgets", True) else found
+            # --- end open data
             # « et à Lyon ? », « et en livres ? »: a short follow-up re-asks the previous turn's rich result, read from
             # the memo the server wrote after it (never from the model's text, see followup.py)
             prev = followup.previous(history) if history and getattr(cfg, "widgets", True) and not attached else None
@@ -1011,6 +1016,10 @@ class Agent:
             prefill = next((i for i in found if i.args), None)
             # « météo aujourd'hui », « taux du jour »: words that usually call for the web, but the tool has the answer
             own_answer = prefill and prefill.tool in ("convert_currency", "get_weather")
+            # --- open data: the card answers by itself; a statistics chart is drawn once (no second make_chart)
+            own_answer = own_answer or opendata_intents.own(prefill)
+            routed |= opendata_intents.withdraw(prefill)
+            # --- end open data
             if prefill and not prefill.keep_web and (own_answer or not _NEEDS_WEB.search(req)):
                 routed |= {"web_search", "read_page"}
             # ---- maps: « une pharmacie autour de moi »: Bird does not know where the user is; nothing is looked up,

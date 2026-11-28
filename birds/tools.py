@@ -212,6 +212,11 @@ EXTRA_TOOLS: list[dict] = [
         ["place"],
     ),
 ]
+# --- open data (birds/opendata_schemas.py): routed in by birds/harness/opendata_intents.py only
+from birds.opendata_schemas import OPENDATA_SCHEMAS  # noqa: E402
+
+EXTRA_TOOLS += OPENDATA_SCHEMAS
+# --- end open data
 EXTRA_TOOL_NAMES = [t["function"]["name"] for t in EXTRA_TOOLS]
 PRODUCT_TOOLS = BIRD_TOOLS + EXTRA_TOOLS
 PRODUCT_TOOL_NAMES = [t["function"]["name"] for t in PRODUCT_TOOLS]

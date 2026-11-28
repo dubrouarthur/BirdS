@@ -27,9 +27,40 @@ def _load(name: str):
     return p.read_text(encoding="utf-8") if name.endswith(".xml") else json.loads(p.read_text(encoding="utf-8"))
 
 
+def opendata_key(url: str) -> str:
+    """A recorded open-data URL without the dates the tools compute from today (BOAMP « published since »,
+    OpenAlex « from »), so a replay matches on any day."""
+    import re
+
+    return re.sub(r"(?:19|20)\d\d-\d\d-\d\d", "DATE", url)
+
+
+_OPENDATA: dict | None = None
+
+
+def _opendata(url: str):
+    global _OPENDATA
+    if _OPENDATA is None:
+        p = DATA / "opendata.json"
+        _OPENDATA = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
+    return _OPENDATA.get(opendata_key(url))
+
+
 def recorded(url: str):
     """The recorded answer for a provider URL built by the tools (unknown queries: nothing found)."""
+    from birds.harness.tools.opendata.http import HOSTS as OPENDATA_HOSTS
+
     u = urlsplit(url)
+    if (u.hostname or "") in OPENDATA_HOSTS:  # open data, recorded by scripts/opendata_live.py --demo
+        got = _opendata(url)
+        if got is not None:
+            return got
+        if u.hostname in ("fr.wikipedia.org", "en.wikipedia.org", "api.crossref.org"):
+            from birds.harness.guard import ToolError
+
+            raise ToolError("HTTP 404")  # not recorded: as a missing page, never invented
+        if u.hostname not in ("calendrier.api.gouv.fr", "data.geopf.fr"):
+            return {}
     q = {k: v[0] for k, v in parse_qs(u.query).items()}
     host, text = u.hostname or "", (q.get("q") or "").lower()
     if host.endswith("ecb.europa.eu"):
@@ -83,8 +114,9 @@ def localise_maps(widgets: list[dict]) -> list[dict]:
     return widgets
 
 
-def run_tool(tool: str, args: dict, lang: str):
-    """(result text, step info) of a widget tool on recorded data."""
+def run_tool(tool: str, args: dict, lang: str, charts: list | None = None):
+    """(result text, step info) of a widget tool on recorded data; ``charts`` receives the charts it drew
+    (get_statistics)."""
     import tempfile
 
     from birds.harness import Config, Context
@@ -97,4 +129,6 @@ def run_tool(tool: str, args: dict, lang: str):
 
         ctx.now = datetime.fromisoformat(MET_RECORDED)  # the instant the forecasts were recorded
     text = TOOLS[tool](args, ctx)
+    if charts is not None:
+        charts.extend(ctx.charts)
     return text, dict(ctx.step_info or {}), list(ctx.sources)

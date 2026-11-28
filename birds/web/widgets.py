@@ -14,7 +14,10 @@ from zoneinfo import ZoneInfo
 
 from birds.harness import geo, when
 
-from . import mapimg
+from . import (
+    mapimg,
+    opendata_widgets,  # open data
+)
 
 # cards the harness computes itself (birds.harness.calc, birds.harness.research), kept from ``extra`` as they are
 HARNESS_CARDS = ("calc", "research", "graph", "timeline", "matrix", "checklist", "report", "figures", "proscons",
@@ -173,6 +176,8 @@ def build_widgets(steps, request_text: str, lang: str, now: datetime, secret: by
         elif w.get("type") == "company":
             ok = geo_on and w.get("lat") is not None and not w.get("natural_person")
             w["map"] = _map_for([(w["lat"], w["lon"])], secret, "", layer) if ok else None
+        elif w.get("type") in opendata_widgets.TYPES:  # --- open data: signed picture and map (opendata_widgets.py)
+            w = opendata_widgets.prepare(w, secret, layer, geo_on)
         elif w.get("type") not in ("fx", "weather"):
             continue
         out.append(w)

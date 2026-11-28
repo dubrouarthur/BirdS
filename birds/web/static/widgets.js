@@ -16,6 +16,7 @@ import { buildIcs, icsName } from "./ics.js";
 import { MODULES, moduleText } from "./modules.js";
 import { REPORT_MODULES, reportText } from "./research.js";
 import { dataCardText, renderDataCard } from "./datakit.js"; // data analysis hook: the data card
+import { OPENDATA_RENDER, opendataText, useMapFrame } from "./opendata.js"; // open data
 
 const OSM_COPYRIGHT = "https://www.openstreetmap.org/copyright";
 const MAP_SRC =
@@ -2218,7 +2219,9 @@ const RENDER = {
   ...MODULES, // research, graph, timeline, matrix, calc, checklist (modules.js)
   ...REPORT_MODULES, // the deep research report card and its full-screen view (research.js)
   datacard: renderDataCard, // data analysis hook (datakit.js)
+  ...OPENDATA_RENDER, // open data (opendata.js)
 };
+useMapFrame(mapFrame); // open data: the commune card's map is the same frame as the others
 
 export function renderWidgets(turn, widgets = turn.answer?.widgets || []) {
   const list = (widgets || []).filter((w) => w && RENDER[w.type]);
@@ -2280,7 +2283,7 @@ export function widgetsText(turn, markdown = false) {
       out.push(
         `${w.title} — ${String(w.start).slice(0, 16).replace("T", " ")}${w.all_day ? "" : `–${String(w.end).slice(11, 16)}`}${w.location ? ` — ${w.location}` : ""}`,
       );
-    }
+    } else out.push(opendataText(w, markdown)); // open data ("" for other types)
   }
   return out.filter(Boolean).join("\n");
 }

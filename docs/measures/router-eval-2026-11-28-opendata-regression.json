@@ -1,0 +1,314 @@
+{
+ "before": {
+  "items": 6,
+  "router_accuracy": 1.0,
+  "hybrid_accuracy": 1.0,
+  "plain_merge_accuracy": 1.0,
+  "regex_accuracy": 1.0,
+  "latency_p50": 0.718,
+  "latency_p95": 1.094,
+  "invalid_json_rate": 0.0,
+  "fallback_rate": 0.0,
+  "vetoed": 0,
+  "router_only_right": 0,
+  "regex_only_right": 0,
+  "families": {
+   "router": {
+    "charts+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "maps+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "company_fx": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    }
+   },
+   "hybrid": {
+    "charts+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "maps+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "company_fx": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    }
+   },
+   "plain_merge": {
+    "charts+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "maps+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "company_fx": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    }
+   },
+   "regex": {
+    "charts+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "maps+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "company_fx": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    }
+   }
+  }
+ },
+ "after": {
+  "items": 6,
+  "router_accuracy": 1.0,
+  "hybrid_accuracy": 1.0,
+  "plain_merge_accuracy": 1.0,
+  "regex_accuracy": 1.0,
+  "latency_p50": 0.696,
+  "latency_p95": 1.066,
+  "invalid_json_rate": 0.0,
+  "fallback_rate": 0.0,
+  "vetoed": 0,
+  "router_only_right": 0,
+  "regex_only_right": 0,
+  "families": {
+   "router": {
+    "charts+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "maps+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "company_fx": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    }
+   },
+   "hybrid": {
+    "charts+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "maps+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "company_fx": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    }
+   },
+   "plain_merge": {
+    "charts+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "maps+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "company_fx": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    }
+   },
+   "regex": {
+    "charts+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "maps+": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    },
+    "company_fx": {
+     "n": 2,
+     "ok": 2,
+     "tp": 1,
+     "fp": 0,
+     "fn": 0,
+     "wrong_args": 0,
+     "accuracy": 1.0,
+     "precision": 1.0,
+     "recall": 1.0
+    }
+   }
+  }
+ }
+}

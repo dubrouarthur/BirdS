@@ -27,6 +27,7 @@ from birds.web.widgets import event_widget  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_maps  # noqa: E402  (maps: 200 realistic asks + 60 office prompts, 30 + 15 held out)
+import bench_opendata  # noqa: E402  (open data: holidays, entity cards, statistics, tenders, papers, communes)
 
 CHART_YES = [
     "fais un graphique des ventes : janvier 120, février 135, mars 160",
@@ -1190,6 +1191,18 @@ def data_earlier_touched(q: str) -> bool:
     return _data_earlier(q) is not None  # a card, a note or a number check on an unrelated turn
 
 
+def opendata_cross_no() -> list[str]:
+    seen, out = set(), []
+    lists = [OFFICE_NO, CHART_NO, CHART_NO2, CHART_HOWTO_NO, MAP_NO, MAP_NO2, WEATHER_NO, CLOCK_NO, COMPANY_FX_NO,
+             EVENT_NO, IMAGES_NO, AGENT_NO, OFFICE_AGENT_NO, STUDY_NO, CANVAS_NO, bench_maps.MAPS_OFFICE_NO,
+             bench_maps.MAPS_HELDOUT_NO, CARD_NO, DATA_NO, DATA_EARLIER_NO]  # fmt: skip
+    for q in (q for lst in lists for q in lst):
+        if isinstance(q, str) and q not in seen:
+            seen.add(q)
+            out.append(q)
+    return out
+
+
 def bench(name: str, yes: list[str], no: list[str], fn, touched=None) -> tuple[int, int]:
     miss = [q for q in yes if not fn(q)]
     false = [q for q in no if (touched or fn)(q)]
@@ -1228,6 +1241,10 @@ if __name__ == "__main__":
         ("calc_values", CALC_VALUES_YES, CALC_VALUES_NO, calc_value),
         ("data_analysis", DATA_YES, DATA_NO, data_planned),
         ("data_earlier", DATA_EARLIER_YES, DATA_EARLIER_NO, data_earlier, data_earlier_touched),
+        ("opendata", bench_opendata.OPENDATA_YES, bench_opendata.OPENDATA_NO, bench_opendata.started,
+         bench_opendata.touched),
+        # every "no" of the other families, office prompts first: none may start an open-data card
+        ("opendata_cross", [], opendata_cross_no(), bench_opendata.touched),
     ):
         ok, n = bench(*args)
         total[0] += ok
