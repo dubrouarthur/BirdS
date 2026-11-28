@@ -157,8 +157,8 @@ PLAN = {
             "figure là où ils aident ; un graphique seulement à partir de vraies données (data=statistics : "
             "chômage, inflation, PIB, croissance, population, prix de l'électricité, exportations, créations "
             "d'entreprises ; data=request : les chiffres de la demande) ; data=web quand la section a besoin de "
-            "faits précis ; aucun chiffre dans facts qui ne soit dans la demande ; une photo seulement pour une chose "
-            "réelle à montrer (un lieu, un objet), jamais pour une statistique."
+            "faits précis ; aucun chiffre dans facts qui ne soit dans la demande ; une photo sur 1 ou 2 sections quand le "
+            "sujet se montre (un lieu, un objet, une scène), jamais pour une statistique."
         ),
         "en": (
             "[Plan] Before writing the requested document, write its plan, in JSON only:\n"
@@ -173,8 +173,8 @@ PLAN = {
             "Rules: {lo} to {hi} sections, the ones the request names first; a table, a chart or a figure where it "
             "helps; a chart only from real data (data=statistics: unemployment, inflation, GDP, growth, population, "
             "electricity prices, exports, business start-ups; data=request: the figures of the request); data=web "
-            "when the section needs precise facts; no figure in facts that is not in the request; a photo only for a real "
-            "thing to show (a place, an object), never for a statistic."
+            "when the section needs precise facts; no figure in facts that is not in the request; a photo on 1 or 2 "
+            "sections when the subject can be shown (a place, an object, a scene), never for a statistic."
         ),
     },
 }
@@ -236,6 +236,23 @@ def _json(raw: str):
             return None
 
 
+_ECHO = set("""uniquement seulement only if si none aucun aucune image images photo photos picture visual visuel anglais
+english mots words requete query slide diapositive section""".split())
+
+
+def _picture_words(query: str) -> list[str]:
+    """The words of a picture query that describe something (not an echo of the plan's instructions)."""
+    from birds.harness import crew_checks as cc
+
+    return [w for w in cc.fold(query).split() if len(w) >= 3 and w not in _ECHO and w not in images.FLUFF]
+
+
+def _names_series(indicator: str, text: str) -> bool:
+    from birds.harness.tools.opendata import stats
+
+    return stats.indicator_of(text, loose=True) == indicator
+
+
 def parse_outline(
     raw: str, kind: str, words: str, lang: str = "fr", repairs: list[str] | None = None
 ) -> Outline | None:
@@ -256,6 +273,7 @@ def parse_outline(
     lo, hi = BOUNDS[kind]
     items: list[Item] = []
     seen: set[str] = set()
+    used_queries: set[str] = set()
     for r in rows:
         if not isinstance(r, dict):
             continue
@@ -279,6 +297,11 @@ def parse_outline(
         if data == "statistics" and not indicator:
             data = "web" if r.get("search") else "none"
             repairs.append(f"statistics without an indicator: {title[:30]}")
+        elif data == "statistics" and not _names_series(indicator, f"{words} {title}"):
+            # veto of a known false trigger: the only series at hand drawn off-subject (a population chart in a
+            # deck on soft mobility); the slide gets facts from the web instead
+            data, indicator = "web", ""
+            repairs.append(f"series off-subject dropped: {title[:30]}")
         facts = []
         for f in r.get("facts") or []:
             f = _s(f, 200)
@@ -289,8 +312,12 @@ def parse_outline(
         if visual == "diagram":
             visual = "steps"  # a flow drawn by the canvas (steps); a timeline when the plan says so
         query = images.clean_query(_s(r.get("image_query"), 80))[:60]
-        if visual == "image" and not query:
+        if visual == "image" and (not _picture_words(query) or cc.fold(query) in used_queries):
+            # an echo of the instructions (« uniquement ») or the picture of another slide: the slide's own words
+            repairs.append(f"picture query replaced by the title: {query[:30]!r}")
             query = images.clean_query(title)[:60]
+        if query:
+            used_queries.add(cc.fold(query))
         if visual == "image" and not images.variants(query):
             # « Paris bike cargo statistics »: a statistic is a chart (from real data) or key figures, never a photo
             visual = "chart" if data in ("statistics", "request") else "kpi"
@@ -522,6 +549,46 @@ def check_figures(block: dict, allowed: set[float], kind: str) -> int:
     return dropped
 
 
+_NOTE = re.compile(r"\[(?!\^?\d{1,2}\])[^\[\]\n]{3,}\]|<[^<>\n]{2,40}>")
+
+
+def _clean(text: str) -> str:
+    return re.sub(r"\s{2,}", " ", _NOTE.sub(" ", text)).strip(" :–—-")
+
+
+def scrub(block: dict) -> int:
+    """The model's notation never reaches the page: « [Graphique des données officielles : …] », « <étape> »,
+    « <date> » (template words copied) are removed; a point or a step left empty goes. Returns how many."""
+    n = 0
+    keep = []
+    for p in block.get("parts") or []:
+        if p.get("t") in ("text", "callout", "quote") and _NOTE.search(p.get("text") or ""):
+            p["text"] = _clean(p["text"])
+            n += 1
+            if not p["text"]:
+                continue
+        items = p.get("items")
+        if isinstance(items, list):
+            out = []
+            for x in items:
+                if isinstance(x, str):
+                    y = _clean(x) if _NOTE.search(x) else x
+                    n += y != x
+                    if y:
+                        out.append(y)
+                elif isinstance(x, dict):
+                    y = {k: (_clean(v) if isinstance(v, str) and _NOTE.search(v) else v) for k, v in x.items()}
+                    n += y != x
+                    if any(isinstance(v, str) and v for v in y.values()):
+                        out.append(y)
+            p["items"] = out
+            if not out and p.get("t") in ("list", "kpi", "timeline", "steps", "cards"):
+                continue
+        keep.append(p)
+    block["parts"] = keep
+    return n
+
+
 def balance(block: dict, kind: str) -> int:
     """No wall of text: at most MAX_POINTS points of POINT_CHARS characters on a slide. Returns how many cuts."""
     cuts = 0
@@ -623,6 +690,7 @@ class Pipeline:
         self.sources: list[dict] = []  # {"n", "url", "title", "domain"}
         self.reads = 0
         self.fetched: list[str] = []  # texts read (the figure check's allowed set)
+        self.used_pictures: set[str] = set()  # the sources of the pictures placed (never the same one twice)
 
     # ---- generations
     def generate(self, message: str, max_tokens: int, schema_: dict | None = None, temperature: float = 0.4) -> str:
@@ -672,6 +740,25 @@ class Pipeline:
         self.progress.set("plan", (f"Plan : {unit}" if self.fr else f"Plan: {unit}"))
         return o
 
+    def facts_fallback(self, o: Outline) -> None:
+        """Safety net (the model plans, this only fills a gap): a plan that asks no fact at all (seen live on « une
+        note de synthèse sur le vélo en ville »: seven sections of generalities) gets web facts for its first
+        sections that carry content, each searched on its own title and the subject."""
+        from . import convert
+
+        if sum(1 for it in o.items if it.data in ("web", "statistics")) >= 2:
+            return
+        subject = convert.subject(self.env.words) or o.title
+        n = 0
+        for it in o.items:
+            if n >= MAX_READS - 2:
+                break
+            if it.data == "none" and it.visual not in ("quote",):
+                it.data, it.search = "web", f"{it.title} {subject}"[:120]
+                n += 1
+        if n:
+            self.res.repairs.append(f"no fact planned: web facts for {n} item(s)")
+
     # ---- the document as it stands
     def skeleton(self, o: Outline) -> dict:
         doc = dsl.empty(o.kind, self.env.lang)
@@ -707,17 +794,29 @@ class Pipeline:
             return n
 
     def find_image(self, query: str, mid: str, retry: bool = False) -> dict | None:
+        """A free-licence picture for ``query``, never one already placed in this deck (the same file twice was
+        seen live: three slides of « uniquement » got one studio photo)."""
         if not query:
             return None
         try:
-            m = self.env.finder(query, [], mid)
-            if m is None and retry:
-                short = images.short_query(query)
-                if short and short != query:
-                    m = self.env.finder(short, [], mid)
+            for _ in range(2):
+                with self.lock:
+                    used = sorted(self.used_pictures)
+                m = self.env.finder(query, used, mid)
+                if m is None and retry:
+                    short = images.short_query(query)
+                    if short and short != query:
+                        m = self.env.finder(short, used, mid)
+                if m is None:
+                    return None
+                key = m.source or m.title or m.id
+                with self.lock:
+                    if key not in self.used_pictures:
+                        self.used_pictures.add(key)
+                        return images.to_entry(m, query)
+            return None
         except Exception:  # noqa: BLE001 - a picture search that fails is a placeholder, never a broken turn
             return None
-        return images.to_entry(m, query) if m is not None else None
 
     def statistics(self, it: Item) -> tuple[dict | None, list[Fact]]:
         step, text, ctx = self.env.tool("get_statistics", {"indicator": it.indicator, "places": it.places or "",
@@ -833,6 +932,8 @@ class Pipeline:
                               "directly", "done")  # fmt: skip
             return self.res
         full = depth_of(e.level) == "full" and e.tool is not None
+        if full:
+            self.facts_fallback(o)
         doc = self.skeleton(o)
         self.snapshot(doc)
         self.gather_until = time.monotonic() + GATHER_SECONDS
@@ -998,6 +1099,7 @@ class Pipeline:
         dropped = cuts = filled = 0
         for i, b in enumerate(doc["blocks"]):
             b.pop("pending", None)
+            scrub(b)
             dropped += check_figures(b, allowed, o.kind)
             cuts += balance(b, o.kind)
             body = [p for p in b["parts"] if p.get("t") != "image"]
@@ -1052,7 +1154,7 @@ class Pipeline:
         cited = [{**by_n[old], "n": new} for old, new in remap.items()]
         doc["sources"] = cited
         if cited and o.kind == "deck":
-            items = [f"[{s['n']}] {s['title']} — {s['domain']}" for s in cited]
+            items = [f"[{s['n']}] {s['title']} — {s['url']}" for s in cited]
             doc["blocks"].append({"id": f"b{len(doc['blocks']) + 1}", "title": "Sources", "notes": "",
                                   "parts": [{"t": "list", "items": items[: dsl.MAX_ITEMS], "ordered": False}]})  # fmt: skip
         elif cited:

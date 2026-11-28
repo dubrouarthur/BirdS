@@ -75,7 +75,7 @@ def finder(found: set[str]):
             return None
         return om.Media(id=mid, kind="photo", data=_jpeg(), fmt="jpeg", w=320, h=200, alt=q, title=q,
                         credit="Jane Doe — CC BY — Wikimedia Commons", licence="CC BY",
-                        source="https://commons.wikimedia.org/wiki/File:x.jpg")  # fmt: skip
+                        source=f"https://commons.wikimedia.org/wiki/File:{q.replace(' ', '_')}.jpg")  # fmt: skip
 
     return find
 
@@ -240,3 +240,50 @@ def test_the_single_generation_never_keeps_a_photo_of_a_statistic():
     turn.photo_queries(doc, repairs)
     assert [p["t"] for p in doc["blocks"][0]["parts"]] == ["text"] and repairs
     assert doc["blocks"][1]["parts"][0]["query"] == "cargo bike street"
+
+
+def test_echoed_or_repeated_queries_off_subject_series_and_notation_are_caught():
+    plan = {**PLAN, "slides": [
+        {"title": "Chômage des jeunes", "visual": "image", "image_query": "uniquement", "data": "none", "intent": "x",
+         "layout": "image-right"},
+        {"title": "Le marché du travail", "visual": "image", "image_query": "job center queue", "data": "none",
+         "intent": "x", "layout": "bullets"},
+        {"title": "Les seniors", "visual": "image", "image_query": "job center queue", "data": "none", "intent": "x",
+         "layout": "bullets"},
+        {"title": "Démographie", "visual": "chart", "data": "statistics", "indicator": "population", "intent": "x",
+         "layout": "chart"},
+    ]}  # fmt: skip
+    repairs: list[str] = []
+    o = pg.parse_outline(json.dumps(plan), "deck", "Fais une présentation sur la mobilité douce", "fr", repairs)
+    assert o.items[0].query == "Chômage des jeunes"  # « uniquement » is an echo of the instructions
+    assert o.items[2].query == "Les seniors"  # never the picture of another slide
+    assert o.items[3].data == "web" and o.items[3].indicator == ""  # a population chart off-subject: vetoed
+    block = {"parts": [
+        {"t": "text", "text": "[Graphique des données officielles : population de 65 à 68 M] La ville change [1]."},
+        {"t": "steps", "items": [{"title": "<étape>", "text": "Concerter"}, {"title": "<date>", "text": ""}]},
+    ]}  # fmt: skip
+    assert pg.scrub(block) >= 2
+    assert block["parts"][0]["text"] == "La ville change [1]."
+    assert block["parts"][1]["items"] == [{"title": "", "text": "Concerter"}]
+
+
+def test_the_same_picture_is_never_placed_twice():
+    same = lambda q, exclude, mid: None if "https://x/1.jpg" in exclude else om.Media(  # noqa: E731
+        id=mid, kind="photo", data=_jpeg(), fmt="jpeg", w=320, h=200, alt=q, title=q, credit="c", licence="CC0",
+        source="https://x/1.jpg")  # fmt: skip
+    e = env()
+    e.finder = same
+    res = pg.Pipeline(e).run()
+    placed = [p for b in res.doc["blocks"] for p in b["parts"] if p["t"] == "image" and p.get("media")]
+    cover = 1 if (res.doc.get("cover") or {}).get("media") else 0
+    assert len(placed) + cover == 1
+
+
+def test_a_plan_without_any_fact_gets_web_facts_at_full_depth():
+    plan = {**PLAN, "slides": [{**x, "data": "none", "visual": "none"} for x in PLAN["slides"]]}
+    calls: list[str] = []
+    e = env(plan=plan)
+    e.tool = lambda name, args, ctx=None: calls.append(name) or tool(name, args, ctx)
+    res = pg.Pipeline(e).run()
+    assert calls.count("web_search") >= 3 and any("no fact planned" in r for r in res.repairs)
+    assert res.doc["sources"]
