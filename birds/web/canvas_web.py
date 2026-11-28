@@ -175,7 +175,9 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
     # the turn's ordinary tools stay offered on a patch turn too (an edit that was not one still gets its weather);
     # a trained file tool called anyway is captured by the sink and its arguments become the new version
     kind = "code" if (p.base or {}).get("kind") == "code" else p.kind
-    a2 = turn.derive_agent(agent, hooks, turn.sink_for(captured), hide=turn.FILE_TOOLS, kind=kind)
+    # read_file only with a file to read: without one a small model « reads » the deck's title and apologises
+    hide = turn.FILE_TOOLS + (() if attached else ("read_file",))
+    a2 = turn.derive_agent(agent, hooks, turn.sink_for(captured), hide=hide, kind=kind)
     run = a2.run(turn.turn_message(p, user_sent, lang), history=history or None, system=system,
                  thinking=request.thinking, lang=lang, request_text=words, attached=attached, tz=request.tz)  # fmt: skip
     stream.flush()

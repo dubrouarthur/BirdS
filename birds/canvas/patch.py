@@ -389,6 +389,9 @@ def _default_after(doc: dict, words: str) -> str:
     return "end"
 
 
+_STRUCTURE = re.compile(r"(?m)^\s{0,3}#{1,3}\s+\S|^\s*:::|^-{3,}\s*$")
+
+
 def parse_patch(text: str, doc: dict, words: str = "", target: str | None = None,
                 repairs: list[str] | None = None) -> tuple[list[dict], str]:  # fmt: skip
     """(operations, mode) from what the model wrote on a patch turn. mode: 'ops' (directives or tagged blocks),
@@ -486,6 +489,11 @@ def parse_patch(text: str, doc: dict, words: str = "", target: str | None = None
     new = dsl.parse(content, kind, doc.get("lang") or "fr", repairs)
     blocks = new["blocks"]
     if not blocks:
+        return [], "none"
+    if not _STRUCTURE.search(content) and not any(b.get("title") for b in blocks):
+        # prose with no heading, no tag, no directive (an apology, a mail the user asked for): a chat answer, never
+        # a new untitled block
+        repairs.append("untagged prose kept in the chat")
         return [], "none"
     old = doc.get("blocks") or []
     old_ids = {b["id"] for b in old}

@@ -1097,3 +1097,30 @@ def test_canvas_code_turn_reads_the_script_words_as_what_it_does(monkeypatch):
     assert len(llm.prompts) == 1
     assert "Note de Bird" not in json.loads(llm.prompts[0])["messages"][-1]["content"]
     assert not answer.get("plan")
+
+
+def test_patch_turn_never_turns_an_apology_into_a_slide(monkeypatch):
+    """« Ajoute une diapositive sur les coûts »: no attachment, so no read_file to fail on; and prose that is not a
+    block stays in the chat, the deck keeps its version."""
+    from fastapi.testclient import TestClient
+
+    _no_network(monkeypatch)
+    sorry = ("Le fichier n'existe pas dans l'environnement actuel. Je ne peux donc pas ajouter la diapositive sur "
+             "les coûts sans plus d'informations.")  # fmt: skip
+    app, llm = _app([_tool_call("read_file", path="Le télétravail en PME"), sorry, sorry])
+    deck = dsl.parse(DECK, "deck")
+    with TestClient(app) as client:
+        events = _chat(client, "Ajoute une diapositive sur les coûts", canvas=_canvas_body(deck))
+    tools = json.loads(llm.prompts[0])["tools"]
+    assert "read_file" not in tools
+    assert not [e for e in events if e["type"] == "canvas" and e.get("phase") == "final"]
+    answer = next(e for e in events if e["type"] == "answer")
+    assert "Nouvelle version" not in answer["content"]
+
+
+def test_parse_patch_keeps_untagged_prose_out_of_the_deck():
+    deck = dsl.parse(DECK, "deck")
+    ops, how = patch.parse_patch("Je ne peux pas ajouter la diapositive : le fichier n'existe pas.", deck,
+                                 "ajoute une diapositive sur les coûts")  # fmt: skip
+    assert ops == [] and how == "none"
+
