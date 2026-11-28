@@ -167,6 +167,18 @@ _LANGS = {
 _TRANSLATE = re.compile(r"\b(?:tradu\w*|translat\w*)\b", re.I)
 
 
+def translation_target(request: str) -> str:
+    """'en' or 'fr' when the request asks for a translation into that language (« traduis ce mail en anglais »,
+    « translate this into French »), else ''."""
+    text = request or ""
+    if not _TRANSLATE.search(text):
+        return ""
+    for code in ("fr", "en"):
+        if re.search(r"\b(?:en|vers\s+l['’]|in|into|to)\s*(?:" + _LANGS[code] + r")\b", text, re.I):
+            return code
+    return ""
+
+
 def other_language_asked(request: str, lang: str) -> bool:
     """The request asks for a translation, or names a language other than the user's for the answer (« en
     anglais », « vers l'espagnol », « in French », « into German »): the answer's language is then not checked."""

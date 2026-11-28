@@ -127,8 +127,8 @@ MODULES: tuple[Module, ...] = (
     ),
     Module(
         "images", CARD, "images",
-        "photos d'un lieu, d'un monument, d'un animal, d'une œuvre (recherche web)",
-        "pictures of a place, landmark, animal or artwork (web search)",
+        "photos d'un lieu, monument, animal, œuvre (web) ; « une image » seule : sujet de la demande précédente",
+        "pictures of a place, landmark, animal or artwork (web); a bare « a picture »: the previous request's subject",
         {"subject": Arg("str", True, fr="sujet", en="subject")},
         (("montre-moi une photo de la tour Eiffel", {"subject": "tour Eiffel"}),
          ("show me a picture of a koala", {"subject": "koala"})),
@@ -147,10 +147,11 @@ MODULES: tuple[Module, ...] = (
     ),
     Module(
         "lookup_entity", PREFILL, "opendata",
-        "fiche Wikipédia d'une organisation, d'un pays, d'une ville ou d'un lieu nommés",
-        "Wikipedia card of a named organisation, country, town or landmark",
+        "fiche Wikipédia d'une personne, organisation, ville ou lieu nommés (nom mal écrit : corrigé)",
+        "Wikipedia card of a named person, organisation, town or landmark (misspelt: corrected)",
         {"name": Arg("str", True, fr="nom propre", en="proper name")},
-        (("c'est quoi Airbus ?", {"name": "Airbus"}), ("tell me about the OECD", {"name": "OECD"})),
+        (("c'est quoi Airbus ?", {"name": "Airbus"}), ("c'est qui marie curi ?", {"name": "Marie Curie"}),
+         ("tell me about the OECD", {"name": "OECD"}), ("who is albert einstien", {"name": "Albert Einstein"})),
     ),
     Module(
         "get_statistics", PREFILL, "opendata",

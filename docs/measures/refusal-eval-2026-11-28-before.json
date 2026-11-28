@@ -2,293 +2,263 @@
  "summary": {
   "cases": 20,
   "answered": 20,
-  "tool_ok": 11,
+  "ok": 15,
   "false_refusals": 1,
-  "image_cases": 12,
-  "images_shown": 8,
-  "images_with_licence": 0,
-  "team_note_unasked": 0,
-  "seconds_mean": 7.61,
-  "seconds_p50": 4.62
+  "negatives_ok": 5,
+  "seconds_p50": 4.86
  },
  "cases": [
   {
-   "id": "img_eiffel",
-   "seconds": 5.12,
-   "tool_ok": true,
+   "id": "chart_natalite",
+   "seconds": 25.01,
+   "ok": true,
    "tools": [
+    "make_chart",
+    "read_page",
     "web_search"
    ],
+   "errors": [],
    "refusal": false,
-   "images": 1,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "La tour Eiffel, à Paris, est une tour autoportante de fer puddlé de 330 m de hauteur (avec antennes), située à l'extrémité nord-ouest du parc du Champ-de-Mars, en bordure de la Seine. Elle a été construite en deux ans par Gustave Eiffel pour l'Exposition universelle de 1889."
+   "charts": 1,
+   "images": 0,
+   "answer": "Le taux de natalité a baissé de 12,4 ‰ en 2014 à 9,4 ‰ en 2025, soit une baisse de plus de 2,5 ‰ en douze ans. La tendance est régulière et s'accentue depuis 2020."
   },
   {
-   "id": "img_horse",
-   "seconds": 5.95,
-   "tool_ok": true,
+   "id": "chart_pib",
+   "seconds": 7.3,
+   "ok": true,
    "tools": [
+    "get_statistics"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Le PIB de la France est en hausse : 2 723 milliards de dollars en 2019, 3 366 milliards en 2025. La croissance est régulière sur la période, avec une accélération notable après 2021. Source : Banque mondiale."
+  },
+  {
+   "id": "chart_poll",
+   "seconds": 25.51,
+   "ok": true,
+   "tools": [
+    "make_chart",
+    "read_page",
     "web_search"
    ],
+   "errors": [],
    "refusal": false,
+   "charts": 1,
    "images": 2,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Le cheval tigré, ou tiger horse, est une race équine dont le nom vient du mot espagnol tigre, en raison de sa robe à motifs rappelant celle d'un tigre. Il s'agit avant tout d'un registre généalogique, créé en 1932 par Claude Thompson, en Oregon, pour préserver des chevaux aux taches blanches et noires. Issu de l'Appaloosa, il peut aussi intégrer du Genet d'Espagne, du Narragansett Pacer et d'autre"
+   "answer": "Le duel Philippe-Le Pen est le plus testé (30 sondages) et montre une tendance stable : Marine Le Pen avance légèrement (56 % contre 44 %). Les autres duels sont plus dispersés et moins suivis, ce qui reflète l'incertitude sur les qualifications."
   },
   {
-   "id": "img_leopard_en",
-   "seconds": 3.13,
-   "tool_ok": true,
+   "id": "chart_user",
+   "seconds": 4.12,
+   "ok": true,
    "tools": [
-    "web_search"
+    "make_chart"
    ],
+   "errors": [],
    "refusal": false,
-   "images": 3,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "The snow leopard (Panthera uncia) is a large, elusive cat with a thick whitish-grey coat marked by large black rosettes; it lives in the high, rocky mountains of Central Asia and is adapted to cold, barren terrain."
-  },
-  {
-   "id": "img_looks_msm",
-   "seconds": 2.81,
-   "tool_ok": true,
-   "tools": [
-    "web_search"
-   ],
-   "refusal": false,
-   "images": 3,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Le Mont-Saint-Michel est un îlot rocheux sur lequel s'élève l'abbaye, dans une baie où les marées sont parmi les plus fortes d'Europe continentale."
-  },
-  {
-   "id": "fu_horse_image",
-   "seconds": 3.4,
-   "tool_ok": false,
-   "tools": [
-    "web_search"
-   ],
-   "refusal": false,
+   "charts": 1,
    "images": 0,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Le cheval tigre, ou tiger horse, est une race issue de l'Appaloosa, connue pour sa robe tachetée rappelant celle d'un tigre. Il est apprécié pour son caractère calme et son allure latérale."
+   "answer": "Le graphique montre une hausse en 2021, puis une baisse régulière depuis."
   },
   {
-   "id": "fu_horse_image_team",
-   "seconds": 3.48,
-   "tool_ok": false,
-   "tools": [
-    "web_search"
-   ],
-   "refusal": false,
-   "images": 0,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": "Rien à répartir : réponse en mode simple",
-   "answer": "Le cheval tigre, ou tiger horse, est une race issue de l'Appaloosa, connue pour sa robe tachetée rappelant celle d'un tigre. Il est apprécié pour son caractère calme et son allure latérale."
-  },
-  {
-   "id": "fu_horse_show",
-   "seconds": 7.05,
-   "tool_ok": false,
-   "tools": [
-    "read_page",
-    "web_search"
-   ],
-   "refusal": false,
-   "images": 0,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Le cheval tigré, aussi appelé cheval à robe léopard, se reconnaît à ses taches sombres sur un fond clair. Il existe plusieurs races, notamment l'Appaloosa, le Knabstrupper et le Pony of the Americas. Ces chevaux sont appréciés pour leur caractère calme et leur beauté distinctive."
-  },
-  {
-   "id": "fu_msm_photo",
-   "seconds": 1.93,
-   "tool_ok": false,
-   "tools": [],
-   "refusal": true,
-   "images": 0,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Non, je n'ai ni accès à Internet ni à la mémoire entre nos échanges ; je ne peux donc ni naviguer, ni me souvenir d'une conversation précédente."
-  },
-  {
-   "id": "fu_eiffel_another",
-   "seconds": 4.11,
-   "tool_ok": false,
-   "tools": [
-    "web_search"
-   ],
-   "refusal": false,
-   "images": 0,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "La tour Eiffel, de fer puddlé, domine le Champ-de-Mars à Paris ; elle a été construite en deux ans par Gustave Eiffel pour l'Exposition universelle de 1889."
-  },
-  {
-   "id": "fu_eiffel_bigger",
-   "seconds": 8.91,
-   "tool_ok": false,
-   "tools": [
-    "read_page",
-    "web_search"
-   ],
-   "refusal": false,
-   "images": 0,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Voici la tour Eiffel, vue depuis le Champ-de-Mars :\n\n![Tour Eiffel](https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Tour_Eiffel_Wikimedia_Commons.jpg/1200px-Tour_Eiffel_Wikimedia_Commons.jpg)"
-  },
-  {
-   "id": "fu_leopard_more_en",
+   "id": "analyse_ventes",
    "seconds": 5.7,
-   "tool_ok": false,
+   "ok": true,
    "tools": [
-    "web_search"
+    "make_chart"
    ],
+   "errors": [],
    "refusal": false,
+   "charts": 1,
    "images": 0,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Here is another snow leopard, a big cat of the mountains of Central Asia."
+   "answer": "Un bond de mars à 160, puis un recul en avril. La tendance n'est pas régulière : après une montée, le chiffre retombe. Dites-moi si vous voulez creuser le mois d'avril ou comparer à une période précédente."
   },
   {
-   "id": "fu_eiffel_night",
-   "seconds": 4.62,
-   "tool_ok": false,
+   "id": "analyse_chomage",
+   "seconds": 7.6,
+   "ok": true,
    "tools": [
-    "web_search"
+    "get_statistics"
    ],
+   "errors": [],
    "refusal": false,
+   "charts": 1,
    "images": 0,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "La nuit, la tour s'habille de doré et scintille les cinq premières minutes de chaque heure ; le phare du sommet brille sur Paris."
+   "answer": "Le taux de chômage en France est passé de 10,4 % en 2015 à 7,7 % en 2025. La tendance est donc à la baisse sur cette période. Source : Eurostat."
   },
   {
-   "id": "web_lvmh",
-   "seconds": 31.68,
-   "tool_ok": true,
+   "id": "analyse_abonnes",
+   "seconds": 4.86,
+   "ok": true,
+   "tools": [
+    "make_chart"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Les abonnés sont en hausse constante : +658 en 2022, +750 en 2023, puis +500 en 2024. La croissance ralentit en 2024, mais le total reste en forte progression sur quatre ans."
+  },
+  {
+   "id": "analyse_en",
+   "seconds": 3.57,
+   "ok": true,
+   "tools": [
+    "make_chart"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "La tendance monte globalement : +30 % de Q1 à Q4, avec une petite baisse en Q3."
+  },
+  {
+   "id": "typo_pompidou",
+   "seconds": 9.43,
+   "ok": false,
    "tools": [
     "web_search"
    ],
+   "errors": [],
    "refusal": false,
-   "images": 2,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Le cours de l'action LVMH est de 400,95 € aujourd'hui, avec une variation de -0,02 %."
+   "charts": 0,
+   "images": 0,
+   "answer": "Georges Pompidou, plus connu sous le nom de Georges-Pompidou, était le président de la France de 1969 à 1974. Il a été un fervent défenseur de l'art contemporain et a lancé la création du Centre national d'art et de culture Georges-Pompidou, inauguré en 1977."
   },
   {
-   "id": "web_news",
-   "seconds": 29.24,
-   "tool_ok": true,
-   "tools": [
-    "web_search"
-   ],
-   "refusal": false,
-   "images": 1,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Voici les dernières actualités sur la réforme des retraites, à partir des informations disponibles jusqu'à ce jour (28 novembre 2026) :\n\n### 1. **Proposition de Marine Le Pen pour la présidentielle 2027** (17 novembre 2026)\nMarine Le Pen a présenté un nouveau projet de réforme des retraites, présenté en prévision de la présidentielle de 2027. Ses grandes lignes :\n- **Abolir la réforme de 2023** au"
-  },
-  {
-   "id": "web_ucl_en",
-   "seconds": 6.3,
-   "tool_ok": true,
-   "tools": [
-    "web_search"
-   ],
-   "refusal": false,
-   "images": 2,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Paris Saint-Germain won the 2025–26 Champions League final, beating Arsenal 4–3 on penalties after a 1–1 draw."
-  },
-  {
-   "id": "fu_python_new",
-   "seconds": 2.67,
-   "tool_ok": false,
+   "id": "typo_macron",
+   "seconds": 4.44,
+   "ok": false,
    "tools": [
     "lookup_entity"
    ],
+   "errors": [],
    "refusal": false,
+   "charts": 0,
    "images": 0,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Attention : cette information concernait un autre sujet. Je ne l'ai pas retenue.\n\nPour la version de Python, je n'ai pas de chiffre à vous donner. Dites-moi la version exacte et je vérifie ce qu'elle apporte."
+   "answer": "Je n'ai pas d'information fiable sur Emmanuel Macron dans mes données actuelles. Je ne veux pas deviner. Si vous me donnez un contexte précis — par exemple, le rôle qu'il occupe ou le document où il apparaît — je pourrai vous aider à en extraire les faits."
   },
   {
-   "id": "web_loyer",
-   "seconds": 16.82,
-   "tool_ok": true,
+   "id": "typo_hugo",
+   "seconds": 4.76,
+   "ok": false,
+   "tools": [
+    "lookup_entity"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Je n'ai pas d'information fiable sur Victor Hugot : je ne peux pas vous donner de nom, de fonction ou d'entreprise. Si vous me donnez un contexte (poste, secteur, lieu), je pourrai peut-être vous aider autrement."
+  },
+  {
+   "id": "attach_translate",
+   "seconds": 4.62,
+   "ok": true,
+   "tools": [
+    "read_file"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Subject: Confirmation de rendez-vous\n\nBonjour Claire,\n\nMerci pour votre retour rapide. Je vous confirme notre rendez-vous de jeudi à 14 h dans nos locaux de Lyon. Pourriez-vous m'envoyer le devis signé avant mercredi ?\n\nBien cordialement,\nJulien"
+  },
+  {
+   "id": "attach_translate_en",
+   "seconds": 3.48,
+   "ok": true,
+   "tools": [
+    "read_file"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Objet : Confirmation de la réunion\n\nBonjour Tom,\n\nMerci pour ta réponse rapide. Je confirme notre réunion jeudi à 14 h à notre bureau de Lyon. Pourrais-tu m'envoyer la facture signée avant mercredi ?\n\nCordialement,\nJulia"
+  },
+  {
+   "id": "img_horse",
+   "seconds": 7.62,
+   "ok": false,
    "tools": [
     "web_search"
    ],
+   "errors": [],
    "refusal": false,
-   "images": 1,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Les chiffres varient selon la source et ce qui est inclus (charges ou non). Voici les données les plus récentes :\n\n- **12,8 €/m² par mois** (médian, hors charges) — observatoire des loyers, agglomération de Bordeaux.\n- **15,99 €/m² par mois, charges comprises** — ANIL (2025).\n- **16 €/m² par mois** — Lemonade, avec des écarts entre 11 €/m² en périphérie et 25 €/m² dans le centre historique.\n- **16"
-  },
-  {
-   "id": "wx_lyon",
-   "seconds": 3.52,
-   "tool_ok": true,
-   "tools": [
-    "get_weather"
-   ],
-   "refusal": false,
+   "charts": 0,
    "images": 0,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Demain à Lyon, il fera nuageux avec 0 à 9 °C, une pluie de 1,4 mm et un vent de 12 km/h."
+   "answer": "Le cheval tigré, ou tiger horse, est un registre généalogique créé en 1932 par Claude Thompson en Oregon, pour préserver des chevaux tachetés. Son nom vient de l'espagnol « tigre », à cause de sa robe marbrée."
   },
   {
-   "id": "fx_usd",
-   "seconds": 3.09,
-   "tool_ok": true,
-   "tools": [
-    "convert_currency"
-   ],
-   "refusal": false,
-   "images": 0,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "100 dollars font 91,27 euros, au taux de référence de la BCE du 27 novembre 2026 (1 USD = 0,9127 EUR)."
-  },
-  {
-   "id": "ctrl_haiku",
-   "seconds": 2.75,
-   "tool_ok": true,
+   "id": "img_msm",
+   "seconds": 2.33,
+   "ok": false,
    "tools": [],
-   "refusal": false,
+   "errors": [],
+   "refusal": true,
+   "charts": 0,
    "images": 0,
-   "licence": false,
-   "team_note": null,
-   "team_note_forced": null,
-   "answer": "Voici un haïku sur l'automne :\n\nLe vent soulève les feuilles,\nL'air devient plus frais, plus doux,\nLe ciel s'assombrit."
+   "answer": "Non, je n'ai ni accès à Internet ni à la mémoire entre nos échanges ; je ne peux donc ni naviguer, ni me souvenir d'une conversation précédente."
+  },
+  {
+   "id": "neg_haiku",
+   "seconds": 4.73,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Le vent soulève les feuilles,\nL'air devient plus frais, les jours raccourcissent,\nLe cœur se réchauffe."
+  },
+  {
+   "id": "neg_hello",
+   "seconds": 1.57,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Merci, tout va bien. Et vous ?"
+  },
+  {
+   "id": "neg_photosynthese",
+   "seconds": 4.96,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "La photosynthèse, c'est le processus par lequel les plantes transforment la lumière du soleil, l'eau et le dioxyde de carbone en glucose et en oxygène. Elles utilisent l'énergie solaire pour convertir les molécules simples en sucre, qui sert d'énergie, tout en libérant de l'oxygène comme sous-produi"
+  },
+  {
+   "id": "neg_excel",
+   "seconds": 5.57,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "On sélectionne les données, on clique sur « Insertion » puis sur le type de graphique qui correspond à l'histoire : un histogramme pour des catégories, un diagramme en courbes pour une évolution, un nuage de points pour deux variables. On ajuste ensuite les titres et les légendes.\n\nJe peux aussi str"
+  },
+  {
+   "id": "neg_translate",
+   "seconds": 1.59,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Here you go:\n\nThank you for your help."
   }
  ]
 }

@@ -27,69 +27,63 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from birds.harness.agent import NO_ACCESS  # noqa: E402
+from birds.harness.refusal import REFUSAL  # noqa: E402
 
 HORSE = [
     {"role": "user", "content": "parle-moi du cheval tigré"},
     {"role": "assistant", "content": "Le cheval tigré, ou cheval à robe léopard, porte des taches sombres sur un "
      "fond clair : c'est la robe des Appaloosa et des Knabstrup. Il est apprécié pour son caractère calme."},
 ]  # fmt: skip
-EIFFEL_IMG = [
-    {"role": "user", "content": "montre-moi une photo de la tour Eiffel"},
-    {"role": "assistant", "content": "Voici la tour Eiffel, construite pour l'Exposition universelle de 1889.",
-     "memo": "[Mémo de ce tour — outils : web_search « tour Eiffel » | contexte : images {\"subject\": \"tour "
-             "Eiffel\"}]"},
-]  # fmt: skip
-LEOPARD_IMG = [
-    {"role": "user", "content": "image of a snow leopard"},
-    {"role": "assistant", "content": "Here is the snow leopard, a big cat of the mountains of Central Asia.",
-     "memo": "[Memo of this turn — tools: web_search « snow leopard » | context : images {\"subject\": \"snow "
-             "leopard\"}]"},
-]  # fmt: skip
 MSM = [
     {"role": "user", "content": "raconte-moi l'histoire du Mont-Saint-Michel"},
     {"role": "assistant", "content": "Le Mont-Saint-Michel est un îlot rocheux de Normandie, couronné d'une abbaye "
      "fondée au VIIIe siècle et devenue un grand lieu de pèlerinage."},
 ]  # fmt: skip
-PYTHON = [
-    {"role": "user", "content": "c'est quoi Python ?"},
-    {"role": "assistant", "content": "Python est un langage de programmation généraliste, lisible et très utilisé "
-     "en science des données et en automatisation."},
-]  # fmt: skip
+MAIL_FR = ("Bonjour Claire,\n\nMerci pour votre retour rapide. Je vous confirme notre rendez-vous de jeudi à 14 h "
+           "dans nos locaux de Lyon. Pourriez-vous m'envoyer le devis signé avant mercredi ?\n\nBien cordialement,\n"
+           "Julien")
+MAIL_EN = ("Hi Tom,\n\nThanks for the quick reply. I confirm our meeting on Thursday at 2 pm at our Lyon office. "
+           "Could you send me the signed quote before Wednesday?\n\nBest regards,\nJulia")
+MAIL = [{"name": "mail.txt", "content": MAIL_FR, "encoding": "text", "fresh": True}]
+MAIL_EN_FILE = [{"name": "email.txt", "content": MAIL_EN, "encoding": "text", "fresh": True}]
 
-# (id, history, message, expected tool or None, lang, agent mode)
+# (id, history, message, expected, lang, attachments). expected: "chart" (a chart shown), "images" (pictures shown),
+# a tool name (that tool ran without error), "entity:<words>" (lookup_entity ran and the answer holds the words),
+# None (an ordinary answer: no chart, no tool)
 CASES = [
-    ("img_eiffel", [], "montre-moi une photo de la tour Eiffel", "images", "fr", "auto"),
-    ("img_horse", [], "une image d'un cheval tigré", "images", "fr", "auto"),
-    ("img_leopard_en", [], "image of a snow leopard", "images", "en", "auto"),
-    ("img_looks_msm", [], "à quoi ressemble le Mont-Saint-Michel ?", "images", "fr", "auto"),
-    ("fu_horse_image", HORSE, "une image", "images", "fr", "auto"),
-    ("fu_horse_image_team", HORSE, "une image", "images", "fr", "on"),
-    ("fu_horse_show", HORSE, "montre-moi à quoi il ressemble", "images", "fr", "auto"),
-    ("fu_msm_photo", MSM, "tu as une photo ?", "images", "fr", "auto"),
-    ("fu_eiffel_another", EIFFEL_IMG, "une autre", "images", "fr", "auto"),
-    ("fu_eiffel_bigger", EIFFEL_IMG, "en plus grand", "images", "fr", "auto"),
-    ("fu_leopard_more_en", LEOPARD_IMG, "another one", "images", "en", "auto"),
-    ("fu_eiffel_night", EIFFEL_IMG, "et de nuit ?", "images", "fr", "auto"),
-    ("web_lvmh", [], "cours de l'action LVMH aujourd'hui", "web_search", "fr", "auto"),
-    ("web_news", [], "quelles sont les dernières actualités sur la réforme des retraites ?", "web_search", "fr",
-     "auto"),
-    ("web_ucl_en", [], "who won the last Champions League final?", "web_search", "en", "auto"),
-    ("fu_python_new", PYTHON, "et quoi de neuf dans la dernière version ?", "web_search", "fr", "auto"),
-    ("web_loyer", [], "cherche sur internet le loyer moyen à Bordeaux", "web_search", "fr", "auto"),
-    ("wx_lyon", [], "quel temps fera-t-il à Lyon demain ?", "get_weather", "fr", "auto"),
-    ("fx_usd", [], "combien valent 100 dollars en euros ?", "convert_currency", "fr", "auto"),
-    ("ctrl_haiku", [], "écris un haïku sur l'automne", None, "fr", "auto"),
+    ("chart_natalite", [], "fais un graphe de l'évolution de la natalité", "chart", "fr", []),
+    ("chart_pib", [], "trace un graphique du PIB de la France de 2019 à 2023", "chart", "fr", []),
+    ("chart_poll", [], "qui sera le prochain président, fais un graphe des sondages au 2nd tour", "chart", "fr", []),
+    ("chart_user", [], "fais un graphique : 2020 1,75 ; 2021 1,83 ; 2022 1,79 ; 2023 1,68 ; 2024 1,62", "chart",
+     "fr", []),
+    ("analyse_ventes", [], "Mes ventes : janvier 120, février 135, mars 160, avril 150. Analyse-les.", "chart", "fr",
+     []),
+    ("analyse_chomage", [], "analyse l'évolution du chômage en France depuis 2015", "chart", "fr", []),
+    ("analyse_abonnes", [], "analyse ces chiffres d'abonnés : 2021 1200, 2022 1850, 2023 2600, 2024 3100", "chart",
+     "fr", []),
+    ("analyse_en", [], "analyse the trend: Q1 40, Q2 55, Q3 48, Q4 70", "chart", "en", []),
+    ("typo_pompidou", [], "qui est georges pompidoo", "entity:1974", "fr", []),
+    ("typo_macron", [], "qui est emanuel macron", "entity:1977", "fr", []),
+    ("typo_hugo", [], "c'est qui victor hugot ?", "entity:1802", "fr", []),
+    ("attach_translate", [], "Traduis ce mail en anglais", "read_file", "fr", MAIL),
+    ("attach_translate_en", [], "Translate this email into French", "read_file", "en", MAIL_EN_FILE),
+    ("img_horse", HORSE, "une image", "images", "fr", []),
+    ("img_msm", MSM, "tu as une photo ?", "images", "fr", []),
+    ("neg_haiku", [], "écris un haïku sur l'automne", None, "fr", []),
+    ("neg_hello", [], "bonjour, ça va ?", None, "fr", []),
+    ("neg_photosynthese", [], "explique la photosynthèse en deux phrases", None, "fr", []),
+    ("neg_excel", [], "comment faire un graphique dans Excel ?", None, "fr", []),
+    ("neg_translate", [], "traduis en anglais : merci pour votre aide", None, "fr", []),
 ]  # fmt: skip
 
 
 def run_case(client: httpx.Client, url: str, case, headers: dict) -> dict:
-    cid, hist, msg, want, lang, agent = case
-    body = {"messages": [*hist, {"role": "user", "content": msg}], "lang": lang, "agent": agent,
-            "agent_flow": "run", "reflexion": "auto"}  # fmt: skip
+    cid, hist, msg, want, lang, files = case
+    body = {"messages": [*hist, {"role": "user", "content": msg}], "lang": lang, "agent": "auto",
+            "agent_flow": "run", "reflexion": "auto", "attachments": files}  # fmt: skip
     t0 = time.monotonic()
-    answer, steps, team_note, error = None, [], None, None
-    with client.stream("POST", url.rstrip("/") + "/api/chat", json=body, headers=headers, timeout=180) as r:
+    answer, steps, error = None, [], None
+    with client.stream("POST", url.rstrip("/") + "/api/chat", json=body, headers=headers, timeout=240) as r:
         if r.status_code != 200:
             return {"id": cid, "error": f"HTTP {r.status_code}: {r.read()[:200]!r}"}
         for line in r.iter_lines():
@@ -102,9 +96,8 @@ def run_case(client: httpx.Client, url: str, case, headers: dict) -> dict:
             kind = ev.get("type")
             if kind == "step" and ev.get("status") in ("ok", "done", "error"):
                 steps.append({"tool": ev.get("tool"), "status": ev.get("status"),
-                              "query": (ev.get("arguments") or {}).get("query")})  # fmt: skip
-            elif kind == "agent_done" and ev.get("reason") == "no_deliverable":
-                team_note = ev.get("message")
+                              "args": json.dumps(ev.get("arguments") or {}, ensure_ascii=False)[:120],
+                              "summary": str(ev.get("summary") or "")[:160]})  # fmt: skip
             elif kind == "answer":
                 answer = ev
             elif kind == "error":
@@ -114,19 +107,23 @@ def run_case(client: httpx.Client, url: str, case, headers: dict) -> dict:
         return {"id": cid, "error": error or "no answer", "seconds": secs, "steps": steps}
     content = str(answer.get("content") or "")
     imgs = [i for i in answer.get("web_images") or [] if isinstance(i, dict)]
-    tools = {s["tool"] for s in steps if s["status"] != "error"}
-    if want == "images":
+    charts = list(answer.get("charts") or [])
+    tools = {s["tool"] for s in steps if s["status"] != "error" and s["tool"]}
+    if want == "chart":
+        ok = bool(charts)
+    elif want == "images":
         ok = bool(imgs)
+    elif want and want.startswith("entity:"):
+        ok = "lookup_entity" in tools and want.split(":", 1)[1] in content
     elif want:
         ok = want in tools
     else:
-        ok = not tools
+        ok = not charts and not imgs and not (tools - {"web_search", "read_page"})
     return {
-        "id": cid, "seconds": secs, "tool_ok": ok, "tools": sorted(t for t in tools if t),
-        "refusal": bool(NO_ACCESS.search(content)), "images": len(imgs),
-        "licence": bool(imgs) and all(i.get("licence") and i.get("author") for i in imgs),
-        "team_note": team_note if agent != "on" else None, "team_note_forced": team_note if agent == "on" else None,
-        "answer": content[:400],
+        "id": cid, "seconds": secs, "ok": ok, "tools": sorted(tools),
+        "errors": [s for s in steps if s["status"] == "error"],
+        "refusal": bool(REFUSAL.search(content)), "charts": len(charts), "images": len(imgs),
+        "answer": content[:300],
     }  # fmt: skip
 
 
@@ -143,6 +140,7 @@ def main() -> int:
         headers["x-bird-access"] = a.access
     cases = [c for c in CASES if not a.only or re.search(a.only, c[0])]
     out = []
+    gap = 3.2  # the deployment allows 20 requests a minute
     with httpx.Client(timeout=180) as client:
         for c in cases:
             try:
@@ -150,18 +148,13 @@ def main() -> int:
             except Exception as e:  # noqa: BLE001 - a transport error is a failed case, reported
                 got = {"id": c[0], "error": f"{type(e).__name__}: {e}"}
             out.append(got)
+            time.sleep(gap)
             print(json.dumps(got, ensure_ascii=False), flush=True)
     done = [r for r in out if "error" not in r]
-    n = max(1, len(done))
     summary = {
-        "cases": len(out), "answered": len(done),
-        "tool_ok": sum(r["tool_ok"] for r in done),
+        "cases": len(out), "answered": len(done), "ok": sum(r["ok"] for r in done),
         "false_refusals": sum(r["refusal"] for r in done),
-        "image_cases": sum(1 for c in cases if c[3] == "images"),
-        "images_shown": sum(1 for r in done if r["images"]),
-        "images_with_licence": sum(1 for r in done if r["licence"]),
-        "team_note_unasked": sum(1 for r in done if r.get("team_note")),
-        "seconds_mean": round(sum(r["seconds"] for r in done) / n, 2),
+        "negatives_ok": sum(r["ok"] for r in done if r["id"].startswith("neg_")),
         "seconds_p50": sorted(r["seconds"] for r in done)[len(done) // 2] if done else None,
     }  # fmt: skip
     print(json.dumps(summary, ensure_ascii=False))

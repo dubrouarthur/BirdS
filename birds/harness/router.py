@@ -286,7 +286,9 @@ def ground(call: Call, text: str, context: str, lang: str = "fr") -> str:
                 return "city not in the user's words"
         return ""
     if call.tool == "images":
-        return "" if grounded(a["subject"], text) else "subject not in the user's words"
+        # « une image » after « parle-moi du cheval tigré »: the subject of the previous request (its own words, in
+        # ``context``: the server's memo and the user's request, never the model's text)
+        return "" if grounded(a["subject"], text, context) else "subject not in the user's words"
     if call.tool == "event":
         from datetime import datetime
         from zoneinfo import ZoneInfo
@@ -542,6 +544,10 @@ _FEW_SHOT = {
         ("Tour précédent : contexte : find_places {\"query\": \"restaurant\", \"near\": \"gare de Lyon\"}\n"
          "Message : et des hôtels ?", '{"modules":[{"tool":"find_places","args":{"query":"hotel","near":"gare de '
          'Lyon"}}],"agent":"off","needs_web":false}'),
+        ("Tour précédent : demande : parle-moi de l'okapi\nMessage : tu as une photo ?",
+         '{"modules":[{"tool":"images","args":{"subject":"okapi"}}],"agent":"off","needs_web":false}'),
+        ("Message : c'est qui marie curi ?", '{"modules":[{"tool":"lookup_entity","args":{"name":"Marie Curie"}}],'
+         '"agent":"off","needs_web":false}'),
         ("Message : rédige un mail à Paul pour décaler la réunion",
          '{"modules":[{"tool":"office","args":{"kind":"email"}}],"agent":"off","needs_web":false}'),
         ("Message : fais une étude comparative des 3 principaux CRM du marché avec des sources",
@@ -553,6 +559,10 @@ _FEW_SHOT = {
         ("Message: sales forecast for Q3", '{"modules":[],"agent":"off","needs_web":false}'),
         ("Message: time difference between Paris and Los Angeles", '{"modules":[{"tool":"clock","args":{"cities":'
          '["Paris","Los Angeles"],"mode":"offset"}}],"agent":"off","needs_web":false}'),
+        ("Previous turn: request: tell me about the okapi\nMessage: a picture?",
+         '{"modules":[{"tool":"images","args":{"subject":"okapi"}}],"agent":"off","needs_web":false}'),
+        ("Message: who is albert einstien", '{"modules":[{"tool":"lookup_entity","args":{"name":"Albert Einstein"}}],'
+         '"agent":"off","needs_web":false}'),
         ("Message: draft an email to John to move the meeting",
          '{"modules":[{"tool":"office","args":{"kind":"email"}}],"agent":"off","needs_web":false}'),
         ("Message: write a comparative study of the main project management tools on the market",

@@ -146,6 +146,41 @@ def items() -> list[dict]:
                          ("agent_study", B.STUDY_YES, B.STUDY_NO)):  # fmt: skip
         out += [_item(fam, q, "yes", [], None, agent=True) for q in yes]
         out += [_item(fam, q, "no", [], None, agent=True) for q in no]
+    out += use_tools_items()
+    return out
+
+
+def _turn(ask: str, answer: str) -> list[dict]:
+    return [{"role": "user", "content": ask}, {"role": "assistant", "content": answer}]
+
+
+# Bird uses its tools instead of refusing (docs/HARNESS.md § 19): a misspelt name is a card under its right name, and
+# « une image » after a topic is a picture of that topic. Router eval cases and training examples at once.
+TYPO_YES = [
+    ("qui est jaques chirac", "Jacques Chirac"), ("c'est qui simone veille ?", "Simone Veil"),
+    ("qui était charles de gaule", "Charles de Gaulle"), ("parle-moi de leonard de vinci", "Léonard de Vinci"),
+    ("who is barak obama", "Barack Obama"), ("who was winston churchil", "Winston Churchill"),
+]  # fmt: skip
+PICTURE_FOLLOWUP_YES = [
+    ("parle-moi du lynx boréal", "Le lynx boréal est le plus grand félin d'Europe.", "une image", "lynx boréal"),
+    ("raconte-moi l'histoire de la cathédrale de Chartres", "Elle fut rebâtie après 1194.", "tu as une photo ?",
+     "cathédrale de Chartres"),
+    ("c'est quoi un axolotl ?", "Un amphibien du Mexique qui garde ses branchies.", "montre-moi à quoi il ressemble",
+     "axolotl"),
+    ("tell me about the Matterhorn", "A 4,478 m peak on the Swiss-Italian border.", "a picture?", "Matterhorn"),
+]  # fmt: skip
+PICTURE_FOLLOWUP_NO = [  # a picture ask with nothing to picture, or an image to make: no search
+    ("écris un poème sur l'automne", "Les feuilles tombent…", "génère une image pour l'illustrer"),
+    ("aide-moi à rédiger mon CV", "Voici une structure.", "je mets une photo ?"),
+]  # fmt: skip
+
+
+def use_tools_items() -> list[dict]:
+    out = [_item("typo_entity", q, "yes", ["lookup_entity"], {"tool": "lookup_entity", "args": {"name": n}})
+           for q, n in TYPO_YES]  # fmt: skip
+    out += [_item("picture_followup", m, "yes", ["images"], {"tool": "images", "args": {"subject": s}},
+                  history=_turn(q, a)) for q, a, m, s in PICTURE_FOLLOWUP_YES]  # fmt: skip
+    out += [_item("picture_followup", m, "no", ["images"], history=_turn(q, a)) for q, a, m in PICTURE_FOLLOWUP_NO]
     return out
 
 

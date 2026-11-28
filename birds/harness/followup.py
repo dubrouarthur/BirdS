@@ -15,7 +15,7 @@ import re
 
 from birds.harness import intents
 
-TOOLS = ("get_weather", "find_places", "convert_currency", "find_company", "clock", "images")
+TOOLS = ("get_weather", "find_places", "convert_currency", "find_company", "clock")
 LABEL = {"fr": "contexte", "en": "context"}
 _KEYS = {
     "get_weather": ("place", "day"),
@@ -23,7 +23,6 @@ _KEYS = {
     "convert_currency": ("from", "to", "amount"),
     "find_company": ("name",),
     "clock": ("cities", "mode"),
-    "images": ("subject", "page", "size"),  # the pictures asked last turn (Agent.run's pictures), never a result
 }
 _CTX = re.compile(r"(?:^|\|)\s*(?:contexte|context) : (?P<tool>[a-z_]+) (?P<args>\{[^|]*\})\s*(?:$|\|)")
 _SAFE = re.compile(r"[^\[\]|<>{}\\\n\r\t\"]{1,80}")
@@ -52,15 +51,6 @@ def _clean_args(tool: str, args: object) -> dict | None:
             if v not in ("time", "offset", "slot"):
                 return None
             out[k] = v
-        elif k == "page":
-            if not isinstance(v, int) or isinstance(v, bool) or not 0 <= v <= 20:
-                return None
-            if v:
-                out[k] = v
-        elif k == "size":
-            if v != "large":
-                return None
-            out[k] = v
         else:
             if not isinstance(v, str) or not _SAFE.fullmatch(v):
                 return None
@@ -78,14 +68,9 @@ def memo_part(context: dict | None, lang: str) -> str:
     return f"{LABEL['en' if lang == 'en' else 'fr']} : {context['tool']} {json.dumps(args, ensure_ascii=False)}"
 
 
-def context_of(steps, widgets=None, pictures=None) -> dict | None:
-    """The rich result a follow-up can lean on: the pictures the harness searched (``pictures``, Run.pictures), the
-    last successful widget tool call of the turn, else the world clock the harness computed. Arguments only (never
-    a tool result)."""
-    if isinstance(pictures, dict) and pictures.get("shown"):
-        got = _clean_args("images", {k: pictures[k] for k in _KEYS["images"] if pictures.get(k) not in (None, "")})
-        if got and got.get("subject"):
-            return {"tool": "images", "args": got}
+def context_of(steps, widgets=None) -> dict | None:
+    """The rich result a follow-up can lean on: the last successful widget tool call of the turn, else the world
+    clock the harness computed. Arguments only (never a tool result)."""
     for s in reversed(list(steps or [])):
         tool = getattr(s, "tool", None) or (s.get("tool") if isinstance(s, dict) else None)
         err = getattr(s, "error", None) if not isinstance(s, dict) else s.get("error")
@@ -214,8 +199,8 @@ def _place_of(prev: dict) -> str:
 def resolve(text: str, prev: dict | None, lang: str = "fr") -> intents.Intent | None:
     """The call a short follow-up asks for, given the previous turn's context, or None. For the world clock the
     Intent is ``clock`` with ``args = {"text": <a complete clock ask>}`` that the harness reads like the user's."""
-    if not prev or prev.get("tool") not in TOOLS or prev.get("tool") == "images":
-        return None  # pictures: ``pictures`` below
+    if not prev or prev.get("tool") not in TOOLS:
+        return None
     raw = " ".join((text or "").split())
     if not raw or len(raw) > 80 or "\n" in (text or ""):
         return None
@@ -308,121 +293,6 @@ def resolve(text: str, prev: dict | None, lang: str = "fr") -> intents.Intent | 
     if a.get("near") or " ; " in a.get("query", ""):
         return None  # a route or a list: « et à Lyon ? » is ambiguous
     return intents.Intent("find_places", {"query": place}, keep_web=False, mode="where")
-
-
-# ---------------------------------------------------------------- « une image », « une autre », « en plus grand »
-# A short message that asks for pictures without naming what of: the subject is the conversation's. These words are
-# the parsers' hint and fallback; the router reads the same previous turn and decides (router.previous_summary).
-
-_PIC = r"(?:photos?|photographies?|images?|illustrations?|pictures?|pics?|photographs?|visuels?)"
-_PIC_ASK = re.compile(
-    r"^(?:(?:et|ok|alors|du\s+coup|and|so)\s+)?(?:(?:est-ce\s+que\s+)?(?:tu\s+(?:as|aurais|peux|pourrais)|t'as|"
-    r"vous\s+(?:avez|auriez|pouvez)|peux-tu|pourrais-tu|avez-vous|y\s+a-t-il|il\s+y\s+a|do\s+you\s+have|can\s+you|"
-    r"could\s+you|got)\s+)?(?:me\s+)?(?:(?:montre[rz]?|affiche[rz]?|trouve[rz]?|donne[rz]?|envoie[rz]?|cherche[rz]?)"
-    r"(?:[- ](?:moi|nous))?|show(?:\s+me)?|find(?:\s+me)?|send(?:\s+me)?|give(?:\s+me)?|see|voir)?\s*"
-    r"(?:(?:une?|des|la|les|quelques|deux|trois|a|an|some|any|the|a\s+few)\s+)?(?:(?:belles?|jolies?|nice)\s+)?"
-    r"(?:" + _PIC + r"(?:\s+(?:de\s+(?:lui|elle|[çc]a|cela)|of\s+(?:it|them|that)))?|en\s+images?|"
-    r"(?:(?:à|a)\s+quoi\s+(?:il|elle|[çc]a|cela|ils|elles)\s+ressembl(?:e|ent))|"
-    r"what\s+(?:it|they|that)\s+looks?\s+like|what\s+does\s+(?:it|that)\s+look\s+like)?$",
-    re.I,
-)
-_PIC_MORE = re.compile(
-    r"^(?:(?:et|ok|alors|and|so)\s+)?(?:(?:montre[rz]?|donne[rz]?|affiche[rz]?)(?:[- ]moi)?\s+|show\s+me\s+)?"
-    r"(?:(?:une|un)\s+autre|d'autres|encore(?:\s+une?)?|plus|another(?:\s+one)?|more|other\s+ones|others|"
-    r"la\s+suivante|les\s+suivantes|next)(?:\s+" + _PIC + r")?(?:\s+(?:encore|again|please|stp|svp))?$",
-    re.I,
-)
-_PIC_LARGE = re.compile(
-    r"^(?:(?:et|ok|alors|and|so)\s+)?(?:(?:montre[rz]?|affiche[rz]?|mets)(?:[- ](?:la|le|les|moi))*\s+|"
-    r"(?:show|make)(?:\s+(?:it|me|them))?\s+)?(?:(?:en|in)\s+)?(?:plus\s+grande?s?|grande?\s+taille|grand|"
-    r"agrandi[st]?(?:[- ](?:la|le|les))?|zoom(?:e[rz]?)?|bigger|larger|full[- ]size|full\s+screen|plein\s+[ée]cran)"
-    r"(?:\s+(?:please|stp|svp))?$",
-    re.I,
-)
-# « et de nuit ? », « et en hiver ? », « vue du ciel ? »: the same subject, with a qualifier the user names
-_PIC_QUAL = re.compile(
-    r"^(?:et\s+|and\s+)?(?P<q>(?:de|en|sous|au|vue?s?|depuis|pendant|la|le|at|in|from|by|during|under)\s+"
-    r"[\wÀ-ÿ'-]+(?:\s+[\wÀ-ÿ'-]+){0,3})$",
-    re.I,
-)
-# what the previous request was about, in the user's own words: « parle-moi du cheval tigré », « c'est quoi un
-# okapi ? », « raconte-moi l'histoire du Mont-Saint-Michel », or a bare noun phrase (« le cheval tigré »)
-_TOPIC_LEAD = re.compile(
-    r"^(?:(?:bonjour|salut|hello|hi)[\s,!]+)?(?:(?:parle|raconte|dis|explique|pr[ée]sente|d[ée]cri[st])[- ](?:moi|nous)"
-    r"(?:\s+(?:tout|un\s+peu|rapidement|en\s+bref))?(?:\s+(?:de|du|des|d'|sur|à\s+propos\s+d[eu']?))?|"
-    r"(?:c'est\s+quoi|qu'est-ce\s+que\s+c'est\s+que|qu'est-ce\s+qu(?:e|')|qui\s+est|que\s+sais-tu\s+(?:de|du|des|sur))|"
-    r"(?:tell\s+me\s+(?:about|more\s+about)|what\s+(?:is|are)|what's|who\s+(?:is|was)|explain|describe))\s*",
-    re.I,
-)
-_TOPIC_HEAD = re.compile(
-    r"^(?:(?:l'histoire|l'origine|les\s+origines|la\s+vie|le\s+r[ôo]le|the\s+history|the\s+origins?)\s+"
-    r"(?:de|du|des|d'|of)\s*)",
-    re.I,
-)
-
-
-def _ask_text(text: str) -> str:
-    return " ".join(intents._POLITE.sub(" ", (text or "").replace("’", "'")).split()).strip(" ?!.,;:")
-
-
-def topic_of(history: list[dict] | None) -> str:
-    """The subject of the previous request, from the user's OWN words (never the model's text), or ''."""
-    prev = [m for m in history or [] if m.get("role") == "user" and isinstance(m.get("content"), str)]
-    if not prev:
-        return ""
-    raw = prev[-1]["content"].split("\n\n[", 1)[0]  # never an attachment note or an image transcription
-    got = intents.images(raw)
-    if got is not None:
-        return str(got.args["query"])
-    t = _ask_text(raw)
-    if not t or len(t) > 160:
-        return ""
-    m = _TOPIC_LEAD.match(t)
-    if m:
-        t = t[m.end() :]
-    elif len(t.split()) > 5:
-        return ""  # a longer request that is not « parle-moi de X »: its subject is the router's to read
-    t = _TOPIC_HEAD.sub("", t)
-    t = re.sub(r"^(?:(?:la|le|les|une?|des|the|a|an)\s+|l')", "", t, flags=re.I).strip(" '\"")
-    t = re.split(r"\s*(?:[?!.;:,]|\s(?:et|and|pour|for|en\s+\d|in\s+\d)\s)", t, maxsplit=1)[0].strip()
-    if not (2 <= len(t) <= 60) or len(t.split()) > 6 or intents._IMG_NOT_SUBJECT.match(t):
-        return ""
-    if intents._NEVER.search(t) or intents._not_a_place(t) or intents._person(t) or intents._IMG_MAKE.search(t):
-        return ""
-    return t
-
-
-def pictures(text: str, prev: dict | None, history: list[dict] | None, lang: str = "fr") -> intents.Intent | None:
-    """The picture search a short follow-up asks for, or None. After pictures (``prev`` = images context):
-    « une autre » (next page), « en plus grand » (large view), « et de nuit ? » (the subject, qualified). After any
-    other answer: « une image », « tu as une photo ? », « montre-moi à quoi il ressemble » take the subject of the
-    previous request (``topic_of``)."""
-    raw = " ".join((text or "").split())
-    if not raw or len(raw) > 80 or "\n" in (text or "") or intents._IMG_MAKE.search(raw):
-        return None
-    t = _ask_text(raw)
-    if not t or len(t.split()) > 9:
-        return None
-    shown = prev.get("args") if prev and prev.get("tool") == "images" else None
-    if shown:
-        subject, page = shown["subject"], int(shown.get("page") or 0)
-        if _PIC_MORE.match(t):
-            return intents.Intent("web_search", {"query": subject}, keep_web=True, mode="images",
-                                  view={"page": min(page + 1, 20)})  # fmt: skip
-        if _PIC_LARGE.match(t):
-            return intents.Intent("web_search", {"query": subject}, keep_web=True, mode="images",
-                                  view={"page": page, "size": "large"})  # fmt: skip
-        q = _PIC_QUAL.match(t)
-        if q and not _named(_leftover(q.group("q"))) and len(subject) + len(q.group("q")) < 60:
-            return intents.Intent("web_search", {"query": f"{subject} {q.group('q')}"}, keep_web=True, mode="images")
-        if _PIC_ASK.match(t) and t.strip():
-            return intents.Intent("web_search", {"query": subject}, keep_web=True, mode="images",
-                                  view={"page": min(page + 1, 20)})  # fmt: skip
-        return None
-    if not _PIC_ASK.match(t) or not re.search(_PIC + r"|ressembl|look|\bmontre|\bshow|en\s+images?", t, re.I):
-        return None
-    subject = topic_of(history)
-    return intents.Intent("web_search", {"query": subject}, keep_web=True, mode="images") if subject else None
 
 
 # ---------------------------------------------------------------- « en camembert plutôt » after a chart

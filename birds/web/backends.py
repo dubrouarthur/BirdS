@@ -2809,7 +2809,7 @@ class HarnessBackend:
                         request_words,
                         sources,
                         ctx.sign_image,
-                        subject=_picture_subject(request_words),
+                        subject=getattr(run, "picture_subject", "") or _picture_subject(request_words),
                     ),
                     "widgets": widgets,
                     "files": files,

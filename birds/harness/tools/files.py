@@ -183,14 +183,53 @@ def _pptx(p: Path, cap: int | None = None) -> str:
 READERS = {".pdf": _pdf, ".docx": _docx, ".xlsx": _xlsx, ".pptx": _pptx}
 
 
+def _attached(ctx, asked: str) -> Path | None:
+    """The workspace file the model meant: same name, wherever it said it was. Live 28/11/2026, « Traduis ce mail en
+    anglais » with mail.txt: read_file failed and the answer said « je n'ai pas accès à votre bureau local » (a
+    path the model made up). Only a file of the workspace with that exact name (case aside) is ever read."""
+    name = re.split(r"[\\/]", str(asked or "").strip())[-1].strip().lower()
+    if not name:
+        return None
+    root = ctx.workspace.resolve()
+    found = [f for f in _near_files(root) if f.name.lower() == name]
+    return found[0].resolve() if len(found) == 1 and root in found[0].resolve().parents else None
+
+
+ATTACH_DIRS = ("", "pieces-jointes")  # where the app puts the attached files (birds.web.backends.ATTACH_DIR)
+
+
+def _near_files(root: Path) -> list[Path]:
+    """The files at the top of the workspace and in its attachments folder (never a walk of a whole folder)."""
+    out = []
+    for sub in ATTACH_DIRS:
+        d = root / sub
+        if d.is_dir():
+            out += sorted(f for f in d.iterdir() if f.is_file() and not f.name.startswith("."))[:200]
+    return out
+
+
+def _workspace_names(ctx, limit: int = 8) -> list[str]:
+    root = ctx.workspace.resolve()
+    return [str(f.relative_to(root)) for f in _near_files(root)][:limit]
+
+
 def read_file(args: dict, ctx) -> str:
-    p = safe_path(ctx.workspace, args["path"])
+    try:
+        p = safe_path(ctx.workspace, args["path"])
+    except Blocked:
+        p = None
+    if p is None or not (p.is_file() or (p.suffix.lower() in IMAGE_SUFFIXES and p.with_name(p.name + ".txt").is_file())):
+        p = _attached(ctx, args["path"]) or p
+    if p is None:
+        raise Blocked("path is outside the workspace")
     if p.suffix.lower() in IMAGE_SUFFIXES and not p.is_file():
         side = p.with_name(p.name + ".txt")  # an image sent with the message: what the model read in it
         if side.is_file():
             return side.read_text(encoding="utf-8").strip() or "(the image has no readable text)"
     if not p.is_file():
-        raise ToolError(f"file not found in the workspace: {args['path']}")
+        names = _workspace_names(ctx)
+        raise ToolError(f"file not found in the workspace: {args['path']}"
+                        + (f" (files here: {', '.join(names)})" if names else ""))  # fmt: skip
     size, suffix = p.stat().st_size, p.suffix.lower()
     if size > ctx.config.max_file_bytes:
         raise ToolError(f"file too large ({size} bytes; limit {ctx.config.max_file_bytes})")
