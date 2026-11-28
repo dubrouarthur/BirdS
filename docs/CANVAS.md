@@ -272,6 +272,88 @@ Captures regardées : chaque mise en page en 1280 et 360 px, clair et sombre, et
 Reste à vérifier : les images en production (limites Openverse / Commons ; une clé Openverse enregistrée lèverait la
 limite), l'ouverture du .pptx dans PowerPoint (seul LibreOffice a été regardé), l'effet de la consigne « image sur 2-3
 diapositives » (peu suivie), le rendu des thèmes dans Keynote / Google Slides.
+### Images et graphiques dans les présentations (28/11/2026, demande du produit)
+
+Plainte : « les images marchent mal dans les prez ; il faut pouvoir intégrer des graphes aussi ». Mesuré, corrigé,
+remesuré. Code : `birds/canvas/images.py` (recherche), `birds/canvas/figures.py` (provenance des chiffres),
+`birds/harness/office_media.py` (`Fetcher`). Tests : `tests/test_canvas_media.py` (18). Mesures :
+`scripts/deck_media_eval.py` (8 demandes fixes, de bout en bout), `scripts/image_ab.py` (20 requêtes d'image fixes,
+ancienne et nouvelle recherche en alternance, donc sous les mêmes limites de débit), fichiers
+`docs/measures/deck-media-2026-11-28-*.json` et `docs/measures/deck-images-ab-2026-11-28.json`.
+
+**Pourquoi les images échouaient** (constaté, pas supposé) :
+- **Production : 0 image sur 10 demandées** (8 decks, `--url https://bird-s.vercel.app`). Le point d'accès
+  `/api/canvas/image` de production trouve « brittany coast » mais pas « honey bee » : la chaîne fonctionne, ce sont
+  les **limites de débit (HTTP 429)** d'Openverse (API anonyme) et de l'API Commons (`imageinfo` + vignettes) qui
+  refusent par fenêtres courtes, depuis des adresses partagées (Vercel comme le bac à sable). Un 429 était lu comme
+  « rien trouvé », sans seconde tentative.
+- **Pertinence** : la règle des mots acceptait les mots-clés Flickr (« Venice, canalside view » étiquetée
+  « train ») et le nom de l'auteur (« … - Flickr - Avel-Breizh » pour « breizh »). Regardées une à une, 3 images sur 8
+  étaient hors sujet (une femme photographe pour « Bretagne tourism », Venise pour « night train »).
+- **Requêtes** : le modèle écrit « happy cyclist delivering food » (zéro résultat tel quel sur Commons) ou demande
+  la photo d'un graphique (« chart showing quarterly growth » donnait le tracé radio d'un pulsar).
+- **Temps** : 8 recherches l'une après l'autre (jusqu'à 10 téléchargements chacune) dans les 20 s du tour.
+
+**Corrections** :
+- **Le modèle regarde chaque candidate** (`images.vision_judge`, il lit les images) : « Does this photo show « … »,
+  well enough to illustrate a slide about it? » — oui / non, vignette 448 px, 3 jetons, 0,2 à 0,4 s ; 6 regards au
+  plus par recherche, puis aucune image plutôt qu'une fausse. Sur 20 images étiquetées à la main, d'accord 15 fois
+  (une formulation plus permissive testée : 12/20, et elle acceptait une oratrice pour « night train » : écartée).
+- Règle des mots : titre nettoyé (auteur Flickr, n° geograph / panoramio, nom de fichier d'appareil), un mot du
+  titre exigé, mots-clés comptés pour une requête d'un ou deux mots seulement, deux mots du titre au-delà.
+- Variantes de requête (`variants`) : telle quelle, sans les mots qui ne se photographient pas (« happy »,
+  « modern »…), puis ses deux premiers mots ; aucune recherche pour un graphique ou un tableau (il se dessine).
+- 429 : une seconde demande après 1,2 s (`Fetcher.json`) ; User-Agent conforme à la politique Wikimedia (contact
+  `BIRD_CONTACT`) pour Commons ; le refus est noté (`images.COOL`) et « Chercher une image » répond « Les banques
+  d'images libres sont très demandées : réessayez dans une minute » au lieu de « aucune image ». Une mise à l'écart
+  de la source pendant 20 à 120 s a été essayée puis retirée : mesurée, elle perdait des images que l'appel suivant
+  aurait eues.
+- Recherches **en parallèle** (3 à la fois) : une requête partagée par la couverture et une diapositive ne cherche
+  qu'une fois.
+- Format du deck : l'exemple montre une diapositive illustrée (`::: image`) ; s'il manque des chiffres, « écris
+  quand même la présentation, avec « à compléter » » (avant : « Fais une présentation sur notre boulangerie » →
+  refus « je n'ai pas accès à vos chiffres », vu en direct ; après : 7 diapositives).
+
+**Graphiques** (« graphique + message clé », natif et éditable dans le .pptx) :
+- **Aucun chiffre inventé** (`figures.check`) : un graphique n'est gardé que si chacune de ses valeurs est dans la
+  demande, les messages précédents, les résultats d'outils du tour (statistiques, données ouvertes, moteur de
+  données, page lue) ou le deck lui-même (« fais un graphique de ce tableau ») ; une différence de deux chiffres
+  donnés compte (calcul, pas invention). Sinon il devient l'encadré « Graphique à compléter : donnez vos chiffres
+  (2023, 2024, 2025) et Bird le trace » (`need: figures`), le chat le dit, et la puce « Donner les chiffres »
+  **écrit le début du message** dans la zone de saisie (puce `fill`) au lieu d'envoyer « ajoute des chiffres ».
+  Mesuré avant : le pitch deck de la livraison à vélo traçait « 2023 : 12 %, 2024 : 15 %, 2025 : 18 % », chiffres
+  que personne n'avait donnés.
+- Les chiffres des **tableaux et tuiles** sans source deviennent « à compléter » (`figures.cells`) : vu en direct,
+  « ajoute une diapositive avec un graphique de nos ventes » donnait un tableau de 20 montants inventés ; il garde
+  sa forme, pas les montants.
+- « Voici les chiffres du graphique : pain 45 %, viennoiseries 30 %, pâtisseries 25 % » : tracé **sans appel au
+  modèle** (`figures.fill_ops`, les chiffres tels que tapés) à la place de l'encadré, ou du tableau dont les lignes
+  sont nommées ; une part en % qui fait 100 devient un camembert. Sans le mot « graphique », les cases « à
+  compléter » du tableau reçoivent les chiffres. Le modèle ne recopie plus le plan (« [b1] Introduction… ») dans
+  une diapositive ajoutée (retiré, `patch._drop_outline_copies`). La puce « Une diapo de chiffres clés » (qui
+  appelait des chiffres inventés) est remplacée par « Un graphique de vos chiffres » (`fill`).
+
+**Avant / après** (Bird S 4B en direct ; Mode Agent désactivé comme décidé aujourd'hui ; images regardées une à une) :
+
+| Mesure | avant | après |
+|---|---|---|
+| Production, 8 decks : images trouvées / demandées | **0 / 10** | (pas encore déployé ici) |
+| Local, 8 decks : images trouvées / demandées | 8 / 12 | 5 / 8 |
+| Local, 8 decks : images hors sujet affichées (à l'œil) | 3 sur 8 | 2 sur 5 (rue de New York pour « cyclists », pulsar pour un graphique, corrigé depuis) |
+| 20 requêtes fixes, alternées (`image_ab`) : trouvées | 20 | 14 |
+| 20 requêtes fixes : **justes à l'œil** / **fausses affichées** | 13 / **7** | 12 / **2** |
+| 20 requêtes fixes : secondes par requête (moyenne) | 0,7 | 2,6 (en parallèle dans un deck) |
+| Licence + crédit présents, image qui s'ouvre, image dans le .pptx | 8 / 8 / 8 sur 8 | 5 / 5 / 5 sur 5 |
+| Graphiques des decks aux chiffres donnés (6 et 7) | 2 sur 2 (7 valeurs sur 7 sourcées) ; production : 1 sur 2 | 2 sur 2 (8 sur 8, l'objectif 2026 compris), 2 graphiques natifs dans le .pptx |
+| Graphiques aux chiffres inventés affichés (8 decks) | local 1 (deck 2 : 12 / 15 / 18 %) ; production 1 (deck 2 : 45 / 20) | 0 (encadré « à compléter » si le modèle en écrit un) |
+| « Fais une présentation sur notre boulangerie » | refus, pas de deck | 7 diapositives |
+
+Lecture honnête : la recherche affiche nettement moins d'images fausses (7 → 2 sur 20) pour une image juste de moins
+(13 → 12) ; le nombre d'images trouvées dépend surtout des limites de débit du moment (le bac à sable est limité
+par Wikimedia pendant toute la mesure, Openverse par intermittence). En production, le chiffre de départ est 0 sur
+10 : à remesurer dès le déploiement (`scripts/deck_media_eval.py --url https://bird-s.vercel.app`). Une clé
+Openverse (`client_credentials`) relèverait la limite : non branchée (aucune clé ici).
+
 ## 10. Documents type Word (branche `canvas-docs`)
 
 Un document se lit et s'édite comme une page Word, au niveau des diapositives :

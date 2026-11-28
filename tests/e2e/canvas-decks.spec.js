@@ -153,6 +153,39 @@ async function run(name, options, scheme) {
   await dl.saveAs(file);
   check(fs.readFileSync(file).subarray(0, 2).toString() === "PK", `pptx (${fs.statSync(file).size} bytes)`);
 
+  // figures typed by the user for the table's rows, asked as a chart: drawn without a model call (figures.fill_ops),
+  // a share that makes 100 % as a pie, the chip « Un graphique de vos chiffres » only writes in the composer
+  if (name === "phone") {
+    // a phone closes its sheet to type: the deck goes with the message only when a chart or a table waits for
+    // figures (canvas.js payload); the gallery's table is complete, so this step is the desktop's
+    check(errors.length === 0, `no page error${errors.length ? `: ${errors.join(" | ")}` : ""}`);
+    check(external.length === 0, `no third-party request${external.length ? `: ${external.join(" ")}` : ""}`);
+    await browser.close();
+    return;
+  }
+  const tableSlide = page.locator('#canvas .cv-slide[data-layout="table"]');
+  check((await tableSlide.count()) === 1, "the table slide is there");
+  await page.fill("#composer-input", "Voici les chiffres du graphique : Pilote 40 %, Déploiement 60 %");
+  await page.keyboard.press("Enter");
+  await idle(page);
+  await page.waitForTimeout(400);
+  const pie = page.locator('#canvas .cv-slide[data-layout="chart"]').filter({ hasText: "Tableau" });
+  check((await pie.count()) === 1, "the table became a chart from the typed figures");
+  const said = await page.locator(".turn-bird").last().innerText();
+  check(/Graphique tracé avec vos chiffres/.test(said), "the chat says the chart is drawn from the user's figures");
+  await pie.scrollIntoViewIfNeeded();
+  await pie.screenshot({ path: path.join(SHOTS, `deck-${tag}-chart-typed.png`) });
+  const [dl2] = await Promise.all([
+    page.waitForEvent("download", { timeout: 30000 }),
+    (async () => {
+      await page.locator('#canvas [data-k="download"]').click();
+      await page.locator('#canvas [data-k="dl-pptx"]').click();
+    })(),
+  ]);
+  const file2 = path.join(SHOTS, `deck-${tag}-charts.pptx`);
+  await dl2.saveAs(file2);
+  check(fs.statSync(file2).size > 1000, "pptx with the typed chart");
+
   check(errors.length === 0, `no page error${errors.length ? `: ${errors.join(" | ")}` : ""}`);
   check(external.length === 0, `no third-party request${external.length ? `: ${external.join(" ")}` : ""}`);
   await browser.close();

@@ -632,7 +632,7 @@ def test_create_turn_captures_a_trained_tool_call(monkeypatch):
     ]
     app, llm = _app([_tool_call("make_slides", title="Bilan", slides=slides), "C'est prêt."])
     with TestClient(app) as client:
-        events = _chat(client, "Fais une présentation du bilan annuel")
+        events = _chat(client, "Fais une présentation du bilan annuel : CA 2023 1 M€, 2024 2 M€, 2025 3 M€")
     final = [e for e in events if e["type"] == "canvas"][-1]
     assert final["doc"]["title"] == "Bilan" and final["doc"]["blocks"][1]["parts"][0]["t"] == "chart"
     answer = next(e for e in events if e["type"] == "answer")
@@ -924,7 +924,7 @@ def test_image_endpoint_server_mode_with_pinned_dns(monkeypatch):
         def __init__(self, http, cfg):
             seen["http"], seen["pin"] = http, cfg.pin_dns
 
-    def search(query, fetch, exclude, mid, deadline=None):
+    def search(query, fetch, exclude, mid, deadline=None, judge=None, want=""):
         seen["query"] = query
         return None
 
@@ -1188,3 +1188,68 @@ def test_a_photo_placeholder_written_as_a_bullet_becomes_an_image_search():
     assert images == ["chaton dans un foyer stable", "happy kitten", "un refuge"]
     assert {"t": "list", "items": ["Un vrai point"], "ordered": False} in parts
     assert not any("[Photo" in str(p) for p in parts) and len(repairs) == 3
+
+
+def test_image_queries_lose_the_model_notation_and_pexels_needs_a_key(monkeypatch):
+    """« [Paris bike cargo 1] » found nothing: brackets and numbering are notation, not picture words. Pexels is a
+    keyed backup source, never called without the operator's key, and its key never follows a redirect elsewhere."""
+    from birds.canvas import images
+
+    assert images.clean_query("[Paris bike cargo 1]") == "Paris bike cargo"
+    assert images.clean_query("Photo : chaton heureux") == "chaton heureux"
+    assert images.clean_query("vélos cargo en 2024") == "vélos cargo en 2024"
+    calls = []
+
+    class F:
+        def json(self, url, headers=None):
+            calls.append((url, headers))
+            return {"photos": []}
+
+        def image(self, url):
+            raise AssertionError("no image fetched")
+
+    monkeypatch.delenv("BIRD_PEXELS_API_KEY", raising=False)
+    assert images.search_pexels("cargo bike", F()) is None and calls == []
+    monkeypatch.setenv("BIRD_PEXELS_API_KEY", "k")
+    assert images.search_pexels("[cargo bike 2]", F()) is None
+    assert calls and "query=cargo%20bike" in calls[0][0] and calls[0][1] == {"Authorization": "k"}
+
+
+def test_search_web_cleans_tries_variants_then_pexels_and_the_model_looks_at_pexels_too(monkeypatch):
+    """After merging the image-search fixes with the deck pictures: the model's notation is cleaned before the query
+    variants, Pexels (keyed) comes after every free variant, the model's « no » holds for a Pexels photo too, and
+    a chart never goes to a photo search at all."""
+    import io
+
+    from PIL import Image
+
+    from birds.canvas import images
+
+    buf = io.BytesIO()
+    Image.new("RGB", (800, 500), (40, 120, 90)).save(buf, "PNG")
+    png = buf.getvalue()
+    urls = []
+
+    class F:
+        def json(self, url, headers=None):
+            urls.append(url)
+            if "pexels" in url:
+                return {"photos": [{"url": "https://www.pexels.com/photo/1/", "alt": "cargo bike in Paris",
+                                    "photographer": "A", "src": {"large": "https://images.pexels.com/p/1.jpg"}}]}
+            return {"results": [], "query": {"search": []}}
+
+        def image(self, url):
+            return png
+
+    images.CACHE.clear()
+    monkeypatch.setenv("BIRD_PEXELS_API_KEY", "k")
+    m = images.search_web("[cargo bike Paris 1]", F(), mid="w9")
+    assert m is not None and m.licence == "Licence Pexels"
+    free = [u for u in urls if "pexels" not in u]
+    assert free and urls.index(next(u for u in urls if "pexels" in u)) > urls.index(free[-1])
+    assert not any("%5B" in u or "[" in u for u in urls)  # the notation never reaches a search engine
+    urls.clear()
+    images.CACHE.clear()
+    assert images.search_web("cargo bike Paris", F(), mid="w9", judge=lambda want, media: False) is None
+    urls.clear()
+    assert images.search_web("chart showing quarterly growth", F(), mid="w9") is None and urls == []

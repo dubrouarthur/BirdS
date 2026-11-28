@@ -1081,3 +1081,261 @@ Wikipédia limite aussi (HTTP 429), l'étape le dit et la réponse reste calme. 
 seul reste un village homonyme (Bayon, 54) — la réponse affiche le code postal ; « le magasin Supermarché à Berlin »
 est lu comme la catégorie (choix du modèle). Banc : `maps_category` 37/37 (+4 classements, +3 noms), total
 2 131/2 131.
+
+## 18. Suites proposées : Bird écrit ses suggestions, dans la voix de l'utilisateur
+
+Code : `birds/harness/nextsteps.py` (appel, invite, validation, démo), `birds/web/backends.py`
+(`HarnessBackend._suggest`, `demo_suggest_kind`), `birds/web/static/followups.js` (`cleanSuggestions`,
+`chipItems`, `renderChips`) · tests : `tests/test_nextsteps.py`, `tests/js/modules.test.mjs`,
+`tests/e2e/nextsteps.spec.js` · mesure : `scripts/followups_eval.py` · cas : `scripts/router_data.py`
+(`NEXTSTEPS_CASES`) · exemples d'entraînement : `scripts/build_tools_mix.py` (tâche `nextsteps`).
+
+**Le défaut.** Les puces sous une réponse venaient de deux sources fixes : les puces des widgets (météo, carte,
+brouillon, tableau) et `clarifyOptions`, une expression régulière qui découpait la dernière question de Bird. Sur
+« Souhaitez-vous que je vous aide à intégrer des images spécifiques ou à structurer la diapositive visuellement ? »,
+elle donnait « Vous aide à intégrer des images spécifiques » et « À structurer la diapositive visuellement » : des
+morceaux de la phrase de Bird, dans sa voix, pas des demandes de l'utilisateur.
+
+**Ce qui change.** Après la réponse et son reçu, **un** appel court (≤ 200 jetons, température 0, schéma
+`{"suggestions":[{needs, label ≤ 42 (borne 60), prompt}] ≤ 3}` imposé quand l'endpoint le permet, même détection que le routeur ;
+invite statique en préfixe avec les capacités du déploiement, réutilisée par le cache) renvoie 0 à 3 suites :
+une demande que l'utilisateur taperait (« Ajoute une diapositive sur les outils numériques… »), propre à la
+réponse, les choix d'une question de Bird réécrits comme ses réponses, rien après une salutation. L'appel ne lit
+que la demande de l'utilisateur et la réponse, jamais une page ni un résultat d'outil. Tout est validé dans le code
+(`nextsteps.validate`) : schéma, longueurs (une étiquette coupée par le schéma finit sur un mot entier), langue,
+doublons, voix de Bird (« Vous aide… », « Souhaitez-vous… », « Oui »), liens, adresses et consignes (« ignore… »),
+actions impossibles (« envoie », « réserve », ce que l'utilisateur fait lui-même : « Valide le mail », « Provide
+the client's email address »), et un module éteint sur le déploiement (météo, carte, recherche web…). Les
+expressions régulières ne décident pas : elles filtrent la sortie du modèle. Le tour se termine pour
+l'utilisateur à l'événement `final` (après `answer` et `usage`) ; `suggestions` arrive ensuite sur le même flux, puis
+un second `usage` qui compte l'appel en plus (voir la revue ci-dessous). L'interface met les suites de Bird en premier, puis les
+puces des widgets jusqu'à trois, sans doublon ; `clarifyOptions` est supprimée. Rien d'envoyé si l'appel échoue
+(les puces des widgets restent). `BIRD_NEXTSTEPS=off` coupe l'appel. Démo : suites scriptées selon ce qu'est la
+réponse (brouillon, présentation, document, question à choix), passées par la même validation.
+
+**Mesure réelle (28/11/2026, endpoint vLLM, Bird S 4B, température 0, un passage).** 20 vraies réponses
+enregistrées par l'application elle-même (`HarnessBackend`, `--record`), demandes de bureau variées : mails (4),
+présentations (3), documents (3), recherche (3), météo (2), carte (2), données et calcul (2), question posée en
+retour (1). Réglages : `BIRD_ROUTER=regex` et Colibri pour tenir le budget d'appels (le routeur et le choix
+d'oiseau auraient coûté deux générations par tour). Fichier : `docs/measures/followups-2026-11-28.json` (réponses,
+sortie brute du modèle, sortie validée, temps, jugements). « Avant » = `followups.js` du commit de base (941cfc9),
+exécuté dans node sur ces mêmes réponses. « Après (brut) » = ce que le modèle a écrit ; « après » = après la
+validation finale.
+
+Grille (un point par critère et par puce) : **voix** (une demande de l'utilisateur, pas une question ou un morceau
+de phrase de Bird ; vérifié par le code) ; **grammaire** (phrase entière et correcte : jugée à la main, puce par
+puce, 125 puces lues) ; **précis** (reprend un sujet, un nom ou un chiffre de la demande ou de la réponse) ;
+**faisable** (Bird sait le faire ici : ni « envoie », ni un module éteint, ni une capacité absente, jugé à la main
+pour « carte de la météo » et « comparer avec la semaine dernière ») ; **existe** (le module nommé est allumé).
+
+| bras | puces | tours avec puces | voix | grammaire | précis | faisable | existe |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| avant (puces fixes + `clarifyOptions`) | 17 | 8/20 | 0,94 | 0,88 | 0,35 | 1,00 | 1,00 |
+| après (brut, modèle) | 56 | 20/20 | 1,00 | 0,95 | 0,93 | 0,89 | 1,00 |
+| **après (validé)** | 52 | 19/20 | 1,00 | 0,96 | 0,92 | 0,96 | 1,00 |
+
+Latence de l'appel en plus (20 appels) : **p50 2,0 s, p95 2,9 s**, après la réponse (la réponse et son reçu
+arrivent avant ; le bouton Envoyer revient ≈ 2 s plus tard). Budget : 60 générations sur 60 (2 pour un essai de l'invite, 3 pour un premier
+enregistrement perdu, la météo bloquée par l'épinglage DNS derrière le mandataire du bac à sable, 55 pour le jeu).
+
+Lecture franche. Avant, 12 tours sur 20 n'avaient aucune puce (présentations, documents, recherche), et les puces
+présentes étaient génériques (« Plus court », « En anglais », « Restaurants autour » après une météo) : 0,35 de
+précision. La seule question posée en retour du jeu (`ask_review`) donnait « Préfères-tu d'abord lister tes
+accomplissements » (la question de Bird) ; après : « Fais un plan détaillé », « Liste mes accomplissements ». Ce
+que la validation retire sur ce jeu (4 puces) : « Valide le mail… et confirme l'envoi », deux « Provide the
+client's… » (Bird venait de demander ces informations : tour sans puce, voulu), « Fournis un document sur le
+marché ». Trois étiquettes coupées à 42 caractères par le schéma (« Ajoute une diapositive sur les modalités d »)
+finissent désormais sur un mot. Restent après validation : deux suites impossibles non détectées par le code
+(« Fais une carte de la météo », « Compare avec la semaine dernière » : pas d'historique météo), deux étiquettes
+maladroites (« Raccourcis la diapo de 2 slides », « Prévois mai »). La validation a été réglée après lecture de ce
+jeu (verbes de l'utilisateur, étiquettes coupées) : les chiffres « après (validé) » sont donc optimistes ; la sortie
+brute du modèle, elle, n'a pas été retouchée (invite et schéma inchangés depuis l'enregistrement).
+
+**Non mesuré en réel** : la salutation et le remerciement (« aucune suite » ; budget épuisé), le cas de la capture
+(il sert d'exemple dans l'invite, il ne peut pas servir de test), et les 8 cas fixes `NEXTSTEPS_CASES`
+(`scripts/followups_eval.py --cases --live`, 8 générations) : hors ligne, l'ancien code en rate 1 sur 8, le cas de
+la capture (« Vous aide à intégrer… »). Jeu de 20 réponses et non 25 : le plafond de 60 générations a été atteint
+(certaines réponses coûtent 3 à 6 générations : brouillon de mail, recherche web).
+
+**Interface.** Puces discrètes comme chez ChatGPT : contour fin, fond transparent, flèche « ↳ », texte qui passe à
+la ligne dans la puce à 360 px, anneau de focus visible, Entrée envoie la demande ; mêmes jetons de couleur en clair
+et en sombre. Vu à 360 px et 1 280 px, clair et sombre (`tests/e2e/nextsteps.spec.js`) : aucune requête vers un
+tiers, aucune erreur CSP, pas de défilement horizontal.
+
+**Entraînement.** `build_tools_mix.py` ajoute la tâche `nextsteps` : l'invite exacte de `nextsteps.messages` (avec
+toutes les capacités) et le JSON des suites comme seul tour à apprendre, 10 gabarits FR/EN (questions à choix,
+mail, présentation, information manquante, salutations sans suite) ; chaque cible passe la validation ; les
+demandes de `NEXTSTEPS_CASES` n'entrent jamais en train.
+
+### 18.1 Revue du 28/11 : suites faisables, tour libéré, consommation complète
+
+**Le tour n'attend plus les suites.** L'appel en plus tournait avant `done` : pendant 2 à 6 s la réponse finie
+restait « occupée » (ni actions, ni reçu, ni puces, bouton Stop), et un Stop à ce moment marquait « Réponse
+interrompue » une réponse livrée. Le serveur envoie maintenant `{"type":"final","pending":["suggestions"]}` juste
+après la réponse et son reçu ; le client y termine le tour (Envoyer revient, actions, registre) et lit les
+événements tardifs du même flux (`readLate`) ; un nouveau message coupe l'attente. Reproduction (suites lentes de
+5 s) : Envoyer revient à 0,96 s au lieu de 5,9 s, puces à 5,8 s, plus de Stop sur une réponse livrée. Démo : pause
+de 1,2 s avant les suites scriptées, pour voir le même ordre qu'en réel (`tests/e2e/nextsteps.spec.js` le vérifie).
+
+**La consommation compte l'appel.** Un second `usage` suit les suites avec leurs jetons et l'énergie réestimée
+(jetons ou puissance × temps) ; le client garde le dernier et compte le tour une fois. Reproduction : 93 + 19
+jetons affichés avant, 993 + 99 après (l'appel en plus : 900 + 80).
+
+**Le modèle dit ce que la suite demande.** Chaque suggestion porte `needs` (énumération du schéma, en premier) :
+`write`, `office`, `calc`, les modules du catalogue allumés, `web`, ou `user` / `none`. La validation retire
+`user`, `none` et tout module éteint ; les filets sous ce champ ne visent que l'acteur et les cas sans doute
+possible : l'utilisateur qui donne ses propres faits (« Provide the client's email address », « Liste mes
+accomplissements »), les actions que le guide déclare impossibles (transmets, publie, imprime, commande, télécharge,
+mets un rappel, mon solde bancaire, itinéraire et temps de trajet), un module nommé sans ambiguïté (météo, 100 € en
+dollars, restaurants près de…). Ne sont plus rejetés : « Indique les étapes clés », « Provide three examples »,
+« Convertis le tableau en liste », « Ajoute les sources de chaque chiffre », l'exemple de l'invite sans recherche
+web. Aussi : la langue se lit sur deux mots (« Shorten it » sous une réponse française est retiré), un domaine nu
+ou un lien court (« bit.ly/… », « exemple-promo.fr ») rend la puce dangereuse, une étiquette coupée (borne du
+schéma, article final, guillemet ouvert) fait retirer la puce au lieu de la raccourcir.
+
+**Invite.** Règles ajoutées : faisable avec ce que la conversation contient (ni départ, ni hypothèse, ni fait
+inventé sur l'utilisateur ; rien qui se serve d'une information ou d'un document que Bird vient de demander) ; pas
+de suite passe-partout (traduire, raccourcir, résumer seulement un texte que l'utilisateur va diffuser) ; météo et
+lieux : ce que les modules font vraiment ; une étiquette avec son complément, en français correct. Exemples
+ajoutés : une météo, une liste de lieux, une demande d'informations sans suite (FR), une météo et un mail en
+attente d'informations (EN). Invite : ≈ 1 700 jetons (préfixe statique), sortie ≈ 90 jetons.
+
+**Mesure, notée sévèrement.** La note « faisable 0,96 » du § 18 surestimait : elle venait des motifs du code. Ici
+chaque puce est relue à la main contre ce que les outils de Bird font avec ce que la conversation contient
+(`docs/measures/followups-2026-11-28-strict.json` ; F = infaisable, G = passe-partout, redondante ou quasi doublon,
+W = mal formulée). Trois bras sur les **mêmes 20 réponses** enregistrées : « livré » (ce que le premier passage
+affichait), « avant » (sortie brute de l'ancienne invite, validation d'aujourd'hui), « après » (nouvelle invite
+rejouée en réel sur l'endpoint, un appel par réponse, température 0 :
+`scripts/followups_eval.py --replay docs/measures/followups-2026-11-28.json --out
+docs/measures/followups-2026-11-28-replay.json`, puis `--strict … …-replay.json …-strict.json`).
+
+| bras | puces | faisable | utile | bien formulée | irréprochables | tours avec une puce infaisable |
+| --- | --- | --- | --- | --- | --- | --- |
+| livré (28/11, premier passage) | 56 | 0,73 | 0,91 | 0,93 | 0,62 | 9/20 |
+| avant (ancienne invite, validation actuelle) | 46 | 0,87 | 0,93 | 0,96 | 0,78 | 6/20 |
+| **après (nouvelle invite)** | 44 | **0,91** | **0,95** | **1,00** | **0,86** | **2/20** |
+
+Latence de l'appel (20 appels) : p50 1,9 s, p95 2,7 s, désormais hors du tour. Ce qui a disparu : les trois
+« Fais un itinéraire vers… », l'itinéraire de métro depuis une gare jamais citée, le parking « avec son tarif »,
+« Prévois mai » avec une baisse supposée, la carte météo, la comparaison avec la semaine dernière, « Traduis en
+anglais » sous une météo ou une recherche, « Raccourcis la diapo de 2 slides » ; « Liste mes accomplissements »
+est encore écrit par le modèle et retiré par le filet. Ce qui reste (lecture franche) : `mail_reply` — Bird dit ne
+pas avoir le catalogue et propose de le reformater si on le colle, le modèle propose quand même trois actions sur
+ce catalogue (`needs: write`, non vu par le code) ; « Ajoute une diapositive sur les tarifs » suppose des prix que
+l'utilisateur n'a pas donnés ; deux puces peu utiles (l'adresse déjà donnée, un second graphique). Le modèle ne
+choisit jamais `user` ni `none` sur ce jeu : le champ sert surtout à vérifier un module éteint ; les actions de
+l'utilisateur restent tenues par l'invite et le filet. La règle « une information demandée n'est pas utilisée » a
+été ajoutée après un premier rejeu (faisable 0,89, 3/20) : le second rejeu (tableau) est donc réglé sur ce jeu.
+
+Cas fixes `NEXTSTEPS_CASES` (12, dont 4 nouveaux : faits demandés à l'utilisateur, musée sur la carte, météo,
+tendance de ventes), en réel : 11/12 avec l'attente d'origine du cas `map_museum`, qui interdisait « horaires » ;
+les horaires d'ouverture viennent d'OpenStreetMap dans la fiche lieux, l'attente a été corrigée après lecture
+(12/12 sur la même sortie). L'ancien code passe 11/12 hors ligne, mais seulement parce qu'il ne propose aucune puce
+sur les 4 nouveaux cas. Entraînement : `build_tools_mix.py` apprend le champ `needs` et 3 gabarits de plus
+(météo, lieux, informations demandées sans suite).
+
+
+### 18.2 Vérification avant fusion (28/11/2026, 20 demandes nouvelles)
+
+Pour ne pas noter sur le jeu qui a servi à régler l'invite, **20 demandes jamais vues** (mail, annonce, présentation,
+compte rendu, plan de formation, définitions, météo, lieux, conversion, jours ouvrés et fériés, tableau, graphique,
+traduction, CV, salutation ; 2 en anglais), passées par l'application réelle (`HarnessBackend`, endpoint vLLM,
+Colibri, routeur par défaut ; 69 générations). « Aujourd'hui » = `followups.js` de la branche de déploiement (puces
+des widgets + `clarifyOptions`) sur les **mêmes réponses** ; « après » = ce que l'interface affiche (suites de Bird
+validées, puis puces des widgets jusqu'à trois). Grille stricte, chaque puce relue à la main : **irréprochable** =
+dans la voix de l'utilisateur, faisable par Bird ici avec ce que contient la conversation (ni fait inventé, ni action
+de l'utilisateur), propre à la réponse et non redondante (ni avec la réponse, ni avec une autre puce), bien formulée
+dans la langue de la conversation ; sinon F (infaisable), G (passe-partout, redondante, quasi-jumelle) ou W (mal
+formulée, ou visant le mauvais objet). Détail : `docs/measures/followups-2026-11-28-verify.json`.
+
+| bras | puces | irréprochables | infaisables | tours avec au moins une bonne puce |
+| --- | --- | --- | --- | --- |
+| aujourd'hui | 21 | 6 (0,29) | 1 (« Ajouter « Participants » » sans participants connus) | 5/20 |
+| **après** | 40 | **28 (0,70)** | **0** | **16/20** |
+
+Revendications de la revue 18.1 vérifiées en réel : le tour se termine à `final` (Envoyer revient à 2,5 s, les puces
+arrivent à 4,5 s ; mesuré dans le navigateur sur l'endpoint), aucune réponse livrée marquée « interrompue », le reçu
+compte l'appel en plus (2 574 → 4 376 jetons d'entrée sur le même tour, puis 4 844 jetons affichés dans la ligne de
+consommation), aucune puce dans la mauvaise langue, aucune action de l'utilisateur (« Envoie tes expériences »
+écrit pour le CV est retiré par `needs: user`), rien après « Salut, ça va ? ». Appel : p50 2,5 s, p95 3,1 s.
+
+Corrigé pendant la vérification : deux suites qui ne diffèrent que d'un chiffre ou d'un mot (« Convertis 1000 € » /
+« 500 € », « janvier » / « février 2027 », « en barres » / « en courbe ») ne font qu'une puce (`_near_twin`,
+Jaccard ≥ 0,7 sur les mots) ; « Fais une version courte » n'est jamais proposé sous une réponse de moins de
+600 caractères sans livrable (mail, fichier, présentation : là, raccourcir reste une vraie suite). Reste (lecture
+franche) : « Traduis en anglais » sous un résumé ou un compte rendu, malgré la règle de l'invite ; une puce
+redondante avec la réponse (« Calcule les jours ouvrés de 2027 » quand la réponse donne 254) ; sous un mail, une
+suite du modèle et la puce fixe « Shorter » peuvent dire la même chose. Ces cas sont à porter dans les exemples
+d'entraînement de la tâche `nextsteps`.
+
+## 19. Bird se sert de ses outils au lieu de refuser (28/11/2026)
+
+Retours réels de production : « fais un graphe de l'évolution de la natalité » → « Je ne peux pas générer de
+graphique ici […] utilisez Excel » ; « Traduis ce mail en anglais » avec mail.txt → « Lecture du document : échec »
+puis « je n'ai pas accès à votre bureau local » ; « qui est georges pompidoo » → recherche web et mandat faux ;
+« une image » après un sujet → « pas accès à Internet ». Causes trouvées et corrections, à la racine :
+
+- **Pas de garde contre le refus.** Le contrôle final (`refusal.py`) repère une réponse qui dit ne pas pouvoir faire
+  ce qu'un outil du tour fait (graphique, fichier joint, Internet, image). Les mots ne sont qu'un indice : le modèle
+  est renvoyé **une fois** avec les outils capables, réofferts même si le routage les avait écartés, et il décide
+  de l'appel. Un second refus est livré tel quel. La relance a ses propres générations quand les recherches ont
+  épuisé les étapes du tour (reproduit en réel : quatre recherches, puis « je ne peux pas générer le graphique »).
+- **Pas de série officielle pour la natalité.** `get_statistics` connaît maintenant le taux de natalité (‰) et
+  l'indicateur de fécondité (enfants par femme), séries Banque mondiale, avec leur source sur la courbe.
+- **Le fichier joint introuvable.** Le modèle écrivait un chemin inventé (`Bureau/mail.txt`). `read_file` lit le
+  fichier joint qui porte ce nom, quel que soit le dossier écrit, et ne sort jamais de l'espace de travail. Un nom
+  faux renvoie la liste des fichiers présents.
+- **La traduction rendue en français.** Une traduction demandée vers l'anglais (ou le français) et laissée dans
+  l'autre langue est renvoyée une fois (`facts.translation_target`).
+- **Les noms mal écrits.** Le catalogue du routeur couvre les personnes et demande le nom corrigé. Un mot à une ou
+  deux lettres de celui de l'utilisateur compte comme le sien (`opendata_route.near_grounded`, jamais un autre
+  nom). `lookup_entity` suit la suggestion d'orthographe de Wikipédia quand Wikidata ne trouve pas le nom demandé
+  (jumeaux proches seulement).
+- **« une image » après un sujet.** Le routeur peut ancrer le sujet dans la demande précédente (les mots de
+  l'utilisateur et le mémo du serveur, jamais le texte du modèle). Les images sont filtrées sur le sujet que le
+  harnais a cherché (`Run.picture_subject`). Vérifié en réel sur l'endpoint : le routeur répond `images`
+  « cheval tigré » et « Mont-Saint-Michel ».
+- Exemples du routeur (exemples guidés et cas d'évaluation/entraînement `router_data` : `typo_entity`,
+  `picture_followup`). Le wip régex des suites d'images est retiré.
+
+Mesure en réel sur la production (`scripts/refusal_eval.py`, 20 demandes fixes, un tour chacune, Réflexion Auto,
+Mode Agent Auto). « Avant » = 9c10592, « après » = 996fcec. Détail : `docs/measures/refusal-eval-2026-11-28-*.json`.
+
+| cas | avant | après | outils avant → après |
+| --- | --- | --- | --- |
+| `chart_natalite` (« fais un graphe de l'évolution de la natalité ») | oui | oui | make_chart, read_page, web_search → make_chart, web_search |
+| `chart_pib` | oui | oui | get_statistics → get_statistics |
+| `chart_poll` (« … graphe des sondages au 2nd tour ») | oui | non | make_chart, read_page, web_search → read_page, web_search |
+| `chart_user` (chiffres de l'utilisateur) | oui | oui | make_chart → make_chart |
+| `analyse_ventes` | oui | oui | make_chart → make_chart |
+| `analyse_chomage` | oui | oui | get_statistics → get_statistics |
+| `analyse_abonnes` | oui | oui | make_chart → make_chart |
+| `analyse_en` | oui | oui | make_chart → make_chart |
+| `typo_pompidou` (« qui est georges pompidoo ») | non | **oui** | web_search → lookup_entity |
+| `typo_macron` (« emanuel macron ») | non | **oui** | lookup_entity (rien trouvé) → lookup_entity |
+| `typo_hugo` (« victor hugot ») | non | non | lookup_entity → lookup_entity |
+| `attach_translate` (mail.txt, vers l'anglais) | non (rendu en français) | **oui** | read_file → read_file |
+| `attach_translate_en` (email.txt, vers le français) | oui | oui | read_file → read_file |
+| `img_horse` (« une image » après le cheval tigré) | non | non | web_search → web_search |
+| `img_msm` (« tu as une photo ? ») | non · **refus** | non, sans refus | — → web_search |
+| 5 négatifs (haïku, salutation, définition, « comment faire un graphique dans Excel ? », traduction courte) | 5/5 | 5/5 | aucun outil, aucun graphique |
+| **total** | **14/20, 1 refus** | **16/20, 0 refus** | p50 4,9 s → 5,2 s |
+
+Pendant la mesure, entre les deux versions poussées (a0ba246), `chart_natalite` a refusé en réel (« je ne peux
+pas générer le graphique ») : il a été reproduit sur l'endpoint, puis corrigé dans 996fcec (relance avec ses
+propres générations et série de natalité).
+
+Ce qui reste, constaté franchement :
+
+- **Images.** En production, aucune image n'apparaît en ce moment, même pour une demande directe (« montre-moi
+  une photo du Mont-Saint-Michel » : recherche faite, 0 image). Les résultats de recherche ne portent plus de
+  vignettes depuis la nouvelle chaîne SearXNG → Brave. Le routeur choisit bien `images` sur les suites ; il faut
+  une source d'images sous licence libre (Wikimedia Commons via `canvas/images.search_commons`) avec auteur et
+  licence affichés. C'est le prochain chantier.
+- `chart_poll` : une réponse sourcée (56 % / 44 %), sans refus, mais sans courbe cette fois (« avant », elle avait
+  tracé ; tour de recherche de 30 s, variance du modèle). Le rappel de graphique n'a pas de générations propres.
+- `typo_hugo` : non expliqué. Wikipédia limite les appels depuis cet environnement (HTTP 429), donc non vérifiable
+  d'ici. Hypothèse : un homonyme Wikidata exact « Victor Hugot » sans article.
+- Les réponses « je n'ai pas accès à Internet » viennent aussi des exemples d'identité (`T["web"]` dans
+  `birds/sources/identity.py` : « Pas par moi-même »). Ils sont à revoir au prochain réentraînement, pour un
+  modèle qui a ses outils.

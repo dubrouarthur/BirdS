@@ -125,9 +125,13 @@ def test_every_api_call_needs_the_pairing_code(client):
     ok = chat(client, {**hosted, "X-Bird-Pair": "abcd-efgh"})
     assert ok.status_code == 200 and ok.headers["access-control-allow-origin"] == HOSTED
     assert '"type": "answer"' in ok.text
-    # the page served by Bird local itself needs it too (another local program or tab cannot use the API blind)
+    # the page Bird local serves itself needs no code (its own origin, or a same-origin browser request); a program
+    # that sends neither (curl, another process) still needs it — and no other site can send them (Host check)
     assert chat(client, {}).status_code == 401
+    assert chat(client, {"Origin": LOCAL_URL}).status_code == 200
+    assert chat(client, {"Sec-Fetch-Site": "same-origin"}).status_code == 200
     assert chat(client, {"Origin": LOCAL_URL, "X-Bird-Pair": CODE}).status_code == 200
+    assert chat(client, {"Sec-Fetch-Site": "cross-site"}).status_code == 403
     for path in ("/api/endpoint/test", "/api/tool", "/api/export", "/api/canvas/check", "/api/local/pair"):
         assert client.post(path, json={}, headers=hosted).status_code == 401, path
 
@@ -140,6 +144,11 @@ def test_wrong_codes_lock_the_api_for_a_minute(client):
     assert codes[:3] == [401, 401, 401] and codes[3:] == [429, 429]
     r = client.post("/api/local/pair", headers={**hosted, "X-Bird-Pair": "WRNG-0009"})
     assert r.status_code == 429 and r.json()["detail"]["code"] == "pair_locked"
+    # a real lock: the right code is refused too, so a guesser cannot tell when it hit (no oracle while locked)
+    r = client.post("/api/local/pair", headers={**hosted, "X-Bird-Pair": CODE})
+    assert r.status_code == 429 and r.json()["detail"]["code"] == "pair_locked"
+    assert r.headers["access-control-allow-origin"] == HOSTED  # the page can say « wait a minute »
+    assert client.get("/api/health").status_code == 200  # the health check still answers
 
 
 def test_pair_and_health(client):
@@ -303,3 +312,37 @@ def test_command_refuses_wide_origins_and_prints_the_vllm_command(capsys, monkey
     assert mod.main(["--no-browser"]) == 2
     out = capsys.readouterr().out
     assert "vllm serve adubrou/Bird-S-4B --host 127.0.0.1 --port 8000" in out and "Aucun serveur" in out
+
+
+def test_command_output_never_crashes_on_a_cp1252_console():
+    """Windows: a console or redirected output in cp1252 has no « ─ »; the banner is printed with replacements."""
+    import importlib.util
+    import io
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("bird_local", Path(__file__).parents[1] / "scripts" / "bird_local.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    with pytest.raises(UnicodeEncodeError):
+        "─".encode("cp1252")
+    raw = io.BytesIO()
+    out = io.TextIOWrapper(raw, encoding="cp1252")
+    mod.safe_console(out)
+    print("─" * 4 + " → Réglages", file=out, flush=True)
+    assert raw.getvalue().endswith("???? ? Réglages\n".encode("cp1252"))
+
+
+def test_command_says_when_the_served_model_is_not_bird(capsys, monkeypatch):
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("bird_local", Path(__file__).parents[1] / "scripts" / "bird_local.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    ok = local.VllmStatus(True, "ok", "http://127.0.0.1:8000/v1", models=["meta/llama"], model="meta/llama")
+    monkeypatch.setattr(local, "probe_vllm", lambda *a, **k: ok)
+    monkeypatch.setattr(mod, "port_free", lambda port: False)  # stop before serving
+    assert mod.main(["--no-browser"]) == 3
+    assert "pas un modèle Bird" in capsys.readouterr().out
+    assert mod.main(["--no-browser", "--model", "meta/llama"]) == 3  # chosen on purpose: no warning
+    assert "pas un modèle Bird" not in capsys.readouterr().out

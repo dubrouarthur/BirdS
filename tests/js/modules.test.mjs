@@ -5,7 +5,8 @@ import { test } from "node:test";
 
 import { state } from "../../birds/web/static/core.js";
 import { calcCompute, checklistMarkdown, layoutGraph, parseCell, sortRows } from "../../birds/web/static/modules.js";
-import { clarifyOptions, hasNumericTable, suggestions, transforms } from "../../birds/web/static/followups.js";
+import * as followups from "../../birds/web/static/followups.js";
+import { chipItems, cleanSuggestions, hasNumericTable, suggestions, transforms } from "../../birds/web/static/followups.js";
 
 state.prefs.lang = "fr";
 
@@ -64,7 +65,12 @@ test("checklist export keeps ticks, owners and due dates", () => {
 
 test("follow-up chips depend on what the answer is", () => {
   const weather = suggestions({ widgets: [{ type: "weather", day: "demain" }] });
-  assert.deepEqual(weather.map((s) => s.prompt), ["et après-demain ?", "et des restaurants autour ?"]);
+  assert.deepEqual(weather.map((s) => s.prompt), ["et après-demain ?"]); // no « Restaurants autour » under a forecast
+  // the card's own relative day (w.day is the ISO date): a forecast for tomorrow offers the day after, never « demain »
+  const card = (day, day_kind) => suggestions({ widgets: [{ type: "weather", day, day_kind, place: { name: "Lyon" } }] });
+  assert.deepEqual(card("2026-11-24", "tomorrow").map((s) => [s.label, s.prompt]), [["Et après-demain ?", "et après-demain à Lyon ?"]]);
+  assert.deepEqual(card("2026-11-23", "today").map((s) => s.label), ["Et demain ?"]);
+  assert.deepEqual(card("2026-11-27", "date").map((s) => [s.label, s.prompt]), [["Et le lendemain ?", "et le samedi 28 novembre à Lyon ?"]]);
   const places = suggestions({ widgets: [{ type: "places", places: [{ name: "Gare de Lyon" }] }] });
   assert.equal(places[0].prompt, "itinéraire pour aller à Gare de Lyon");
   const mail = suggestions({ draft_email: { to: "a@b.fr" } });
@@ -83,12 +89,35 @@ test("follow-up chips depend on what the answer is", () => {
   assert.ok(!hasNumericTable("| a | b |\n|---|---|\n| x | y |"));
 });
 
-test("clarify chips: only a question Bird asks back with 2 to 4 options", () => {
-  assert.deepEqual(clarifyOptions("Je peux le faire.\n\nSouhaitez-vous un mail, une note ou un tableau ?"), ["Un mail", "Une note", "Un tableau"]);
-  assert.deepEqual(clarifyOptions("Voulez-vous la version courte ou la version détaillée ?"), ["La version courte", "La version détaillée"]);
-  assert.deepEqual(clarifyOptions("Quelle est la date de la réunion ?"), []);
-  assert.deepEqual(clarifyOptions("Souhaitez-vous que je continue ?"), []);
-  assert.deepEqual(clarifyOptions("Voici le mail. Bonne journée."), []);
+test("Bird's question is never cut into chips any more (the bug of « Vous aide à intégrer… »)", () => {
+  assert.equal(followups.clarifyOptions, undefined);
+  const answer = { content: "Voici la diapositive.\n\nSouhaitez-vous que je vous aide à intégrer des images spécifiques ou à structurer la diapositive visuellement ?" };
+  assert.deepEqual(chipItems(answer), []); // without Bird's own next steps: nothing, rather than fragments
+  const withNext = { ...answer, suggestions: [
+    { label: "Ajoute des images à la diapositive", prompt: "Ajoute des images libres de droits à la diapositive." },
+    { label: "Structure la diapo en 3 blocs", prompt: "Structure la diapositive en trois blocs visuels." },
+  ] };
+  assert.deepEqual(chipItems(withNext).map((c) => [c.label, c.kind]), [
+    ["Ajoute des images à la diapositive", "next"], ["Structure la diapo en 3 blocs", "next"]]);
+});
+
+test("Bird's next steps: cleaned (strings, lengths, three at most, no duplicate), widget chips fill in", () => {
+  const long = "Compare les trois offres sur le prix et la durée d'engagement annuel";
+  const got = cleanSuggestions([
+    { label: long, prompt: "Compare les trois offres." },
+    { label: "compare les trois offres", prompt: "Compare les trois offres !" },
+    { label: "", prompt: "x" }, null, "texte", { label: 3, prompt: {} },
+    { label: "Rédige le mail", prompt: "Rédige le mail d'annonce." },
+    { label: "Fais un tableau", prompt: "Fais un tableau." }, { label: "Quatrième", prompt: "Quatrième." },
+  ]);
+  assert.equal(got.length, 3);
+  assert.deepEqual(got.map((x) => x.label), ["compare les trois offres", "Rédige le mail", "Fais un tableau"]); // the long one dropped, not trimmed
+  assert.deepEqual(cleanSuggestions("nope"), []);
+  const weather = { widgets: [{ type: "weather", day: "aujourd'hui" }], suggestions: [
+    { label: "Prévois une tenue adaptée", prompt: "Que faut-il prévoir comme tenue pour demain à Lyon ?" }] };
+  assert.deepEqual(chipItems(weather).map((c) => c.kind), ["next", "follow"]);
+  const dup = { widgets: [{ type: "weather", day: "aujourd'hui" }], suggestions: [{ label: "Et demain ?", prompt: "et demain ?" }] };
+  assert.deepEqual(chipItems(dup).map((c) => c.label), ["Et demain ?"]);
 });
 
 test("transforms: six one-click requests", () => {

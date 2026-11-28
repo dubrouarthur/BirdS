@@ -11,11 +11,10 @@ import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from typing import Any
-from urllib.parse import urlsplit
 
 import httpx
 
-from birds.harness import calc, facts, followup, guard, intents, meter, repair, router
+from birds.harness import calc, facts, followup, guard, intents, meter, refusal, repair, router
 from birds.harness import plan as taskplan
 from birds.harness import reflexion as reflex
 from birds.harness.config import Config, Context
@@ -208,6 +207,12 @@ DO_IT_NUDGE = (
 LANG_NUDGE = {
     "fr": "The user writes in French: write your whole answer in French.",
     "en": "The user writes in English: write your whole answer in English.",
+}
+TRANSLATE_NUDGE = {
+    "en": "The user asked for a translation into English, and your answer is still in French: write the whole "
+    "translation in English now.",
+    "fr": "The user asked for a translation into French, and your answer is still in English: write the whole "
+    "translation in French now.",
 }
 # stop reasons after which a last answer is attempted before the generic fallback
 _SALVAGE = {"max_steps", "invalid_tool_calls", "loop", "empty_output", "malformed_output"}
@@ -564,19 +569,13 @@ def _made_file(run, ctx: Context) -> bool:
     )  # a chart is shown in the chat, it is not a file
 
 
-_URL_IN_TEXT = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
-
-
 def _check_untrusted_url(url: object, ctx: Context) -> None:
     """After a page or a file held an injection, read_page may only open a URL the user gave, a search result or a
-    page already read: a GET to an address the untrusted text chose is how data would leave (``?d=<secret>``)."""
-    url = str(url or "").strip()
-    if len(urlsplit(url).query) > 64:
-        raise guard.Blocked("page suggested by untrusted content (long query string)")
-    own = {u.rstrip(".,;:") for u in _URL_IN_TEXT.findall(ctx.request or "")}
-    known = set(ctx.sources) | set(ctx.found) | own
-    if url not in known and url.rstrip("/") not in {k.rstrip("/") for k in known}:
-        raise guard.Blocked("page suggested by untrusted content")
+    page already read. read_page itself applies the same rule as soon as the run holds any external content
+    (birds.harness.tools.web.tainted); this call also covers an injection flagged in another tool's result."""
+    from birds.harness.tools.web import check_untrusted_url
+
+    check_untrusted_url(url, ctx)
 
 
 PAUSE = guard.PAUSE  # a confirm callback returns this to end the run with a pending action (see Agent.run)
@@ -641,6 +640,8 @@ class Run:
     notes: list[str] = field(default_factory=list)  # one short line per tool result (facts.note_of)
     figures: list[list[str]] = field(default_factory=list)  # labelled totals read by the tools ([label, amount])
     reflexion: dict | None = None  # Mode Réflexion (reflexion.py): level, who chose it, budget, checks, summary
+    refusal_retry: bool = False  # the final check sent a refusal back once (refusal.py), for the evaluation
+    picture_subject: str = ""  # the pictures the harness searched this turn (« une image » after a topic: the router's)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -881,6 +882,11 @@ class Agent:
         if facts.wrong_language(content, run.lang) and not facts.other_language_asked(ctx.request, run.lang):
             parts.append(LANG_NUDGE["en" if run.lang == "en" else "fr"])
             reasons.add("lang")
+        target = facts.translation_target(ctx.request)
+        if target and "lang" not in reasons and facts.wrong_language(content, target):
+            # « Traduis ce mail en anglais »: live model, it read the mail and wrote it back in French
+            parts.append(TRANSLATE_NUDGE[target])
+            reasons.add("lang")
         return " ".join(parts), reasons
 
     def _review(self, messages, parsed, content: str, run: Run, rinfo: dict, deadline: float) -> str:
@@ -996,6 +1002,7 @@ class Agent:
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
             nudged = bool(st.get("nudged", False))
             promise_nudged = True  # a resumed run never re-nudges
+            refusal_nudged, spare = True, 0
             chartable = False
             file_nudged = bool(st.get("file_nudged", False))
             withdrawn = set(st.get("withdrawn", []))
@@ -1135,10 +1142,13 @@ class Agent:
                 # shown are the ones whose page title names it (birds.web.backends.pick_web_images)
                 prefill = pictures
                 routed -= {"web_search", "read_page"}
+                run.picture_subject = str(pictures.args["query"])
                 messages[-1]["content"] += IMAGES_NOTE["en" if run.lang == "en" else "fr"].format(
                     subject=pictures.args["query"]
                 )
             nudged, withdrawn, file_nudged = False, set(routed), False
+            refusal_nudged = False  # one retry after an answer that refuses what a tool could do (refusal.py)
+            spare = 0  # generations granted past max_steps: the refusal retry's own (and a last answer after it)
             promise_nudged = False
             gen, ok, forced = 0, 0, None
             auto_calls = 0
@@ -1183,6 +1193,8 @@ class Agent:
                 )
                 seen.add(repair.canonical(call["name"], call["arguments"]))
                 queue, gen, auto_calls = [call], 1, 1
+        # every word the user wrote in this conversation: draft_email keeps an address only if it is in there
+        ctx.said = "\n".join(str(m.get("content")) for m in messages if m.get("role") == "user" and m.get("content"))
         lvl = reflex.LEVELS.get(choice.level) if choice is not None else None
         rinfo: dict = dict((resume or {}).get("rx") or {}) if resume is not None else {}
         if lvl is not None:
@@ -1201,7 +1213,7 @@ class Agent:
 
         while True:
             if not queue:  # ---- ask the model
-                if gen >= cfg.max_steps:
+                if gen >= cfg.max_steps + spare:
                     run.stop_reason = "max_steps"
                     break
                 if time.monotonic() > deadline:
@@ -1351,6 +1363,35 @@ class Agent:
                         messages.append({"role": "tool", "content": DO_IT_NUDGE})
                         gen += 1
                         continue
+                    if (
+                        run.stop_reason == "answer"
+                        and not refusal_nudged
+                        and not canvas
+                        and refusal.refuses(content)
+                        and time.monotonic() < deadline - 10
+                    ):
+                        # « je ne peux pas générer de graphique », « je n'ai pas accès à votre bureau / à Internet »
+                        # while Bird has the tool: the tools able to do it are offered again (even if this turn's
+                        # routing had set them aside) and the model is sent back once; it still decides the call
+                        capable = refusal.capable(self._allowed(), attached)
+                        hint = refusal.nudge(capable)
+                        if hint:
+                            refusal_nudged = file_nudged = True
+                            # live 28/11/2026: « fais un graphe de la natalité » spent its steps on searches, then
+                            # refused; the retry gets its own generations (a tool call and the answer after it)
+                            spare = max(0, gen + 2 - cfg.max_steps)
+                            withdrawn -= capable
+                            routed -= capable
+                            run.refusal_retry = True
+                            if stream is not None and stream.streamed and hooks.on_reset:
+                                hooks.on_reset()
+                            messages.append(
+                                {"role": "assistant", "content": parsed["content"],
+                                 "reasoning_content": parsed["reasoning"]}
+                            )  # fmt: skip
+                            messages.append({"role": "tool", "content": hint})
+                            gen += 1
+                            continue
                     if (
                         run.stop_reason == "answer"
                         and not file_nudged

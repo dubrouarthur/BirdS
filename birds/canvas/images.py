@@ -89,18 +89,42 @@ def _renamed(m: om.Media | None, mid: str) -> om.Media | None:
     return out
 
 
+_TITLE_NOISE = re.compile(
+    r"\s+-\s+Flickr\s+-\s+.*$|\s*-\s*geograph\.org\.uk\s*-\s*\d+|\s*-\s*panoramio(?:\s*\(\d+\))?|\(\d{5,}\)|"
+    r"\b(?:DSC|IMG|DSCF|P\d{3})[_-]?\d+\b",
+    re.I,
+)
+
+
+def clean_title(title: str) -> str:
+    """A file title without what is not about the picture: « … - Flickr - Avel-Breizh » (the uploader), a
+    geograph / panoramio number, a camera file name. « Breizh » in an uploader's name is not Brittany."""
+    return _TITLE_NOISE.sub(" ", str(title or "")).strip()
+
+
 def relevant(query: str, title: str, tags: list[str] | None = None) -> bool:
-    """Does a result speak of the query? One of the query's words (two for a query of three words or more; a word
-    or its first 5 letters: « tramways » ~ « tramway ») is in the title or the tags. A picture that matches nothing is not shown: no image rather than
+    """Does a result speak of the query? One of the query's words (a word or its first 5 letters: « tramways » ~
+    « tramway ») is in the title, or in the tags for a query of one or two words; a query of three words or more
+    needs two of them in the title itself (Flickr tags are loose: « Venice, canalside view » and « Rialto Bridge at
+    night » were tagged « night train europe »). A picture that matches nothing is not shown: no image rather than
     a wrong one."""
     want = om.words(query)
     if not want:
         return False
-    have = om.words(title + " " + " ".join(tags or []))
-    stems = {w[:5] for w in have}
-    hits = sum(1 for w in want if w in have or w[:5] in stems)
+
+    def hits(text: str) -> int:
+        have = om.words(text)
+        stems = {w[:5] for w in have}
+        return sum(1 for w in want if w in have or w[:5] in stems)
+
+    head = clean_title(title)
+    in_title = hits(head)
+    # tags count for a query of one or two words only, and with one of its words in the title
+    total = hits(head + " " + " ".join(tags or [])) if len(want) <= 2 else in_title
+    if tags is not None and in_title == 0:
+        return False
     # one word of a short query; two of a longer one (« night train europe luxury » is not « Praha Hilton »)
-    return hits >= (1 if len(want) <= 2 else 2)
+    return total >= (1 if len(want) <= 2 else 2)
 
 
 def openverse_licence(r: dict) -> str | None:
@@ -127,29 +151,104 @@ def _big_url(r: dict) -> str:
     return str(r.get("thumbnail") or "")
 
 
+# words that describe no picture a search can find (the 4B writes « happy cyclist delivering food »)
+FLUFF = set("""happy busy beautiful modern smiling typical nice great amazing successful professional concept
+conceptual illustration photo photograph picture image stock background abstract various several different
+diverse innovative dynamic vibrant inspiring future futuristic""".split())
+
+
+_PLACEHOLDER_WORDS = re.compile(
+    r"^\s*(?:une?\s+|des\s+|la\s+|le\s+|les\s+|a\s+|an\s+|the\s+)?(?:photos?|images?|illustrations?|pictures?|"
+    r"visuels?|pictogrammes?)\s*(?:de|d['’]|du|des|of|:|-)?\s*",
+    re.I,
+)
+
+
+def clean_query(query: str) -> str:
+    """What a search engine can use: « [Paris bike cargo 1] » -> « Paris bike cargo », « Photo : chaton heureux » ->
+    « chaton heureux ». Brackets, numbering, quotes and a leading « photo de / image of » are the model's notation,
+    never words of the picture."""
+    q = re.sub(r"[\[\]{}()«»\"“”<>]", " ", str(query or ""))
+    q = _PLACEHOLDER_WORDS.sub("", q)
+    q = re.sub(r"(?<![\w-])(?:n°\s*)?\d{1,2}(?![\w-])", " ", q)  # « 1 », « n° 2 » (years such as 2024 stay)
+    return re.sub(r"\s+", " ", q).strip(" .,:;-_")[:120]
+
+
 def short_query(query: str) -> str:
     """« cyclistes et piétons dans une rue urbaine » -> « cyclistes piétons »: the two first content words, for a
     second search when the long phrase finds nothing."""
-    out = [w for w in re.findall(r"[\wÀ-ÿ'-]{3,}", str(query or "")) if om.words(w)]
+    out = [w for w in re.findall(r"[\wÀ-ÿ'-]{3,}", str(query or "")) if om.words(w) and w.lower() not in FLUFF]
     return " ".join(out[:2])
 
 
+# a photo « of a chart » is never the answer: the slide wants a real chart (from figures), not a picture of one
+_NO_PHOTO = re.compile(r"\b(?:charts?|graphs?|diagrams?|infographics?|graphiques?|diagrammes?|courbes?|"
+                       r"statisti\w*|spreadsheets?|tableaux?)\b", re.I)
+
+
+def variants(query: str) -> list[str]:
+    """The searches tried for one query, most precise first: as written, without the words that describe no
+    picture (« happy », « modern »), then its two first content words. None for a query of a chart or a table
+    (« chart showing quarterly growth »: seen live, it found a pulsar's radio plot)."""
+    q = re.sub(r"\s+", " ", str(query or "")).strip()[:120]
+    if not q or _NO_PHOTO.search(q):
+        return []
+    plain = " ".join(w for w in q.split() if w.lower().strip(",.;:") not in FLUFF)
+    out: list[str] = []
+    for v in (q, plain, short_query(q)):
+        if v and v.lower() not in {x.lower() for x in out}:
+            out.append(v)
+    return out
+
+
+class _Cool:
+    """When a source last answered 429 (rate limit). Not used to skip it: the refusals come in short, scattered
+    windows (measured: skipping a source for 20 to 120 s lost pictures the next call would have got); it tells
+    the canvas to say « réessayez » rather than « aucune image »."""
+
+    def __init__(self):
+        self.until: dict[str, float] = {}
+
+    def hot(self, source: str) -> bool:
+        return time.monotonic() < self.until.get(source, 0.0)
+
+    def refuse(self, source: str, seconds: float = 20.0) -> None:
+        self.until[source] = time.monotonic() + seconds
+
+
+COOL = _Cool()
+
+
+JUDGED = 6  # pictures shown to the model per search at most (0.2 to 0.4 s each, measured)
+
+
+def _looks(judge, want: str, m: om.Media, tries: list[int]) -> bool:
+    """The model's look at a candidate (``judge(query, media)`` -> True / False / None): False rejects it; None (no
+    answer, an error) keeps it. After ``JUDGED`` looks the search stops: no picture rather than a wrong one."""
+    if judge is None:
+        return True
+    tries[0] += 1
+    try:
+        return judge(want, m) is not False
+    except Exception:  # noqa: BLE001 - the look is a filter, never a failure
+        return True
+
+
 def search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: str = "w1",
-                     deadline: float | None = None) -> om.Media | None:  # fmt: skip
-    """The first relevant, free-licence Openverse picture for ``query``, else for its two first content words."""
-    m = _search_openverse(query, fetch, exclude, mid, deadline)
-    short = short_query(query)
-    if m is None and short and short.lower() != str(query or "").strip().lower():
-        m = _search_openverse(short, fetch, exclude, mid, deadline)
-    return m
+                     deadline: float | None = None, judge=None, want: str = "") -> om.Media | None:  # fmt: skip
+    """The first relevant, free-licence Openverse picture for ``query`` (the model's notation cleaned first)."""
+    query = clean_query(query) or query
+    return _search_openverse(query, fetch, exclude, mid, deadline, judge, want)
 
 
 def _search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: str = "w1",
-                      deadline: float | None = None) -> om.Media | None:  # fmt: skip
+                      deadline: float | None = None, judge=None, want: str = "") -> om.Media | None:  # fmt: skip
     q = re.sub(r"\s+", " ", str(query or "")).strip()[:120]
     if not q or fetch is None:
         return None
-    key = ("openverse", q.lower(), tuple(sorted(exclude or [])))
+    want = want or q
+    tries = [0]
+    key = ("openverse", q.lower(), tuple(sorted(exclude or [])), want.lower() if judge else None)
     hit, m = CACHE.get(key)
     if hit:
         return _renamed(m, mid)
@@ -157,8 +256,10 @@ def _search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: 
            "&mature=false")  # fmt: skip
     try:
         results = fetch.json(url).get("results") or []
-    except Exception:  # noqa: BLE001 - no picture rather than a failed turn
-        return None
+    except Exception as e:  # noqa: BLE001 - no picture rather than a failed turn
+        if "429" in str(e):
+            COOL.refuse("openverse")
+        return None  # not cached: the next try may get an answer
     skip = set(exclude or [])
     found = None
     for r in results:
@@ -190,6 +291,10 @@ def _search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: 
             continue
         if m.w < 400 or m.h < 260:
             continue
+        if tries[0] >= JUDGED:
+            break
+        if not _looks(judge, want, m, tries):
+            continue
         provider = str(r.get("provider") or r.get("source") or "").replace("_", " ").title()[:40]
         m.credit = f"{creator or 'Domaine public'} — {lic} — {provider + ' via ' if provider else ''}Openverse"
         found = m
@@ -199,12 +304,14 @@ def _search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: 
 
 
 def search_commons(query: str, fetch, exclude: list[str] | None = None, mid: str = "w1",
-                   deadline: float | None = None) -> om.Media | None:  # fmt: skip
+                   deadline: float | None = None, judge=None, want: str = "") -> om.Media | None:  # fmt: skip
     """The first free-licence Commons photograph for ``query`` (files in ``exclude``, by source URL, skipped)."""
     q = re.sub(r"\s+", " ", str(query or "")).strip()[:120]
     if not q or fetch is None:
         return None
-    key = ("commons", q.lower(), tuple(sorted(exclude or [])))
+    want = want or q
+    tries = [0]
+    key = ("commons", q.lower(), tuple(sorted(exclude or [])), want.lower() if judge else None)
     hit, cached = CACHE.get(key)
     if hit:
         return _renamed(cached, mid)
@@ -213,7 +320,9 @@ def search_commons(query: str, fetch, exclude: list[str] | None = None, mid: str
            f"&iiprop=url|extmetadata|size|mime&iiurlwidth=1280")  # fmt: skip
     try:
         pages = (fetch.json(url).get("query") or {}).get("pages") or []
-    except Exception:  # noqa: BLE001 - no picture rather than a failed turn
+    except Exception as e:  # noqa: BLE001 - no picture rather than a failed turn
+        if "429" in str(e):
+            COOL.refuse("commons")
         return None
     pages = sorted((p for p in pages if isinstance(p, dict)), key=lambda p: p.get("index", 99))
     skip = set(exclude or [])
@@ -242,6 +351,10 @@ def search_commons(query: str, fetch, exclude: list[str] | None = None, mid: str
         m.credit = f"{lic['author']} — {lic['licence']} — Wikimedia Commons"
         if m.w < 400 or m.h < 260:
             continue
+        if tries[0] >= JUDGED:
+            break
+        if not _looks(judge, want, m, tries):
+            continue
         CACHE.put(key, m)
         return _renamed(m, mid)
     CACHE.put(key, None)
@@ -249,10 +362,78 @@ def search_commons(query: str, fetch, exclude: list[str] | None = None, mid: str
 
 
 def search_web(query: str, fetch, exclude: list[str] | None = None, mid: str = "w1",
-               deadline: float | None = None) -> om.Media | None:  # fmt: skip
-    """Openverse first (wider: Flickr, museums, Commons), then Commons directly."""
-    return search_openverse(query, fetch, exclude, mid, deadline) or search_commons(query, fetch, exclude, mid,
-                                                                                    deadline)
+               deadline: float | None = None, judge=None) -> om.Media | None:  # fmt: skip
+    """For each variant of the cleaned query (``variants``): Openverse (wide: Flickr, museums, Commons; measured the
+    more often available of the two), then Wikimedia Commons directly; then Pexels when the deployment has a key
+    (BIRD_PEXELS_API_KEY): the two free sources throttle shared cloud addresses, Pexels gives a keyed quota. The
+    first relevant picture wins. ``judge`` (``vision_judge``): the model looks at each candidate and says whether it
+    shows the query as asked — the words of a title are only a first sieve (« Night train at Høje Taastrup
+    Station » was a politician on a stage)."""
+    query = clean_query(query) or str(query or "")
+    tried = variants(query)
+    for q in tried:
+        if deadline is not None and time.monotonic() > deadline:
+            break
+        # judged against the words searched: the shorter variants keep the core of the query (« night train »)
+        m = (search_openverse(q, fetch, exclude, mid, deadline, judge, q)
+             or search_commons(q, fetch, exclude, mid, deadline, judge, q))  # fmt: skip
+        if m is not None:
+            return m
+    if not tried:
+        return None  # a chart or a table: no photograph stands for it
+    m = search_pexels(query, fetch, exclude, mid, deadline)
+    if m is not None and not _looks(judge, query, m, [0]):
+        return None
+    return m
+
+
+PEXELS_API = "https://api.pexels.com/v1/search"
+
+
+def search_pexels(query: str, fetch, exclude: list[str] | None = None, mid: str = "w1",
+                  deadline: float | None = None) -> om.Media | None:  # fmt: skip
+    """A Pexels photograph (Pexels licence: free to use, credit shown), only with a key set by the operator."""
+    import os
+
+    key = os.environ.get("BIRD_PEXELS_API_KEY", "").strip()
+    q = clean_query(query)
+    if not key or not q or fetch is None:
+        return None
+    ck = ("pexels", q.lower(), tuple(sorted(exclude or [])))
+    hit, cached = CACHE.get(ck)
+    if hit:
+        return _renamed(cached, mid)
+    try:
+        photos = fetch.json(f"{PEXELS_API}?query={quote(q)}&per_page={SEARCH_LIMIT}&orientation=landscape",
+                            headers={"Authorization": key}).get("photos") or []  # fmt: skip
+    except Exception:  # noqa: BLE001 - no picture rather than a failed turn
+        return None
+    skip = set(exclude or [])
+    found = None
+    for p in photos:
+        if deadline is not None and time.monotonic() > deadline:
+            break
+        if not isinstance(p, dict):
+            continue
+        page = str(p.get("url") or "")
+        src = str((p.get("src") or {}).get("large2x") or (p.get("src") or {}).get("large") or "")
+        alt = str(p.get("alt") or "")
+        if not page or page in skip or not src.startswith("https://images.pexels.com/"):
+            continue
+        if alt and not relevant(q, alt):
+            continue
+        try:
+            m = om.prepare(fetch.image(src), mid, "web", max_bytes=SHOW_BYTES, alt=q, title=(alt or q)[:120],
+                           licence="Licence Pexels", source=page[:300])  # fmt: skip
+        except Exception:  # noqa: BLE001 - this file fails, the next one may not
+            continue
+        if m.w < 400 or m.h < 260:
+            continue
+        m.credit = f"{str(p.get('photographer') or 'Pexels')[:80]} — Licence Pexels — Pexels"
+        found = m
+        break
+    CACHE.put(ck, found)
+    return _renamed(found, mid)
 
 
 _PALETTES = {
@@ -305,54 +486,109 @@ def next_media_id(doc: dict, prefix: str = "w") -> str:
     return f"{prefix}{n}"
 
 
-def resolve(doc: dict, find, limit: int = 4, deadline: float | None = None) -> list[dict]:
-    """Give a picture to the image parts that have none (at most ``limit`` searches). ``find(query, exclude, mid)``
-    returns a Media or None. Returns the browser entries of the pictures found; ``doc['media']`` gets their
-    metadata and each part its ``media`` id. A part with no picture found keeps its query (the canvas shows a
-    placeholder with « Chercher une image »), nothing is made up."""
-    found = []
-    tries = 0
-    cache: dict[str, str] = {}
+def resolve(doc: dict, find, limit: int = 4, deadline: float | None = None, workers: int = 3) -> list[dict]:
+    """Give a picture to the image parts that have none (at most ``limit`` searches, ``workers`` at a time: eight
+    searches one after the other did not fit in the turn's 20 s). ``find(query, exclude, mid)`` returns a Media or
+    None. Returns the browser entries of the pictures found; ``doc['media']`` gets their metadata and each part its
+    ``media`` id. A part with no picture found keeps its query (the canvas shows a placeholder with « Chercher une
+    image »), nothing is made up."""
+    from concurrent.futures import ThreadPoolExecutor, wait
+
     cover = doc.get("cover") if doc.get("kind") == "deck" else None
     targets = [cover] if isinstance(cover, dict) and not cover.get("off") else []
     for b in doc.get("blocks") or []:
         targets += [p for p in b.get("parts") or [] if p.get("t") == "image"]
-    for b in [{"parts": targets}]:
-        for p in b.get("parts") or []:
-            if p.get("media"):
-                continue
-            q = str(p.get("query") or "").strip()
-            if not q:
-                continue
-            if q.lower() in cache and not p.get("exclude"):
-                p["media"] = cache[q.lower()]
-                continue
-            if tries >= limit or (deadline is not None and time.monotonic() > deadline):
-                p["pending"] = True
-                continue
-            tries += 1
-            exclude = []
-            for mid in p.get("exclude") or []:
-                src = ((doc.get("media") or {}).get(mid) or {}).get("source")
-                exclude.append(src or mid)  # a drawn illustration has no source: its id is enough
-            m = find(q, exclude, next_media_id(doc, "w"))
+    jobs: list[tuple[str, list[str], str, list[dict]]] = []  # query, exclude, media id, the parts it serves
+    by_query: dict[str, tuple] = {}
+    used = set((doc.get("media") or {}).keys())
+    for p in targets:
+        if p.get("media"):
+            continue
+        q = str(p.get("query") or "").strip()
+        if not q:
+            continue
+        if q.lower() in by_query and not p.get("exclude"):
+            by_query[q.lower()][3].append(p)
+            continue
+        if len(jobs) >= limit or (deadline is not None and time.monotonic() > deadline):
+            p["pending"] = True
+            continue
+        exclude = []
+        for mid in p.get("exclude") or []:
+            src = ((doc.get("media") or {}).get(mid) or {}).get("source")
+            exclude.append(src or mid)  # a drawn illustration has no source: its id is enough
+        n = 1
+        while f"w{n}" in used:
+            n += 1
+        used.add(f"w{n}")
+        job = (q, exclude, f"w{n}", [p])
+        jobs.append(job)
+        if not p.get("exclude"):
+            by_query[q.lower()] = job
+    if not jobs:
+        return []
+
+    def run(job):
+        try:
+            return find(job[0], job[1], job[2])
+        except Exception:  # noqa: BLE001 - one search failing leaves its placeholder
+            return None
+
+    pool = ThreadPoolExecutor(max_workers=max(1, min(workers, len(jobs))))
+    futures = [pool.submit(run, j) for j in jobs]
+    left = None if deadline is None else max(0.0, deadline - time.monotonic()) + 2.0
+    wait(futures, timeout=left)
+    pool.shutdown(wait=False, cancel_futures=True)
+    found = []
+    for job, fut in zip(jobs, futures, strict=True):
+        m = fut.result() if fut.done() and not fut.cancelled() else None
+        for p in job[3]:
             p.pop("exclude", None)
             p.pop("pending", None)
             if m is None:
                 p["missing"] = True
                 continue
-            entry = to_entry(m, q)
-            doc.setdefault("media", {})[m.id] = {k: entry[k] for k in ("kind", "alt", "credit", "licence", "source",
-                                                                        "w", "h", "query", "title")}  # fmt: skip
             p["media"] = m.id
             p.pop("missing", None)
-            cache[q.lower()] = m.id
-            found.append(entry)
+        if m is None:
+            continue
+        entry = to_entry(m, job[0])
+        doc.setdefault("media", {})[m.id] = {k: entry[k] for k in ("kind", "alt", "credit", "licence", "source",
+                                                                    "w", "h", "query", "title")}  # fmt: skip
+        found.append(entry)
     return found
 
 
-def finder(mode: str, fetch=None, theme: str | None = None, lang: str = "fr"):
-    """The ``find`` function for ``resolve``: Commons in server mode, the drawn illustration in demo mode."""
+LOOK = ("Does this photo show « {q} », well enough to illustrate a slide about it? Answer only yes or no.")
+
+
+def vision_judge(llm, deadline: float | None = None):
+    """``judge(query, media)`` for the searches: the model sees the candidate (small, 448 px) and answers yes or no
+    (temperature of the endpoint, no reasoning, 3 tokens). None when the model cannot read images."""
+    if llm is None or not hasattr(llm, "chat"):
+        return None
+
+    def judge(query: str, m: om.Media) -> bool | None:
+        from PIL import Image
+
+        im = Image.open(io.BytesIO(m.data)).convert("RGB")
+        im.thumbnail((448, 448))
+        buf = io.BytesIO()
+        im.save(buf, "JPEG", quality=80)
+        url = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode("ascii")
+        msg = [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": url}},
+                                            {"type": "text", "text": LOOK.format(q=str(query)[:120])}]}]  # fmt: skip
+        out = llm.chat(msg, 3, deadline=deadline)
+        word = re.sub(r"[^a-z]", "", str(out.get("text") or "").strip().lower())[:4]
+        return True if word.startswith(("yes", "oui")) else False if word.startswith(("no", "non")) else None
+
+    return judge
+
+
+def finder(mode: str, fetch=None, theme: str | None = None, lang: str = "fr", judge=None,
+           deadline: float | None = None):  # fmt: skip
+    """The ``find`` function for ``resolve``: Openverse and Commons (looked at by the model when ``judge``) in
+    server mode, the drawn illustration in demo mode."""
     if mode == "demo":
         return lambda q, exclude, mid: generated(q + "|" + "|".join(exclude), mid.replace("w", "g", 1), theme, lang)
-    return lambda q, exclude, mid: search_web(q, fetch, exclude, mid)
+    return lambda q, exclude, mid: search_web(q, fetch, exclude, mid, deadline, judge)

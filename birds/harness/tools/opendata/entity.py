@@ -215,15 +215,69 @@ def _image(ctx, summary: dict) -> dict | None:
             "artist": artist, "page": "https://commons.wikimedia.org/wiki/File:" + quote(fname.replace(" ", "_"))}  # fmt: skip
 
 
+WP_API = "https://{lang}.wikipedia.org/w/api.php"
+
+
+def _fold(s: str) -> str:
+    import unicodedata
+
+    t = unicodedata.normalize("NFKD", s or "").encode("ascii", "ignore").decode().lower()
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", t).split())
+
+
+def _close(asked: str, title: str) -> bool:
+    """« georges pompidoo » and « Georges Pompidou »: one or two letters apart (a typo), never another name.
+    The disambiguating tail of a title (« Victor Hugo (écrivain) ») is not compared."""
+    from difflib import SequenceMatcher
+
+    a, b = _fold(asked), _fold(re.sub(r"\s*\([^)]*\)\s*$", "", title or ""))
+    if not a or not b or a == b:
+        return bool(a) and a == b
+    return SequenceMatcher(None, a, b).ratio() >= 0.8 and abs(len(a) - len(b)) <= 3
+
+
+def _spelled(ctx, name: str, lang: str) -> str:
+    """The article a misspelt name means (Wikipedia's own « Essayez avec cette orthographe » suggestion, then its
+    best results), or ''. Live 28/11/2026: « qui est georges pompidoo » found no card, the model then searched the web
+    and answered with a wrong term of office; the user's spelling is only corrected when the title is a near twin."""
+    try:
+        data = http.get(ctx, http.url(WP_API.format(lang=lang), {"action": "query", "list": "search", "srsearch": name,
+                                                               "srinfo": "suggestion", "srprop": "", "srlimit": 3,
+                                                               "format": "json"}))  # fmt: skip
+    except ToolError:
+        return ""
+    q = data.get("query") if isinstance(data, dict) else None
+    if not isinstance(q, dict):
+        return ""
+    found = [str(h.get("title") or "") for h in q.get("search") or [] if isinstance(h, dict)]
+    suggestion = str((q.get("searchinfo") or {}).get("suggestion") or "")
+    for cand in ([suggestion] if suggestion else []) + found:
+        if cand and _close(name, cand):
+            return cand
+    return ""
+
+
+def _usable(summary: dict | None) -> bool:
+    return bool(summary) and summary.get("type") != "disambiguation" and bool(summary.get("wikibase_item"))
+
+
 def lookup_entity(args: dict, ctx) -> str:
     lang = http.lang_of(ctx)
     name = " ".join(str(args.get("name") or "").split())[:80]
     if len(name) < 2:
         raise ToolError("name is empty: ask the user what to look up")
     summary = _summary(ctx, name, lang)
-    if summary is None or summary.get("type") == "disambiguation" or not summary.get("wikibase_item"):
+    hits: list[dict] = []
+    if not _usable(summary):
         hits = [h for h in _search(ctx, name, lang) if not re.search(r"homonymie|disambiguation|Wikimedia",
                                                                        str(h.get("description", "")), re.I)]  # fmt: skip
+        # no hit, or a hit that is not the name asked (« victor hugot » matched a surname item): Wikipedia's spelling
+        said = [str((h.get("match") or {}).get("text") or h.get("label") or "") for h in hits[:1]]
+        same = bool(said) and _fold(said[0]) == _fold(name)  # wbsearchentities matched this very label or alias
+        fixed = "" if same else _spelled(ctx, name, lang)
+        if fixed:  # a typo: the card of the name Wikipedia suggests (the card shows its real title)
+            summary = _summary(ctx, fixed, lang)
+    if not _usable(summary):
         if not hits:
             ctx.step_info = {"found": 0}
             return (f"Aucune fiche Wikipédia ou Wikidata pour « {name} ». Dis-le simplement ; n'invente rien."

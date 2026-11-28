@@ -34,6 +34,7 @@ import {
   itemsOf,
   mainPart,
   pick as pickLayout,
+  sizeKey,
 } from "./canvas-layouts.js";
 
 Object.assign(STRINGS.fr, CANVAS_STRINGS.fr);
@@ -304,7 +305,16 @@ export function payload(c) {
   target = null;
   if (!a || !a.versions.length) return {};
   const v = a.versions[a.cur];
-  const fresh = !!a.fresh;
+  // a chart or a table waiting for the user's figures: the next message may be them, even with the panel closed
+  // (a phone closes its sheet to type), so the server gets the deck to fill (figures.fill_ops)
+  const waiting = (v.doc.blocks || []).some((b) =>
+    (b.parts || []).some(
+      (p) =>
+        p.need === "figures" ||
+        (p.t === "table" && (p.rows || []).some((r) => r.some((x) => /^(à compléter|to be completed)$/.test(x)))),
+    ),
+  );
+  const fresh = !!a.fresh || waiting;
   a.fresh = false;
   if (!shown && !fresh)
     return {
@@ -491,10 +501,15 @@ export function canvasSuggestions(ref) {
   const doc = v?.doc;
   if (!doc || doc.kind !== "deck") return [];
   const out = [];
-  const add = (k, vars = {}) => out.push({ label: t(k, vars), prompt: t(`${k}.p`, vars), kind: "follow" });
+  const add = (k, vars = {}, kind = "follow") =>
+    out.push({ label: t(k, vars), prompt: t(`${k}.p`, vars), kind });
   const parts = (doc.blocks || []).flatMap((b) => b.parts || []);
+  // a chart waiting for figures (birds/canvas/figures.py): the chip writes the start of the message, the user
+  // gives the numbers (a chip that sent « ajoute des chiffres » would only get made-up ones)
+  const waiting = (doc.blocks || []).find((b) => (b.parts || []).some((p) => p.need === "figures"));
+  if (waiting) add("cv.chip.give", { title: waiting.title || "" }, "fill");
   if (!parts.some((p) => p.t === "image")) add("cv.chip.images");
-  if (!parts.some((p) => p.t === "kpi" || p.t === "chart")) add("cv.chip.figures");
+  if (!waiting && !parts.some((p) => p.t === "kpi" || p.t === "chart")) add("cv.chip.chart", {}, "fill");
   const n = (doc.blocks || []).length;
   const last = doc.blocks?.[n - 1];
   if (last && pickLayout(last, n - 1, n) !== "closing") add("cv.chip.closing");
@@ -508,7 +523,7 @@ function sizeText(doc) {
   if (doc.kind === "deck") {
     const n = (doc.blocks || []).length;
     const kinds = new Set((doc.blocks || []).map((b, i) => pickLayout(b, i, n)));
-    return t("cv.card.slides", { n, layouts: kinds.size }); // as the chat says it: the cover is not counted
+    return t(sizeKey(n, kinds.size), { n, layouts: kinds.size }); // as the chat says it: the cover is not counted
   }
   if (doc.kind === "doc")
     return t("cv.sections", { n: (doc.blocks || []).length });
@@ -1447,7 +1462,8 @@ async function searchImage(
   toast(t("cv.image.searching"));
   try {
     const res = await fetchImage(query, exclude, doc.theme);
-    if (!res.ok) return toast(t("cv.image.none", { q: query }), "error");
+    if (!res.ok)
+      return toast(t(res.reason === "busy" ? "cv.image.busy" : "cv.image.none", { q: query }), "error");
     const m = res.media;
     keepMedia(conv, [m]);
     commit((d) => {
@@ -1768,7 +1784,8 @@ async function coverImage(a, how) {
   toast(t("cv.image.searching"));
   try {
     const res = await fetchImage(query, exclude, doc.theme);
-    if (!res.ok) return toast(t("cv.image.none", { q: query }), "error");
+    if (!res.ok)
+      return toast(t(res.reason === "busy" ? "cv.image.busy" : "cv.image.none", { q: query }), "error");
     keepMedia(conv, [res.media]);
     commit((d) => {
       storeMedia(d, res.media, query);

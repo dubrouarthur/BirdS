@@ -1,7 +1,11 @@
 // Shared pieces: state, storage, i18n, DOM helpers, icons, formatting, toasts.
 import { normalizeChoice, thinks } from "./reflexion-data.js";
-import { makeT } from "./i18n.js";
+import { STRINGS, makeT } from "./i18n.js";
 import { DEFAULT_PORT, isLoopback, localBases, pairStore } from "./local-data.js";
+import { ANSWER_STRINGS } from "./answers-i18n.js";
+
+// the answer-content strings (tool labels, math, citations, copy, feedback) join the dictionary at load
+for (const [lang, strings] of Object.entries(ANSWER_STRINGS)) Object.assign(STRINGS[lang], strings);
 
 export const $ = (id) => document.getElementById(id);
 
@@ -117,15 +121,18 @@ export const localPair = pairStore(webStorage("sessionStorage"), webStorage("loc
  * its health only (a hosted copy may also run on 127.0.0.1 while developing): the code never goes elsewhere. */
 export const onLocalOrigin = () =>
   !!state.health?.bird_local && typeof location !== "undefined" && isLoopback(location.hostname);
-export const localBase = () =>
-  state.prefs.localBase || localBases(state.health?.local_bird?.port || DEFAULT_PORT)[0];
+export const localBase = () => {
+  // only one of the two exact loopback origins of the port (a stored or imported value is never trusted as a host)
+  const bases = localBases(state.health?.local_bird?.port || DEFAULT_PORT);
+  return bases.includes(state.prefs.localBase) ? state.prefs.localBase : bases[0];
+};
 
 /** The mode actually used for requests: the saved choice if this server offers it, else the server default. */
 export function activeMode() {
-  // Bird local, paired: chosen by the user, it holds even before health answers (never a silent fall back to the
-  // hosted model, which would send a conversation meant for the user's machine to the host)
-  if (state.prefs.mode === "local" && !onLocalOrigin() && localPair.get() && state.health?.local_bird !== null)
-    return "local";
+  // Bird local, chosen by the user: it holds even before health answers and even when this tab has no code yet (a
+  // new tab, the code kept for one tab only): never a silent fall back to the hosted model, which would send a
+  // conversation meant for the user's machine to the host. Without the code, Bird local asks for it (pair_required).
+  if (state.prefs.mode === "local" && !onLocalOrigin() && state.health?.local_bird !== null) return "local";
   // no health yet (cold start, slow network): the real model, never the demo; a failed send then says so plainly
   if (!state.health) return "server";
   const modes = state.health.modes || {};
@@ -305,10 +312,11 @@ export function fmtEnergy(wh, kind) {
   return `< ${nf({ maximumFractionDigits: 2 }).format(0.01)} mWh`;
 }
 export const fmtCo2 = (g) => `≈ ${fmtSig(g)} g CO₂e`;
+// a tool id never reaches the screen: an unknown one (a tool added without its label) reads « Outil »
 export const toolLabel = (tool) => {
   const key = `tool.${tool}`;
   const label = t(key);
-  return label === key ? String(tool) : label;
+  return label === key ? t("tool.unknown") : label;
 };
 export function fmtDate(ts) {
   try {
@@ -381,9 +389,12 @@ export function toast(text, kind = "info", { action, ms } = {}) {
   return el;
 }
 
+/** Copy plain text; « Copié » only when the copy worked, else a way to do it by hand. Returns whether it worked. */
 export async function copyText(text, message) {
+  let ok = false;
   try {
     await navigator.clipboard.writeText(text);
+    ok = true;
   } catch {
     const area = h("textarea", {
       class: "sr-only",
@@ -394,13 +405,15 @@ export async function copyText(text, message) {
     document.body.append(area);
     area.select();
     try {
-      document.execCommand("copy");
+      ok = document.execCommand("copy") === true;
     } catch {
-      /* nothing else to try */
+      ok = false;
     }
     area.remove();
   }
-  toast(message || t("toast.copied"), "ok");
+  if (ok) toast(message || t("toast.copied"), "ok");
+  else toast(t("toast.copy.failed"), "error");
+  return ok;
 }
 
 /** Offer bytes as a download through a Blob URL (no server round trip, nothing leaves the browser). */

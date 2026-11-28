@@ -82,11 +82,36 @@ def ground(call, text: str, context: str) -> str:
         if doi:
             return "" if doi.group(0).lower().rstrip(".,;") in src.lower() else "DOI not in the user's words"
         return "" if _grounded(q, src) else "query not in the user's words"
-    if call.tool in ("lookup_entity", "find_commune"):
+    if call.tool == "lookup_entity":
+        # « qui est georges pompidoo » → « Georges Pompidou »: the model writes the name corrected; a word one or two
+        # letters from one the user typed is theirs (never a different name: ``near_twin``)
+        return "" if _grounded(a["name"], src) or near_grounded(a["name"], src) else "name not in the user's words"
+    if call.tool == "find_commune":
         return "" if _grounded(a["name"], src) else "name not in the user's words"
     if call.tool == "get_quote":
         return _ground_quote(a, src)
     return ""
+
+
+def near_twin(a: str, b: str) -> bool:
+    """Two words of 4 letters or more that differ by a typo (« pompidoo » / « pompidou », « emanuel » /
+    « emmanuel »): same first letter, length within 2, similarity 0.8 or more."""
+    from difflib import SequenceMatcher
+
+    if a == b:
+        return True
+    if len(a) < 4 or len(b) < 4 or a[0] != b[0] or abs(len(a) - len(b)) > 2:
+        return False
+    return SequenceMatcher(None, a, b).ratio() >= 0.8
+
+
+def near_grounded(value: str, src: str) -> bool:
+    """Every word of ``value`` is one of the user's words or its near twin (a misspelt proper name)."""
+    from birds.harness.router import _LINK_WORDS, fold
+
+    words = [w for w in fold(value).split() if w not in _LINK_WORDS]
+    pool = set(fold(src).split())
+    return bool(words) and all(any(near_twin(w, p) for p in pool) for w in words)
 
 
 def _ground_quote(a: dict, src: str) -> str:

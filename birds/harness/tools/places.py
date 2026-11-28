@@ -379,6 +379,9 @@ def find_places(args: dict, ctx) -> str:
     query = " ".join(str(args.get("query") or "").split())
     query = query[:6000] if ";" in query else query[:200]
     near = " ".join(str(args.get("near") or "").split())[:120]
+    # « place Bellecour à Lyon » is « place Bellecour, Lyon »: written whole, Nominatim matched the miniature of
+    # France Miniature (Élancourt, 400 km away) named « Place Bellecour à Lyon »
+    near = re.sub(r"\s+(?:à|a|in)\s+(?=[A-ZÀ-Ý])", ", ", near)
     if not query:
         raise ToolError("query is empty")
     if getattr(ctx, "attached", False):

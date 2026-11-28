@@ -1,0 +1,356 @@
+{
+ "rows": [
+  {
+   "query": "city mobility",
+   "old": {
+    "found": true,
+    "seconds": 0.8,
+    "title": "City Mobile towers",
+    "credit": "joegoauk73 — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": true
+   },
+   "new": {
+    "found": false,
+    "seconds": 3.8,
+    "title": "",
+    "credit": "",
+    "relevant": false
+   }
+  },
+  {
+   "query": "green bike delivery food",
+   "old": {
+    "found": true,
+    "seconds": 0.8,
+    "title": "Green bike socks",
+    "credit": "Richard Masoner / Cyclelicious — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": true
+   },
+   "new": {
+    "found": true,
+    "seconds": 3.5,
+    "title": "Red-haired girl with green bike",
+    "credit": "m.prinke — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": true
+   }
+  },
+  {
+   "query": "night train Europe",
+   "old": {
+    "found": true,
+    "seconds": 0.6,
+    "title": "The last train - Dublin, Ireland - Color street photography",
+    "credit": "Giuseppe Milo (www.pixael.com) — CC BY 2.0 — Flickr via Openverse",
+    "relevant": false
+   },
+   "new": {
+    "found": true,
+    "seconds": 2.1,
+    "title": "Take the Night Train (The 'D')",
+    "credit": "Tony Fischer Photography — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   }
+  },
+  {
+   "query": "Bretagne mer et forêt",
+   "old": {
+    "found": true,
+    "seconds": 0.6,
+    "title": "Almanach des Postes et des Télégraphes, registre de 1889 - Le Caoutchouc : la récolte et plusieurs utilisations",
+    "credit": "Bibliothèque - Les Champs Libres - Rennes — CC BY 2.0 — Flickr via Openverse",
+    "relevant": false
+   },
+   "new": {
+    "found": true,
+    "seconds": 2.4,
+    "title": "Bretagne...",
+    "credit": "kate053 — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": false
+   }
+  },
+  {
+   "query": "busy bees",
+   "old": {
+    "found": true,
+    "seconds": 0.6,
+    "title": "Busy Bee",
+    "credit": "Orchids love rainwater — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   },
+   "new": {
+    "found": true,
+    "seconds": 1.6,
+    "title": "Poland-01810 - Busy Bee (OFF)",
+    "credit": "archer10 (Dennis) — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": true
+   }
+  },
+  {
+   "query": "abeille pollinise fleur",
+   "old": {
+    "found": true,
+    "seconds": 0.6,
+    "title": "Thésée-la-Romaine. (Abeille sur fleur de pommier).",
+    "credit": "sybarite48 — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   },
+   "new": {
+    "found": true,
+    "seconds": 1.2,
+    "title": "Thésée-la-Romaine. (Abeille sur fleur de pommier).",
+    "credit": "sybarite48 — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   }
+  },
+  {
+   "query": "growing community",
+   "old": {
+    "found": true,
+    "seconds": 0.4,
+    "title": "Bath Starbucks team raise money for coffee growing communities in East Africa",
+    "credit": "Montage Communications — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": true
+   },
+   "new": {
+    "found": true,
+    "seconds": 2.3,
+    "title": "'Grow Art; Grow Community' -- Arlington (VA) Arts Center September 2013",
+    "credit": "Ron Cogswell — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   }
+  },
+  {
+   "query": "French forest climate change",
+   "old": {
+    "found": true,
+    "seconds": 0.7,
+    "title": "French Forest In The Summer",
+    "credit": "A Guy Taking Pictures — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   },
+   "new": {
+    "found": false,
+    "seconds": 5.6,
+    "title": "",
+    "credit": "",
+    "relevant": false
+   }
+  },
+  {
+   "query": "city streets bicycle",
+   "old": {
+    "found": true,
+    "seconds": 0.6,
+    "title": "Homebuilt bicycle trailer 3",
+    "credit": "xddorox — CC BY 2.0 — Flickr via Openverse",
+    "relevant": false
+   },
+   "new": {
+    "found": true,
+    "seconds": 1.0,
+    "title": "Big City Bicycle",
+    "credit": "Dusty J — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   }
+  },
+  {
+   "query": "a cyclist delivering a meal bag on a city street",
+   "old": {
+    "found": true,
+    "seconds": 0.7,
+    "title": "Loaded cyclist",
+    "credit": "Richard Masoner / Cyclelicious — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": false
+   },
+   "new": {
+    "found": true,
+    "seconds": 2.0,
+    "title": "Loaded cyclist",
+    "credit": "Richard Masoner / Cyclelicious — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": false
+   }
+  },
+  {
+   "query": "night train europe history",
+   "old": {
+    "found": true,
+    "seconds": 0.5,
+    "title": "Venice, canalside view from the waterbus",
+    "credit": "TeaMeister — CC BY 2.0 — Flickr via Openverse",
+    "relevant": false
+   },
+   "new": {
+    "found": true,
+    "seconds": 3.0,
+    "title": "Take the Night Train (The 'D')",
+    "credit": "Tony Fischer Photography — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   }
+  },
+  {
+   "query": "breizh tourism",
+   "old": {
+    "found": true,
+    "seconds": 0.4,
+    "title": "La tour du gobelin",
+    "credit": "Falcon_33 — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": false
+   },
+   "new": {
+    "found": false,
+    "seconds": 2.1,
+    "title": "",
+    "credit": "",
+    "relevant": false
+   }
+  },
+  {
+   "query": "Bretagne coastline",
+   "old": {
+    "found": true,
+    "seconds": 0.7,
+    "title": "Bretagne coastline",
+    "credit": "Sibe Kokke — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   },
+   "new": {
+    "found": true,
+    "seconds": 1.5,
+    "title": "Bretagne coastline",
+    "credit": "Sibe Kokke — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   }
+  },
+  {
+   "query": "Saint-Malo Bretagne",
+   "old": {
+    "found": true,
+    "seconds": 0.6,
+    "title": "Saint-Malo, Bretagne, France",
+    "credit": "pom'. — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": true
+   },
+   "new": {
+    "found": true,
+    "seconds": 1.5,
+    "title": "Saint-Malo, Bretagne, France",
+    "credit": "pom'. — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": true
+   }
+  },
+  {
+   "query": "team celebrating together",
+   "old": {
+    "found": true,
+    "seconds": 0.5,
+    "title": "Teamwork",
+    "credit": "Gavin Llewellyn — CC BY 2.0 — Flickr via Openverse",
+    "relevant": false
+   },
+   "new": {
+    "found": true,
+    "seconds": 1.6,
+    "title": "Redhill Family Celebration - Nov 2014 - The Team Celebrate A Job Well Done",
+    "credit": "Gareth1953 All Right Now — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   }
+  },
+  {
+   "query": "busy bees in a flower",
+   "old": {
+    "found": true,
+    "seconds": 0.6,
+    "title": "Busy bee on white flower",
+    "credit": "digital cat  — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   },
+   "new": {
+    "found": true,
+    "seconds": 1.3,
+    "title": "Busy bee on white flower",
+    "credit": "digital cat  — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   }
+  },
+  {
+   "query": "chart showing quarterly growth",
+   "old": {
+    "found": true,
+    "seconds": 0.6,
+    "title": "key chart showing flight lines and photo locations (Mapping of Mississippi Delta and Passes)",
+    "credit": "kat m research — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": true
+   },
+   "new": {
+    "found": false,
+    "seconds": 0.0,
+    "title": "",
+    "credit": "",
+    "relevant": false
+   }
+  },
+  {
+   "query": "French forest",
+   "old": {
+    "found": true,
+    "seconds": 0.7,
+    "title": "French Forest In The Summer",
+    "credit": "A Guy Taking Pictures — CC BY 2.0 — Flickr via Openverse",
+    "relevant": true
+   },
+   "new": {
+    "found": false,
+    "seconds": 4.8,
+    "title": "",
+    "credit": "",
+    "relevant": false
+   }
+  },
+  {
+   "query": "honey bee pollination",
+   "old": {
+    "found": true,
+    "seconds": 1.3,
+    "title": "July Honey Bee",
+    "credit": "MattX27 — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": true
+   },
+   "new": {
+    "found": true,
+    "seconds": 4.3,
+    "title": "July Honey Bee",
+    "credit": "MattX27 — CC BY-SA 2.0 — Flickr via Openverse",
+    "relevant": true
+   }
+  },
+  {
+   "query": "bicycle courier city",
+   "old": {
+    "found": true,
+    "seconds": 0.9,
+    "title": "Courier banks into 77 Saint Georges Terrace in Perth, WA",
+    "credit": "NeinLives — CC BY 2.0 — Flickr via Openverse",
+    "relevant": false
+   },
+   "new": {
+    "found": false,
+    "seconds": 5.8,
+    "title": "",
+    "credit": "",
+    "relevant": false
+   }
+  }
+ ],
+ "total": {
+  "old": {
+   "found": 20,
+   "relevant": 12,
+   "seconds": 13.2
+  },
+  "new": {
+   "found": 14,
+   "relevant": 12,
+   "seconds": 51.4
+  }
+ }
+}

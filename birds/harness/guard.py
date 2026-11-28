@@ -247,7 +247,8 @@ def fetch(ctx, url: str) -> tuple[str, str, bytes]:
 
 
 IMAGE_TYPES = ("image/png", "image/jpeg", "image/webp", "image/gif")
-IMAGE_USER_AGENT = "BirdHarness/0.1 (+image)"
+# Wikimedia and Openverse throttle anonymous clients that give no contact: the public site is ours to name
+IMAGE_USER_AGENT = "BirdHarness/0.1 (+https://bird-s.vercel.app/a-propos/; free-licence images)"
 
 
 class FetchError(ToolError):
@@ -265,22 +266,12 @@ def fetch_image(http, cfg, url: str, max_bytes: int = 2_000_000, timeout: float 
     deadline = _Deadline(2 * timeout)
     headers = {"User-Agent": IMAGE_USER_AGENT, "Accept": "image/webp,image/png,image/jpeg,image/gif;q=0.9"}
     try:
-        with _hops(http, cfg, url, headers, timeout, deadline) as (_, r):
-            if r.status_code >= 400:
-                raise FetchError("upstream", f"HTTP {r.status_code}")
-            ctype = _ctype(r)
-            if ctype not in IMAGE_TYPES:
-                raise FetchError("image_type", f"not an image type we accept: {ctype or 'missing'}")
-            if int(r.headers.get("content-length") or 0) > max_bytes:
-                raise FetchError("too_large", "image too large")
-            body = b""
-            for chunk in r.iter_bytes():
-                body += chunk
-                if len(body) > max_bytes:
-                    raise FetchError("too_large", "image too large")
-                if deadline.left() <= 0:
-                    raise FetchError("upstream", "too slow")
-            return ctype, body
+        for attempt in (0, 1):
+            busy = _fetch_image_once(http, cfg, url, headers, timeout, deadline, max_bytes, last=attempt == 1)
+            if not isinstance(busy, float):
+                return busy
+            # 429 / 503 (Wikimedia throttles bursts from shared egress IPs): one retry after a short wait, in time
+            time.sleep(busy)
     except TooSlow:
         raise FetchError("upstream", "too slow") from None
     except httpx.HTTPError as e:
@@ -291,6 +282,33 @@ def fetch_image(http, cfg, url: str, max_bytes: int = 2_000_000, timeout: float 
             http.cookies.clear()
         except Exception:  # noqa: BLE001 - a client without a jar
             pass
+
+
+def _fetch_image_once(http, cfg, url, headers, timeout, deadline, max_bytes, last):
+    """(content type, body), or the seconds to wait before one more try when the host is busy (429 / 503)."""
+    with _hops(http, cfg, url, headers, timeout, deadline) as (_, r):
+        if r.status_code in (429, 503) and not last:
+            try:
+                wait = min(max(float(r.headers.get("retry-after") or 1.0), 0.5), 2.0)
+            except ValueError:
+                wait = 1.0
+            if deadline.left() > wait + 2.0:
+                return wait
+        if r.status_code >= 400:
+            raise FetchError("upstream", f"HTTP {r.status_code}")
+        ctype = _ctype(r)
+        if ctype not in IMAGE_TYPES:
+            raise FetchError("image_type", f"not an image type we accept: {ctype or 'missing'}")
+        if int(r.headers.get("content-length") or 0) > max_bytes:
+            raise FetchError("too_large", "image too large")
+        body = b""
+        for chunk in r.iter_bytes():
+            body += chunk
+            if len(body) > max_bytes:
+                raise FetchError("too_large", "image too large")
+            if deadline.left() <= 0:
+                raise FetchError("upstream", "too slow")
+        return ctype, body
 
 
 def fetch_bytes(

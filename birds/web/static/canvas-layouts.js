@@ -184,3 +184,8 @@ export function pick(b, index, total) {
 }
 
 export const compatible = (b) => NAMES.filter((n) => fits(b, n));
+
+/** The deck's size line key (« 3 diapositives · 1 mise en page »): singular forms where the count is one. */
+export function sizeKey(n, layouts) {
+  return n === 1 ? "cv.card.slides.s1" : layouts === 1 ? "cv.card.slides.l1" : "cv.card.slides";
+}

@@ -34,9 +34,11 @@ SPEC = {
             "[Canevas] Écris la présentation directement dans ta réponse, dans ce format (pas d'outil, pas de JSON) :\n"
             "---\ntitle: <titre>\nsubtitle: <sous-titre court>\nimage: <2 à 4 mots en anglais pour la photo de couverture>\n---\n"
             "# <titre de la diapositive>\n- point court\n- autre point\n\n"
+            "# <titre d'une diapositive illustrée>\n- point court\n- autre point\n"
+            '::: image query="<2 à 4 mots en anglais : ce que la photo montre>"\n:::\n\n'
             "Varie les diapositives : un bloc au plus par diapositive, choisi selon le contenu :\n"
             "::: kpi\n<chiffre> | <ce qu'il mesure>\n:::\n"
-            '::: chart type=bar unit="%"\n<libellé>: <nombre>\n:::\n'
+            '::: chart type=bar unit="<unité>"\n<libellé>: <nombre donné dans la demande>\n:::\n<message clé en une phrase>\n'
             "::: timeline\n<date> : <étape>\n:::\n"
             "::: steps\n<étape> : <ce qu'on y fait>\n:::\n"
             "::: compare\n<option A> | <option B>\n<point A> | <point B>\n:::\n"
@@ -45,15 +47,18 @@ SPEC = {
             "> « citation » — auteur\n\n"
             "Une diapositive avec un titre seul ouvre une partie. "
             "Règles : 5 à 8 diapositives, 3 à 5 points courts par diapositive, une image sur 2 ou 3 diapositives "
-            "quand une photo aide. N'invente aucun chiffre : seulement ceux de la demande ou des sources lues."
+            "quand une photo aide. N'invente aucun chiffre : seulement ceux de la demande ou des sources lues ; s'il en "
+            "manque, écris quand même la présentation, avec « à compléter » à la place du chiffre."
         ),
         "en": (
             "[Canvas] Write the deck directly in your answer, in this format (no tool, no JSON):\n"
             "---\ntitle: <title>\nsubtitle: <short subtitle>\nimage: <2 to 4 words for the cover photo>\n---\n"
             "# <slide title>\n- short point\n- another point\n\n"
+            "# <title of an illustrated slide>\n- short point\n- another point\n"
+            '::: image query="<2 to 4 words: what the photo shows>"\n:::\n\n'
             "Vary the slides: at most one block per slide, chosen from the content:\n"
             "::: kpi\n<figure> | <what it measures>\n:::\n"
-            '::: chart type=bar unit="%"\n<label>: <number>\n:::\n'
+            '::: chart type=bar unit="<unit>"\n<label>: <number given in the request>\n:::\n<key message in one sentence>\n'
             "::: timeline\n<date>: <step>\n:::\n"
             "::: steps\n<step>: <what happens>\n:::\n"
             "::: compare\n<option A> | <option B>\n<point A> | <point B>\n:::\n"
@@ -62,7 +67,8 @@ SPEC = {
             '> "quotation" — author\n\n'
             "A slide with a title only opens a part. "
             "Rules: 5 to 8 slides, 3 to 5 short points per slide, a picture on 2 or 3 slides when a photo helps. "
-            "Invent no figure: only those of the request or of the sources read."
+            "Invent no figure: only those of the request or of the sources read; if some are missing, still write "
+            "the deck, with \"to be completed\" in place of the figure."
         ),
     },
     "doc": {
@@ -215,7 +221,13 @@ DIRECT_SAID = {
     "image": ("Je cherche une autre image.", "Looking for another picture."),
     "unimage": ("Image retirée.", "Picture removed."),
     "retitle": ("Titre modifié.", "Title changed."),
+    "chart": ("Graphique tracé avec vos chiffres, tels que vous les avez donnés.",
+              "Chart drawn from your figures, exactly as you gave them."),
+    "table": ("Tableau complété avec vos chiffres.", "Table completed with your figures."),
 }
+
+
+_CHART_WORD = re.compile(r"\b(?:graphi\w*|chart|diagramme|courbe|camembert|histogramme|barres?|bar chart|pie)\b", re.I)
 
 
 def new_aid() -> str:
@@ -459,6 +471,21 @@ def plan(words: str, canvas: dict | None, lang: str, enabled: bool = True, attac
         # a short unnamed edit (« plus court ») counts while the panel is shown, or on the turn right after the
         # artifact was made or changed (a phone closes its full-screen sheet to type)
         shown = canvas.get("open") is not False or bool(canvas.get("fresh"))
+        if shown:
+            from . import figures
+
+            # the figures of a chart that waits for them (« nous 34 %, Alpha 28 % … »): drawn as typed, no model
+            ops = figures.fill_ops(words, doc, chart=bool(_CHART_WORD.search(words)))
+            if ops:
+                drew = any(x.get("t") == "chart" for x in ops[0]["block"].get("parts") or [])
+                said = DIRECT_SAID["chart" if drew else "table"][0 if lang != "en" else 1]
+                return Plan("direct", kind, canvas.get("aid") or new_aid(), doc, int(canvas.get("version") or 1),
+                            None, ops, said)  # fmt: skip
+            if kind in ("deck", "doc") and len(figures.pairs(words)) >= 2 and _CHART_WORD.search(words):
+                # « voici les chiffres du graphique : pain 45 %, … » with no chart waiting: an edit of the open
+                # deck (the model places the chart), not a chat answer that comments the figures
+                return Plan("patch", kind, canvas.get("aid") or new_aid(), doc, int(canvas.get("version") or 1),
+                            target)  # fmt: skip
         if intents.edit_ask(words, kind or "deck", targeted=bool(target), shown=shown):
             aid = canvas.get("aid") or new_aid()
             ver = int(canvas.get("version") or 1)

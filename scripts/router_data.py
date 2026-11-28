@@ -146,6 +146,41 @@ def items() -> list[dict]:
                          ("agent_study", B.STUDY_YES, B.STUDY_NO)):  # fmt: skip
         out += [_item(fam, q, "yes", [], None, agent=True) for q in yes]
         out += [_item(fam, q, "no", [], None, agent=True) for q in no]
+    out += use_tools_items()
+    return out
+
+
+def _turn(ask: str, answer: str) -> list[dict]:
+    return [{"role": "user", "content": ask}, {"role": "assistant", "content": answer}]
+
+
+# Bird uses its tools instead of refusing (docs/HARNESS.md § 19): a misspelt name is a card under its right name, and
+# « une image » after a topic is a picture of that topic. Router eval cases and training examples at once.
+TYPO_YES = [
+    ("qui est jaques chirac", "Jacques Chirac"), ("c'est qui simone veille ?", "Simone Veil"),
+    ("qui était charles de gaule", "Charles de Gaulle"), ("parle-moi de leonard de vinci", "Léonard de Vinci"),
+    ("who is barak obama", "Barack Obama"), ("who was winston churchil", "Winston Churchill"),
+]  # fmt: skip
+PICTURE_FOLLOWUP_YES = [
+    ("parle-moi du lynx boréal", "Le lynx boréal est le plus grand félin d'Europe.", "une image", "lynx boréal"),
+    ("raconte-moi l'histoire de la cathédrale de Chartres", "Elle fut rebâtie après 1194.", "tu as une photo ?",
+     "cathédrale de Chartres"),
+    ("c'est quoi un axolotl ?", "Un amphibien du Mexique qui garde ses branchies.", "montre-moi à quoi il ressemble",
+     "axolotl"),
+    ("tell me about the Matterhorn", "A 4,478 m peak on the Swiss-Italian border.", "a picture?", "Matterhorn"),
+]  # fmt: skip
+PICTURE_FOLLOWUP_NO = [  # a picture ask with nothing to picture, or an image to make: no search
+    ("écris un poème sur l'automne", "Les feuilles tombent…", "génère une image pour l'illustrer"),
+    ("aide-moi à rédiger mon CV", "Voici une structure.", "je mets une photo ?"),
+]  # fmt: skip
+
+
+def use_tools_items() -> list[dict]:
+    out = [_item("typo_entity", q, "yes", ["lookup_entity"], {"tool": "lookup_entity", "args": {"name": n}})
+           for q, n in TYPO_YES]  # fmt: skip
+    out += [_item("picture_followup", m, "yes", ["images"], {"tool": "images", "args": {"subject": s}},
+                  history=_turn(q, a)) for q, a, m, s in PICTURE_FOLLOWUP_YES]  # fmt: skip
+    out += [_item("picture_followup", m, "no", ["images"], history=_turn(q, a)) for q, a, m in PICTURE_FOLLOWUP_NO]
     return out
 
 
@@ -456,3 +491,62 @@ def calc_ok(answer: str, wants: list[list[str]]) -> tuple[bool, int]:
         else:
             hit += any(w.lower() in a or w.lower().replace(" ", "") in squeezed for w in forms)
     return hit == len(wants), hit
+
+
+# ---------------------------------------------------------------- next steps (birds/harness/nextsteps.py)
+# Fixed answers and what Bird's next steps must do with them: (id, lang, request, answer, expectation).
+# ``none``: no suggestion at all; ``words``: every suggestion names one of these (the options of Bird's question,
+# rephrased as the user's answer); ``not``: no suggestion matches this pattern (Bird's voice, an impossible action).
+# Held out of the training templates of build_tools_mix.py (tests/test_tools_mix.py), measured live by
+# scripts/followups_eval.py --cases and offline by tests/test_nextsteps.py (the validation part).
+NEXTSTEPS_CASES = [
+    ("slide_ask", "fr", "fais une diapo sur notre offre de conseil",
+     "Voici la diapositive « Notre offre de conseil ». Souhaitez-vous que je vous aide à intégrer des images "
+     "spécifiques ou à structurer la diapositive visuellement ?",
+     {"words": ["image", "structur", "bloc", "visuel"], "not": r"(?i)^(?:vous aide|à structurer|oui)"}),
+    ("format_ask", "fr", "j'ai besoin de présenter le budget 2027 au comité",
+     "Je peux vous préparer ce support. Souhaitez-vous un mail, une note ou un tableau ?",
+     {"words": ["mail", "note", "tableau"], "not": r"(?i)^(?:un mail|une note|un tableau)$"}),
+    ("length_ask", "fr", "explique-moi la TVA intracommunautaire",
+     "La TVA intracommunautaire s'applique aux échanges entre entreprises de l'UE… Voulez-vous la version "
+     "courte ou la version détaillée avec un exemple chiffré ?",
+     {"words": ["court", "détaill", "exemple"]}),
+    ("hello", "fr", "bonjour", "Bonjour ! Comment puis-je vous aider aujourd'hui ?", {"none": True}),
+    ("thanks", "fr", "merci beaucoup", "Avec plaisir ! N'hésitez pas si vous avez besoin d'autre chose.", {"none": True}),
+    ("info_needed", "en", "draft an email to a client to postpone our meeting",
+     "I need the client's name and the new date before I can draft it. Could you share them?",
+     {"not": r"(?i)^(?:provide|share|give)"}),
+    ("mail_done", "fr", "rédige un mail pour relancer la facture 2024-118",
+     "Objet : Relance – facture 2024-118. Bonjour, sauf erreur de notre part, la facture 2024-118 reste impayée…",
+     {"not": r"(?i)\b(?:envoie|envoyer|valide)\b"}),
+    ("offsite_en", "en", "help me plan a team offsite",
+     "Here is a one-day outline: morning workshop, lunch, afternoon hike. Would you like a budget or a "
+     "sample invitation?",
+     {"words": ["budget", "invitation"]}),
+    # the review of the 28/11 live set: user facts, invented origins or assumptions, routes, generic steps
+    ("facts_asked", "fr", "aide-moi à préparer mon entretien de fin d'année",
+     "Bien sûr. Pour commencer, pouvez-vous me donner vos principales réalisations de l'année et vos objectifs ?",
+     {"not": r"(?i)\b(?:liste|donne|indique|rappelle)[- ]?(?:moi )?mes (?:r[ée]alisations|accomplissements|objectifs)"}),
+    ("map_museum", "fr", "où se trouve le musée des Confluences ?",
+     "Le musée des Confluences est au 86 quai Perrache, 69002 Lyon. Le lien « Itinéraire » de la carte donne "
+     "l'accès.",
+     {"not": r"(?i)itin[ée]raire|trajet|m[ée]tro|bus|tram|tarif|prix|avis|depuis la gare|traduis"}),
+    ("weather_city", "fr", "quel temps à Toulouse demain ?",
+     "Demain à Toulouse : ensoleillé, 6 à 15 °C, pas de pluie, vent faible.",
+     {"not": r"(?i)traduis|anglais|carte|semaine derni[èe]re|hier|raccourcis|r[ée]sum"}),
+    ("sales_trend", "fr", "nos ventes : T1 80, T2 95, T3 90. Quelle tendance ?",
+     "Les ventes montent de T1 à T2 (+18,8 %) puis reculent légèrement au T3 (-5,3 %).",
+     {"not": r"(?i)en supposant|hypoth[èe]se|si les ventes (?:baissent|montent)|\d+ ?% de (?:baisse|hausse)"}),
+]  # fmt: skip
+
+
+def nextsteps_ok(items: list[dict], expect: dict) -> bool:
+    """Is a list of suggestions what ``expect`` (a NEXTSTEPS_CASES expectation) asks for?"""
+    if expect.get("none"):
+        return not items
+    if expect.get("not") and any(re.search(expect["not"], f"{x['label']} {x['prompt']}") for x in items):
+        return False
+    words = expect.get("words")
+    if words:
+        return bool(items) and all(any(w in (x["label"] + " " + x["prompt"]).lower() for w in words) for x in items)
+    return True

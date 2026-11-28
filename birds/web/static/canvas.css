@@ -698,6 +698,16 @@ ol.cv-list > li::before {
 .cv-chart text {
   fill: var(--t-muted);
 }
+/* a pie's value sits on its slice: white, as in the .pptx; the hole and the slice edges take the slide's colour */
+.cv-chart text[fill="#fff"] {
+  fill: #fff;
+}
+.cv-chart circle[fill="#fff"] {
+  fill: var(--t-bg, #fff);
+}
+.cv-chart path[stroke="#fff"] {
+  stroke: var(--t-bg, #fff);
+}
 .cv-takeaway {
   font-size: 1.9cqi;
   color: var(--t-ink);

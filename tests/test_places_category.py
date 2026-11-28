@@ -343,3 +343,11 @@ def test_de_garde_in_the_users_words_holds_when_the_model_drops_it(tmp_path):
     ctx.request = "pharmacie de garde à Saint-Cloud"
     text = TOOLS["find_places"]({"query": "pharmacy", "near": "Saint-Cloud"}, ctx)
     assert "3237" in text and "3237" in ctx.step_info["caveat"]
+
+
+def test_a_spot_in_a_town_is_geocoded_as_spot_comma_town(tmp_path):
+    """« place Bellecour à Lyon », written whole, was France Miniature's « Place Bellecour à Lyon » in Élancourt."""
+    seen = []
+    ctx = ctx_for(tmp_path, seen)
+    TOOLS["find_places"]({"query": "boulangerie", "near": "Saint-Cloud à Paris"}, ctx)
+    assert seen[0]["q"][0] == "Saint-Cloud, Paris"

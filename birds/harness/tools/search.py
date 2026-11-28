@@ -366,9 +366,12 @@ class WikipediaBackend:
 
 
 class FallbackSearch:
-    """A keyed backend first; when it fails (quota, refused key, outage), the no-key Wikipedia search.
+    """A first backend; when it fails (quota, refused key, outage) or finds nothing, the next one of the chain.
 
-    ``last`` says which backend answered the latest call and why the first one was skipped, for the UI.
+    An HTTP 200 with an empty list is treated as a failure too: a meta search whose engines all refused answers
+    ``results: []`` in a tenth of a second, and passing that on left every question about recent facts without
+    sources. ``last`` says which backend answered the latest call and why the first one was skipped, for the UI
+    (``fallback_code``: the SearchError code, ``"empty"`` for nothing found, ``"search_failed"`` otherwise).
     """
 
     def __init__(self, primary, fallback):
@@ -379,21 +382,67 @@ class FallbackSearch:
     def search(self, query: str, n: int, lang: str | None = None) -> list[dict]:
         try:
             results = self.primary.search(query, n, lang=lang)
+        except Exception as e:  # noqa: BLE001 - any failure of the first backend: try the next one
+            return self._fall_back(query, n, lang, e.code if isinstance(e, SearchError) else "search_failed")
+        if not results:
+            return self._fall_back(query, n, lang, "empty", keep_on_error=True)
+        self.last = {"backend": self.primary.name, "label": self.primary.label,
+                     **dict(getattr(self.primary, "last", None) or {})}  # fmt: skip
+        return results
+
+    def _fall_back(self, query: str, n: int, lang: str | None, code: str, keep_on_error: bool = False) -> list[dict]:
+        try:
+            results = self.fallback.search(query, n, lang=lang)
+        except Exception:  # noqa: BLE001
+            if not keep_on_error:
+                raise
+            # the first backend did answer (nothing found) and the next one failed: that answer stands
             self.last = {"backend": self.primary.name, "label": self.primary.label,
                          **dict(getattr(self.primary, "last", None) or {})}  # fmt: skip
-            return results
-        except Exception as e:  # noqa: BLE001 - any failure of the keyed backend: try the free one
-            code = e.code if isinstance(e, SearchError) else "search_failed"
-            results = self.fallback.search(query, n, lang=lang)
-            inner = dict(getattr(self.fallback, "last", None) or {})  # a chain (SearXNG → Brave → Wikipedia)
-            self.last = {
-                "backend": inner.get("backend") or self.fallback.name,
-                "label": inner.get("label")
-                or (self.fallback.label_for(lang) if hasattr(self.fallback, "label_for") else self.fallback.label),
-                "fallback_from": self.primary.label,
-                "fallback_code": code,
-            }
-            return results
+            return []
+        inner = dict(getattr(self.fallback, "last", None) or {})  # a chain (SearXNG → Brave → Wikipedia)
+        self.last = {
+            "backend": inner.get("backend") or self.fallback.name,
+            "label": inner.get("label")
+            or (self.fallback.label_for(lang) if hasattr(self.fallback, "label_for") else self.fallback.label),
+            "fallback_from": self.primary.label,
+            "fallback_code": code,
+        }
+        return results
+
+
+def chain(search) -> list:
+    """The backends of a search chain, in the order they are asked."""
+    out = []
+    while isinstance(search, FallbackSearch):
+        out.append(search.primary)
+        search = search.fallback
+    return out + ([search] if search is not None else [])
+
+
+def probe_chain(search, query: str = "actualités France", n: int = 3, lang: str | None = "fr", clock=None) -> list[dict]:
+    """Ask every backend of the chain on its own (no fallback), for a health check: one row per backend,
+    ``{"backend", "label", "ok", "results", "code", "seconds"}``; ``ok`` only when it found something, so a
+    meta search that answers ``[]`` to everything shows as down (``code: "empty"``), not as on."""
+    import time
+
+    clock = clock or time.monotonic
+    rows = []
+    for backend in chain(search):
+        t0, code, found = clock(), "", 0
+        try:
+            found = len(backend.search(query, n, lang=lang) or [])
+            code = "" if found else "empty"
+        except SearchError as e:
+            code = e.code
+        except Exception:  # noqa: BLE001 - a probe reports, it never raises
+            code = "search_failed"
+        label = backend.label_for(lang) if hasattr(backend, "label_for") else getattr(backend, "label", "")
+        rows.append(
+            {"backend": getattr(backend, "name", "?"), "label": label, "ok": bool(found), "results": found,
+             "code": code, "seconds": round(clock() - t0, 2)}
+        )  # fmt: skip
+    return rows
 
 
 def make_search(cfg, http):

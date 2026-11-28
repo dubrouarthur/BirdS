@@ -101,6 +101,7 @@ class Context:
     lang: str = "fr"  # language of the conversation (search backends that care, e.g. Wikipedia)
     request: str = ""  # the user's own words for this run (make_slides checks that their figures made it in)
     message: str = ""  # the whole user message (own words + attachment notes + image transcriptions)
+    said: str = ""  # every user message of the conversation (draft_email: an address is kept only if written here)
     used: list[str] = field(default_factory=list)  # tools that succeeded in this run, in order (make_chart's source)
     # what web_search / read_page / read_file returned, as [kind, text] with kind "web" or "file": a chart's numbers
     # are credited to the web or a file only if they appear there (make_chart's source)
@@ -109,6 +110,7 @@ class Context:
     images: list[dict] = field(default_factory=list)  # web image candidates {src, page, title, alt, origin}
     attached: bool = False  # the request comes with a document or an image (find_places: the user's words only)
     geo_calls: int = 0  # upstream geocoder requests of this run (cap: geo.MAX_LOOKUPS_PER_RUN)
+    empty_searches: int = 0  # web_search calls of this run that found nothing or failed (2: stop searching)
     place_calls: int = 0  # successful find_places calls of this run
     widgets: list[dict] = field(default_factory=list)  # cards the harness computed itself, no tool (world clock)
     places: list[dict] = field(default_factory=list)  # places find_places showed in this run (maps in office files)

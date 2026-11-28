@@ -49,7 +49,7 @@ OPENDATA_SCHEMAS: list[dict] = [
         "Draw an official statistics series as a line chart (Eurostat, World Bank, INSEE): unemployment, inflation, "
         "GDP, GDP growth, population, electricity prices for businesses, exports, business start-ups.",
         {
-            "indicator": {**_S, "description": "e.g. chômage, inflation, PIB, population."},
+            "indicator": {**_S, "description": "e.g. chômage, inflation, PIB, population, natalité, fécondité."},
             "places": {**_S, "description": "Countries or French communes, comma separated (default France)."},
             "since": {**_S, "description": "Optional: first year (2015) or a number of months (24m)."},
         },

@@ -1,0 +1,264 @@
+{
+ "summary": {
+  "cases": 20,
+  "answered": 20,
+  "ok": 14,
+  "false_refusals": 1,
+  "negatives_ok": 5,
+  "seconds_p50": 4.86
+ },
+ "cases": [
+  {
+   "id": "chart_natalite",
+   "seconds": 25.01,
+   "ok": true,
+   "tools": [
+    "make_chart",
+    "read_page",
+    "web_search"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Le taux de natalité a baissé de 12,4 ‰ en 2014 à 9,4 ‰ en 2025, soit une baisse de plus de 2,5 ‰ en douze ans. La tendance est régulière et s'accentue depuis 2020."
+  },
+  {
+   "id": "chart_pib",
+   "seconds": 7.3,
+   "ok": true,
+   "tools": [
+    "get_statistics"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Le PIB de la France est en hausse : 2 723 milliards de dollars en 2019, 3 366 milliards en 2025. La croissance est régulière sur la période, avec une accélération notable après 2021. Source : Banque mondiale."
+  },
+  {
+   "id": "chart_poll",
+   "seconds": 25.51,
+   "ok": true,
+   "tools": [
+    "make_chart",
+    "read_page",
+    "web_search"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 2,
+   "answer": "Le duel Philippe-Le Pen est le plus testé (30 sondages) et montre une tendance stable : Marine Le Pen avance légèrement (56 % contre 44 %). Les autres duels sont plus dispersés et moins suivis, ce qui reflète l'incertitude sur les qualifications."
+  },
+  {
+   "id": "chart_user",
+   "seconds": 4.12,
+   "ok": true,
+   "tools": [
+    "make_chart"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Le graphique montre une hausse en 2021, puis une baisse régulière depuis."
+  },
+  {
+   "id": "analyse_ventes",
+   "seconds": 5.7,
+   "ok": true,
+   "tools": [
+    "make_chart"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Un bond de mars à 160, puis un recul en avril. La tendance n'est pas régulière : après une montée, le chiffre retombe. Dites-moi si vous voulez creuser le mois d'avril ou comparer à une période précédente."
+  },
+  {
+   "id": "analyse_chomage",
+   "seconds": 7.6,
+   "ok": true,
+   "tools": [
+    "get_statistics"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Le taux de chômage en France est passé de 10,4 % en 2015 à 7,7 % en 2025. La tendance est donc à la baisse sur cette période. Source : Eurostat."
+  },
+  {
+   "id": "analyse_abonnes",
+   "seconds": 4.86,
+   "ok": true,
+   "tools": [
+    "make_chart"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Les abonnés sont en hausse constante : +658 en 2022, +750 en 2023, puis +500 en 2024. La croissance ralentit en 2024, mais le total reste en forte progression sur quatre ans."
+  },
+  {
+   "id": "analyse_en",
+   "seconds": 3.57,
+   "ok": true,
+   "tools": [
+    "make_chart"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "La tendance monte globalement : +30 % de Q1 à Q4, avec une petite baisse en Q3."
+  },
+  {
+   "id": "typo_pompidou",
+   "seconds": 9.43,
+   "ok": false,
+   "tools": [
+    "web_search"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Georges Pompidou, plus connu sous le nom de Georges-Pompidou, était le président de la France de 1969 à 1974. Il a été un fervent défenseur de l'art contemporain et a lancé la création du Centre national d'art et de culture Georges-Pompidou, inauguré en 1977."
+  },
+  {
+   "id": "typo_macron",
+   "seconds": 4.44,
+   "ok": false,
+   "tools": [
+    "lookup_entity"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Je n'ai pas d'information fiable sur Emmanuel Macron dans mes données actuelles. Je ne veux pas deviner. Si vous me donnez un contexte précis — par exemple, le rôle qu'il occupe ou le document où il apparaît — je pourrai vous aider à en extraire les faits."
+  },
+  {
+   "id": "typo_hugo",
+   "seconds": 4.76,
+   "ok": false,
+   "tools": [
+    "lookup_entity"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Je n'ai pas d'information fiable sur Victor Hugot : je ne peux pas vous donner de nom, de fonction ou d'entreprise. Si vous me donnez un contexte (poste, secteur, lieu), je pourrai peut-être vous aider autrement."
+  },
+  {
+   "id": "attach_translate",
+   "seconds": 4.62,
+   "ok": false,
+   "tools": [
+    "read_file"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Subject: Confirmation de rendez-vous\n\nBonjour Claire,\n\nMerci pour votre retour rapide. Je vous confirme notre rendez-vous de jeudi à 14 h dans nos locaux de Lyon. Pourriez-vous m'envoyer le devis signé avant mercredi ?\n\nBien cordialement,\nJulien"
+  },
+  {
+   "id": "attach_translate_en",
+   "seconds": 3.48,
+   "ok": true,
+   "tools": [
+    "read_file"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Objet : Confirmation de la réunion\n\nBonjour Tom,\n\nMerci pour ta réponse rapide. Je confirme notre réunion jeudi à 14 h à notre bureau de Lyon. Pourrais-tu m'envoyer la facture signée avant mercredi ?\n\nCordialement,\nJulia"
+  },
+  {
+   "id": "img_horse",
+   "seconds": 7.62,
+   "ok": false,
+   "tools": [
+    "web_search"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Le cheval tigré, ou tiger horse, est un registre généalogique créé en 1932 par Claude Thompson en Oregon, pour préserver des chevaux tachetés. Son nom vient de l'espagnol « tigre », à cause de sa robe marbrée."
+  },
+  {
+   "id": "img_msm",
+   "seconds": 2.33,
+   "ok": false,
+   "tools": [],
+   "errors": [],
+   "refusal": true,
+   "charts": 0,
+   "images": 0,
+   "answer": "Non, je n'ai ni accès à Internet ni à la mémoire entre nos échanges ; je ne peux donc ni naviguer, ni me souvenir d'une conversation précédente."
+  },
+  {
+   "id": "neg_haiku",
+   "seconds": 4.73,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Le vent soulève les feuilles,\nL'air devient plus frais, les jours raccourcissent,\nLe cœur se réchauffe."
+  },
+  {
+   "id": "neg_hello",
+   "seconds": 1.57,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Merci, tout va bien. Et vous ?"
+  },
+  {
+   "id": "neg_photosynthese",
+   "seconds": 4.96,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "La photosynthèse, c'est le processus par lequel les plantes transforment la lumière du soleil, l'eau et le dioxyde de carbone en glucose et en oxygène. Elles utilisent l'énergie solaire pour convertir les molécules simples en sucre, qui sert d'énergie, tout en libérant de l'oxygène comme sous-produi"
+  },
+  {
+   "id": "neg_excel",
+   "seconds": 5.57,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "On sélectionne les données, on clique sur « Insertion » puis sur le type de graphique qui correspond à l'histoire : un histogramme pour des catégories, un diagramme en courbes pour une évolution, un nuage de points pour deux variables. On ajuste ensuite les titres et les légendes.\n\nJe peux aussi str"
+  },
+  {
+   "id": "neg_translate",
+   "seconds": 1.59,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Here you go:\n\nThank you for your help."
+  }
+ ]
+}
