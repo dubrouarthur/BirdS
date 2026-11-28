@@ -27,7 +27,14 @@ const CASES = {
   doi: { ask: "vérifie ce DOI 10.1038/nature14539", sel: ".widget-papers", source: /Crossref/ },
   commune: { ask: "code postal de Roubaix", sel: ".widget-commune", source: /geo\.api\.gouv\.fr/, next: true },
   address: { ask: "normalise cette adresse : 20 av de segur paris", sel: ".widget-commune", source: /Adresse/ },
+  // near misses: the user's own figures, leave or bids, a bare J+N, a task on their text: no open-data card at all
+  "no-invoice": { ask: "Calcule J+30 sur la facture du 3 décembre", none: true },
+  "no-leave": { ask: "combien de jours ouvrés de congés me reste-t-il ?", none: true },
+  "no-translate": { ask: "Translate into French: public holidays in Germany in 2027", none: true, lang: "en" },
+  "no-rent": { ask: "inflation de mes loyers depuis 2020", none: true },
+  "no-bids": { ask: "appels d'offres que nous avons perdus en 2025", none: true },
 };
+const OD_CARDS = ".widget-calendar, .widget-entity, .widget-tenders, .widget-papers, .widget-commune, .od-chart-src";
 
 function check(cond, what) {
   if (cond) return console.log(`  ok    ${what}`);
@@ -75,9 +82,14 @@ async function run(browser, name, c, width, scheme) {
   const { ctx, page } = await open(browser, { width, scheme, lang: c.lang });
   const label = `${name}-${width}-${scheme}`;
   await ask(page, c.ask);
-  const card = page.locator(c.sel).last();
+  if (c.none) {
+    check((await page.locator(OD_CARDS).count()) === 0, `${label}: no open-data card`);
+    check((await page.locator(".turn, [data-turn], .msg").count()) > 0, `${label}: an answer is shown`);
+    await page.screenshot({ path: path.join(SHOTS, `${label}.png`), fullPage: false });
+  }
+  const card = page.locator(c.sel || "#no-such-card").last();
   const shown = await card.count().then((n) => n > 0 && card.isVisible());
-  check(shown, `${label}: card shown`);
+  if (!c.none) check(shown, `${label}: card shown`);
   if (shown) {
     const host = c.sel === ".od-chart-src" ? page.locator(".chart-card").last() : card;
     const text = await host.innerText();

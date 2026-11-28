@@ -124,6 +124,30 @@ une étape `get_statistics` (0,4 s), courbe Eurostat avec source, jeu de donnée
 et 4,4 → 3,8 %), mais « l'écart s'élargit » est faux (6,0 → 3,9 points) : le commentaire de tendance n'est pas
 vérifié par le harnais (voir « Non vérifié »).
 
+## Correctifs d'audit (28/11/2026) : données de l'utilisateur, J+N, tâches sur un texte, unités
+
+Faux déclenchements relevés par l'audit, corrigés dans l'analyseur **et** dans `veto_reason` (le veto s'applique même
+quand un analyseur se déclenche) : chiffres de l'utilisateur (« inflation de mes loyers », « le chômage dans mon
+équipe », « exportations de notre PME », « inflation des salaires »), aucun pays rempli quand l'utilisateur n'en nomme
+pas (ancrage), congés / contrat / projet de l'utilisateur, « J+30 » nu (jours calendaires : plus de carte en jours
+ouvrés, et l'ancrage refuse un `add_days` sans « ouvrés / working days »), tâches sur un texte (translate, summarize,
+proofread, rewrite, corrige, mets en forme), appels d'offres de l'utilisateur (« que nous avons perdus ») et requête
+BOAMP qui commence par une relative. Fiche entité : moins de 10 → deux chiffres significatifs (« 0,44 km² », plus
+« 0 km² ») ; une somme sans devise connue n'est plus affichée (SEK ajoutée).
+
+Mesure avant / après sur le jeu fixe (`scripts/trigger_bench.py`, 22 nouveaux « non » + 1 nouveau « oui » dans
+`bench_opendata.py`, repris par `router_data.py` pour l'évaluation du routeur) :
+
+| Jeu | avant (c4635bb) | après |
+| --- | --- | --- |
+| famille `opendata` (118) | 99/118 (19 faux déclenchements sur 61 « non ») | **118/118** |
+| 22 nouveaux « non », fusion hybride si le modèle ne choisit rien | 14 cartes rajoutées par `router.merge` | **0** |
+| banc complet | 1 954/1 973 | **1 973/1 973** |
+
+Douze exemples négatifs d'entraînement ajoutés (`build_tools_mix.py`, `odn8`–`odn12`, `odne3`), formulés autrement
+que le banc. E2E `scripts/opendata_ui_smoke.js` : 5 demandes « non » ajoutées (aucune fiche, 360 / 1 280 px, clair / sombre),
+17 cas × 4 mises en page, toutes les vérifications passent. Mesure du routeur en réel non refaite : l'endpoint était en pause (« ask a maintainer to restart it »).
+
 ## Non vérifié
 
 - Faits Wikidata et images Commons en direct de façon répétée : la sortie partagée de l'environnement reçoit des 429 ;
@@ -135,7 +159,7 @@ vérifié par le harnais (voir « Non vérifié »).
 
 `tests/test_opendata.py` (outils sur réponses enregistrées, hôtes, plafond, cache, 429, ancrage, veto, indices,
 image signée, démo), `tests/js/opendata.test.mjs` (parité FR/EN des textes, grille, compte à rebours, demandes
-suivantes, copie), `scripts/trigger_bench.py` familles `opendata` (95) et `opendata_cross` (394 « non » des autres
+suivantes, copie), `scripts/trigger_bench.py` familles `opendata` (118) et `opendata_cross` (394 « non » des autres
 familles), `scripts/opendata_ui_smoke.js` (11 demandes × 360 / 1 280 px × clair / sombre : fiche, source et licence
 liées, pas de défilement horizontal, aucun tiers contacté, aucune erreur CSP ; « Pour continuer » lance la fiche
 suivante).
