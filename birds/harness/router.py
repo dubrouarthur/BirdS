@@ -313,6 +313,13 @@ def _bad_place(call: Call) -> bool:
     return False
 
 
+def _near_me_ask(text: str, attached: bool = False, lang: str = "fr") -> bool:
+    """« une pharmacie autour de moi »: the parsers ask the user where they are (intents mode 'ask')."""
+    from birds.harness import intents
+
+    return any(i.mode == "ask" and not i.args for i in intents.detect(text or "", attached, lang))
+
+
 def veto_reason(call: Call, text: str, *, attached: bool = False, lang: str = "fr", context: str = "") -> str:
     """'' or the false-trigger family that blocks this module. Only blocks what the family's own parser would not
     start: the veto never removes something the regex also sees. A follow-up of the previous turn's module
@@ -334,6 +341,8 @@ def veto_reason(call: Call, text: str, *, attached: bool = False, lang: str = "f
         return "weather false trigger" if bad and not fires else ""
     if call.tool == "find_places":
         q = call.args.get("query", "")
+        if not call.args.get("near") and _near_me_ask(t, attached, lang):
+            return "near-me ask: the place is asked first"  # « une pharmacie autour de moi »: no global lookup
         bad = intents._NEVER.search(t) or intents._APPS.fullmatch(q) or intents._DOC_TARGET.search(t)
         return "map false trigger" if bad and not intents.places(t) else ""
     if call.tool == "find_company":
@@ -827,8 +836,14 @@ class Plan:
         from birds.harness import intents
 
         d = self.decision
-        return [intents.Intent(c.tool, dict(c.args), keep_web=d.needs_web) for c in d.modules
-                if catalog.BY_NAME[c.tool].kind == catalog.PREFILL][:1]  # fmt: skip
+        out = [intents.Intent(c.tool, dict(c.args), keep_web=d.needs_web) for c in d.modules
+               if catalog.BY_NAME[c.tool].kind == catalog.PREFILL][:1]  # fmt: skip
+        # « une pharmacie autour de moi »: the catalogue has no form for « ask where the user is », so the parsers'
+        # ask is kept unless the model grounded a place (a lookup without one was vetoed)
+        asks = [i for i in found if i.mode == "ask" and not i.args]
+        if asks and not any(i.tool == "find_places" and (i.args or {}).get("near") for i in out):
+            return asks[:1] + [i for i in out if i.tool != asks[0].tool]
+        return out
 
     def clock_words(self, words: str) -> str:
         if not self.active:

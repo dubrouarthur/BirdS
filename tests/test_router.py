@@ -539,3 +539,26 @@ def test_whole_bench_through_the_scripted_router_holds():
     acc = sum(r["ok"] for r in rows) / len(rows)
     assert acc >= 0.93 and sum(bool(r["vetoed"]) for r in rows) >= 10
     assert sum(r["source"] == "fallback" for r in rows) >= 20  # broken answers fell back to the parsers
+
+
+# ---------------------------------------------------------------- maps: « autour de moi » asks for a place first
+
+
+@pytest.mark.parametrize("mode", ["regex", "hybrid", "model"])
+def test_a_near_me_ask_asks_for_the_place_whatever_the_router(tmp_path, monkeypatch, mode):
+    monkeypatch.setenv("BIRD_ROUTER", mode)
+    a, _ = agent(tmp_path, ([j([])] if mode != "regex" else []) + ["Où êtes-vous ?"])
+    run = a.run("une pharmacie autour de moi")
+    assert any(w.get("type") == "ask_place" for w in run.widgets)
+    assert not any(s.tool == "find_places" for s in run.steps)
+
+
+@pytest.mark.parametrize("mode", ["hybrid", "model"])
+def test_a_kind_only_lookup_proposed_for_a_near_me_ask_is_vetoed(tmp_path, monkeypatch, mode):
+    text = "une pharmacie autour de moi"
+    d = R.decide(FakeClient([j([{"tool": "find_places", "args": {"query": "pharmacie"}}])]), TOK, text, mode=mode)
+    assert d.get("find_places") is None and "find_places" in d.meta["vetoed"]
+    monkeypatch.setenv("BIRD_ROUTER", mode)
+    a, _ = agent(tmp_path, [j([{"tool": "find_places", "args": {"query": "pharmacie"}}]), "Où êtes-vous ?"])
+    run = a.run(text)
+    assert any(w.get("type") == "ask_place" for w in run.widgets)
