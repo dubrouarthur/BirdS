@@ -1,4 +1,4 @@
-// Mode Réflexion in the page: the composer's bird picker (as simple as a model menu) and the « Bird a pris son vol en
+// Mode Réflexion in the page: the composer's bird slider (an « Auto » switch and five birds, as Claude's) and the « Bird a pris son vol en
 // Faucon » header of an answer, with the reasoning summary and the checks the server ran
 // (birds/harness/reflexion.py). Drawings and facts: reflexion-data.js; strings: reflexion-i18n.js (rf.* keys).
 import { h, icon, state, t } from "./core.js";
@@ -22,9 +22,8 @@ const asOf = (key) => t(`rf.level.${key}.as`); // « Faucon » / « an Owl », f
 
 let picker = null; // {button, menu, scrim, onPick}
 
-function items() {
-  return [...picker.menu.querySelectorAll('[role="menuitemradio"]')];
-}
+// the slider's resting place while Bird chooses (« Auto »): the middle bird, the usual flight
+const AUTO_REST = LEVELS.indexOf("faucon");
 
 function close(focusButton = true) {
   if (!picker || picker.menu.hidden) return;
@@ -50,62 +49,120 @@ function open() {
   picker.scrim.hidden = !phone;
   picker.button.setAttribute("aria-expanded", "true");
   document.addEventListener("pointerdown", outside, true);
-  (items().find((b) => b.getAttribute("aria-checked") === "true") || items()[0])?.focus();
+  picker.menu.querySelector("#rf-range")?.focus();
 }
 
+const valueText = (key) => `${nameOf(key)} · ${t(`rf.level.${key}.label`)}`;
+
+/** The popover, as Claude's: one « Auto » switch and one slider from the hummingbird to the albatross. Built once per
+ * opening; a choice updates it in place (syncMenu), never rebuilds it: a slider rebuilt under the pointer drops the drag. */
 function renderMenu() {
   picker.lang = state.prefs.lang;
-  const current = normalizeChoice(state.reflexion);
+  const range = h("input", {
+    id: "rf-range",
+    class: "rf-range",
+    type: "range",
+    min: "0",
+    max: String(LEVELS.length - 1),
+    step: "1",
+    "aria-labelledby": "rf-menu-title",
+    "aria-describedby": "rf-now-hint",
+  });
+  // live while dragging, committed at once: no « OK » button
+  range.addEventListener("input", () => pick(LEVELS[Number(range.value)] || "faucon"));
+  const autoSwitch = h("input", {
+    id: "rf-auto",
+    class: "rf-switch",
+    type: "checkbox",
+    role: "switch",
+    "aria-describedby": "rf-auto-hint",
+    onchange: (e) => pick(e.target.checked ? "auto" : LEVELS[Number(range.value)]),
+  });
+  const nowIcon = h("span", { class: "rf-opt-icon" });
+  const nowName = h("b");
+  const nowLabel = h("span", { class: "rf-opt-label" });
+  const nowHint = h("span", { class: "rf-opt-hint", id: "rf-now-hint" });
+  const now = h("div", { class: "rf-now", "aria-live": "polite" }, nowIcon, h("span", { class: "rf-opt-text" }, h("span", { class: "rf-opt-name" }, nowName, nowLabel), nowHint));
+  const ticks = LEVELS.map((key) =>
+    h("button", { class: "rf-tick", type: "button", tabindex: "-1", "data-level": key, title: valueText(key), onclick: () => pick(key) }, birdIcon(key)),
+  );
+  const slider = h(
+    "div",
+    { class: "rf-slider" },
+    range,
+    h("div", { class: "rf-ticks", "aria-hidden": "true" }, ...ticks),
+    h("div", { class: "rf-scale", "aria-hidden": "true" }, h("span", { text: t("rf.slider.fast") }), h("span", { text: t("rf.slider.deep") })),
+  );
   picker.menu.replaceChildren(
-    h("p", { class: "rf-menu-title", id: "rf-menu-title", text: t("rf.menu") }),
-    ...CHOICES.map((key) =>
+    h(
+      "div",
+      { class: "rf-menu-head" },
+      h("p", { class: "rf-menu-title", id: "rf-menu-title", text: t("rf.menu") }),
       h(
-        "button",
-        {
-          class: "rf-opt",
-          type: "button",
-          role: "menuitemradio",
-          "aria-checked": String(key === current),
-          "data-level": key,
-          tabindex: "-1",
-          onclick: () => pick(key),
-        },
-        h("span", { class: "rf-opt-icon", "data-level": key }, birdIcon(key)),
-        h(
-          "span",
-          { class: "rf-opt-text" },
-          h(
-            "span",
-            { class: "rf-opt-name" },
-            h("b", { text: nameOf(key) }),
-            key !== "auto" && h("span", { class: "rf-opt-label", text: ` · ${t(`rf.level.${key}.label`)}` }),
-          ),
-          h("span", { class: "rf-opt-hint", text: t(`rf.level.${key}.hint`) }),
-        ),
-        h("span", { class: "rf-opt-check", "aria-hidden": "true" }, icon("check")),
+        "label",
+        { class: "rf-auto", for: "rf-auto" },
+        h("span", { class: "rf-auto-text" }, h("b", { text: t("rf.level.auto") }), h("span", { id: "rf-auto-hint", class: "rf-auto-hint", text: t("rf.slider.auto") })),
+        autoSwitch,
       ),
     ),
+    now,
+    slider,
   );
+  picker.ui = { range, autoSwitch, now, nowIcon, nowName, nowLabel, nowHint, ticks, slider, shown: null };
+  syncMenu();
 }
 
+function syncMenu() {
+  const ui = picker.ui;
+  if (!ui) return;
+  const current = normalizeChoice(state.reflexion);
+  const auto = current === "auto";
+  // while Bird chooses, the thumb rests where it was (the middle bird at first): « Auto » off goes back to it
+  const shown = auto ? ui.shown || LEVELS[AUTO_REST] : current;
+  ui.shown = shown;
+  const index = LEVELS.indexOf(shown);
+  const key = auto ? "auto" : shown;
+  ui.autoSwitch.checked = auto;
+  if (ui.range.value !== String(index)) ui.range.value = String(index);
+  ui.range.setAttribute("aria-valuetext", auto ? `${t("rf.level.auto")} · ${t("rf.level.auto.hint")}` : valueText(shown));
+  ui.slider.style.setProperty("--rf-pos", `${(index / (LEVELS.length - 1)) * 100}%`);
+  ui.slider.dataset.level = shown;
+  ui.slider.classList.toggle("is-auto", auto);
+  ui.now.hidden = auto; // « Auto » is already said by the switch row: the card names a bird only when one is chosen
+  ui.now.dataset.level = key;
+  ui.nowIcon.dataset.level = key;
+  if (ui.nowIcon.dataset.drawn !== key) {
+    ui.nowIcon.dataset.drawn = key;
+    ui.nowIcon.replaceChildren(birdIcon(key));
+  }
+  ui.nowName.textContent = auto ? t("rf.level.auto") : nameOf(shown);
+  ui.nowLabel.textContent = auto ? "" : ` · ${t(`rf.level.${shown}.label`)}`;
+  ui.nowHint.textContent = t(`rf.level.${key}.hint`);
+  ui.ticks.forEach((b, i) => b.classList.toggle("is-on", !auto && i === index));
+}
+
+/** A choice applies at once and the popover stays open: Escape, Tab past the slider or a click outside closes it. */
 function pick(key) {
   const next = normalizeChoice(key);
-  close();
   if (next !== state.reflexion) picker.onPick(next);
+  syncMenu();
 }
 
 function onKey(e) {
-  const all = items();
-  const i = all.indexOf(document.activeElement);
-  const go = (n) => all[(n + all.length) % all.length]?.focus();
-  if (e.key === "ArrowDown") go(i + 1);
-  else if (e.key === "ArrowUp") go(i - 1);
-  else if (e.key === "Home") go(0);
-  else if (e.key === "End") go(all.length - 1);
-  else if (e.key === "Escape") close();
-  else if (e.key === "Tab") close(false);
-  else return;
-  if (e.key !== "Tab") e.preventDefault();
+  if (e.key === "Escape") {
+    e.preventDefault();
+    close();
+  } else if (e.key === "Tab") {
+    // two controls: Tab moves between the switch and the slider, leaving them closes (as the menu did)
+    const stops = [...picker.menu.querySelectorAll("#rf-auto, #rf-range")];
+    const i = stops.indexOf(document.activeElement);
+    const j = i + (e.shiftKey ? -1 : 1);
+    if (j < 0 || j >= stops.length) close(false);
+    else {
+      e.preventDefault();
+      stops[j].focus();
+    }
+  }
 }
 
 /** Wires the picker into the composer row (``slot``); ``onPick(choice)`` stores the choice and redraws. */
@@ -114,11 +171,11 @@ export function mountPicker(slot, onPick) {
     id: "rf-button",
     class: "rf-pill",
     type: "button",
-    "aria-haspopup": "menu",
+    "aria-haspopup": "dialog",
     "aria-expanded": "false",
     "aria-controls": "rf-menu",
   });
-  const menu = h("div", { id: "rf-menu", class: "rf-menu", role: "menu", "aria-labelledby": "rf-menu-title", hidden: true });
+  const menu = h("div", { id: "rf-menu", class: "rf-menu", role: "dialog", "aria-labelledby": "rf-menu-title", hidden: true });
   const scrim = h("div", { class: "rf-scrim", hidden: true, onclick: () => close(false) });
   menu.addEventListener("keydown", onKey);
   // no focus on press (as the send button): focusing the dock shows it « typing », hides its note and moves it,
@@ -158,7 +215,7 @@ export function updatePicker() {
   }
   // an open menu is redrawn only when its language changed: the composer redraws often, and a menu rebuilt under
   // the pointer or the focus would lose the click and the arrow keys
-  if (!picker.menu.hidden && picker.lang !== state.prefs.lang) renderMenu();
+  if (!picker.menu.hidden) picker.lang !== state.prefs.lang ? renderMenu() : syncMenu();
 }
 
 // ------------------------------------------------------------------ in the conversation

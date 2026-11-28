@@ -1,126 +1,9 @@
-/* Mode Agent: the composer control and « l'équipe au travail ». Colours come from app.css tokens (light and dark). */
+/* Mode Agent: « l'équipe au travail ». Colours come from app.css tokens (light and dark). */
 
-.agent-pill {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-block-size: 32px;
-  padding-inline: 9px 4px;
-  border: 1px solid var(--line-strong);
-  border-radius: 999px;
-  font-size: 0.85rem;
-  font-weight: 550;
-  color: var(--ink-2);
-  flex: none;
-  cursor: pointer;
-}
-.agent-pill .icon {
-  inline-size: 15px;
-  block-size: 15px;
-}
-.agent-pill[data-state="on"] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--ink);
-}
-.agent-pill[data-state="off"] {
-  color: var(--muted);
-}
-.agent-pill select {
-  appearance: none;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: inherit;
-  padding-block: 4px;
-  padding-inline: 2px 16px;
-  cursor: pointer;
-  background-image:
-    linear-gradient(45deg, transparent 50%, currentColor 50%),
-    linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-position:
-    calc(100% - 8px) 55%,
-    calc(100% - 4px) 55%;
-  background-size: 4px 4px;
-  background-repeat: no-repeat;
-}
-.agent-pill:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-.agent-pill select:focus {
-  outline: none;
-}
-/* the short value shown over the see-through select on phones (below) */
-.agent-pill-value {
-  display: none;
-}
-/* phones: the pill keeps its label inside it, in two lines (« AGENT » over the value), so the control is named at
-   every width and the Send button never leaves the composer. The value is a short word (« Oui », « Non », « Auto »)
-   that never needs an ellipsis; the real <select> covers the whole pill, see-through, so a tap anywhere on it opens
-   the native picker (which lists the full names) */
+/* phones: the composer row stays tight so the Send button never leaves it (the Mode Agent is in Settings) */
 @media (max-width: 640px) {
   .composer-row {
     gap: 4px;
-  }
-  .agent-pill {
-    display: inline-grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: auto auto;
-    column-gap: 4px;
-    row-gap: 0;
-    flex: none;
-    min-inline-size: 0;
-    min-block-size: 36px;
-    padding-inline: 7px 6px;
-    padding-block: 2px;
-  }
-  .agent-pill .icon {
-    grid-row: 1 / 3;
-    align-self: center;
-  }
-  .agent-pill-label {
-    grid-column: 2;
-    font-size: 0.56rem;
-    font-weight: 650;
-    letter-spacing: 0.06em;
-    line-height: 1.15;
-    text-transform: uppercase;
-    color: var(--muted);
-    white-space: nowrap;
-  }
-  .agent-pill select {
-    position: absolute;
-    inset: 0;
-    inline-size: 100%;
-    block-size: 100%;
-    padding: 0;
-    border-radius: inherit;
-    font-size: 16px; /* iOS zooms on a smaller field */
-    opacity: 0;
-    background: none;
-  }
-  .agent-pill-value {
-    display: block;
-    grid-column: 2;
-    padding-inline-end: 14px;
-    font-size: 0.78rem;
-    line-height: 1.15;
-    white-space: nowrap;
-    background-image:
-      linear-gradient(45deg, transparent 50%, currentColor 50%),
-      linear-gradient(135deg, currentColor 50%, transparent 50%);
-    background-position:
-      calc(100% - 6px) 55%,
-      calc(100% - 2px) 55%;
-    background-size: 4px 4px;
-    background-repeat: no-repeat;
-  }
-  [dir="rtl"] .agent-pill-value {
-    background-position:
-      2px 55%,
-      6px 55%;
   }
 }
 
@@ -433,7 +316,6 @@
 }
 /* touch screens: 44 px targets, like the frequent controls of the app.css coarse-pointer block */
 @media (pointer: coarse) {
-  .agent-pill,
   .crew-fold > summary,
   .composer-row .btn-stop {
     min-block-size: 44px;

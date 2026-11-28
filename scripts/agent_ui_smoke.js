@@ -12,6 +12,15 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 
+// The Mode Agent lives in Settings (no composer control): open Settings, pick, come back to the chat.
+async function setAgent(page, value) {
+  await page.evaluate(() => document.getElementById("nav-settings").click());
+  await page.locator("#agent-mode").selectOption(value, { timeout: 10000 });
+  await page.evaluate(() => document.getElementById("btn-back").click());
+  await page.waitForTimeout(200);
+}
+const agentSetting = (page) => page.evaluate(() => localStorage.getItem("bird.agent") || "auto");
+
 const URL = process.env.BIRD_URL || "http://127.0.0.1:9231/";
 const SHOTS = process.env.SHOTS || path.join(process.cwd(), "agentui-shots");
 const SOFT = !!process.env.SOFT;
@@ -188,7 +197,7 @@ async function wave2(browser, { width = 1280, scheme = "light" } = {}) {
     colorScheme: scheme,
     ...(width < 500 ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : {}),
   });
-  await page.selectOption("#agent-mode", "on");
+  await setAgent(page, "on");
   const bodies = [];
   page.on("request", (r) => {
     if (r.url().endsWith("/api/chat")) bodies.push(JSON.parse(r.postData() || "{}"));
@@ -278,7 +287,7 @@ async function autoStart(browser) {
   console.log("auto-start (1280, light)");
   const out = dir("auto-start");
   const { ctx, page } = await open(browser, { viewport: { width: 1280, height: 900 } });
-  await page.selectOption("#agent-mode", "auto");
+  await setAgent(page, "auto");
   await send(page, DECK, { plan: "keep" });
   await page.waitForSelector("[data-plan-countdown]", { timeout: 15000 });
   await page.screenshot({ path: path.join(out, "1-countdown.png") });
@@ -304,7 +313,7 @@ async function sliceReload(browser) {
   console.log("slice-reload (1280, light)");
   const out = dir("slice-reload");
   const { ctx, page } = await open(browser, { viewport: { width: 1280, height: 900 } });
-  await page.selectOption("#agent-mode", "on");
+  await setAgent(page, "on");
   const sent = [];
   const sse = (evs) => evs.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
   const lanes = [
@@ -582,14 +591,14 @@ async function phone(browsers, key, scheme = "light") {
     ...desc,
     colorScheme: scheme,
   });
-  // the pill: every value readable
+  // the composer: whatever the Mode Agent setting, the reasoning pill is whole and no Agent control crowds the row
   for (const v of ["auto", "on", "off"]) {
-    await page.selectOption("#agent-mode", v);
+    await setAgent(page, v);
     await page.waitForTimeout(100);
     const m = await page.evaluate(pillFit);
     check(
-      m.need <= m.room + 0.5,
-      `${key}: « ${m.text} » fits in the pill (${m.need.toFixed(0)} <= ${m.room.toFixed(0)} px)`,
+      !m.cut && !m.agentControl && m.sendIn,
+      `${key}, agent ${v}: « ${m.text} » not cut, no Agent control, Send inside`,
     );
     if (v === "on")
       await page.screenshot({
@@ -622,7 +631,7 @@ async function phone(browsers, key, scheme = "light") {
       );
     }
   }
-  await page.selectOption("#agent-mode", "auto");
+  await setAgent(page, "auto");
   await send(page);
   await page.waitForSelector(
     '[data-phase="brief"] .crew-lane[data-status="running"], [data-phase="drafts"] .crew-lane[data-status="running"]',
@@ -685,44 +694,36 @@ async function phone(browsers, key, scheme = "light") {
   await ctx.close();
 }
 
-// The text the pill shows for its value (the <select>'s option, or the short word over a see-through select on
-// phones), the width it needs and the room it has; and whether Send stays inside the composer.
+// The composer's reasoning pill (the Mode Agent is in Settings, not in the composer): its name is never cut, and
+// Send stays inside the composer.
 function pillFit() {
-  const s = document.getElementById("agent-mode");
-  const v = document.getElementById("agent-pill-value");
-  const shown = v && getComputedStyle(v).display !== "none" ? v : s;
-  const text = shown === s ? s.options[s.selectedIndex].text : v.textContent;
-  const probe = document.createElement("span");
-  probe.style.font = getComputedStyle(shown).font;
-  probe.style.position = "absolute";
-  probe.style.whiteSpace = "nowrap";
-  probe.textContent = text;
-  document.body.append(probe);
-  const need = probe.getBoundingClientRect().width;
-  probe.remove();
-  const cs = getComputedStyle(shown);
-  const room = shown.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-  const r = s.getBoundingClientRect();
-  const p = document.getElementById("agent-pill").getBoundingClientRect();
+  const pill = document.getElementById("rf-button");
+  const name = pill.querySelector(".rf-pill-name");
+  const shown = name && getComputedStyle(name).display !== "none" && name.getBoundingClientRect().width > 2;
   const send = document.getElementById("btn-send").getBoundingClientRect();
   const box = document.getElementById("composer").getBoundingClientRect();
-  return { text, need, room, sel: [r.width, r.height], pill: [p.width, p.height], sendIn: send.right <= box.right - 1 };
+  return {
+    text: shown ? name.textContent : pill.getAttribute("aria-label"),
+    cut: shown ? name.scrollWidth > name.clientWidth + 0.5 : false,
+    agentControl: !!document.getElementById("agent-pill"),
+    sendIn: send.right <= box.right - 1,
+  };
 }
 
-// every phone width: the selected value is never ellipsized
+// every phone width, for each Mode Agent setting: the composer never changes, Send stays inside
 async function pillWidths(browser) {
-  console.log("pill widths 320-412 (fr)");
+  console.log("composer widths 320-412 (fr)");
   for (const width of [320, 360, 375, 390, 412]) {
     const { ctx, page } = await open(browser, {
       ...pw.devices["iPhone 14"],
       viewport: { width, height: 760 },
     });
     for (const v of ["auto", "on", "off"]) {
-      await page.selectOption("#agent-mode", v);
+      await setAgent(page, v);
       const ok = await page.evaluate(pillFit);
       check(
-        ok.need <= ok.room + 0.5 && ok.sendIn,
-        `${width} px: « ${ok.text} » fits (${ok.need.toFixed(0)}/${ok.room.toFixed(0)}), Send inside`,
+        !ok.cut && !ok.agentControl && ok.sendIn,
+        `${width} px, agent ${v}: « ${ok.text} » not cut, no Agent control in the composer, Send inside`,
       );
     }
     await ctx.close();

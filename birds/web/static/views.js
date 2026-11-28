@@ -1120,6 +1120,26 @@ export function renderSettings() {
           h("span", { class: "hint", text: t("set.thinking.hint") }),
         ),
       ),
+      // the Mode Agent lives here, not in the composer (one button fewer): Auto lets Bird call the team when needed
+      field(
+        "agent-mode",
+        t("composer.agent.aria"),
+        t("composer.agent.hint"),
+        select(
+          "agent-mode",
+          ["auto", "on", "off"].includes(state.agent) ? state.agent : "auto",
+          [
+            ["auto", t("composer.agent.auto")],
+            ["on", t("composer.agent.on")],
+            ["off", t("composer.agent.off")],
+          ],
+          (v) => {
+            state.agent = ["auto", "on", "off"].includes(v) ? v : "auto";
+            store.set("bird.agent", state.agent);
+            toast(t("toast.saved"), "ok");
+          },
+        ),
+      ),
     ),
     h(
       "section",

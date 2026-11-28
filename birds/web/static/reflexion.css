@@ -72,6 +72,10 @@
     background-color 0.15s,
     border-color 0.15s;
 }
+/* the last control before the counter and Send: Send stays at the end of the row (the Agent pill used to push it) */
+.composer-row .rf-pill {
+  margin-inline-end: auto;
+}
 .rf-pill .rf-bird {
   color: var(--rf-tint);
 }
@@ -131,34 +135,90 @@
 .rf-menu[hidden] {
   display: none;
 }
+.rf-menu-head {
+  display: grid;
+  gap: 8px;
+}
 .rf-menu-title {
-  padding: 6px 10px 4px;
+  margin: 0;
+  padding: 6px 8px 0;
   font-size: 0.76rem;
   font-weight: 600;
   color: var(--muted);
 }
-.rf-opt {
-  display: grid;
-  grid-template-columns: 32px 1fr 18px;
+/* « Auto »: one row, a switch at the end, as a settings line */
+.rf-auto {
+  display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-block-size: 48px;
-  padding: 6px 10px 6px 6px;
-  border: 0;
+  padding: 6px 8px;
   border-radius: 12px;
-  background: none;
-  color: var(--ink);
-  font: inherit;
-  text-align: start;
   cursor: pointer;
 }
-.rf-opt:hover,
-.rf-opt:focus-visible {
+.rf-auto:hover {
   background: var(--surface-2);
 }
-.rf-opt:focus-visible {
+.rf-auto-text {
+  display: grid;
+  flex: 1;
+  gap: 1px;
+  font-size: 0.92rem;
+}
+.rf-auto-text b {
+  font-weight: 650;
+}
+.rf-auto-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.rf-switch {
+  appearance: none;
+  flex: none;
+  position: relative;
+  inline-size: 38px;
+  block-size: 22px;
+  margin: 0;
+  border-radius: 999px;
+  background: var(--line-strong, var(--line));
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.rf-switch::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 3px;
+  inset-inline-start: 3px;
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform 0.15s;
+}
+.rf-switch:checked {
+  background: var(--accent);
+}
+.rf-switch:checked::after {
+  transform: translateX(16px);
+}
+[dir="rtl"] .rf-switch:checked::after {
+  transform: translateX(-16px);
+}
+.rf-switch:focus-visible,
+.rf-range:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  outline-offset: 2px;
+}
+/* the bird under the thumb: drawing, name · label, what it is for */
+.rf-now {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  align-items: center;
+  gap: 10px;
+  margin-block-start: 4px;
+  padding: 8px;
+  border-top: 1px solid var(--line);
 }
 .rf-opt-icon {
   display: grid;
@@ -191,12 +251,99 @@
   font-size: 0.78rem;
   color: var(--muted);
 }
-.rf-opt-check {
-  visibility: hidden;
-  color: var(--accent);
+/* the slider: a native range (keyboard, screen readers, touch), its track filled up to the bird chosen */
+.rf-slider {
+  --rf-pos: 50%;
+  display: grid;
+  gap: 2px;
+  padding: 4px 8px 8px;
 }
-.rf-opt[aria-checked="true"] .rf-opt-check {
-  visibility: visible;
+.rf-now[hidden] {
+  display: none;
+}
+.rf-slider.is-auto {
+  border-top: 1px solid var(--line);
+  padding-block-start: 10px;
+}
+.rf-range {
+  appearance: none;
+  border-radius: 999px;
+  inline-size: 100%;
+  block-size: 28px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.rf-range::-webkit-slider-runnable-track {
+  block-size: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--rf-tint) var(--rf-pos), var(--surface-2) var(--rf-pos));
+}
+.rf-range::-moz-range-track {
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.rf-range::-moz-range-progress {
+  block-size: 6px;
+  border-radius: 999px;
+  background: var(--rf-tint);
+}
+.rf-range::-webkit-slider-thumb {
+  appearance: none;
+  inline-size: 22px;
+  block-size: 22px;
+  margin-block-start: -8px;
+  border: 3px solid var(--rf-tint);
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+}
+.rf-range::-moz-range-thumb {
+  inline-size: 16px;
+  block-size: 16px;
+  border: 3px solid var(--rf-tint);
+  border-radius: 50%;
+  background: var(--surface);
+}
+[dir="rtl"] .rf-range::-webkit-slider-runnable-track {
+  background: linear-gradient(to left, var(--rf-tint) var(--rf-pos), var(--surface-2) var(--rf-pos));
+}
+/* « Auto »: the track rests grey, the thumb stays movable (moving it gives the choice back to you) */
+.rf-slider.is-auto {
+  --rf-tint: var(--muted);
+}
+.rf-ticks {
+  display: flex;
+  justify-content: space-between;
+  /* the ticks sit under the thumb's centre: half a thumb in from each end */
+  margin-inline: -2px;
+}
+.rf-tick {
+  display: grid;
+  place-items: center;
+  inline-size: 26px;
+  block-size: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.rf-tick:hover {
+  color: var(--rf-tint);
+  background: var(--surface-2);
+}
+.rf-tick.is-on {
+  color: var(--rf-tint);
+  background: color-mix(in srgb, var(--rf-tint) 14%, transparent);
+}
+.rf-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--muted);
 }
 .rf-scrim {
   position: fixed;

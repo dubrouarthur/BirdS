@@ -6,6 +6,15 @@ const { chromium, devices } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 
+// The Mode Agent lives in Settings (no composer control): open Settings, pick, come back to the chat.
+async function setAgent(page, value) {
+  await page.evaluate(() => document.getElementById("nav-settings").click());
+  await page.locator("#agent-mode").selectOption(value, { timeout: 10000 });
+  await page.evaluate(() => document.getElementById("btn-back").click());
+  await page.waitForTimeout(200);
+}
+const agentSetting = (page) => page.evaluate(() => localStorage.getItem("bird.agent") || "auto");
+
 const URL = process.env.BIRD_URL || "http://127.0.0.1:9071/";
 const SHOTS = process.env.SHOTS || path.join(__dirname, "shots");
 const DECK =
@@ -83,7 +92,7 @@ async function run(cfg) {
 
   // 1. the control shows Auto by default
   check(
-    (await page.inputValue("#agent-mode")) === "auto",
+    (await agentSetting(page)) === "auto",
     "composer control defaults to Auto",
   );
   await page.screenshot({ path: path.join(SHOTS, `${name}-0-composer.png`) });
@@ -192,7 +201,7 @@ async function run(cfg) {
     "single-agent answer with its file (file card, or the canvas card)",
   );
   check(
-    (await page.inputValue("#agent-mode")) === "auto",
+    (await agentSetting(page)) === "auto",
     "composer setting unchanged (Auto)",
   );
   await page.screenshot({ path: path.join(SHOTS, `${name}-5-simple.png`) });
@@ -220,17 +229,17 @@ async function run(cfg) {
 
   // 5. Désactivé: no team on the same request
   await newConversation(page);
-  await page.selectOption("#agent-mode", "off");
+  await setAgent(page, "off");
   await send(page, DECK);
   await idle(page);
   check((await page.$$(".crew-chip")).length === 0, "Désactivé: no chip");
-  await page.selectOption("#agent-mode", "auto");
+  await setAgent(page, "auto");
   check(errors.length === 0, `no page error (${errors.join(" | ")})`);
   await browser.close();
 }
 
-// The Send button stays inside the composer with text typed, at 320, 390 and 430 px, and the Agent pill keeps its
-// label (« AGENT » over the value) and its ✦ icon.
+// The Send button stays inside the composer with text typed, at 320, 390 and 430 px; the composer has the reasoning
+// pill and no Agent control (the Mode Agent is in Settings).
 async function composerFits() {
   console.log("composer widths");
   const browser = await chromium.launch();
@@ -255,15 +264,15 @@ async function composerFits() {
         return {
           send: r("#btn-send"),
           box: r("#composer"),
-          label: vis(".agent-pill-label"),
-          icon: vis("#agent-pill .icon"),
+          bird: vis("#rf-button"),
+          noAgentPill: !document.getElementById("agent-pill"),
         };
       });
       check(
         g.send.right <= g.box.right - 1 && g.send.left >= g.box.left,
         `${width} px, ${text.length} chars: Send inside the composer (${g.send.right.toFixed(1)} <= ${g.box.right.toFixed(1)})`,
       );
-      check(g.label && g.icon, `${width} px: the Agent pill shows its label and ✦`);
+      check(g.bird && g.noAgentPill, `${width} px: the reasoning pill is shown and no Agent control crowds the composer`);
     }
     await ctx.close();
   }

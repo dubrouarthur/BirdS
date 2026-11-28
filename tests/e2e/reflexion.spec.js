@@ -67,28 +67,29 @@ async function newConv(page) {
     await page.evaluate(() => document.querySelector("dialog[open]")?.close());
     const pill = page.locator("#rf-button");
     if ((await pill.getAttribute("aria-label")) !== "Réflexion : Auto") problems.push(`${name}: pill label ${await pill.getAttribute("aria-label")}`);
-    // ---- the menu, with the keyboard
+    // ---- the slider (as Claude's), with the keyboard: an « Auto » switch and five birds on a native range
     await pill.focus();
     await page.keyboard.press("Enter");
     await page.waitForTimeout(250);
-    const opts6 = await page.locator('#rf-menu [role="menuitemradio"]').count();
-    if (opts6 !== 6) problems.push(`${name}: ${opts6} choices`);
-    const drawn = await page.locator("#rf-menu .rf-opt-icon svg path").count();
-    if (drawn < 6) problems.push(`${name}: ${drawn} drawings`);
-    const focused = await page.evaluate(() => document.activeElement?.dataset.level);
-    if (focused !== "auto") problems.push(`${name}: focus on open ${focused}`);
+    if ((await page.locator("#rf-menu").getAttribute("role")) !== "dialog") problems.push(`${name}: popover role`);
+    if (!(await page.isChecked("#rf-auto"))) problems.push(`${name}: Auto switch off on open`);
+    const ticks = await page.locator("#rf-menu .rf-tick").count();
+    if (ticks !== 5) problems.push(`${name}: ${ticks} birds on the slider`);
+    const drawn = await page.locator("#rf-menu .rf-tick svg path").count();
+    if (drawn < 5) problems.push(`${name}: ${drawn} drawings`);
+    const focused = await page.evaluate(() => document.activeElement?.id);
+    if (focused !== "rf-range") problems.push(`${name}: focus on open ${focused}`);
     await page.screenshot({ path: path.join(OUT, `rf-menu-${name}.png`) });
-    for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowDown");
-    if ((await page.evaluate(() => document.activeElement?.dataset.level)) !== "faucon") problems.push(`${name}: arrows`);
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowLeft");
+    await page.waitForTimeout(150);
+    if ((await page.locator("#rf-range").getAttribute("aria-valuetext")) !== "Faucon · Précis") problems.push(`${name}: arrows ${await page.locator("#rf-range").getAttribute("aria-valuetext")}`);
+    if (await page.isChecked("#rf-auto")) problems.push(`${name}: moving the slider kept Auto`);
+    if (await page.locator("#rf-menu").isHidden()) problems.push(`${name}: a choice closed the slider`);
     await page.keyboard.press("Escape");
     await page.waitForTimeout(150);
     if (!(await page.locator("#rf-menu").isHidden())) problems.push(`${name}: Escape did not close`);
     if ((await page.evaluate(() => document.activeElement?.id)) !== "rf-button") problems.push(`${name}: focus not returned`);
-    await page.keyboard.press("ArrowDown");
-    await page.waitForTimeout(150);
-    for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowDown");
-    await page.keyboard.press("Enter");
-    await page.waitForTimeout(200);
     if ((await pill.getAttribute("data-level")) !== "faucon") problems.push(`${name}: Faucon not picked`);
     await page.reload({ waitUntil: "networkidle" });
     await page.waitForTimeout(800);
@@ -145,7 +146,8 @@ async function newConv(page) {
     // ---- Auto: Bird chooses (in the demo, the fallback cues: no model)
     await pill.click();
     await page.waitForTimeout(200);
-    await page.locator('#rf-menu .rf-opt[data-level="auto"]').click({ timeout: 5000 });
+    await page.locator("#rf-auto").check({ timeout: 5000 });
+    await page.keyboard.press("Escape");
     await page.waitForTimeout(150);
     await newConv(page);
     await send(page, CALC);
@@ -178,7 +180,8 @@ async function newConv(page) {
     const pill = page.locator("#rf-button");
     if ((await pill.getAttribute("data-level")) !== "colibri") problems.push(`settings: reasoning off reads ${await pill.getAttribute("data-level")}`);
     await pill.click();
-    await page.locator('#rf-menu .rf-opt[data-level="faucon"]').click();
+    await page.locator('#rf-menu .rf-tick[data-level="faucon"]').click();
+    await page.keyboard.press("Escape");
     await page.waitForTimeout(200);
     await page.click("#nav-settings");
     await page.waitForTimeout(400);

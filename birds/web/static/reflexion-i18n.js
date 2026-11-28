@@ -5,6 +5,9 @@ export const REFLEXION_STRINGS = {
   fr: {
     "rf.button": "Réflexion : {name}",
     "rf.menu": "Niveau de réflexion",
+    "rf.slider.auto": "Bird choisit selon la demande",
+    "rf.slider.fast": "Plus rapide",
+    "rf.slider.deep": "Plus approfondi",
     "rf.level.auto": "Auto",
     "rf.level.auto.label": "Bird choisit",
     "rf.level.auto.hint": "Bird choisit l'oiseau selon la demande",
@@ -55,6 +58,9 @@ export const REFLEXION_STRINGS = {
   en: {
     "rf.button": "Reasoning: {name}",
     "rf.menu": "Reasoning level",
+    "rf.slider.auto": "Bird picks for each request",
+    "rf.slider.fast": "Faster",
+    "rf.slider.deep": "Deeper",
     "rf.level.auto": "Auto",
     "rf.level.auto.label": "Bird chooses",
     "rf.level.auto.hint": "Bird picks the bird for each request",

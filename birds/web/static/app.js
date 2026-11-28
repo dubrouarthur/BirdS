@@ -851,10 +851,6 @@ function updateComposer() {
   } else count.hidden = true;
   $("editing").hidden = !state.editing;
   updatePicker();
-  $("agent-mode").value = state.agent;
-  $("agent-pill-value").textContent = t(`composer.agent.${state.agent}.short`); // phones: the select is see-through
-  $("agent-pill").dataset.state = state.agent;
-  $("agent-pill").title = t("composer.agent.hint");
   updateSlash();
 }
 
@@ -2198,11 +2194,6 @@ function bind() {
     }
     prefsThinking = state.thinking;
     announce(t("rf.changed", { name: t(`rf.level.${choice}`) }));
-    updateComposer();
-  });
-  $("agent-mode").addEventListener("change", (e) => {
-    state.agent = AGENT_MODES.includes(e.target.value) ? e.target.value : "auto";
-    store.set("bird.agent", state.agent);
     updateComposer();
   });
   $("editing-cancel").addEventListener("click", () => {
