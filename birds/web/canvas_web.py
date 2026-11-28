@@ -177,6 +177,12 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
     kind = "code" if (p.base or {}).get("kind") == "code" else p.kind
     # read_file only with a file to read: without one a small model « reads » the deck's title and apologises
     hide = turn.FILE_TOOLS + (() if attached else ("read_file",))
+    # draft_email only when the request also asks for a mail (« … et un mail pour l'annoncer »): else a compte rendu
+    # naming Paul and Marie went out as a draft to invented addresses and the canvas was dropped
+    from birds.harness import plan as taskplan
+
+    if not any(i.kind == "mail" for i in taskplan.extract(words, lang)):
+        hide += ("draft_email",)
     a2 = turn.derive_agent(agent, hooks, turn.sink_for(captured), hide=hide, kind=kind)
     run = a2.run(turn.turn_message(p, user_sent, lang), history=history or None, system=system,
                  thinking=request.thinking, lang=lang, request_text=words, attached=attached, tz=request.tz)  # fmt: skip

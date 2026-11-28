@@ -720,7 +720,7 @@ def test_patch_turn_gives_the_outline_and_applies_operations(monkeypatch):
             client, "ajoute une slide sur les risques après la slide 4", canvas=_canvas_body(dsl.parse(DECK, "deck"))
         )
     prompt = json.loads(llm.prompts[0])
-    assert prompt["tools"] and not set(prompt["tools"]) & set(turn.FILE_TOOLS)  # the turn's tools, no file tool
+    assert not set(prompt.get("tools") or []) & set(turn.FILE_TOOLS)  # the turn's tools, no file tool
     assert "[b3] Évolution" in prompt["messages"][-1]["content"]
     final = [e for e in events if e["type"] == "canvas"][-1]
     assert [b["title"] for b in final["doc"]["blocks"]][4] == "Risques" and final["doc"]["blocks"][4]["id"] == "b6"
@@ -1124,3 +1124,16 @@ def test_parse_patch_keeps_untagged_prose_out_of_the_deck():
                                  "ajoute une diapositive sur les coûts")  # fmt: skip
     assert ops == [] and how == "none"
 
+
+
+def test_canvas_doc_turn_offers_draft_email_only_when_a_mail_is_asked(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    _no_network(monkeypatch)
+    doc = "# Objet\nReport du projet au T2.\n# Présents\n- Paul\n- Marie\n# Décision\nReport au T2."
+    app, llm = _app([doc])
+    with TestClient(app) as client:
+        events = _chat(client, "Rédige le compte rendu : réunion à Toulouse le 3 mars, présents Paul et Marie, "
+                               "décision de reporter le projet au T2.")  # fmt: skip
+    assert "draft_email" not in (json.loads(llm.prompts[0]).get("tools") or [])
+    assert [e for e in events if e["type"] == "canvas"][-1]["phase"] == "final"
