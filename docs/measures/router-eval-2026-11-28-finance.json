@@ -1,0 +1,231 @@
+{
+ "date": "2026-11-28",
+ "model": "Bird S 4B",
+ "mode": "hybrid",
+ "structured": "structured_outputs",
+ "per_class": {
+  "finance,finance_router": 2,
+  "company_fx,charts+": 1
+ },
+ "seed": 0,
+ "rows": [
+  {
+   "family": "finance",
+   "label": "yes",
+   "text": "Nikkei 225 over the past year",
+   "ok": true,
+   "regex_ok": true,
+   "seconds": 1.109,
+   "router": {
+    "modules": [
+     {
+      "tool": "get_quote",
+      "args": {
+       "symbols": "Nikkei 225",
+       "range": "1y"
+      }
+     }
+    ],
+    "agent": "off",
+    "needs_web": false
+   },
+   "vetoed": [],
+   "dropped": []
+  },
+  {
+   "family": "finance",
+   "label": "yes",
+   "text": "comment se porte Hermès en bourse depuis janvier ?",
+   "ok": true,
+   "regex_ok": true,
+   "seconds": 1.029,
+   "router": {
+    "modules": [
+     {
+      "tool": "get_quote",
+      "args": {
+       "symbols": "Hermès",
+       "range": "1y"
+      }
+     }
+    ],
+    "agent": "off",
+    "needs_web": true
+   },
+   "vetoed": [],
+   "dropped": []
+  },
+  {
+   "family": "finance",
+   "label": "no",
+   "text": "prépare un cours sur la bourse pour des lycéens",
+   "ok": true,
+   "regex_ok": true,
+   "seconds": 0.673,
+   "router": {
+    "modules": [
+     {
+      "tool": "office",
+      "args": {
+       "kind": "slides"
+      }
+     }
+    ],
+    "agent": "on",
+    "needs_web": true
+   },
+   "vetoed": [],
+   "dropped": []
+  },
+  {
+   "family": "finance",
+   "label": "no",
+   "text": "how do I buy Apple shares?",
+   "ok": true,
+   "regex_ok": true,
+   "seconds": 0.453,
+   "router": {
+    "modules": [],
+    "agent": "off",
+    "needs_web": false
+   },
+   "vetoed": [],
+   "dropped": []
+  },
+  {
+   "family": "finance_router",
+   "label": "yes",
+   "text": "et Apple, ça a pris combien depuis l'été ?",
+   "ok": true,
+   "regex_ok": false,
+   "seconds": 0.792,
+   "router": {
+    "modules": [
+     {
+      "tool": "get_quote",
+      "args": {
+       "symbols": "Apple",
+       "range": "6m"
+      }
+     }
+    ],
+    "agent": "off",
+    "needs_web": true
+   },
+   "vetoed": [],
+   "dropped": []
+  },
+  {
+   "family": "finance_router",
+   "label": "yes",
+   "text": "is Nvidia up or down this week?",
+   "ok": true,
+   "regex_ok": false,
+   "seconds": 0.79,
+   "router": {
+    "modules": [
+     {
+      "tool": "get_quote",
+      "args": {
+       "symbols": "Nvidia",
+       "range": "1y"
+      }
+     }
+    ],
+    "agent": "off",
+    "needs_web": false
+   },
+   "vetoed": [],
+   "dropped": []
+  },
+  {
+   "family": "charts+",
+   "label": "yes",
+   "text": "la population de Paris depuis 2012",
+   "ok": true,
+   "regex_ok": true,
+   "seconds": 1.467,
+   "router": {
+    "modules": [
+     {
+      "tool": "get_statistics",
+      "args": {
+       "indicator": "population",
+       "places": "Paris",
+       "since": "2012"
+      }
+     },
+     {
+      "tool": "make_chart",
+      "args": {
+       "type": "line"
+      }
+     }
+    ],
+    "agent": "off",
+    "needs_web": true
+   },
+   "vetoed": [],
+   "dropped": []
+  },
+  {
+   "family": "charts+",
+   "label": "no",
+   "text": "c'est quoi un histogramme ?",
+   "ok": true,
+   "regex_ok": true,
+   "seconds": 0.454,
+   "router": {
+    "modules": [],
+    "agent": "off",
+    "needs_web": false
+   },
+   "vetoed": [],
+   "dropped": []
+  },
+  {
+   "family": "company_fx",
+   "label": "yes",
+   "text": "qui dirige Michelin ?",
+   "ok": true,
+   "regex_ok": true,
+   "seconds": 0.715,
+   "router": {
+    "modules": [
+     {
+      "tool": "find_company",
+      "args": {
+       "name": "Michelin"
+      }
+     }
+    ],
+    "agent": "off",
+    "needs_web": false
+   },
+   "vetoed": [],
+   "dropped": []
+  },
+  {
+   "family": "company_fx",
+   "label": "no",
+   "text": "rédige un mail à notre fournisseur",
+   "ok": true,
+   "regex_ok": true,
+   "seconds": 0.879,
+   "router": {
+    "modules": [
+     {
+      "tool": "office",
+      "args": {
+       "kind": "email"
+      }
+     }
+    ],
+    "agent": "off",
+    "needs_web": false
+   },
+   "vetoed": [],
+   "dropped": []
+  }
+ ]
+}

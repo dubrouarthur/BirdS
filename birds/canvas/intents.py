@@ -42,7 +42,10 @@ _WEB = (r"(?:page (?:web|html|d['’]accueil)|landing(?: page)?|site (?:web|vitr
         r"formulaire html|maquette (?:html|web)|prototype (?:html|web)|composant (?:html|web|react)|"
         r"svg|logo svg|ic[ôo]ne svg|animation css|mini[- ]jeu|jeu (?:en|html|javascript|js)|calculatrice|"
         r"compte [àa] rebours|countdown|horloge (?:en|html|js)|widget (?:html|web)|"
-        r"visualisation interactive|tableau de bord html|dashboard html|javascript|\bjs\b)")  # fmt: skip
+        r"visualisation interactive|tableau de bord html|dashboard html|javascript|\bjs\b|"
+        r"(?:petite |mini[- ])?(?:application|appli|app) (?:web|html|javascript|js)|web ?app)")  # fmt: skip
+# « une todo list en HTML », « un convertisseur d'unités en JavaScript »: a thing, then the web language it is made in
+_IN_WEB = re.compile(r"^.{0,80}?\b(?:en|in|avec|with)\s+(?:html|css|javascript|js|html\s*/\s*css)\b", re.I)
 _DIAGRAM = (r"(?:sch[ée]ma(?:\s+(?:de|du|des)\s+(?:processus|fonctionnement|flux|d[ée]cision|architecture|"
             r"principe))?|organigramme|logigramme|diagramme (?:de flux|de processus|de d[ée]cision|d['’]activit[ée]|"
             r"de s[ée]quence)|flow ?chart|flowchart|mind ?map|carte mentale|arbre de d[ée]cision|mermaid|"
@@ -56,7 +59,8 @@ _HOWTO = re.compile(
 )
 # A question anywhere in the sentence (« … des conseils pour le stress ? », « … dure combien de temps ? »).
 _QUESTION = re.compile(
-    r"\b(?:conseils?|astuces?|tips|advice|avis|combien|c['’]est quoi|qu['’]est-ce|est-ce que|est-il|est-elle|"
+    r"\b(?:conseils?(?! (?:municipal|communautaire|d['’]administration|de (?:classe|quartier|direction|surveillance|"
+    r"l['’]ordre|d[ée]veloppement)|r[ée]gional|d[ée]partemental|scientifique|syndical|des ministres))|astuces?|tips|advice|avis|combien|c['’]est quoi|qu['’]est-ce|est-ce que|est-il|est-elle|"
     r"faut-il|dois-je|should i|what does|que dit|quels? sont|quelles? sont|(?<!sur )(?<!about )pourquoi|"
     r"(?<!sur )(?<!about )comment (?:faire|on|je|puis|r[ée]ussir))\b",
     re.I,
@@ -108,6 +112,12 @@ _FILE_FORMAT = re.compile(
 )
 
 
+_WORD_FILE = re.compile(r"\b(?:docx|word|fichier word|format word|document word|word document|word file)\b", re.I)
+_OTHER_FILE = re.compile(r"\b(?:pptx|xlsx|\.ppt|powerpoint|power point|excel|tableur|spreadsheet|slides?|diapos?)\b",
+                         re.I)  # fmt: skip
+_LETTER = re.compile(r"(?:lettres?|courriers?|letters?)", re.I)
+
+
 def ask(words: str, attached: bool = False) -> str | None:
     """'deck' | 'doc' | 'code' | 'diagram' | None, from the user's own words. A hint, never the last word: when it
     says None the turn is an ordinary one, where the model may still call its trained make_slides / make_document
@@ -125,11 +135,21 @@ def ask(words: str, attached: bool = False) -> str | None:
         return "diagram"
     if _near(head, _WEB) or (
         _MAKE_RX.search(head) and re.search(r"\b(?:page|site)\b.{0,30}\b(?:html|css|javascript)\b", head, re.I)
-    ):
+    ) or (_LEADS.search(head[:80]) and _IN_WEB.search(head) and not _NOT.search(head)):
         return "code"
     if re.search(_PY, head, re.I) and _MAKE_RX.search(head):
         return "code"
-    if _NOT.search(head) or _FILE_FORMAT.search(head):
+    if _WORD_FILE.search(head) and not _OTHER_FILE.search(head) and not _NOT.search(_LETTER.sub(" ", head)):
+        # a Word document (« rédige un document Word », « une lettre en Word »): the canvas is the document and
+        # its card downloads the .docx — one deliverable, one card (the trained tool's file would be a second one)
+        if _near(head, _DOC, lead=False) or _near(head, _LETTER.pattern, lead=False):
+            return "doc"
+    veto = _NOT.search(head)
+    if veto and re.match(r"compar|expli", veto.group(0), re.I) and _near(head, _DECK):
+        noun = re.search(_DECK, head, re.I)
+        if noun and veto.start() > noun.end():
+            veto = None  # « une présentation qui compare A et B »: what the deck does, not a request to compare
+    if veto or _FILE_FORMAT.search(head):
         return None  # a named file format (« une présentation pptx ») is a file: the trained tool makes it
     if _near(head, _DECK):
         return "deck"

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from urllib.parse import urlsplit
 
-TYPES = ("calendar", "entity", "tenders", "papers", "commune")
+TYPES = ("calendar", "entity", "tenders", "papers", "commune", "quote")  # quote: markets (tools/opendata/finance.py)
 IMAGE_TTL = 7 * 86400.0
 _IMAGE_HOSTS = {"upload.wikimedia.org"}
 

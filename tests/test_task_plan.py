@@ -441,8 +441,8 @@ def test_a_paused_run_keeps_its_plan_across_the_confirmation(tmp_path):
     llm = FakeClient([call("read_file", path="note.txt"), call("make_slides", title="T", slides=[{"title": "A",
                       "bullets": ["x"]}]), call("draft_email", to=["a@b.fr"], subject="S", body="B"), "Tout est prêt."])  # fmt: skip
     events = []
-    agent = Agent(llm, Tok(), Config(workspace=tmp_path, audit_file=None), confirm=lambda t, a: PAUSE,
-                  hooks=Hooks(on_plan=events.append))  # fmt: skip
+    agent = Agent(llm, Tok(), Config(workspace=tmp_path, audit_file=None, confirm_deliverables=True),
+                  confirm=lambda t, a: PAUSE, hooks=Hooks(on_plan=events.append))  # fmt: skip
     first = agent.run("Lis note.txt, fais une présentation et un mail à a@b.fr.")
     assert first.stop_reason == "confirm" and first.state["plan"][0]["kind"] == "slides"
     second = agent.run(resume=json.loads(json.dumps(first.state)), decision=True)

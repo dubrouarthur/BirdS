@@ -5,6 +5,7 @@ ouvertes » and birds/opendata_schemas.py for the schemas the model sees when th
 from .calendar import work_calendar
 from .commune import find_commune
 from .entity import lookup_entity
+from .finance import get_quote
 from .papers import find_papers
 from .stats import get_statistics
 from .tenders import find_tenders
@@ -16,6 +17,7 @@ OPENDATA_TOOLS = {
     "find_tenders": find_tenders,
     "find_papers": find_papers,
     "find_commune": find_commune,
+    "get_quote": get_quote,
 }
 
 __all__ = ["OPENDATA_TOOLS"]

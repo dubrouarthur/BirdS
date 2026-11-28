@@ -549,7 +549,7 @@ def test_document_about_a_meeting_gets_no_event_note_nor_card(tmp_path, text):
         ("Prépare les slides pour le meeting de lundi", "slides"),
         ("Fais une présentation pour le séminaire de vendredi", "slides"),
         ("Rédige le compte rendu de la réunion de jeudi", "minutes"),
-        ("Écris un mail pour annuler la réunion de demain", "email"),
+        ("Écris un mail pour annuler la réunion de demain", "reply"),
         ("Quels documents apporter à l'entretien annuel de vendredi ?", "document"),
         ("Rédige une invitation au webinaire du 3 décembre", "search"),  # as before the widgets
         ("Organise une réunion avec Paul jeudi prochain à 14h", "event"),

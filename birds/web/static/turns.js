@@ -249,7 +249,7 @@ function renderSteps(turn) {
           ),
           step.info?.label &&
             h("span", {
-              class: `badge badge-src${step.info.fallback_from ? " badge-warn" : ""}`,
+              class: "badge badge-src", // a fallback is a calm line in the step, never a warning
               title: step.info.fallback_from
                 ? t("steps.fallback", { from: step.info.fallback_from, label: step.info.label })
                 : t("steps.via", { label: step.info.label }),
@@ -636,8 +636,9 @@ function filePreview(preview, onDownload, onEdit = null) {
 }
 
 function renderFiles(turn) {
+  const inCanvas = turn.answer?.canvas?.files || []; // a Word document is one card: the canvas card
   const files = (turn.files || []).filter(
-    (f) => f && typeof f.name === "string",
+    (f) => f && typeof f.name === "string" && !inCanvas.includes(f.name),
   );
   if (!files.length) return null;
   turn.ui.fileOpen = turn.ui.fileOpen || {};
@@ -1543,6 +1544,11 @@ function basedOn(turn) {
   );
 }
 
+function quoteFirst(turn) {
+  const list = turn.answer?.widgets?.length ? turn.answer.widgets : turn.widgets || [];
+  return list.some((w) => w && w.type === "quote");
+}
+
 function widgetsFor(turn, entry) {
   // the answer's cards, or the ones sent as each pre-called tool returned (`widget` event): shown while the model
   // writes, and kept when it fails
@@ -1630,9 +1636,11 @@ function fillAssistant(el, turn, isLast) {
         )),
     hasText && entry.md,
     turn.answer?.fallback && h("p", { class: "answer-note", "data-notice": "fallback", text: turn.answer.fallback }),
+    // markets: the quote card (its period chips) comes before the chart it drives (finance.js)
+    quoteFirst(turn) && widgetsFor(turn, entry),
     renderCharts(turn),
     renderWebImages(turn),
-    widgetsFor(turn, entry),
+    !quoteFirst(turn) && widgetsFor(turn, entry),
     turn.crew?.done && renderChecks(turn), // « Vérifications faites »: the team's checks, figure by figure
     canvasCard(turn), // the deck, document, page or sheet of this turn, in the canvas
     basedOn(turn),
