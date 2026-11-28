@@ -255,16 +255,24 @@ def test_echoed_or_repeated_queries_off_subject_series_and_notation_are_caught()
     ]}  # fmt: skip
     repairs: list[str] = []
     o = pg.parse_outline(json.dumps(plan), "deck", "Fais une présentation sur la mobilité douce", "fr", repairs)
-    assert o.items[0].query == "Chômage des jeunes"  # « uniquement » is an echo of the instructions
-    assert o.items[2].query == "Les seniors"  # never the picture of another slide
+    # « uniquement » is an echo of the instructions: no concrete thing to show, no photo slot (nor its layout)
+    assert (o.items[0].query, o.items[0].visual, o.items[0].layout) == ("", "none", "")
+    assert o.items[1].query == "job center queue"
+    assert (o.items[2].query, o.items[2].visual) == ("", "none")  # never the picture of another slide
     assert o.items[3].data == "web" and o.items[3].indicator == ""  # a population chart off-subject: vetoed
     block = {"parts": [
         {"t": "text", "text": "[Graphique des données officielles : population de 65 à 68 M] La ville change [1]."},
         {"t": "steps", "items": [{"title": "<étape>", "text": "Concerter"}, {"title": "<date>", "text": ""}]},
+        {"t": "list", "items": ["Graphique montrant la tendance descendante", "10,4 % en 2015 [1]"]},
+        {"t": "chart", "type": "line", "columns": ["a", "b"], "rows": [["2015", 10.4]], "source": "Eurostat"},
     ]}  # fmt: skip
     assert pg.scrub(block) >= 2
     assert block["parts"][0]["text"] == "La ville change [1]."
     assert block["parts"][1]["items"] == [{"title": "", "text": "Concerter"}]
+    assert block["parts"][2]["items"] == ["10,4 % en 2015 [1]"]  # a point announcing the chart beside it goes
+    twice = {**PLAN, "slides": [*PLAN["slides"], {**PLAN["slides"][2], "title": "Le chômage en 2024"}]}
+    o2 = pg.parse_outline(json.dumps(twice), "deck", "mobilité douce", "fr")
+    assert [it.data for it in o2.items].count("statistics") == 1  # one chart per series
 
 
 def test_the_same_picture_is_never_placed_twice():
@@ -287,3 +295,23 @@ def test_a_plan_without_any_fact_gets_web_facts_at_full_depth():
     res = pg.Pipeline(e).run()
     assert calls.count("web_search") >= 3 and any("no fact planned" in r for r in res.repairs)
     assert res.doc["sources"]
+
+
+def test_an_unrelated_search_result_is_never_a_source_and_a_slide_never_says_it_twice():
+    def junk(name, args, ctx=None):
+        step = SimpleNamespace(error=None, flags=[], info={"results": [
+            {"url": "https://fr.wikipedia.org/wiki/Jordanie_football", "title": "Équipe de Jordanie de football",
+             "snippet": "La sélection nationale de football de Jordanie dispute la coupe d'Asie depuis 1984."}]})  # fmt: skip
+        return step, "", ctx
+
+    e = env()
+    e.tool = junk
+    p = pg.Pipeline(e)
+    p.gather_until = 1e18
+    assert p.web(pg.Item("Le train de nuit Paris-Vienne", search="train de nuit Europe")) == []
+    block = {"parts": [
+        {"t": "list", "items": ["1850 : premier train de nuit en France", "1870 : extension du réseau en Allemagne"]},
+        {"t": "timeline", "items": [{"when": "1850", "what": "premier train de nuit en France"},
+                                    {"when": "1870", "what": "extension du réseau en Allemagne"}]},
+    ]}  # fmt: skip
+    assert pg.dedupe_visual(block) == 1 and [x["t"] for x in block["parts"]] == ["timeline"]

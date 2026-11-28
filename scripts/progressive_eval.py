@@ -105,6 +105,14 @@ def measure(doc: dict, media: list[dict]) -> dict:
     listed = {}
     for s in doc.get("sources") or []:
         listed[str(s.get("n"))] = str(s.get("url") or "")
+    for b in blocks:  # a deck's « Sources » slide: « [1] Title — https://… »
+        if b in body:
+            continue
+        for p in b.get("parts") or []:
+            for it in p.get("items") or []:
+                m = re.match(r"\s*\[(\d{1,2})\].*?(https://\S+)", str(it))
+                if m:
+                    listed.setdefault(m.group(1), m.group(2))
     for f in doc.get("footnotes") or []:
         m = re.search(r"https?://\S+", str(f.get("text") or ""))
         listed.setdefault(str(f.get("n")), m.group(0) if m else "")

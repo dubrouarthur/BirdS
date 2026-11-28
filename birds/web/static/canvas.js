@@ -914,12 +914,14 @@ async function exportAs(doc, fmt) {
     );
   }
   const used = {};
-  for (const b of doc.blocks || [])
-    for (const p of b.parts || [])
-      if (p.t === "image" && p.media) {
-        const m = media.get(p.media)?.entry || conv?.canvasMedia?.[p.media];
-        if (m?.data) used[p.media] = m.data;
-      }
+  const ids = (doc.blocks || []).flatMap((b) =>
+    (b.parts || []).filter((p) => p.t === "image" && p.media).map((p) => p.media),
+  );
+  if (doc.kind === "deck" && doc.cover?.media && !doc.cover.off) ids.push(doc.cover.media); // the cover photo too
+  for (const id of ids) {
+    const m = media.get(id)?.entry || conv?.canvasMedia?.[id];
+    if (m?.data) used[id] = m.data;
+  }
   toast(t("cv.downloading"));
   try {
     const r = await fetch("/api/canvas/export", {
