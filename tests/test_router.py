@@ -579,3 +579,17 @@ def test_the_list_form_and_its_visit_order_are_in_the_catalogue():
     args, why = catalog.check_args("find_places", {"query": "Lyon ; Grenoble ; Annecy ; Chambéry", "plan": "order"})
     assert why == "" and args == {"query": "Lyon ; Grenoble ; Annecy ; Chambéry", "plan": "order"}
     assert any(";" in a.get("query", "") for _, a in catalog.BY_NAME["find_places"].examples)
+
+
+@pytest.mark.parametrize("mode", ["hybrid", "model"])
+def test_three_addresses_are_never_folded_into_a_query_and_a_near(mode):
+    """Live: the router wrote query=address 1, near=address 2; Nantes was dropped and Lyon read as « near » Paris."""
+    text = ("Montre-moi sur une carte : 10 rue de Rivoli 75001 Paris, 5 place Bellecour 69002 Lyon, "
+            "1 quai de la Fosse 44000 Nantes")  # fmt: skip
+    model = {"tool": "find_places", "args": {"query": "10 rue de Rivoli 75001 Paris",
+                                             "near": "5 place Bellecour 69002 Lyon"}}  # fmt: skip
+    d = R.decide(FakeClient([j([model])]), TOK, text, mode=mode)
+    assert d.get("find_places").args == {
+        "query": "10 rue de Rivoli 75001 Paris ; 5 place Bellecour 69002 Lyon ; 1 quai de la Fosse 44000 Nantes"
+    }
+    assert R.log_meta(d)["agree"] is False
