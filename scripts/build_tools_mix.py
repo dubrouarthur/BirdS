@@ -805,6 +805,15 @@ OD_NEG = [  # (template id, text): the words of a card in writing, a how-to or t
     ("odn7", "corrige l'adresse dans la signature de mon mail"), ("odn7", "mets à jour l'adresse du client"),
     ("odne1", "how do I count working days in Google Sheets?"), ("odne1", "what is a call for tenders?"),
     ("odne2", "summarize this paper for me"), ("odne2", "write an email about the bank holiday"),
+    # the user's own figures, leave and bids; a bare J+N; a task on the user's text (worded unlike the bench)
+    ("odn8", "l'inflation de nos loyers depuis 2019"), ("odn8", "le taux de chômage de mon service depuis 2018"),
+    ("odn8", "évolution des salaires de l'équipe depuis 2021"),
+    ("odn9", "combien de jours de congés il me reste ?"), ("odn9", "jours ouvrés restants sur mon projet"),
+    ("odn10", "calcule J+60 sur le devis du 15 mars"),
+    ("odn11", "traduis : le chômage en Italie depuis 2012"), ("odn11", "relis ce texte : PIB de l'Espagne depuis 2005"),
+    ("odn12", "les marchés publics que nous avons gagnés l'an dernier"),
+    ("odne3", "translate to Spanish: bank holidays in France in 2027"),
+    ("odne3", "rewrite this: GDP growth in Italy since 2010"), ("odne3", "how many leave days do I have left?"),
 ]  # fmt: skip
 
 
