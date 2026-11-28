@@ -14,6 +14,8 @@ Kept apart from backends.py and server.py (a few hooks there).
 from __future__ import annotations
 
 import dataclasses
+import json
+import logging
 import re
 import time
 from typing import Literal
@@ -23,6 +25,8 @@ from fastapi.responses import HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from birds.canvas import convert, dsl, images, patch, turn
+
+_LOG = logging.getLogger("birds.canvas")
 
 MAX_DOC_CHARS = 400_000  # a document sent back by the browser, as JSON
 MAX_MEDIA = 10
@@ -642,17 +646,22 @@ def make_router(settings, guard_request, check_access, resolve_mode, fetch_clien
 
             client = fetch_client(settings)  # a fresh client per call (server.image_client: never None)
             try:
-                cfg = Config(workspace=__import__("pathlib").Path("."), audit_file=None, pin_dns=settings.pin_dns)
-                m = images.search_web(body.query, om.Fetcher(client, cfg), body.exclude, mid,
+                # the contact in the User-Agent: Wikimedia throttles an anonymous bot first (its policy)
+                cfg = Config(workspace=__import__("pathlib").Path("."), audit_file=None, pin_dns=settings.pin_dns,
+                             search_contact=settings.search_contact)  # fmt: skip
+                with images.tracing() as log:
+                    m = images.search_web(body.query, om.Fetcher(client, cfg), body.exclude, mid,
                                           deadline=time.monotonic() + 12)  # fmt: skip
             finally:
                 if client is not None:
                     client.close()
+            trace = images.public_trace(log)
+            _LOG.info("canvas image %s: %s", "found" if m else "none", json.dumps(trace)[:600])
         if m is None:
             # « busy »: the picture sources were refusing (rate limit) — the canvas says « réessayez », not « none »
             busy = mode != "demo" and images.COOL.hot("commons") and images.COOL.hot("openverse")
-            return {"ok": False, "reason": "busy" if busy else "none"}
-        return {"ok": True, "media": images.to_entry(m, body.query)}
+            return {"ok": False, "reason": "busy" if busy else "none", **({"trace": trace} if mode != "demo" else {})}
+        return {"ok": True, "media": images.to_entry(m, body.query), **({"trace": trace} if mode != "demo" else {})}
 
     @router.post("/api/canvas/check")
     def canvas_check(body: CheckIn, request: Request) -> dict:

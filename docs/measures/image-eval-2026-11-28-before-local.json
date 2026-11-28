@@ -1,0 +1,1124 @@
+{
+ "date": "2026-11-28 21:31",
+ "where": "local",
+ "summary": {
+  "queries": 38,
+  "photo_queries": 37,
+  "found": 33,
+  "found_rate": 0.892,
+  "free": 33,
+  "relevant": 32,
+  "good": 32,
+  "no_photo_respected": 1,
+  "median_s": 2.15,
+  "p90_s": 6.23,
+  "banks": {
+   "Openverse": 33
+  },
+  "source_status": {
+   "openverse:found": 33,
+   "openverse:none": 7,
+   "commons:none": 9,
+   "commons:429": 2,
+   "pexels:no_key": 4,
+   "openverse:429": 4
+  },
+  "by_kind": {
+   "abstract": "4/5",
+   "animal": "6/7",
+   "job": "5/6",
+   "object": "10/10",
+   "place": "8/9"
+  }
+ },
+ "rows": [
+  {
+   "q": "albatros",
+   "lang": "fr",
+   "kind": "animal",
+   "photo": true,
+   "seconds": 0.96,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Aero L-39 Albatros",
+   "licence": "CC0 1.0",
+   "credit": "Bernard Spragg — CC0 1.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 621,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "albatros",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "Albatros en vol sur l'océan",
+   "lang": "fr",
+   "kind": "animal",
+   "photo": true,
+   "seconds": 6.23,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Aviasud Albatros (2)",
+   "licence": "CC BY-SA 4.0",
+   "credit": "Kakoula10 — CC BY-SA 4.0 — Wikimedia via Openverse",
+   "host": "commons.wikimedia.org",
+   "bank": "Openverse",
+   "w": 1280,
+   "h": 788,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "Albatros en vol sur l'océan",
+     "status": "none",
+     "results": 0
+    },
+    {
+     "source": "commons",
+     "q": "Albatros en vol sur l'océan",
+     "status": "none",
+     "results": 0
+    },
+    {
+     "source": "openverse",
+     "q": "Albatros vol",
+     "status": "found",
+     "results": 4,
+     "why": {
+      "relevance": 1,
+      "fetch_429": 1
+     }
+    }
+   ]
+  },
+  {
+   "q": "chaton heureux",
+   "lang": "fr",
+   "kind": "animal",
+   "photo": true,
+   "seconds": 2.15,
+   "found": false,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "chaton heureux",
+     "status": "none",
+     "results": 1,
+     "why": {
+      "relevance": 1
+     }
+    },
+    {
+     "source": "commons",
+     "q": "chaton heureux",
+     "status": "429"
+    },
+    {
+     "source": "pexels",
+     "q": "chaton heureux",
+     "status": "no_key"
+    }
+   ]
+  },
+  {
+   "q": "renard roux",
+   "lang": "fr",
+   "kind": "animal",
+   "photo": true,
+   "seconds": 3.73,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Renard roux",
+   "licence": "CC BY-SA 2.0",
+   "credit": "peupleloup — CC BY-SA 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 749,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "renard roux",
+     "status": "found",
+     "results": 10,
+     "why": {
+      "fetch_429": 1
+     }
+    }
+   ]
+  },
+  {
+   "q": "red fox in snow",
+   "lang": "en",
+   "kind": "animal",
+   "photo": true,
+   "seconds": 1.35,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Free red fox lying snow",
+   "licence": "CC0 1.0",
+   "credit": "Domaine public — CC0 1.0 — Rawpixel via Openverse",
+   "host": "www.rawpixel.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 746,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "red fox in snow",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "honey bee on flower",
+   "lang": "en",
+   "kind": "animal",
+   "photo": true,
+   "seconds": 1.37,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Honey bee and flower with extrafloral nectaries",
+   "licence": "CC BY 2.0",
+   "credit": "Derek Keats — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 741,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "honey bee on flower",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "dauphin",
+   "lang": "fr",
+   "kind": "animal",
+   "photo": true,
+   "seconds": 2.57,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Cars I Have Owned: 1964 Renault Dauphine, 845 cc Engine, Photographed in St. Paul, Minnesota in 1966, One of The Top 20 ",
+   "licence": "CC BY 2.0",
+   "credit": "France1978 — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 551,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "dauphin",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "Paris skyline",
+   "lang": "en",
+   "kind": "place",
+   "photo": true,
+   "seconds": 0.78,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Paris skyline",
+   "licence": "CC BY 2.0",
+   "credit": "www.davidrosenphotography.com — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 634,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "Paris skyline",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "Mont-Saint-Michel",
+   "lang": "fr",
+   "kind": "place",
+   "photo": true,
+   "seconds": 2.32,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Mont Saint Michel pano",
+   "licence": "Domaine public",
+   "credit": "tomas.defranceschi — Domaine public — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 377,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "Mont-Saint-Michel",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "Tour Eiffel",
+   "lang": "fr",
+   "kind": "place",
+   "photo": true,
+   "seconds": 1.08,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "La Tour Eiffel europèenne",
+   "licence": "CC BY-SA 2.0",
+   "credit": "Guillaume Cattiaux — CC BY-SA 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 768,
+   "h": 1024,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "Tour Eiffel",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "port de Marseille",
+   "lang": "fr",
+   "kind": "place",
+   "photo": true,
+   "seconds": 4.04,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Entrance to the Vieux-Port, Marseille, France, ca. 1895",
+   "licence": "CC BY 2.0",
+   "credit": "trialsanderrors — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 748,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "port de Marseille",
+     "status": "429"
+    },
+    {
+     "source": "commons",
+     "q": "port de Marseille",
+     "status": "none",
+     "results": 10,
+     "why": {
+      "licence": 10
+     }
+    },
+    {
+     "source": "openverse",
+     "q": "port Marseille",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "Lyon vieille ville",
+   "lang": "fr",
+   "kind": "place",
+   "photo": true,
+   "seconds": 2.7,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Escaliers à Lyon vieille ville",
+   "licence": "CC BY-SA 2.0",
+   "credit": "luc legay — CC BY-SA 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 576,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "Lyon vieille ville",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "vignoble en Bourgogne",
+   "lang": "fr",
+   "kind": "place",
+   "photo": true,
+   "seconds": 3.74,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Château de Tracy et vignoble, Nièvre",
+   "licence": "CC BY-SA 2.0",
+   "credit": "JPC24M — CC BY-SA 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 768,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "vignoble en Bourgogne",
+     "status": "found",
+     "results": 10,
+     "why": {
+      "sensitive": 2,
+      "relevance": 6,
+      "fetch_429": 1
+     }
+    }
+   ]
+  },
+  {
+   "q": "forêt de pins des Landes",
+   "lang": "fr",
+   "kind": "place",
+   "photo": true,
+   "seconds": 0.93,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Gemmage dans la forêt des Landes",
+   "licence": "CC BY-SA 2.0",
+   "credit": "JPC24M — CC BY-SA 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 768,
+   "h": 1024,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "forêt de pins des Landes",
+     "status": "found",
+     "results": 10,
+     "why": {
+      "relevance": 1
+     }
+    }
+   ]
+  },
+  {
+   "q": "mountain lake in the Alps",
+   "lang": "en",
+   "kind": "place",
+   "photo": true,
+   "seconds": 1.17,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Mountain Lake in the Alps",
+   "licence": "CC0 1.0",
+   "credit": "Domaine public — CC0 1.0 — Rawpixel via Openverse",
+   "host": "www.rawpixel.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 683,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "mountain lake in the Alps",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "tramway à Bordeaux",
+   "lang": "fr",
+   "kind": "place",
+   "photo": true,
+   "seconds": 13.85,
+   "found": false,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "tramway à Bordeaux",
+     "status": "none",
+     "results": 10,
+     "why": {
+      "fetch_429": 4,
+      "fetch_400": 1,
+      "relevance": 1,
+      "deadline": 1
+     }
+    },
+    {
+     "source": "commons",
+     "q": "tramway à Bordeaux",
+     "status": "none",
+     "results": 10,
+     "why": {
+      "deadline": 1
+     }
+    },
+    {
+     "source": "pexels",
+     "q": "tramway à Bordeaux",
+     "status": "no_key"
+    }
+   ]
+  },
+  {
+   "q": "cyclist delivering food to office",
+   "lang": "en",
+   "kind": "job",
+   "photo": true,
+   "seconds": 1.45,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Loaded cyclist",
+   "licence": "CC BY-SA 2.0",
+   "credit": "Richard Masoner / Cyclelicious — CC BY-SA 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1023,
+   "h": 746,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "cyclist delivering food to office",
+     "status": "none",
+     "results": 0
+    },
+    {
+     "source": "commons",
+     "q": "cyclist delivering food to office",
+     "status": "none",
+     "results": 0
+    },
+    {
+     "source": "openverse",
+     "q": "cyclist delivering",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "infirmière à l'hôpital",
+   "lang": "fr",
+   "kind": "job",
+   "photo": true,
+   "seconds": 1.51,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "A nurse administers additional sugar to a serviceman who is undergoing fever therapy at Christie Street Hospital, Toront",
+   "licence": "CC BY 2.0",
+   "credit": "BiblioArchives / LibraryArchives — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1000,
+   "h": 760,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "infirmière à l'hôpital",
+     "status": "found",
+     "results": 10,
+     "why": {
+      "relevance": 1,
+      "sensitive": 1
+     }
+    }
+   ]
+  },
+  {
+   "q": "électricien au travail",
+   "lang": "fr",
+   "kind": "job",
+   "photo": true,
+   "seconds": 3.51,
+   "found": false,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "électricien au travail",
+     "status": "429"
+    },
+    {
+     "source": "commons",
+     "q": "électricien au travail",
+     "status": "none",
+     "results": 5,
+     "why": {
+      "relevance": 1,
+      "licence": 2,
+      "filetype": 2
+     }
+    },
+    {
+     "source": "openverse",
+     "q": "électricien travail",
+     "status": "none",
+     "results": 0
+    },
+    {
+     "source": "commons",
+     "q": "électricien travail",
+     "status": "none",
+     "results": 8,
+     "why": {
+      "relevance": 3,
+      "licence": 3,
+      "filetype": 2
+     }
+    },
+    {
+     "source": "pexels",
+     "q": "électricien au travail",
+     "status": "no_key"
+    }
+   ]
+  },
+  {
+   "q": "chef cuisinier en cuisine",
+   "lang": "fr",
+   "kind": "job",
+   "photo": true,
+   "seconds": 2.55,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Mes fidèles cuisiniers",
+   "licence": "CC BY 2.0",
+   "credit": "Gérard Rabaey — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1000,
+   "h": 667,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "chef cuisinier en cuisine",
+     "status": "found",
+     "results": 4
+    }
+   ]
+  },
+  {
+   "q": "farmer with tractor in a field",
+   "lang": "en",
+   "kind": "job",
+   "photo": true,
+   "seconds": 5.07,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Tractor and Farmer in Brittany by FranceHouseHunt.com",
+   "licence": "CC BY 2.0",
+   "credit": "www.FranceHouseHunt.com — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 683,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "farmer with tractor in a field",
+     "status": "found",
+     "results": 10,
+     "why": {
+      "fetch_429": 1,
+      "relevance": 6
+     }
+    }
+   ]
+  },
+  {
+   "q": "boulangerie artisanale",
+   "lang": "fr",
+   "kind": "job",
+   "photo": true,
+   "seconds": 1.15,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Vélo devant la boulangerie artisanale, Pontempeyrat, Loire",
+   "licence": "CC BY 2.0",
+   "credit": "olive.titus — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 768,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "boulangerie artisanale",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "équipe en réunion",
+   "lang": "fr",
+   "kind": "abstract",
+   "photo": true,
+   "seconds": 9.14,
+   "found": false,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "équipe en réunion",
+     "status": "none",
+     "results": 7,
+     "why": {
+      "relevance": 5,
+      "fetch_429": 2
+     }
+    },
+    {
+     "source": "commons",
+     "q": "équipe en réunion",
+     "status": "none",
+     "results": 10,
+     "why": {
+      "licence": 8,
+      "relevance": 2
+     }
+    },
+    {
+     "source": "openverse",
+     "q": "équipe réunion",
+     "status": "429"
+    },
+    {
+     "source": "commons",
+     "q": "équipe réunion",
+     "status": "none",
+     "results": 10,
+     "why": {
+      "licence": 10
+     }
+    },
+    {
+     "source": "pexels",
+     "q": "équipe en réunion",
+     "status": "no_key"
+    }
+   ]
+  },
+  {
+   "q": "teamwork meeting",
+   "lang": "en",
+   "kind": "abstract",
+   "photo": true,
+   "seconds": 2.66,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Meeting",
+   "licence": "CC BY 2.0",
+   "credit": "mripp — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 683,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "teamwork meeting",
+     "status": "found",
+     "results": 10,
+     "why": {
+      "relevance": 1
+     }
+    }
+   ]
+  },
+  {
+   "q": "cybersécurité",
+   "lang": "fr",
+   "kind": "abstract",
+   "photo": true,
+   "seconds": 5.18,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Canadian Institute for Cybersecurity opens at UNB / Inauguration de l’Institut canadien sur la cybersécurité à l’UNB",
+   "licence": "Domaine public",
+   "credit": "GovNB / GouvNB — Domaine public — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 683,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "cybersécurité",
+     "status": "found",
+     "results": 10,
+     "why": {
+      "fetch_429": 1
+     }
+    }
+   ]
+  },
+  {
+   "q": "innovation",
+   "lang": "en",
+   "kind": "abstract",
+   "photo": true,
+   "seconds": 2.79,
+   "found": true,
+   "free": true,
+   "relevant": false,
+   "title": "Innovate Maryland Emerging Technology Center",
+   "licence": "CC BY 2.0",
+   "credit": "MDGovpics — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 815,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "innovation",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "classroom with students",
+   "lang": "en",
+   "kind": "abstract",
+   "photo": true,
+   "seconds": 0.93,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Classroom lone student",
+   "licence": "CC BY 2.0",
+   "credit": "keith ellwood — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 735,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "classroom with students",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "data center servers",
+   "lang": "en",
+   "kind": "object",
+   "photo": true,
+   "seconds": 0.92,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Data Center Servers",
+   "licence": "CC BY-SA 2.0",
+   "credit": "Cory M. Grenier — CC BY-SA 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 768,
+   "h": 1024,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "data center servers",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "offshore wind turbines",
+   "lang": "en",
+   "kind": "object",
+   "photo": true,
+   "seconds": 4.74,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Offshore Wind Energy Base Cuxhaven",
+   "licence": "CC BY 2.0",
+   "credit": "Wolfgang.W.  — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 658,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "offshore wind turbines",
+     "status": "429"
+    },
+    {
+     "source": "commons",
+     "q": "offshore wind turbines",
+     "status": "429"
+    },
+    {
+     "source": "openverse",
+     "q": "offshore wind",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "panneaux solaires sur un toit",
+   "lang": "fr",
+   "kind": "object",
+   "photo": true,
+   "seconds": 1.0,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Panneaux solaires",
+   "licence": "CC BY 2.0",
+   "credit": "zigazou76 — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 768,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "panneaux solaires sur un toit",
+     "status": "found",
+     "results": 1
+    }
+   ]
+  },
+  {
+   "q": "ordinateur portable sur un bureau",
+   "lang": "fr",
+   "kind": "object",
+   "photo": true,
+   "seconds": 6.5,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Ordinateurs portables anciens",
+   "licence": "CC BY 2.0",
+   "credit": "GeekShadow — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 768,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "ordinateur portable sur un bureau",
+     "status": "none",
+     "results": 0
+    },
+    {
+     "source": "commons",
+     "q": "ordinateur portable sur un bureau",
+     "status": "none",
+     "results": 0
+    },
+    {
+     "source": "openverse",
+     "q": "ordinateur portable",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "smartphone in hand",
+   "lang": "en",
+   "kind": "object",
+   "photo": true,
+   "seconds": 0.97,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "160520-smartphone-iphone-hand-holding.jpg",
+   "licence": "CC BY 2.0",
+   "credit": "r.nial.bradshaw — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 684,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "smartphone in hand",
+     "status": "found",
+     "results": 10,
+     "why": {
+      "sensitive": 1
+     }
+    }
+   ]
+  },
+  {
+   "q": "vélo cargo",
+   "lang": "fr",
+   "kind": "object",
+   "photo": true,
+   "seconds": 0.89,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Maison, vélo cargo et trotinette",
+   "licence": "CC BY 2.0",
+   "credit": "Caroline de Francqueville — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1023,
+   "h": 685,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "vélo cargo",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "train à grande vitesse",
+   "lang": "fr",
+   "kind": "object",
+   "photo": true,
+   "seconds": 1.04,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Train à Grande Vitesse",
+   "licence": "CC BY 2.0",
+   "credit": "FaceMePLS — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 682,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "train à grande vitesse",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "croissant",
+   "lang": "fr",
+   "kind": "object",
+   "photo": true,
+   "seconds": 0.77,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Smoked Salmon and Avocado Croissant - Marmalade",
+   "licence": "CC BY-SA 2.0",
+   "credit": "avlxyz — CC BY-SA 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 768,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "croissant",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "cup of coffee",
+   "lang": "en",
+   "kind": "object",
+   "photo": true,
+   "seconds": 2.8,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "Cup of coffee",
+   "licence": "CC BY-SA 2.0",
+   "credit": "Etenil — CC BY-SA 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 768,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "cup of coffee",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "hydrogen fuel cell bus",
+   "lang": "en",
+   "kind": "object",
+   "photo": true,
+   "seconds": 1.83,
+   "found": true,
+   "free": true,
+   "relevant": true,
+   "title": "AC Transit hydrogen fuel cell bus",
+   "licence": "CC BY 2.0",
+   "credit": "Eric Fischer — CC BY 2.0 — Flickr via Openverse",
+   "host": "www.flickr.com",
+   "bank": "Openverse",
+   "w": 1024,
+   "h": 768,
+   "trace": [
+    {
+     "source": "openverse",
+     "q": "hydrogen fuel cell bus",
+     "status": "found",
+     "results": 10
+    }
+   ]
+  },
+  {
+   "q": "Paris bike cargo statistics",
+   "lang": "en",
+   "kind": "statistic",
+   "photo": false,
+   "seconds": 0.0,
+   "found": false,
+   "trace": []
+  }
+ ]
+}

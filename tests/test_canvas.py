@@ -933,7 +933,9 @@ def test_image_endpoint_server_mode_with_pinned_dns(monkeypatch):
     s = settings(allow_user_endpoint=True, pin_dns=True)
     with TestClient(create_app(s)) as c:
         r = c.post("/api/canvas/image", json={"query": "vélo"}, headers={"x-bird-mode": "user"})
-    assert r.status_code == 200 and r.json() == {"ok": False, "reason": "none"}
+    got = r.json()
+    assert r.status_code == 200 and got["ok"] is False and got["reason"] == "none"
+    assert {t["source"] for t in got["trace"]} >= {"openverse"}  # what each source answered, for the diagnosis
     assert seen["query"] == "vélo" and seen["pin"] is True
     assert seen["http"] is not None and hasattr(seen["http"], "stream")
 
