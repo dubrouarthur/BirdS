@@ -11,7 +11,6 @@ import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from typing import Any
-from urllib.parse import urlsplit
 
 import httpx
 
@@ -564,19 +563,13 @@ def _made_file(run, ctx: Context) -> bool:
     )  # a chart is shown in the chat, it is not a file
 
 
-_URL_IN_TEXT = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
-
-
 def _check_untrusted_url(url: object, ctx: Context) -> None:
     """After a page or a file held an injection, read_page may only open a URL the user gave, a search result or a
-    page already read: a GET to an address the untrusted text chose is how data would leave (``?d=<secret>``)."""
-    url = str(url or "").strip()
-    if len(urlsplit(url).query) > 64:
-        raise guard.Blocked("page suggested by untrusted content (long query string)")
-    own = {u.rstrip(".,;:") for u in _URL_IN_TEXT.findall(ctx.request or "")}
-    known = set(ctx.sources) | set(ctx.found) | own
-    if url not in known and url.rstrip("/") not in {k.rstrip("/") for k in known}:
-        raise guard.Blocked("page suggested by untrusted content")
+    page already read. read_page itself applies the same rule as soon as the run holds any external content
+    (birds.harness.tools.web.tainted); this call also covers an injection flagged in another tool's result."""
+    from birds.harness.tools.web import check_untrusted_url
+
+    check_untrusted_url(url, ctx)
 
 
 PAUSE = guard.PAUSE  # a confirm callback returns this to end the run with a pending action (see Agent.run)

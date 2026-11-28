@@ -234,7 +234,7 @@ def test_truncation(tmp_path):
         max_result_chars=300,
         max_context_chars=400,
     )
-    run = agent.run("Read it")
+    run = agent.run("Read https://news.test/big and https://news.test/big?2")  # own URLs: allowed after taint
     tools = [m["content"] for m in json.loads(llm.prompts[2])["messages"] if m["role"] == "tool"]
     assert tools[0].endswith("[truncated]") and len(tools[0]) <= 300 + len("\n[truncated]")
     assert len(tools[1]) < 150 and tools[1].endswith("[truncated]")  # the run-wide budget shrinks later results

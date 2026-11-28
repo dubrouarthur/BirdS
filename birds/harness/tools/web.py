@@ -39,10 +39,88 @@ def _short(text, n: int) -> str:
     return (cut or t[:n]).rstrip(" ,;:.") + "…"
 
 
+NO_RESULTS = "No results."
+EMPTY_LIMIT = 2  # empty or failed searches in one run before web_search stops searching
+TAINTED_QUERY_MAX = 120  # characters of a search query once untrusted content was read
+
+
+def _no_figures(lang: str) -> str:
+    """What the model is told once the search gave nothing twice: say so, state no figure as fact, flag estimates.
+    (A small model otherwise answers « 4h30 contre 2h30 » or a price with no source and no warning.)"""
+    said = (
+        "« La recherche web n'a rien donné : je n'ai trouvé aucun chiffre vérifié. »"
+        if lang != "en"
+        else "“The web search found nothing: I found no verified figure.”"
+    )
+    est = "« estimation, non vérifiée »" if lang != "en" else "“estimate, not verified”"
+    return (
+        f"Search unavailable: {EMPTY_LIMIT} searches in this answer found nothing. Do not search again. "
+        f"Tell the user so in one plain sentence, e.g. {said} Give no price, time, rate, date or statistic as a "
+        f"fact and cite no source. If you give an order of magnitude from general knowledge, label each one as "
+        f"an estimate ({est}) and suggest where the user can check it (the official site of the operator or "
+        f"the agency)."
+    )
+
+
+def _own_text(text: str) -> bool:
+    """A web_search answer the harness wrote itself (nothing found, the directive above): not external content."""
+    return text.startswith((NO_RESULTS, "Search unavailable:"))
+
+
+def tainted(ctx) -> bool:
+    """The run holds content Bird did not write (a web page, search snippets, a file): from then on read_page
+    only opens addresses that untrusted text cannot have chosen, whether or not an injection was detected."""
+    return any(text and not _own_text(text) for _, text in getattr(ctx, "fetched", None) or [])
+
+
+_URL_IN_TEXT = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
+_SECRET_SHAPED = re.compile(
+    r"\b[A-Z]{2}\d{2}(?:[ -]?[A-Z0-9]){11,30}\b|\b\d(?:[ -]?\d){11,18}\b|[\w.+-]+@[\w-]+\.[\w.]+", re.I
+)  # an IBAN, a card or account number, an e-mail address
+
+
+def check_untrusted_url(url: object, ctx) -> None:
+    """Once the run is tainted, read_page may only open a URL the user typed, a search result or a page already
+    read (with a short query string): a GET to an address the untrusted text chose is how data would leave
+    (``https://x.test/?d=<the user's IBAN>``). The injection regex misses phrasings, so this does not wait
+    for it."""
+    from urllib.parse import urlsplit
+
+    url = str(url or "").strip()
+    own = {u.rstrip(".,;:") for u in _URL_IN_TEXT.findall(getattr(ctx, "request", "") or "")}
+    if url in own or url.rstrip("/") in {u.rstrip("/") for u in own}:
+        return
+    if len(urlsplit(url).query) > 64:
+        raise guard.Blocked("page suggested by untrusted content (long query string)")
+    known = set(ctx.sources) | set(ctx.found)
+    if url not in known and url.rstrip("/") not in {k.rstrip("/") for k in known}:
+        raise guard.Blocked("page suggested by untrusted content")
+
+
+def check_untrusted_query(query: str, ctx) -> None:
+    """Once the run is tainted, a search query is a channel too (the backend sees and logs it): bounded in
+    length, and never carrying an IBAN-, card- or e-mail-shaped token taken from the user's own message."""
+    if len(query) > TAINTED_QUERY_MAX:
+        raise guard.Blocked(f"search query too long after reading untrusted content (max {TAINTED_QUERY_MAX})")
+    mine = " ".join((getattr(ctx, "request", "") or "", getattr(ctx, "message", "") or "")).split()
+    mine = re.sub(r"[ -]", "", " ".join(mine))
+    for m in _SECRET_SHAPED.finditer(query):
+        token = re.sub(r"[ -]", "", m.group(0))
+        if len(token) >= 8 and token.lower() in mine.lower():
+            raise guard.Blocked("search query repeats the user's private data after reading untrusted content")
+
+
 def web_search(args: dict, ctx) -> str:
     if ctx.search is None:
         raise ToolError("web search is not configured on this deployment")
     backend = ctx.search
+    lang = getattr(ctx, "lang", "fr")
+    if getattr(ctx, "empty_searches", 0) >= EMPTY_LIMIT:
+        ctx.step_info = {"backend": getattr(backend, "name", "?"), "label": getattr(backend, "label", ""),
+                         "code": "search_exhausted"}  # fmt: skip
+        raise ToolError(_no_figures(lang))
+    if tainted(ctx):
+        check_untrusted_query(" ".join(str(args.get("query") or "").split()), ctx)
     try:
         try:
             results = backend.search(args["query"], args.get("max_results") or 5, lang=ctx.lang)
@@ -54,6 +132,9 @@ def web_search(args: dict, ctx) -> str:
             "label": getattr(backend, "label", ""),
             "code": e.code,
         }
+        ctx.empty_searches = getattr(ctx, "empty_searches", 0) + 1
+        if ctx.empty_searches >= EMPTY_LIMIT:
+            raise ToolError(f"{e}. {_no_figures(lang)}") from e
         raise ToolError(f"{e}. Answer without searching and tell the user the search is unavailable.") from e
     except Exception as e:
         ctx.step_info = {
@@ -61,6 +142,9 @@ def web_search(args: dict, ctx) -> str:
             "label": getattr(backend, "label", ""),
             "code": "search_failed",
         }
+        ctx.empty_searches = getattr(ctx, "empty_searches", 0) + 1
+        if ctx.empty_searches >= EMPTY_LIMIT:
+            raise ToolError(f"search backend failed ({type(e).__name__}). {_no_figures(lang)}") from e
         raise ToolError(f"search backend failed ({type(e).__name__})") from e
     last = getattr(backend, "last", None)
     if last:
@@ -90,7 +174,10 @@ def web_search(args: dict, ctx) -> str:
         if r.get("image"):
             add_image(ctx, str(r["image"]), str(r.get("url") or ""), str(r.get("title") or ""), "", "search")
     if not results:
-        return "No results."
+        ctx.empty_searches = getattr(ctx, "empty_searches", 0) + 1
+        if ctx.empty_searches >= EMPTY_LIMIT:
+            return _no_figures(lang)
+        return f"{NO_RESULTS} Try once more with fewer, simpler keywords, or answer without the search."
     lines = []
     for i, r in enumerate(results, 1):
         snippet = " ".join(str(r.get("snippet") or "").split())[:300]
@@ -263,6 +350,8 @@ def extract_image(page: str, url: str) -> dict | None:
 
 
 def read_page(args: dict, ctx) -> str:
+    if tainted(ctx):
+        check_untrusted_url(args.get("url"), ctx)
     url, ctype, body = guard.fetch(ctx, args["url"])
     m = re.search(rb"charset=[\"']?([\w-]+)", body[:2048])
     try:
