@@ -336,7 +336,7 @@ def test_docx_lists_tables_and_markdown_export(tmp_path):
         ],
     )
     d = docx.Document(str(tmp_path / "d.docx"))
-    assert stats == {"sections": 1, "tables": 1, "items": 2}
+    assert {k: stats[k] for k in ("sections", "tables", "items")} == {"sections": 1, "tables": 1, "items": 2}
     assert [p.style.name for p in d.paragraphs][:3] == ["Title", "Subtitle", "Heading 1"]
     assert d.tables[0].rows[1].cells[1].text == "1 200 €" and any(r.bold for r in d.paragraphs[3].runs)
     office.docx_from_markdown(tmp_path / "e.docx", "X", "# Réponse\n\n## Points\n1. un\n2. deux")
@@ -373,7 +373,7 @@ def test_docx_design_page_furniture_tables_lists_and_callouts(tmp_path):
     ]
     stats = office.build_docx(tmp_path / "d.docx", "Compte rendu", sections, "Comité")
     d = docx.Document(str(tmp_path / "d.docx"))
-    assert stats == {"sections": 2, "tables": 1, "items": 5}
+    assert {k: stats[k] for k in ("sections", "tables", "items")} == {"sections": 2, "tables": 1, "items": 5}
     sec = d.sections[0]
     assert round(sec.page_width.cm, 1) == 21.0 and round(sec.page_height.cm, 1) == 29.7  # A4
     assert d.core_properties.author == "" and d.core_properties.title == "Compte rendu"
@@ -781,7 +781,8 @@ def test_scanned_pdf_read_once_per_conversation(tmp_path, monkeypatch):
     monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
     pages = ["Page un : facture 7.", "Page deux : total 1 250 €.", "Page trois : IBAN FR76."]
     tool = "<tool_call>\n<function=read_file>\n<parameter=path>\nscan.pdf\n</parameter>\n</function>\n</tool_call>"
-    llm = FakeClient([*pages, "Voici le résumé.", tool, "Le total est 1 250 €."])
+    # the first turn reads the PDF before summing it up (a summary without reading is reminded: plan.py)
+    llm = FakeClient([*pages, tool, "Voici le résumé.", tool, "Le total est 1 250 €."])
     app = create_app(Settings(rate_limit=0, demo_delay=0), server_backend=HarnessBackend(llm, _Tok()))
     doc = {"name": "scan.pdf", "content": _scanned_pdf(3), "encoding": "base64"}
     with TestClient(app) as c:

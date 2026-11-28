@@ -52,7 +52,14 @@ async function noHorizontalScroll(page, what) {
   check(sw <= cw + 1, `${what}: no horizontal scroll (${sw} <= ${cw})`);
 }
 
+// a deck made in simple mode opens in the canvas (w1-canvas); on a phone its sheet is a modal: close it first
+async function closeCanvas(page) {
+  if (await page.locator("#canvas").isVisible())
+    await page.locator('#canvas [data-k="close"]').click();
+}
+
 async function newConversation(page) {
+  await closeCanvas(page);
   const narrow = await page.evaluate(() => innerWidth < 900);
   await page.click(narrow ? "#btn-new-top" : "#btn-new");
   await page.waitForTimeout(200);
@@ -180,8 +187,9 @@ async function run(cfg) {
     "after « Revenir au mode simple »: no lanes",
   );
   check(
-    await page.isVisible(".turn-bird .cards"),
-    "single-agent answer with its file",
+    (await page.isVisible(".turn-bird .cards")) ||
+      (await page.isVisible(".turn-bird .cv-card")),
+    "single-agent answer with its file (file card, or the canvas card)",
   );
   check(
     (await page.inputValue("#agent-mode")) === "auto",

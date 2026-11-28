@@ -65,6 +65,16 @@ def verify(token: str, secret: bytes, now: float | None = None) -> dict:
     return payload
 
 
+def expiry(token: str) -> int | None:
+    """The ``exp`` of a token this server just signed, read WITHOUT checking the signature: only to tell its holder
+    until when it can be used (never to trust its content)."""
+    try:
+        exp = json.loads(zlib.decompress(_unb64(token.split(".")[0]))).get("exp")
+    except (ValueError, TypeError, AttributeError, zlib.error):
+        return None
+    return exp if isinstance(exp, int) else None
+
+
 # ---------------------------------------------------------------- web image URLs (/api/img)
 
 

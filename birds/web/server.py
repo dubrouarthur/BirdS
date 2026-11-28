@@ -1,7 +1,9 @@
 """FastAPI app for the Bird web chat: static frontend + a small stateless API (see docs/WEB.md).
 
-Nothing is kept in memory between requests except a best-effort rate-limit window: the app runs unchanged on a
-long-lived local server (scripts/serve.py) and on serverless functions (app.py, Vercel).
+Nothing is kept in memory between requests except a best-effort rate-limit window and the note queues of the Mode
+Agent runs at work in this process (birds.harness.crew_plan.REGISTRY; a note that misses its run is carried by the
+browser into the next slice): the app runs unchanged on a long-lived local server (scripts/serve.py) and on
+serverless functions (app.py, Vercel).
 """
 
 from __future__ import annotations
@@ -15,13 +17,14 @@ import threading
 import time
 from collections import deque
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from . import endpoint as ep
 from . import tokens
@@ -34,6 +37,8 @@ SITE_DIR = Path(__file__).resolve().parents[2] / "site"  # corporate site, serve
 
 CSP = (
     "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; connect-src 'self'; "
+    "frame-src 'self'; "  # only the canvas preview frame (/canvas/frame, sandboxed, no network: see canvas_web)
+    
     "manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 )
 SECURITY_HEADERS = {
@@ -73,10 +78,52 @@ class Attachment(BaseModel):
 BINARY_ATTACHMENTS = (".pdf", ".docx", ".xlsx", ".pptx")
 
 
+_Short = Annotated[str, Field(max_length=300)]
+
+
+class PlanEditsIn(BaseModel):
+    """The plan card's typed fields only (crew_plan.apply_edits re-validates each value: enums, 3–12 slides,
+    headings and domains cleaned). Unknown keys are dropped; a value of the wrong type is a 422, never a 500."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    audience: Literal["general", "decision", "experts"] | None = None
+    length: Literal["short", "standard", "long"] | None = None
+    n_slides: int | None = Field(default=None, ge=1, le=50)
+    sections: list[_Short] | None = Field(default=None, max_length=16)
+    prefer: list[_Short] | None = Field(default=None, max_length=12)
+    exclude: list[_Short] | None = Field(default=None, max_length=12)
+    focus: str | None = Field(default=None, max_length=400)
+
+
+class AgentPlanIn(BaseModel):
+    """« Lancer » on the plan card: the signed plan and the user's edits of its typed fields (crew_plan.apply_edits)."""
+
+    token: str = Field(min_length=16, max_length=60_000)
+    edits: PlanEditsIn = Field(default_factory=PlanEditsIn)
+
+
+class AgentNoteIn(BaseModel):
+    """A typed instruction added while the team works (crew_plan.parse_note validates the value for its kind)."""
+
+    kind: Literal["exclude_site", "prefer_site", "audience", "length", "add_section", "focus"]
+    value: str = Field(min_length=1, max_length=200)
+    id: str = Field(default="", max_length=24)
+
+
+class AgentNoteBody(AgentNoteIn):
+    run: str = Field(min_length=8, max_length=40, pattern=r"^[A-Za-z0-9_-]+$")
+
+
 class ChatBody(BaseModel):
     messages: list[Message] = Field(min_length=1)
     thinking: bool = False
     agent: Literal["auto", "on", "off"] = "auto"  # Mode Agent (birds.harness.crew): Auto, Activé, Désactivé
+    # Mode Agent, wave 2: "plan" asks for the plan card first (the app); omitted, a decided team starts at once (API)
+    agent_flow: Literal["plan"] | None = None
+    agent_plan: AgentPlanIn | None = None  # « Lancer »: the signed plan, edited
+    agent_slice: str | None = Field(default=None, max_length=600_000)  # the next slice of a long task (signed state)
+    agent_notes: list[AgentNoteIn] = Field(default_factory=list, max_length=12)  # notes not delivered live
     lang: Literal["fr", "en"] = "fr"
     attachments: list[Attachment] = Field(default_factory=list)
     images: list[ImageIn] = Field(default_factory=list, max_length=3)  # for the last user message only
@@ -87,6 +134,7 @@ class ChatBody(BaseModel):
         default=None, pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
     )
     tz: str | None = Field(default=None, max_length=64)  # Intl.DateTimeFormat().resolvedOptions().timeZone
+    canvas: dict | None = None  # the artifact open in the canvas ({aid, version, doc, target}): see canvas_web
 
 
 class TestBody(BaseModel):
@@ -185,7 +233,7 @@ def harness_config(s: Settings) -> dict:
 def build_server_backend(s: Settings) -> Backend | None:
     """The operator's model: an OpenAI-compatible endpoint, or a model loaded in this process (local use)."""
     if s.local_llm is not None:
-        return HarnessBackend(
+        local = HarnessBackend(
             s.local_llm,
             s.local_tok,
             kind="local",
@@ -196,6 +244,8 @@ def build_server_backend(s: Settings) -> Backend | None:
             msg_cap_tokens=s.history_msg_tokens,
             cache_isolation=s.cache_isolation,
         )
+        local.canvas = s.canvas
+        return local
     if not s.base_url:
         return None
     from birds.harness import CompletionsClient
@@ -206,7 +256,7 @@ def build_server_backend(s: Settings) -> Backend | None:
 
         tok = AutoTokenizer.from_pretrained(s.tokenizer)
     llm = CompletionsClient(s.base_url, s.model, s.api_key, timeout=s.max_seconds)
-    return HarnessBackend(
+    backend = HarnessBackend(
         llm,
         tok,
         kind="completions",
@@ -218,6 +268,8 @@ def build_server_backend(s: Settings) -> Backend | None:
         msg_cap_tokens=s.history_msg_tokens,
         cache_isolation=s.cache_isolation,
     )
+    backend.canvas = s.canvas
+    return backend
 
 
 def fetch_client(s: Settings):
@@ -392,7 +444,7 @@ def create_app(
     s = settings or Settings()
     if s.grid_intensity is not None and s.grid_intensity < 0:
         raise ValueError("grid_intensity must be >= 0")
-    demo = demo or DemoBackend(delay=s.demo_delay)
+    demo = demo or DemoBackend(delay=s.demo_delay, energy=s.energy_config if s.demo_energy else None)
     server = server_backend if server_backend is not None else build_server_backend(s)
     limiter = RateLimiter(s.rate_limit)
     img_limiter = RateLimiter(s.img_rate_limit)
@@ -420,6 +472,10 @@ def create_app(
             pass  # same-origin images: "private, max-age=86400" set by birds.web.mapimg
         elif path.startswith("/api/"):
             response.headers["Cache-Control"] = "no-store"
+        if path == "/canvas/frame":
+            from .canvas_web import frame_headers
+
+            frame_headers(response)  # the sandboxed preview frame has its own, stricter-on-network policy
         return response
 
     # ------------------------------------------------------------------ request guards
@@ -493,6 +549,7 @@ def create_app(
             msg_cap_tokens=s.history_msg_tokens,
             cache_isolation=s.cache_isolation,
         )
+        backend.canvas = s.canvas
         return backend, "user:" + tokens.digest([base, model])[:16]
 
     # ------------------------------------------------------------------ API
@@ -588,6 +645,19 @@ def create_app(
             given = request.headers.get("x-bird-access") or ""
             if not hmac.compare_digest(given.encode("utf-8"), s.access_code.encode("utf-8")):
                 raise ApiError(401, "access_code", "a valid access code is required")
+
+    @app.post("/api/agent/note")
+    def agent_note(body: AgentNoteBody, request: Request) -> dict:
+        """« Ajouter une consigne »: a typed instruction for a team at work in this process. Not here (another
+        instance, or between two slices): ``delivered`` is false and the browser sends it with the next slice."""
+        guard_request(request)
+        from birds.harness import crew_plan
+
+        note = crew_plan.parse_note(body.kind, body.value, body.id)
+        if note is None:
+            raise ApiError(422, "note_invalid", "this instruction is not valid for its kind")
+        return {"ok": True, "delivered": crew_plan.REGISTRY.deliver(body.run, note), "id": note.id,
+                "kind": note.kind, "value": note.value}  # fmt: skip
 
     @app.post("/api/export")
     def export(body: ExportBody, request: Request):
@@ -748,6 +818,13 @@ def create_app(
         if body.approved and body.denied:
             raise ApiError(422, "invalid_request", "approve or deny, not both")
 
+        canvas_in = None
+        if body.canvas is not None:
+            from . import canvas_web
+
+            if len(json.dumps(body.canvas, ensure_ascii=False)) > canvas_web.MAX_DOC_CHARS:
+                raise ApiError(413, "canvas_too_large", "the document open in the canvas is too large")
+            canvas_in = canvas_web.canvas_in(body.canvas)  # invalid: the turn runs without it
         images = [{"name": sanitize_filename(i.name), "url": check_image(i.url)} for i in body.images]
         messages = [m.model_dump(exclude_none=True) for m in body.messages]
         attachments = [
@@ -777,6 +854,39 @@ def create_app(
             if resume.get("conv") != conv or resume.get("bind") != binding:
                 raise ApiError(400, "confirm_invalid", "this confirmation belongs to another conversation or model")
             decision = bool(body.approved)
+        agent_plan = agent_slice = None
+        try:  # the plan card's « Lancer » and the next slice of a long task carry state signed by this server
+            if body.agent_plan is not None:
+                agent_plan = {"payload": tokens.verify(body.agent_plan.token, s.signing_secret),
+                              "edits": body.agent_plan.edits.model_dump(exclude_none=True)}  # fmt: skip
+                if agent_plan["payload"].get("k") != "crew_plan":
+                    raise tokens.TokenError("not a plan")
+            if body.agent_slice:
+                agent_slice = tokens.verify(body.agent_slice, s.signing_secret)
+                if agent_slice.get("k") != "crew_slice":
+                    raise tokens.TokenError("not a slice")
+        except tokens.TokenError as e:
+            raise ApiError(400, "agent_state_invalid", f"this agent state cannot be used: {e}") from None
+        for got in (agent_plan and agent_plan["payload"], agent_slice):
+            if got is not None and (got.get("conv") != conv or got.get("bind") != binding):
+                raise ApiError(400, "agent_state_invalid", "this agent state belongs to another conversation or model")
+        once = ticket = None  # a signed agent state runs once at a time, and not again once its run ended normally
+        if agent_slice is not None:
+            once = f"slice:{agent_slice.get('run')}:{agent_slice.get('slice')}"
+        elif agent_plan is not None:
+            once = "plan:" + tokens.digest(body.agent_plan.token)
+        if once is not None:
+            from birds.harness import crew_plan
+
+            ticket = crew_plan.ONCE.claim(once)
+            if ticket is None:
+                raise ApiError(409, "agent_state_used", "this agent step is already running or done")
+
+        def release(finished: bool) -> None:
+            if once is not None:  # cut or failed: the same state can be used again (« Reprendre »)
+                from birds.harness import crew_plan
+
+                crew_plan.ONCE.release(once, ticket, finished)
         chat_request = ChatRequest(
             messages,
             body.thinking,
@@ -789,6 +899,11 @@ def create_app(
             conversation_id=body.conversation_id,
             tz=str(widgets_mod.tz_or_default(body.tz)),
             agent=body.agent,
+            agent_flow=body.agent_flow,
+            agent_plan=agent_plan,
+            agent_slice=agent_slice,
+            agent_notes=[n.model_dump() for n in body.agent_notes],
+            canvas=canvas_in,
         )
 
         loop = asyncio.get_running_loop()
@@ -822,8 +937,10 @@ def create_app(
             from birds.harness import guard
             from birds.harness.llm import EndpointError
 
+            finished = False
             try:
                 backend.run(chat_request, ctx)
+                finished = not cancel.is_set()
             except Cancelled:
                 pass
             except EndpointError as exc:  # the model endpoint, not the user: say it calmly, with a stable code
@@ -839,6 +956,7 @@ def create_app(
                     }
                 )
             finally:
+                release(finished)
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 
         async def stream():
@@ -857,6 +975,8 @@ def create_app(
                     yield _sse(apply_carbon(event, s.grid_intensity))
                 yield _sse({"type": "done"})
             finally:
+                if not cancel.is_set():  # the client left first: its state is free at once for « Reprendre »
+                    release(False)
                 cancel.set()  # client gone or run finished: unblock sleeps
 
         return StreamingResponse(
@@ -884,11 +1004,19 @@ def create_app(
         detail = exc.detail if isinstance(exc.detail, dict) else {"code": "http_error", "message": str(exc.detail)}
         return JSONResponse({"detail": detail}, status_code=exc.status_code)
 
+    @app.exception_handler(RequestValidationError)
+    async def invalid_body(request: Request, exc: RequestValidationError) -> JSONResponse:
+        """FastAPI's 422, without echoing the input back: a value such as Infinity (valid for Python's json)
+        cannot be written as JSON, and a body is not to be repeated in an error anyway."""
+        errs = [{"loc": list(e.get("loc") or ()), "msg": str(e.get("msg") or "")[:200], "type": str(e.get("type") or "")}
+                for e in exc.errors()][:20]  # fmt: skip
+        return JSONResponse({"detail": errs}, status_code=422)
+
     @app.exception_handler(404)
     async def not_found(request: Request, exc: Exception) -> JSONResponse:
         return JSONResponse({"detail": {"code": "not_found", "message": "not found"}}, status_code=404)
 
-    from . import mapimg
+    from . import mapimg, office_edit
 
     def _geo_cfg():
         from birds.harness import Config
@@ -896,6 +1024,10 @@ def create_app(
         return Config(workspace=Path(tempfile.gettempdir()), audit_file=None, **harness_config(s))
 
     app.include_router(mapimg.make_router(s, _geo_cfg))
+    app.include_router(office_edit.make_router(s, guard_request, check_access))  # the deck/document editor
+    from . import canvas_web
+
+    app.include_router(canvas_web.make_router(s, guard_request, check_access, resolve_mode, image_client))
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     if SITE_DIR.is_dir():
         import mimetypes

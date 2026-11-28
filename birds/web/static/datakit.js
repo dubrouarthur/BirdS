@@ -291,7 +291,7 @@ function interactiveTable(card, lang) {
     return h(
       "div",
       {
-        class: `dk-cell dk-th${c.type === "number" ? " is-num" : ""}`,
+        class: `dk-cell dk-th${c.type === "number" ? " dk-num" : ""}`,
         role: "columnheader",
         "aria-sort": "none",
       },
@@ -320,7 +320,7 @@ function interactiveTable(card, lang) {
           } else text = "sum" in t ? fmtValue(t.sum, c.unit, lang) : `${mean} ${fmtValue(t.mean, c.unit, lang)}`;
           if (!full && !filtered) text = "sum" in t ? fmtValue(t.sum, c.unit, lang) : `${mean} ${fmtValue(t.mean, c.unit, lang)}`;
         } else if (j === 0) text = `${fmtValue(full || filtered ? view.length : card.rows, "", lang)} ${w.rows}`;
-        return h("div", { class: `dk-cell${c.type === "number" ? " is-num" : ""}`, role: "gridcell", text });
+        return h("div", { class: `dk-cell${c.type === "number" ? " dk-num" : ""}`, role: "gridcell", text });
       })); // prettier-ignore
   };
 
@@ -350,7 +350,7 @@ function interactiveTable(card, lang) {
           onclick: () => composerInsert(`${w.row} ${i + 1}`) }))); // prettier-ignore
       cols.forEach((c, j) => {
         const text = cellText(r[j], c, lang);
-        row.append(h("div", { class: `dk-cell${c.type === "number" ? " is-num" : ""}${text ? "" : " is-empty"}`, role: "gridcell",
+        row.append(h("div", { class: `dk-cell${c.type === "number" ? " dk-num" : ""}${text ? "" : " is-empty"}`, role: "gridcell",
           title: text, "data-ref": "1", onclick: () => composerInsert(`${w.row} ${i + 1}, ${c.name} = ${text || "—"}`) }, text)); // prettier-ignore
       });
       out.push(row);

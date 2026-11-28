@@ -163,13 +163,21 @@ EXTRA_TOOLS: list[dict] = [
     _fn(
         "find_places",
         "Find a place, an address, or places of a kind near somewhere, on OpenStreetMap. Use it when the user asks "
-        "where something is, for an address, or for places near a location.",
+        "where something is, for an address, for places near a location, or to put a list of places or addresses "
+        "on one map.",
         {
             "query": {
                 "type": "string",
-                "description": "What to find: a place name, an address, or a kind of place (e.g. restaurant).",
+                "description": "What to find: a place name, an address, or a kind of place (e.g. restaurant). "
+                "Several places for one map: separated by ' ; ' (up to 25).",
             },
             "near": {"type": "string", "description": "Optional: where to search around (e.g. gare de Lyon, Paris)."},
+            "plan": {
+                "type": "string",
+                "enum": ["order", "distances"],
+                "description": "Optional, for a list: 'order' when the user asks in which order to visit the places, "
+                "'distances' when they ask the distances between them.",
+            },
         },
         ["query"],
     ),

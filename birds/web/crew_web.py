@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import dataclasses
 import re
+import secrets
 import time
 from pathlib import Path
 
+from birds.web import tokens
 from birds.web.backends import (
     ChatRequest,
     RunContext,
@@ -31,6 +33,11 @@ def on_agent(ctx: RunContext, lang: str, offset, step_end):
             ctx.emit({**out, "agent": ev["agent"]})
         elif kind == "tool_end":
             ctx.emit({**step_end(ev["index"] + offset(), ev["step"], lang), "agent": ev["agent"]})
+        elif kind == "slice":  # a long task's state, signed: the next slice (auto) or a checkpoint after a reload
+            token = ctx.sign(_plain(ev["state"]))
+            ctx.emit({"type": "agent_slice", "token": token, "final": not ev["auto"], "auto": bool(ev["auto"]),
+                      "slice": ev["state"].get("slice", 0), "run": ev["state"].get("run"),
+                      "exp": tokens.expiry(token)})  # fmt: skip  # the browser forgets it once expired
         else:
             ctx.check()
             ctx.emit(_plain(ev))
@@ -59,14 +66,38 @@ def run_crew(
 ):
     """The crew run for this request, or None when the single agent answers (no recipe, mode off...).
     Activé with nothing to split up: an agent_done event tells the chip, then the single agent answers."""
-    from birds.harness.crew import Crew
+    from birds.harness import crew_plan
+    from birds.harness.agent import Run
+    from birds.harness.crew import Crew, Decision
 
+    if request.agent_slice is not None:  # the next slice of a long task: the brief comes from the signed state
+        return _continue_slice(agent, request, ctx, history)
+    plan = None
+    if request.agent_plan is not None:  # « Lancer »: the decision and plan the card showed, with the user's edits
+        got = request.agent_plan["payload"]
+        decision = Decision(str(got.get("recipe")), str(got.get("reason") or ""), str(got.get("mode") or "auto"),
+                            bool(got.get("forced")), got.get("deliverable"), dict(got.get("signals") or {}))  # fmt: skip
+        plan = crew_plan.from_public(got.get("plan"))
+        if plan is not None:
+            plan, _ = crew_plan.apply_edits(plan, request.agent_plan.get("edits"))
     if decision.recipe is None:
         if decision.no_deliverable:
             ctx.emit({"type": "agent_done", "recipe": None, "ok": False, "reason": "no_deliverable",
                       "message": decision.reason, "calls": 0, "caveats": []})  # fmt: skip
         return None
+    if plan is None:
+        plan = crew_plan.make_plan(decision, words, lang)
+        if request.agent_flow == "plan":  # the plan card first: nothing generated, the browser launches it
+            payload = {"k": "crew_plan", "recipe": decision.recipe, "reason": decision.reason, "mode": decision.mode,
+                       "forced": decision.forced, "deliverable": decision.deliverable,
+                       "signals": _plain(decision.signals), "plan": plan.public(lang)}  # fmt: skip
+            ctx.emit({"type": "agent_plan", "plan": plan.public(lang), "token": ctx.sign(payload),
+                      "auto_start": crew_plan.auto_start(plan, decision.mode), "mode": decision.mode,
+                      "recipe": decision.recipe, "reason": decision.reason, "forced": decision.forced})  # fmt: skip
+            return Run(lang=lang, stop_reason="plan")
     docs = [(Path(n).name, document_text(Path(workspace) / n, lang)) for n in names]
+    run_id = secrets.token_urlsafe(12)
+    box = _open_notes(run_id, request, ctx)
     crew = Crew(
         agent,
         decision,
@@ -75,8 +106,41 @@ def run_crew(
         lang=lang,
         deadline=ctx.deadline - 10,
         attached=bool(names),
+        plan=plan,
+        notes=box,
+        run_id=run_id,
+        slices=request.agent_flow == "plan" or request.agent_plan is not None,  # the app continues long tasks
     )
-    return crew.run(user_sent, words, docs=docs, history=history)
+    try:
+        return crew.run(user_sent, words, docs=docs, history=history)
+    finally:
+        crew_plan.REGISTRY.close(run_id, box)
+
+
+def _open_notes(run_id: str, request: ChatRequest, ctx: RunContext):
+    """The run's note box, with the notes the browser could not deliver live (sent with this request)."""
+    from birds.harness import crew_plan
+
+    box = crew_plan.REGISTRY.open(run_id)
+    for n in request.agent_notes or []:
+        note = crew_plan.parse_note(n.get("kind"), n.get("value"), n.get("id"))
+        if note is not None:
+            box.put(note)
+    return box
+
+
+def _continue_slice(agent, request: ChatRequest, ctx: RunContext, history):
+    from birds.harness import crew_plan
+    from birds.harness.crew import Crew
+
+    state = request.agent_slice
+    run_id = str(state.get("run") or "") or secrets.token_urlsafe(12)
+    box = _open_notes(run_id, request, ctx)
+    try:
+        crew = Crew.from_slice(agent, state, deadline=ctx.deadline - 10, notes=box, history=history)
+        return crew.continue_()
+    finally:
+        crew_plan.REGISTRY.close(run_id, box)
 
 
 def resume_crew(agent, request: ChatRequest, ctx: RunContext):
@@ -132,10 +196,59 @@ _FACTS = {
 }
 
 
+def _demo_decision(run):
+    from birds.harness.crew import REASONS, Decision
+
+    forced = getattr(run.req, "agent", "auto") == "on"
+    sig = {"deliverable": "make_slides", "figures": True, "web": True, "steps": True, "n_docs": 0, "pasted_chars": 0}
+    return Decision("deck_research", REASONS[run.lang]["deck_research"], "on" if forced else "auto", forced,
+                    "make_slides", sig)  # fmt: skip
+
+
+def demo_plan(run) -> None:
+    """The demo's plan card (agent_flow « plan »): the same typed plan as a real run, nothing generated."""
+    from birds.harness import crew_plan
+
+    d = _demo_decision(run)
+    last = next((m["content"] for m in reversed(run.req.messages) if m["role"] == "user"), "")
+    plan = crew_plan.make_plan(d, last, run.lang)
+    payload = {"k": "crew_plan", "recipe": d.recipe, "reason": d.reason, "mode": d.mode, "forced": d.forced,
+               "deliverable": d.deliverable, "signals": d.signals, "plan": plan.public(run.lang)}  # fmt: skip
+    run.ctx.emit({"type": "agent_plan", "plan": plan.public(run.lang), "token": run.ctx.sign(payload),
+                  "auto_start": crew_plan.auto_start(plan, d.mode), "mode": d.mode, "recipe": d.recipe,
+                  "reason": d.reason, "forced": d.forced, "demo": run.t("scénario de démonstration", "demo scenario")})  # fmt: skip
+
+
 def demo_crew(run) -> None:
     """The demo's scripted Mode Agent: realistic lanes and timings, labelled « scénario de démonstration »."""
+    from birds.harness import crew_plan
+
+    if getattr(run.req, "agent_flow", None) == "plan" and run.req.agent_plan is None:
+        return demo_plan(run)
     t, lang, ctx = run.t, run.lang, run.ctx
     forced = getattr(run.req, "agent", "auto") == "on"
+    plan = None
+    if run.req.agent_plan is not None:
+        plan = crew_plan.from_public(run.req.agent_plan["payload"].get("plan"))
+        if plan is not None:
+            plan, _ = crew_plan.apply_edits(plan, run.req.agent_plan.get("edits"))
+    run_id = secrets.token_urlsafe(12)
+    box = _open_notes(run_id, run.req, ctx)
+    try:
+        _demo_team(run, t, lang, ctx, forced, plan, run_id, box)
+    finally:
+        crew_plan.REGISTRY.close(run_id, box)
+
+
+def _demo_team(run, t, lang, ctx, forced, plan, run_id, box) -> None:
+    stages = {"brief": "read", "drafts": "drafts", "check": "fix", "fix": "fix", "build": "build"}
+
+    def notes(stage: str) -> None:  # the scripted team acknowledges the instructions as the real one does
+        for n in box.take() if stage != "end" else box.close():
+            late = stage in ("build", "end") or (n.kind == "prefer_site" and stage != "research")
+            ctx.emit({"type": "agent_note", "id": n.id, "kind": n.kind, "value": n.value,
+                      "status": "late" if late else "applied", "stage": stage})  # fmt: skip
+
     lanes = [
         ("chercheur", "chercheur", t("Recherche web", "Web search"), "research", ""),
         ("lecteur_1", "lecteur", t("Lecture page 1", "Reading page 1"), "brief", ""),
@@ -159,11 +272,15 @@ def demo_crew(run) -> None:
                 for i, r, lab, g, d in lanes
             ],
             "budget": {"max_calls": 7, "max_seconds": 240},
+            "run": run_id,
+            **({"plan": plan.public(lang)} if plan else {}),
         }
     )
     t0 = time.monotonic()
 
     def step(lane, role, phase, status, **extra):
+        if status == "running" and phase in stages:
+            notes(stages[phase])
         label = next(lab for i, _, lab, _, _ in lanes if i == lane)
         ctx.emit(
             {"type": "agent_step", "id": lane, "role": role, "phase": phase, "status": status, "label": label, **extra}
@@ -256,6 +373,20 @@ def demo_crew(run) -> None:
     finally:
         run.ctx = ctx
     step("assembleur", "assembleur", "build", "done", detail="pptx")
+    notes("end")
+    ctx.emit({"type": "agent_deliverable", "tool": "make_slides", "title": arguments["title"],
+              "file": entry.get("name", ""), "parts": len(slides), "canvas": None})  # fmt: skip
+    # the verification card: every figure of the scripted deck with the line of its (fictional) page
+    pages = {1: "example.org", 2: "example.org"}
+    items = [{"value": v, "sentence": f, "status": "verified", "origin": "source", "n": 1 if k < 2 else 2,
+              "line": f"… {f.lower()} …", "site": pages[1 if k < 2 else 2], "title": ""}
+             for k, (_, v, f) in enumerate(_FACTS[lang])]  # fmt: skip
+    items.insert(0, {"value": "37 %", "sentence": t("Le télétravail atteint 37 % des salariés",
+                                                    "Remote work reaches 37% of employees"),
+                     "status": "removed", "origin": "none", "line": ""})  # fmt: skip
+    ctx.emit({"type": "agent_checks", "verified_n": 4, "removed_n": 1, "review_n": 0, "items": items, "more": 0,
+              "read_dropped": 1, "actions": [], "costs": 0,
+              "sources": [{"n": 1, "title": "", "site": "example.org"}, {"n": 2, "title": "", "site": "example.org"}]})  # fmt: skip
     ctx.emit(
         {
             "type": "agent_done",

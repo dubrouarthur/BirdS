@@ -64,7 +64,7 @@ def main() -> int:
         first = events(client.post("/api/chat", json=body))
         token = next(e for e in first if e["type"] == "confirm")["token"]
         slides = events(
-            client.post("/api/chat", json={"messages": [{"role": "user", "content": "Prépare des diapositives"}]})
+            client.post("/api/chat", json={"messages": [{"role": "user", "content": "Prépare des diapositives pptx"}]})
         )
         file = next(e for e in slides if e["type"] == "answer")["files"][0]
         checks["inline_pptx"] = file["name"].endswith(".pptx") and file["size"] > 1000 and bool(file["data"])

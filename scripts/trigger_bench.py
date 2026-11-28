@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from datetime import datetime  # noqa: E402
 from zoneinfo import ZoneInfo  # noqa: E402
 
+from birds.canvas import intents as canvas_intents  # noqa: E402
 from birds.harness import clock, crew, followup, intents, when  # noqa: E402
 from birds.harness.agent import (  # noqa: E402
     _previous_answer,
@@ -23,6 +24,9 @@ from birds.harness.agent import (  # noqa: E402
     route,
 )
 from birds.web.widgets import event_widget  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import bench_maps  # noqa: E402  (maps: 200 realistic asks + 60 office prompts, 30 + 15 held out)
 
 CHART_YES = [
     "fais un graphique des ventes : janvier 120, février 135, mars 160",
@@ -79,6 +83,9 @@ MAP_NO = [
     "où est passé mon fichier ?",
 ]
 WEATHER_YES = [  # (phrase, the place the harness must pre-call get_weather with)
+    # a person addressed before the place (« à Julie qui … ») is never the place
+    ("Réponds à Julie qui me demande s'il fera beau à Nice ce week-end", "Nice"),
+    ("Dis à Paul qu'il fera beau à Lyon demain ?", "Lyon"),
     ("météo à Lyon demain", "Lyon"),
     ("il va pleuvoir à Nantes ?", "Nantes"),
     ("quel temps pour jeudi à Lille", "Lille"),
@@ -97,6 +104,10 @@ WEATHER_YES = [  # (phrase, the place the harness must pre-call get_weather with
     ("météo à la gare de Lyon ce soir", "gare de Lyon"),
 ]
 WEATHER_NO = [
+    # a reply or a message to write: the weather words are in the text handed over, not asked of Bird
+    "Réponds à ce message : « Salut, tu viens à Nantes vendredi ? Il paraît qu'il va pleuvoir. »",
+    "Écris un SMS à ma femme : je rentre tard, il neige à Grenoble",
+    "Relis ce message : il va pleuvoir à Lyon demain, prends ton parapluie",
     "le climat social est tendu, que faire ?",
     "fais-moi la météo des marchés",
     "comment réduire le temps de réponse du serveur ?",
@@ -224,6 +235,10 @@ CHART_NO2 = [
     "le designer a envoyé la nouvelle identité graphique, tu peux rédiger un mail de remerciement ?",
     "calcule la TVA sur 1 500 € HT",
     "fais un tableau des taches de la semaine",
+    # a table asked for, figures given: a table, never a chart (found in the app with the model router)
+    "Mets en forme ce tableau : Paris 12, Lyon 8, Marseille 5",
+    "présente ces chiffres sous forme de tableau : Q1 40, Q2 55, Q3 61",
+    "format this table: Berlin 7, Madrid 4, Rome 3",
 ]
 # the user's own figures in these asks: the harness draws them (exact rows, type named)
 CHART_FIGURES = {
@@ -541,7 +556,14 @@ FOLLOWUP_YES = [  # (previous context, follow-up, the call it must start)
     (_CHART, "plutôt en barres", ("chart", "bar")),
 ]
 OFFICE_NO = [  # ordinary office prompts: no rich content at all, alone or right after a rich result
+    # a mail whose content names a deck, a report or a table (a clause of the mail, not a second deliverable)
+    "Rédige un mail qui annonce une présentation au comité jeudi",
+    "Prépare un mail pour demander un rapport d'activité à Julie",
+    "Écris un mail pour demander à Paul de m'envoyer un tableau Excel",
+    "Écris un mail au client pour lui présenter un tableau de nos tarifs",
+    "Rédige une réponse à ce mail : pouvez-vous me faire une présentation du projet ?",
     "rédige un mail de relance pour la facture 2024-118",
+    "Ajoute 12 rue de la Paix à mon CV.",
     "résume ce compte rendu en 5 points",
     "traduis ce paragraphe en anglais",
     "quel est le délai de préavis pour une démission ?",
@@ -585,6 +607,18 @@ OFFICE_NO = [  # ordinary office prompts: no rich content at all, alone or right
     "et le projet ?",
     "ok",
     "et à Lyon, combien de salariés ?",
+    # « je cherche / je recherche » is « I am looking for / I want to understand », not a web search
+    "Je cherche à comprendre la différence entre CDD et CDI.",
+    "Je recherche un stagiaire en marketing, rédige l'annonce.",
+    "Je recherche les causes possibles d'une baisse de CA, donne-moi des pistes.",
+    # « une formule Excel » asks for a formula, not a spreadsheet; a how-to question asks for no file
+    "Je cherche une formule Excel pour additionner une colonne si la cellule voisine vaut Oui.",
+    "comment faire un tableau croisé dynamique ?",
+    # a link to include is content, not a page to read
+    "Ajoute ce lien à ma signature de mail : https://www.linkedin.com/in/test",
+    # a code example that shows a call is the answer, not a call
+    "Écris un script Python qui envoie un mail avec smtplib.",
+    "Donne-moi un exemple de JSON pour un appel de fonction de recherche web.",
 ]
 FOLLOWUP_NO = [(prev, q) for prev in (_W, _P, _PW, _F, _C, _CO, _CHART) for q in OFFICE_NO]
 IMAGES_YES = [  # (ask, the subject searched)
@@ -626,6 +660,10 @@ IMAGES_NO = [
     "ajoute une image dans la diapo 3",
     "l'image du service client s'est améliorée",
     "faut-il une photo sur un CV ?",
+    # writing about a picture: a caption is text (found in the app with the model router)
+    "Peux-tu rédiger la légende d une photo de la tour Eiffel pour notre newsletter ?",
+    "écris une légende pour notre photo du Mont-Saint-Michel sur Instagram",
+    "write a caption for a photo of the Golden Gate Bridge",
 ]
 REALISTIC_YES = [  # (phrasing, family it must START): realistic asks found missing or fixed in this round
     ("prévisions pour Lille demain matin", "get_weather"),
@@ -715,6 +753,110 @@ STUDY_NO = [
     "Rédige le rapport annuel de l'association",
     "fais une synthèse de ce document",
 ]
+CANVAS_YES = [  # (ask, the canvas it must open): a creation ask, the content written beside the chat
+    ("Fais une présentation de 6 slides sur le télétravail", "deck"),
+    ("prépare des slides sur le marché du cloud", "deck"),
+    ("make a pitch deck for our startup", "deck"),
+    ("une présentation sur le vélo, 5 slides", "deck"),
+    ("Fais une présentation sur le plan vélo de l'entreprise", "deck"),
+    ("Peux-tu me faire une présentation sur la RSE pour le comité de lundi ?", "deck"),
+    ("prépare-moi pour lundi une présentation sur nos résultats", "deck"),
+    ("Crée un diaporama pour l'accueil des nouveaux arrivants", "deck"),
+    ("Can you make a short deck about our new product?", "deck"),
+    ("Rédige un rapport sur la sécurité informatique", "doc"),
+    ("Fais le compte rendu de cette réunion", "doc"),
+    ("Rédige une note de synthèse sur la sobriété numérique au bureau", "doc"),
+    ("Écris un cahier des charges pour la refonte de l'intranet", "doc"),
+    ("Write a report on remote work in small companies", "doc"),
+    ("Rédige une proposition commerciale pour un client dans la logistique", "doc"),
+    ("crée une landing page pour une boulangerie", "code"),
+    ("fais une page HTML avec un formulaire de contact", "code"),
+    ("fais un logo svg pour Bird", "code"),
+    ("écris un script python qui renomme des fichiers", "code"),
+    ("Code un mini-jeu de morpion en JavaScript", "code"),
+    ("dessine le schéma du processus de recrutement", "diagram"),
+    ("draw a flowchart of the onboarding process", "diagram"),
+    ("Fais un organigramme de l'équipe commerciale", "diagram"),
+]
+CANVAS_NO = [  # ordinary office prompts and questions about a document: never a canvas
+    "Peux-tu me dire ce que contient ce document ?",
+    "Je dois faire une présentation orale demain, des conseils pour le stress ?",
+    "Prépare un discours de 2 minutes pour le pot de départ de Marie",
+    "Fais une liste des documents à fournir pour un dossier de retraite",
+    "Prépare un brief pour le photographe en 3 lignes",
+    "Écris la politique de remboursement en deux phrases pour ma réponse au client",
+    "Peux-tu vérifier ce rapport ?",
+    "Peux-tu comparer ces deux documents ?",
+    "Peux-tu extraire les dates de ce document ?",
+    "Peux-tu reprendre les idées de ce document en 5 points ?",
+    "Peux-tu m aider avec ma présentation de demain ?",
+    "Fais une liste des slides à revoir",
+    "Rédige une réponse au rapport du CSE",
+    "Write a reply to the report from finance",
+    "Comment faire une bonne présentation ?",
+    "Comment ajouter une diapo dans PowerPoint ?",
+    "Présente-moi l'entreprise Airbus",
+    "résume ce document en 5 points",
+    "écris une fonction Python qui trie une liste",
+    "rédige un mail pour envoyer la présentation à Paul",
+    "traduis ce rapport en anglais",
+    "quelle est la différence entre un rapport et une note ?",
+    "Peux-tu relire mon rapport et corriger les fautes ?",
+    "Que dit ce document sur les congés ?",
+    "Dans ce rapport, quels sont les chiffres clés ?",
+    "Peux-tu me donner ton avis sur ma présentation ?",
+    "Ce document est-il conforme au RGPD ?",
+    "Est-ce que ce rapport mentionne le budget ?",
+    "J'ai besoin d'aide pour comprendre ce document",
+    "Il me faut le résumé de ce rapport pour ce soir",
+    "Can you check this report for typos?",
+    "Can you tell me what this document says about pricing?",
+    "Peux-tu lister les risques cités dans ce rapport ?",
+    "Pourrais-tu analyser cette présentation ?",
+    "Fais-moi un résumé du document joint",
+    "Ma présentation dure combien de temps idéalement ?",
+    "Quelle police utiliser pour un rapport professionnel ?",
+    "Prépare les minutes de la réunion en trois lignes",
+    "Écris un guide en une phrase pour se connecter au wifi",
+    "Rédige la procédure en deux lignes pour le client",
+    "Fais une liste de questions pour l'entretien",
+    "Peux-tu trouver les incohérences dans ce document ?",
+    "Le rapport de Paul est en retard, rédige-lui un message",
+    "Combien de slides pour une présentation de 10 minutes ?",
+]
+# office prompts that ask for a script: no office file and no tool call to run (OFFICE_NO), but the code canvas is the
+# right place to write it, like « écris un script python qui renomme des fichiers » above
+# an artifact is open (a deck): (words, panel shown) the canvas must take as an edit of it
+CANVAS_EDIT_YES = [
+    ("Ajoute une diapositive sur les coûts", True),
+    ("Ajoute une diapositive sur les coûts", False),
+    ("supprime la slide 3", False),
+    ("remplace l'image de la slide 3", False),
+    ("Change le titre de la présentation", False),
+    ("plus court", True),
+    ("Change le titre", True),
+    ("raccourcis la conclusion", True),
+]
+# … and ordinary messages it must leave to the chat, the panel shown or not
+CANVAS_EDIT_NO = [
+    (q, shown)
+    for q in (
+        "Améliore le style de ce mail avant que je l'envoie : Bonjour Paul, je te relance pour la facture de mars, "
+        "peux-tu me dire où en est le paiement ?",
+        "Résume ce paragraphe en trois points : le télétravail réduit les trajets, améliore la concentration et "
+        "change l'organisation des équipes.",
+        "Change le titre de ma réunion de demain en « Point budget »",
+        "Corrige les fautes de ce texte : je vous remercie pour votre retour, je reviendrais vers vous demain.",
+        "Mets un rappel dans mon agenda lundi à 9h",
+    )
+    for shown in (True, False)
+] + [
+    ("Mets ces chiffres dans un graphique : janvier 120, février 135, mars 160", False),
+    ("Change le titre", False),
+    ("plus court", False),
+]
+CANVAS_CODE_FROM_OFFICE = [("Écris un script Python qui envoie un mail avec smtplib.", "code")]
+CANVAS_OFFICE_NO = [q for q in OFFICE_NO if q not in dict(CANVAS_CODE_FROM_OFFICE)]
 NOW = datetime(2026, 11, 23, 10, 0, tzinfo=ZoneInfo("Europe/Paris"))
 
 
@@ -862,6 +1004,20 @@ def study_touched(q: str) -> bool:
     return crew.decide(q, mode="on").recipe == "doc_research" or bool(crew.decide(q, recipes=flipped).recipe)
 
 
+def canvas_opened(item) -> bool:
+    q, kind = item
+    return canvas_intents.ask(q) == kind
+
+
+def canvas_touched(q) -> bool:
+    return bool(canvas_intents.ask(q))
+
+
+def canvas_edited(item) -> bool:
+    q, shown = item
+    return canvas_intents.edit_ask(q, "deck", shown=shown)
+
+
 # ---------------------------------------------------------------- data analysis: questions about an attached table
 # (birds/harness/analysis): YES must become a query the harness computes, NO must be left to the model
 DATA_YES = [
@@ -943,6 +1099,10 @@ if __name__ == "__main__":
         ("realistic", REALISTIC_YES, OFFICE_NO, realistic_ok, anything),
         ("chart_howto", [], CHART_HOWTO_NO, chart_touched),
         ("agent_study", STUDY_YES, STUDY_NO, study_routed, study_touched),
+        ("maps_real", bench_maps.MAPS_REAL, bench_maps.MAPS_OFFICE_NO, bench_maps.correct, bench_maps.detected),
+        ("maps_heldout", bench_maps.MAPS_HELDOUT, bench_maps.MAPS_HELDOUT_NO, bench_maps.correct, bench_maps.detected),
+        ("canvas", CANVAS_YES + CANVAS_CODE_FROM_OFFICE, CANVAS_NO + CANVAS_OFFICE_NO, canvas_opened, canvas_touched),
+        ("canvas_edit", CANVAS_EDIT_YES, CANVAS_EDIT_NO, canvas_edited),
         ("data_analysis", DATA_YES, DATA_NO, data_planned),
     ):
         ok, n = bench(*args)
