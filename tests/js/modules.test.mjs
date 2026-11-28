@@ -65,7 +65,12 @@ test("checklist export keeps ticks, owners and due dates", () => {
 
 test("follow-up chips depend on what the answer is", () => {
   const weather = suggestions({ widgets: [{ type: "weather", day: "demain" }] });
-  assert.deepEqual(weather.map((s) => s.prompt), ["et après-demain ?", "et des restaurants autour ?"]);
+  assert.deepEqual(weather.map((s) => s.prompt), ["et après-demain ?"]); // no « Restaurants autour » under a forecast
+  // the card's own relative day (w.day is the ISO date): a forecast for tomorrow offers the day after, never « demain »
+  const card = (day, day_kind) => suggestions({ widgets: [{ type: "weather", day, day_kind, place: { name: "Lyon" } }] });
+  assert.deepEqual(card("2026-11-24", "tomorrow").map((s) => [s.label, s.prompt]), [["Et après-demain ?", "et après-demain à Lyon ?"]]);
+  assert.deepEqual(card("2026-11-23", "today").map((s) => s.label), ["Et demain ?"]);
+  assert.deepEqual(card("2026-11-27", "date").map((s) => [s.label, s.prompt]), [["Et le lendemain ?", "et le samedi 28 novembre à Lyon ?"]]);
   const places = suggestions({ widgets: [{ type: "places", places: [{ name: "Gare de Lyon" }] }] });
   assert.equal(places[0].prompt, "itinéraire pour aller à Gare de Lyon");
   const mail = suggestions({ draft_email: { to: "a@b.fr" } });
@@ -110,9 +115,9 @@ test("Bird's next steps: cleaned (strings, lengths, three at most, no duplicate)
   assert.deepEqual(cleanSuggestions("nope"), []);
   const weather = { widgets: [{ type: "weather", day: "aujourd'hui" }], suggestions: [
     { label: "Prévois une tenue adaptée", prompt: "Que faut-il prévoir comme tenue pour demain à Lyon ?" }] };
-  assert.deepEqual(chipItems(weather).map((c) => c.kind), ["next", "follow", "follow"]);
+  assert.deepEqual(chipItems(weather).map((c) => c.kind), ["next", "follow"]);
   const dup = { widgets: [{ type: "weather", day: "aujourd'hui" }], suggestions: [{ label: "Et demain ?", prompt: "et demain ?" }] };
-  assert.deepEqual(chipItems(dup).map((c) => c.label), ["Et demain ?", "Restaurants autour"]);
+  assert.deepEqual(chipItems(dup).map((c) => c.label), ["Et demain ?"]);
 });
 
 test("transforms: six one-click requests", () => {

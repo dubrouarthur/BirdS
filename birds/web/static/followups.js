@@ -28,19 +28,25 @@ export function suggestions(answer) {
   const widgets = answer.widgets || [];
   for (const w of widgets) {
     if (w.type === "weather") {
-      const tomorrow = /demain|tomorrow/i.test(String(w.day || ""));
-      add(
-        tomorrow
-          ? L("Et après-demain ?", "And the day after?")
-          : L("Et demain ?", "What about tomorrow?"),
-        tomorrow
-          ? L("et après-demain ?", "what about the day after tomorrow?")
-          : L("et demain ?", "what about tomorrow?"),
-      );
-      add(
-        L("Restaurants autour", "Restaurants nearby"),
-        L("et des restaurants autour ?", "and restaurants nearby?"),
-      );
+      // the day after the one the card shows, read from its relative-day field (w.day is the ISO date)
+      const kind = w.day_kind || (/demain|tomorrow/i.test(String(w.day || "")) ? "tomorrow" : "today");
+      const place = w.place?.name ? String(w.place.name) : "";
+      const where = place ? L(` à ${place}`, ` in ${place}`) : "";
+      if (kind === "today")
+        add(L("Et demain ?", "What about tomorrow?"), L(`et demain${where} ?`, `what about tomorrow${where}?`));
+      else if (kind === "tomorrow")
+        add(
+          L("Et après-demain ?", "And the day after?"),
+          L(`et après-demain${where} ?`, `what about the day after tomorrow${where}?`),
+        );
+      else if (/^\d{4}-\d{2}-\d{2}$/.test(String(w.day || ""))) {
+        const next = new Date(`${w.day}T12:00:00Z`);
+        next.setUTCDate(next.getUTCDate() + 1);
+        const day = next.toLocaleDateString(lang() === "en" ? "en-GB" : "fr-FR", {
+          weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+        add(L("Et le lendemain ?", "And the next day?"), L(`et le ${day}${where} ?`, `what about ${day}${where}?`));
+      }
+      // no « Restaurants autour » under a forecast: Bird's own next steps fill the row
     } else if (w.type === "places" && (w.places || []).length) {
       const p = w.places[0];
       add(

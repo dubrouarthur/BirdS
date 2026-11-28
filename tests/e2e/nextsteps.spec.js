@@ -121,7 +121,9 @@ async function shot(page, file) {
     await page.waitForTimeout(200);
     await send(page, "météo à Lyon demain");
     const wx = await page.locator(".turn-bird").last().locator(".chips-row .mchip").allInnerTexts();
-    if (!wx.some((l) => /après-demain|Restaurants/.test(l))) problems.push(`${name}: weather chips missing: ${JSON.stringify(wx)}`);
+    // the card shows tomorrow: the widget chip is the day after, never « Et demain ? », and no restaurants
+    if (!wx.some((l) => /Et après-demain/.test(l))) problems.push(`${name}: « Et après-demain ? » missing: ${JSON.stringify(wx)}`);
+    if (wx.some((l) => /Et demain|Restaurants/.test(l))) problems.push(`${name}: wrong weather chip: ${JSON.stringify(wx)}`);
     await shot(page, `nextsteps-weather-${name}.png`);
     await ctx.close();
   }
