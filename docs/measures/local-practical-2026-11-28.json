@@ -1,0 +1,1113 @@
+{
+ "before12": [
+  {
+   "prompt": "comment aller faire ses courses a saint cloud quels sont les supermarchés",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "supermarché",
+      "near": "Saint-Cloud"
+     }
+    ],
+    [
+     "find_places",
+     {
+      "query": "supermarché",
+      "near": "Saint-Cloud, France"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "723 caractères rendus au modèle"
+    ],
+    [
+     "find_places",
+     "done",
+     "723 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "route",
+    "route"
+   ],
+   "titles": [
+    "supermarché",
+    "supermarché"
+   ],
+   "n_places": 4,
+   "far": 2,
+   "duplicates": 0,
+   "named": 4,
+   "uses_results": true,
+   "forbidden": true,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 9.1,
+   "answer": "Je n'ai pas trouvé d'informations fiables sur les supermarchés à Saint-Cloud dans les données fournies. Je ne peux donc pas vous donner les noms ni les itinéraires. Vérifiez sur une carte locale ou demandez à un voisin."
+  },
+  {
+   "prompt": "pharmacie de garde à Lyon 3e",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "pharmacy",
+      "near": "Lyon 3e"
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "pharmacie de garde Lyon 3e"
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "pharmacie de garde Lyon"
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "pharmacie de garde Lyon 69"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1698 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "done",
+     "83 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "done",
+     "83 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "done",
+     "83 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "pharmacy"
+   ],
+   "n_places": 6,
+   "far": 0,
+   "duplicates": 0,
+   "named": 0,
+   "uses_results": false,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 14.2,
+   "answer": "Aucune pharmacie de garde n'est indiquée pour Lyon 3e aujourd'hui. Les pharmacies habituelles sont fermées ou en horaires réduits. Vérifiez sur le site de la mairie ou demandez à votre médecin traitant."
+  },
+  {
+   "prompt": "boulangerie près de la gare de Rennes",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "bakery",
+      "near": "gare de Rennes"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1931 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "bakery"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 8,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 13.9,
+   "answer": "Voici les boulangeries les plus proches de la gare de Rennes :\n\n1. **Ty Vorn Le Kiosque** — Place de la Gare, 80 m — Mo-Fr 06:00-19:30 ; Sa 06:30-19:30 ; Su,PH 08:30-19:30  \n2. **Le Fournil de Broceliande** — 132 m — Mo-Fr 07:00-19:00 ; PH fermé  \n3. **Ty Vorn** — Passerelle Anita Conti, 138 m — Mo,Fr 05:30-20:30 ; Tu-Th,Sa 05:30-20:00 ; Su 06:00-20:30 ; PH 07:00-20:00  \n4. **Elluard** — 10 Rue Saint-Hélier, 372 m — Mo-Sa 07:00-20:00 ; PH fermé  \n5. **Augustin** — 21 Place du Colombier, 400 m — Mo-Sa 07:00-20:00  \n6. **Brioche Dorée** — 14 Place du Colombier, 476 m — Mo-Sa 08:30-19:00  \n7. **L'Hélier du Pain** — 77 Rue Saint-Hélier, 488 m — Mo-Fr 06:00-20:00 ; Su 06:00-18:00  \n8. **Le Grenier à Pain** — 16 Rue Vasselot, 656 m — Th-Mo 07:00-19:30  \n\nSur la carte, le lien « Itinéraire » vous donne l'accès à chacun d'eux."
+  },
+  {
+   "prompt": "parking près de l'hôpital de Nantes",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "parking",
+      "near": "hôpital de Nantes"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "304 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [],
+   "titles": [],
+   "n_places": 0,
+   "far": 0,
+   "duplicates": 0,
+   "named": 0,
+   "uses_results": null,
+   "forbidden": true,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 5.4,
+   "answer": "Aucun parking ne figure sur la carte pour là-bas. Je ne peux pas inventer une adresse. Vérifiez le site de l'hôpital ou demandez à l'accueil : c'est souvent le plus fiable."
+  },
+  {
+   "prompt": "restaurants végétariens à Bordeaux centre",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "restaurant végétarien",
+      "near": "Bordeaux centre"
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "restaurants végétariens à Bordeaux centre"
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "restaurants végétariens Bordeaux centre"
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "restaurants végétariens Bordeaux"
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "vegetarian restaurants in Bordeaux center"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "733 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "done",
+     "83 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "done",
+     "83 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "done",
+     "83 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "done",
+     "83 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "route"
+   ],
+   "titles": [
+    "restaurant végétarien"
+   ],
+   "n_places": 2,
+   "far": 1,
+   "duplicates": 0,
+   "named": 0,
+   "uses_results": false,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 12.8,
+   "answer": "Je ne trouve pas d'informations fiables sur le web pour cette recherche. Je ne veux pas vous donner une liste inventée.\n\nSi vous me donnez un nom de restaurant, je peux vérifier ses informations. Sinon, vous pouvez consulter les guides locaux ou les applications de livraison pour trouver des adresses."
+  },
+  {
+   "prompt": "distributeur près de la Défense",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "atm",
+      "near": "Défense"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1194 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "atm"
+   ],
+   "n_places": 4,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 5.8,
+   "answer": "Voici les distributeurs les plus proches de la Défense :\n\n1. **NoteMachine** — Hungerford Bridge, WC2N 6PA — 405 m  \n2. **NatWest** — Villiers Street, WC2N 6NQ — 471 m, 24/7  \n3. **Cashzone** — Westminster Bridge Road, SE1 7GB — 596 m  \n\nLe lien « Itinéraire » sur la carte donne l'accès. Source : [1]."
+  },
+  {
+   "prompt": "où trouver une station-service à Annecy ?",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "fuel",
+      "near": "Annecy"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1603 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "fuel"
+   ],
+   "n_places": 7,
+   "far": 0,
+   "duplicates": 0,
+   "named": 7,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 8.4,
+   "answer": "Voici les stations-service les plus proches d'Annecy :\n\n- Intermarché — fuel, 4 Rue du Travail, 859 m, 24/7  \n- Eni, 17 Avenue de Chambéry, 956 m, 24/7  \n- HYmpulsion, Chemin de la Prairie, 1,4 km  \n- TotalEnergies Access - Relais des Alluèges, 18 Boulevard de la Rocade, 1,4 km, 24/7  \n- Esso Express, 1 Avenue de la République, 1,5 km, 24/7  \n- Eni, 4 bis Chemin des Alluèges, 1,5 km, Mo-Sa 07:00-19:30  \n- V-GAS, Avenue des Vieux Moulins, 1,6 km, 24/7  \n\nLe lien « Itinéraire » de la carte donne l'accès."
+  },
+  {
+   "prompt": "bureau de poste à Vannes",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "post office",
+      "near": "Vannes"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1004 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "post office"
+   ],
+   "n_places": 2,
+   "far": 0,
+   "duplicates": 0,
+   "named": 2,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 7.5,
+   "answer": "Deux bureaux de poste à Vannes :\n- La Poste, 25 Place de la République, 302 m, Mo-Fr 09:00-18:30, Sa 09:00-12:30\n- La Poste, Esplanade Jean Bertho, 1,7 km, Mo,We,Fr 09:00-12:00/14:00-17:00, Tu 09:00-12:00/14:30-17:00, Sa 09:00-12:00\n\nLe lien « Itinéraire » de la carte donne l'accès. Source : [1]"
+  },
+  {
+   "prompt": "quels supermarchés à Montreuil ?",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "supermarket",
+      "near": "Montreuil"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "308 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [],
+   "titles": [],
+   "n_places": 0,
+   "far": 0,
+   "duplicates": 0,
+   "named": 0,
+   "uses_results": null,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 6.0,
+   "answer": "Je ne trouve rien pour « supermarket » à Montreuil sur cette base. Je n'invente pas d'adresse ; si vous avez un nom précis ou un centre commercial, donnez-le-moi et je vérifierai."
+  },
+  {
+   "prompt": "une banque à Saint-Malo",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "bank",
+      "near": "Saint-Malo"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "849 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "bank"
+   ],
+   "n_places": 1,
+   "far": 0,
+   "duplicates": 0,
+   "named": 1,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 5.7,
+   "answer": "Une banque à Saint-Malo : Banque Populaire, Rue Ville-Pépin, 35400 Saint-Malo. [1]"
+  },
+  {
+   "prompt": "écoles à Versailles",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "school",
+      "near": "Versailles"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1284 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "school"
+   ],
+   "n_places": 5,
+   "far": 0,
+   "duplicates": 0,
+   "named": 5,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 6.0,
+   "answer": "Voici les écoles signalées autour de Versailles :\n\n1. École Élémentaire Carnot — Rue Carnot  \n2. École Maternelle Les Marmousets — Rue du Peintre Lebrun  \n3. École maternelle Vieux Versailles — Rue des Récollets  \n\nCes lieux proviennent d'OpenStreetMap. Le lien « Itinéraire » de la carte donne l'accès."
+  },
+  {
+   "prompt": "gare la plus proche de Chantilly",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "train station",
+      "near": "Chantilly"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "310 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [],
+   "titles": [],
+   "n_places": 0,
+   "far": 0,
+   "duplicates": 0,
+   "named": 0,
+   "uses_results": null,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 5.1,
+   "answer": "Aucune gare n'apparaît sur OpenStreetMap à Chantilly ; je ne peux donc pas en donner le nom ni l'adresse. Une gare ferroviaire y est-elle prévue, ou s'agit-il d'un arrêt de bus ?"
+  }
+ ],
+ "after12": [
+  {
+   "prompt": "comment aller faire ses courses a saint cloud quels sont les supermarchés",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "supermarché",
+      "near": "Saint-Cloud"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2146 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "supermarket"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 4,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 9.9,
+   "answer": "Les trois supermarchés les plus proches de Saint-Cloud sont :\n\n1. **Lidl** — Rue du Docteur Desfossez, 92210 Saint-Cloud — à 161 m — Mo-Sa 08:30-20:30 ; Su 08:30-12:30  \n2. **Monoprix** — Avenue du Maréchal Foch, 92210 Saint-Cloud — à 539 m — Mo-Su 07:30-21:30  \n3. **Monop’** — Avenue Jean Baptiste Clément, 92100 Boulogne-Billancourt — à 814 m — Mo-Sa 07:30-22:00 ; Su 09:00-22:00  \n\nLe lien « Itinéraire » sur la carte indique les transports en commun et les parkings."
+  },
+  {
+   "prompt": "pharmacie de garde à Lyon 3e",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "pharmacy",
+      "near": "Lyon 3e"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2182 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "pharmacy"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 1,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 6.8,
+   "answer": "Aucune pharmacie de garde n'est indiquée dans le 3e arrondissement de Lyon ce samedi 28 novembre 2026.\n\nLa pharmacie la plus proche est la Pharmacie Sainte-Anne, à 278 m, ouverte samedi de 9 h à 12 h 30 et de 14 h 30 à 19 h.\n\nPour les urgences, vous pouvez vous rendre à l'hôpital La Conception, 69003 Lyon, ouvert 24 h/24."
+  },
+  {
+   "prompt": "boulangerie près de la gare de Rennes",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "bakery",
+      "near": "gare de Rennes"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2091 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "bakery"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 5,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 13.3,
+   "answer": "Voici les boulangeries les plus proches de la gare de Rennes :\n\n1. **La boulangerie de Joseph**  \n   Adresse : Avenue Jean Janvier, 35000 Rennes  \n   Distance : 58 m  \n   Horaires : Mo-Fr 08:00–18:00\n\n2. **Ty Vorn Le Kiosque**  \n   Adresse : Place de la Gare, 35000 Rennes  \n   Distance : 80 m  \n   Horaires : Mo-Fr 06:00–19:30 ; Sa 06:30–19:30 ; Su, PH 08:30–19:30\n\n3. **Le Fournil de Broceliande**  \n   Adresse : 35000 Rennes  \n   Distance : 132 m  \n   Horaires : Mo-Fr 07:00–19:30 ; PH off\n\n4. **Ty Vorn**  \n   Adresse : Passerelle Anita Conti, 35000 Rennes  \n   Distance : 138 m  \n   Horaires : Mo, Fr 05:30–20:30 ; Tu–Th, Sa 05:30–20:00 ; Su 06:00–20:30 ; PH 07:00–20:00\n\n5. **Maison Coupel**  \n   Adresse : 21 Rue Saint-Hélier, 35000 Rennes  \n   Distance : 350 m  \n   Horaires : Tu-Sa 07:30–19:30\n\nPour l’accès, utilisez le lien « Itinéraire » de la carte.  \nSource : [1]"
+  },
+  {
+   "prompt": "parking près de l'hôpital de Nantes",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "parking",
+      "near": "hôpital de Nantes"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1987 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "parking"
+   ],
+   "n_places": 7,
+   "far": 0,
+   "duplicates": 0,
+   "named": 6,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 7.1,
+   "answer": "Voici les parkings les plus proches de l'hôpital de Nantes :\n\n1. **Visiteurs — parking**  \n   Rue Rita Levi-Montalcini, 44800 Saint-Herblain — à 191 m\n\n2. **Parking**  \n   Rue Rita Levi-Montalcini, 44800 Saint-Herblain — à 221 m\n\n3. **Parking**  \n   Rue Gertrude Belle Elion, 44800 Saint-Herblain — à 232 m\n\n4. **Parking**  \n   Rue Alain Bombard, 44800 Saint-Herblain — à 452 m\n\n5. **Parking**  \n   Rue des Piliers de la Chauvinière, 44800 Saint-Herblain — à 488 m\n\nLes horaires et tarifs ne sont pas disponibles. Pour accéder à ces parkings, utilisez le lien « Itinéraire » sur la carte."
+  },
+  {
+   "prompt": "restaurants végétariens à Bordeaux centre",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "restaurant végétarien",
+      "near": "Bordeaux centre"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2310 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "restaurant"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 10.6,
+   "answer": "Voici les trois restaurants les plus proches du centre de Bordeaux, selon les données disponibles :\n\n1. **Momoko**  \n   Adresse : 22 Rue Fondaudège, 33000 Bordeaux  \n   Distance : 365 m  \n   Horaires : Mo 11:45-14:30 ; Tu-Sa 11:45-14:30, 18:00-22:00 ; Su 18:00-22:00\n\n2. **Chez Mona**  \n   Adresse : 18 Rue de la Vieille Tour, 33000 Bordeaux  \n   Distance : 445 m  \n   Horaires : non indiqués\n\n3. **Amicis**  \n   Adresse : Rue Mably, 33000 Bordeaux  \n   Distance : 480 m  \n   Horaires : non indiqués\n\nPour les horaires et les détails supplémentaires, consultez la fiche de chaque établissement sur la carte. Le lien « Itinéraire » de la carte vous donnera l'accès aux informations de navigation."
+  },
+  {
+   "prompt": "distributeur près de la Défense",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "atm",
+      "near": "Défense"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1784 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "atm"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 7,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 7.4,
+   "answer": "Voici les distributeurs les plus proches de La Défense :\n\n1. **La Banque Postale** — 2 Passage Coupole, 92800 Puteaux — à 193 m  \n2. **SG** — Le Parvis, 92800 Puteaux — à 279 m, ouvert 24/7  \n3. **Avenue Léonard de Vinci** — Avenue Léonard de Vinci, 92400 Courbevoie — à 694 m  \n4. **Rue Louis Hubert Lyautey** — Rue Louis Hubert Lyautey, 92400 Courbevoie — à 937 m  \n5. **Crédit Mutuel** — Rue Godefroy, 92800 Puteaux — à 952 m  \n\nSur la carte, cliquez sur « Itinéraire » pour obtenir l'accès.  \nSource : [1]"
+  },
+  {
+   "prompt": "où trouver une station-service à Annecy ?",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "fuel",
+      "near": "Annecy"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1905 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "fuel"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 7,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 8.0,
+   "answer": "Voici les stations-service les plus proches d'Annecy :\n\n1. **Intermarché — fuel**  \n   4 Rue du Travail, 74000 Annecy — 859 m — ouvert 24/7\n\n2. **Eni**  \n   17 Avenue de Chambéry, 74000 Annecy — 956 m — ouvert 24/7\n\n3. **HYmpulsion**  \n   Chemin de la Prairie, 74000 Annecy — 1,4 km\n\n4. **TotalEnergies Access - Relais des Alluèges**  \n   18 Boulevard de la Rocade, 74000 Annecy — 1,4 km — ouvert 24/7\n\n5. **Esso Express**  \n   1 Avenue de la République, 74000 Annecy — 1,5 km — ouvert 24/7\n\nLa carte affiche ces lieux et un lien « Itinéraire » vous guide vers chacun."
+  },
+  {
+   "prompt": "bureau de poste à Vannes",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "post office",
+      "near": "Vannes"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1920 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "post office"
+   ],
+   "n_places": 6,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 9.5,
+   "answer": "Voici les trois bureaux de poste les plus proches de Vannes :\n\n1. **La Poste** — 25 Place de la République, 56000 Vannes — à 302 m  \n   Horaires : Mo-Fr 09:00-18:30 ; Sa 09:00-12:30 ; PH fermé.\n\n2. **Vannes Ménimur** — 7 Place Henri Auffret, 56000 Vannes — à 1,6 km  \n   Horaires : Mo, We-Fr 09:00-12:00, 14:00-17:00 ; Tu 09:00-12:00, 14:30-17:00 ; Sa 09:00-12:00 ; PH fermé.\n\n3. **La Poste** — Esplanade Jean Bertho, 56000 Vannes — à 1,7 km  \n   Horaires : Mo, We, Fr 09:00-12:00, 14:00-17:00 ; Tu 09:00-12:00, 14:30-17:00 ; Sa 09:00-12:00 ; PH fermé.\n\nPour l'accès, utilisez le lien « Itinéraire » sur la carte."
+  },
+  {
+   "prompt": "quels supermarchés à Montreuil ?",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "supermarket",
+      "near": "Montreuil"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1355 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "supermarket"
+   ],
+   "n_places": 3,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 9.2,
+   "answer": "Voici les trois supermarchés les plus proches de Montreuil-sur-Mer :\n\n1. **Carrefour Market Montreuil Campigneulles** — Rue de Paris, 62170 Campigneulles-les-Petites — 1,9 km — Mo-Sa 08:30-20:00 ; Su 08:30-12:30  \n2. **Aldi** — Route d'Étaples, 62170 Attin — 1,9 km — Mo-Sa 08:30-19:30 ; Su 08:30-12:30  \n3. **E.Leclerc** — Rue de la Briqueterie, 62170 Attin — 2,1 km — Mo-Th 08:00-19:30 ; Fr 08:00-20:00 ; Sa 08:00-19:30 ; Su 09:00-12:30  \n\nPour les itinéraires, utilisez le lien « Itinéraire » sur la carte.  \nSource : [1]"
+  },
+  {
+   "prompt": "une banque à Saint-Malo",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "bank",
+      "near": "Saint-Malo"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2321 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "bank"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 6,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 18.9,
+   "answer": "Voici les banques les plus proches de Saint-Malo, selon OpenStreetMap :\n\n1. **Banque Populaire**  \n   Rue Ernest Renan, 35400 Saint-Malo — 1,3 km  \n   Horaires : Tu-We 09:00-12:30,14:00-18:00 ; Th 09:00-12:30,15:00-18:00 ; Fr 09:00-12:30,14:00-18:00 ; Sa 09:00-12:30\n\n2. **SG**  \n   Boulevard de la République, 35400 Saint-Malo — 1,3 km  \n   Horaires : Tu-We 09:00-12:30,13:45-18:00 ; Th 09:00-12:30,14:45-18:00 ; Fr 09:00-12:30,13:45-18:00 ; Sa 09:00-12:45\n\n3. **Crédit Agricole**  \n   Boulevard de la République, 35400 Saint-Malo — 1,3 km  \n   Horaires : Mo-Sa 10:00-12:00\n\n4. **Crédit Mutuel de Bretagne**  \n   36 Boulevard des Talards, 35400 Saint-Malo — 1,4 km  \n   Horaires : Tu-We 08:45-12:30, 14:00-18:00 ; Th 08:45-12:30, 15:30-18:00 ; Fr 08:45-12:30, 14:00-18:00 ; Sa 08:45-12:15\n\n5. **Caisse d'Épargne**  \n   Avenue Jean Jaurès, 35400 Saint-Malo — 1,4 km  \n   Horaires : Tu 09:00-12:30,14:"
+  },
+  {
+   "prompt": "écoles à Versailles",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "school",
+      "near": "Versailles"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1904 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "school"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 5,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 9.0,
+   "answer": "Voici les écoles les plus proches de Versailles :\n\n1. **Collège Raymond Poincaré** — Passage des Étangs Gobert, 78000 Versailles — 925 m  \n2. **École élémentaire Jérôme et Jean Tharaud** — Rue Saint-Louis, 78000 Versailles — 1,0 km  \n3. **École maternelle publique Les Lutins** — Rue des Chantiers, 78000 Versailles — 1,1 km  \n4. **École Edmé Frémy** — Rue Edmé Frémy, 78000 Versailles — 1,2 km  \n5. **Lycée d'Enseignement Général et Technologique Privé Cours Marie des Lys** — Rue Antoine Coypel, 78000 Versailles — 1,2 km  \n\nLes horaires ne sont pas disponibles dans les données. Pour les horaires, les transports et les accès, consultez le lien « Itinéraire » sur la carte.\n\nSource : [1] OpenStreetMap"
+  },
+  {
+   "prompt": "gare la plus proche de Chantilly",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "train station",
+      "near": "Chantilly"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1043 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "train station"
+   ],
+   "n_places": 2,
+   "far": 0,
+   "duplicates": 0,
+   "named": 2,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 5.3,
+   "answer": "La gare la plus proche de Chantilly est Chantilly – Gouvieux, à 725 m, rue d'Orgemont. La suivante est Saint-Leu-d'Esserent, à 4,1 km.\n\n[1] réponse de l'outil find_places"
+  }
+ ],
+ "before_repro": [
+  {
+   "prompt": "comment aller faire ses courses a saint cloud quels sont les supermarchés",
+   "tools": [
+    [
+     "web_search",
+     {
+      "query": "supermarchés à Saint-Cloud en 2026",
+      "max_results": 6
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "supermarchés à Saint-Cloud livraison retrait",
+      "max_results": 6
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "supermarchés à Saint-Cloud horaires adresses",
+      "max_results": 6
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "supermarchés à Saint-Cloud prix promotions",
+      "max_results": 6
+     }
+    ],
+    [
+     "find_places",
+     {
+      "query": "supermarché",
+      "near": "Saint-Cloud"
+     }
+    ],
+    [
+     "find_places",
+     {
+      "query": "supermarché",
+      "near": "Saint-Cloud, France"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "web_search",
+     "done",
+     "83 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "done",
+     "83 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "done",
+     "83 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "done",
+     "83 caractères rendus au modèle"
+    ],
+    [
+     "find_places",
+     "done",
+     "723 caractères rendus au modèle"
+    ],
+    [
+     "find_places",
+     "done",
+     "723 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "route",
+    "route"
+   ],
+   "titles": [
+    "supermarché",
+    "supermarché"
+   ],
+   "n_places": 4,
+   "far": 2,
+   "duplicates": 0,
+   "named": 4,
+   "uses_results": true,
+   "forbidden": true,
+   "crew": [
+    "agent_plan:deep_research",
+    "agent_start:deep_research",
+    "agent_done:deep_research"
+   ],
+   "forced": true,
+   "chips": [],
+   "seconds": 17.2,
+   "answer": "Je n'ai pas trouvé d'informations fiables sur les supermarchés à Saint-Cloud dans les données fournies. Je ne peux donc pas vous donner d'adresse précise ni de temps de trajet. Vérifiez sur une carte locale ou demandez à un voisin pour éviter de vous perdre."
+  }
+ ],
+ "after_repro": [
+  {
+   "prompt": "comment aller faire ses courses a saint cloud quels sont les supermarchés",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "supermarché",
+      "near": "Saint-Cloud"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2146 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "supermarket"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 4,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 10.1,
+   "answer": "Les trois supermarchés les plus proches de Saint-Cloud sont :\n\n1. **Lidl** — Rue du Docteur Desfossez, 92210 Saint-Cloud — à 161 m — Mo-Sa 08:30-20:30 ; Su 08:30-12:30  \n2. **Monoprix** — Avenue du Maréchal Foch, 92210 Saint-Cloud — à 539 m — Mo-Su 07:30-21:30  \n3. **Monop’** — Avenue Jean Baptiste Clément, 92100 Boulogne-Billancourt — à 814 m — Mo-Sa 07:30-22:00 ; Su 09:00-22:00  \n\nLe lien « Itinéraire » sur la carte indique les transports en commun et les parkings."
+  }
+ ],
+ "after_aiact": [
+  {
+   "prompt": "Fais une recherche approfondie sur l'AI Act et ses obligations pour une PME française",
+   "tools": [],
+   "statuses": [],
+   "modes": [],
+   "titles": [],
+   "n_places": 0,
+   "far": 0,
+   "duplicates": 0,
+   "named": 0,
+   "uses_results": null,
+   "forbidden": false,
+   "crew": [
+    "agent_plan:deep_research"
+   ],
+   "forced": false,
+   "chips": [],
+   "seconds": 0.0,
+   "answer": ""
+  }
+ ]
+}
