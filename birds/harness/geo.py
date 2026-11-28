@@ -228,6 +228,9 @@ def _clean(text, n: int) -> str:
     return " ".join(str(text or "").split())[:n]
 
 
+UNNAMED_OK = {"parking", "atm", "charging_station", "fuel", "post_box", "parking_entrance"}
+
+
 def from_nominatim(item: dict) -> Place | None:
     try:
         lat, lon = float(item["lat"]), float(item["lon"])
@@ -239,6 +242,8 @@ def from_nominatim(item: dict) -> Place | None:
     kind = str(item.get("type") or item.get("category") or "")
     if not name and kind in ("house", "building", "yes") and addr:
         name = short_address(addr)
+    if not name and kind in UNNAMED_OK:  # car parks and cash machines rarely carry a name: their address does
+        name = short_address(addr) or ""
     if not name:
         return None
     detail = tags.get("cuisine") or ""
@@ -385,9 +390,11 @@ class Geocoder:
         feats = data.get("features", []) if isinstance(data, dict) else []
         return [p for p in (from_ban(f) for f in feats) if p]
 
-    def search(self, q: str, *, near: Place | None = None, limit: int = 3, lang: str = "fr") -> list[Place]:
+    def search(self, q: str, *, near: Place | None = None, limit: int = 3, lang: str = "fr",
+               radii: tuple[int, ...] = (500, 1500), keep=None) -> list[Place]:  # fmt: skip
         """Places for ``q``: BAN for a postal address (score >= 0.6), Nominatim otherwise, Photon as fallback.
-        With ``near``: a bounded box of about 500 m around it (x3 when fewer than 3 results), nearest first."""
+        With ``near``: a bounded box of ``radii[0]`` metres around it (the next radius when fewer than 3 results),
+        nearest first: never a match across the world. ``keep``: the results kept (the OSM types of a category)."""
         q = disambiguate(" ".join(str(q or "").split())[:160], str(getattr(self.ctx, "request", "") or ""))
         if not q:
             return []
@@ -406,12 +413,13 @@ class Geocoder:
                 return found[:1]
         if near is not None:
             out: list[Place] = []
-            for factor in (1, 3):
-                d = 0.0045 * factor
+            for radius in radii:
+                d = radius / 111_000
                 dl = d / max(0.2, math.cos(math.radians(near.lat)))
                 box = (near.lon - dl, near.lat + d, near.lon + dl, near.lat - d)
                 try:
                     out = self.nominatim(q, limit=max(limit, 8), viewbox=box, lang=lang)
+                    out = [p for p in out if keep(p)] if keep is not None else out  # the category asked only
                     answered = True
                 except ToolError as e:
                     errors.append(e)

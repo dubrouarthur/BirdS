@@ -95,6 +95,9 @@ def items() -> list[dict]:
         args = {} if want is None else {"query": want[0], **({"near": want[1]} if want[1] else {})}
         out.append(_item("maps+", q, "yes", ["find_places"], {"tool": "find_places", "args": args}))
     out += [_item("maps+", q, "no", ["find_places"]) for q in B.MAP_NO2]
+    # a category near a town (« supermarchés à Saint-Cloud »): the category, in the user's words or as the OSM key
+    out += [_item("maps_category", q, "yes", ["find_places"], {"tool": "find_places", "args": {"query": k, "near": n}})
+            for q, k, n, _ in B.bench_maps.MAPS_CATEGORY]  # fmt: skip
     out += [_item("weather", q, "yes", ["get_weather"], {"tool": "get_weather", "args": {"place": p}})
             for q, p in B.WEATHER_YES]  # fmt: skip
     out += [_item("weather", q, "no", ["get_weather"]) for q in B.WEATHER_NO]
@@ -178,7 +181,11 @@ def args_ok(call, expect: dict) -> bool:
     if call.tool == "clock" and "cities" in want:
         return _cities(call) == want["cities"]
     if call.tool == "find_places" and want:
-        return _same(call.args.get("query", ""), want["query"]) and _same(
+        from birds.harness.tools.places import category
+
+        q = call.args.get("query", "")
+        same_kind = (category(q) or ("",))[0] == want["query"]  # « supermarché » is the category « supermarket »
+        return (same_kind or _same(q, want["query"])) and _same(
             call.args.get("near", ""), want.get("near", "")
         )
     return all(k in call.args and _same(call.args[k], v) for k, v in want.items())

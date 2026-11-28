@@ -22,6 +22,103 @@ LIST_BYTES = 15_000
 MAX_LIST_SLOW = 6  # of which looked up on Nominatim / Photon (1 request a second, OSMF policy); BAN has no such limit
 LIST_WORKERS = 4  # parallel BAN requests (its limit is 50 requests a second per address)
 _KIND_KEYS = {k for _, k in KINDS}
+# « supermarchés », « une pharmacie de garde », « restaurant végétarien »: a category of OpenStreetMap, never a name
+# matched across the world (a clothes shop called « supermarché » in Berlin). The model writes the category in the
+# user's words or as the key; the code maps it (intents.KINDS) and keeps the rest as a qualifier OSM cannot check.
+_CATEGORY = re.compile(
+    r"^(?:(?:les|des|un|une|la|le|l'|the|a|some|quelques)\s+)?(?P<kind>" + "|".join(f"(?:{k})" for k, _ in KINDS)
+    + r")(?P<rest>(?:\s+[\w'’-]+){0,3})$",
+    re.I,
+)
+# what OpenStreetMap cannot say about a place of the category: the model is told, so it never claims it
+_QUALIFIERS = (
+    (re.compile(r"\bde garde\b|\bon duty\b|\bopen now\b|\bouverte?s? maintenant\b", re.I), "garde"),
+    (re.compile(r"v[ée]g[ée]tarien|vegan|v[ée]g[ée]talien|vegetarian", re.I), "veg"),
+)
+# a town, a district or a station: places of a kind are looked for within this many metres of it, then twice as far
+TOWN_KINDS = {"city", "town", "village", "municipality", "administrative", "suburb", "borough", "quarter",
+              "neighbourhood", "hamlet", "city_district", "district", "census"}  # fmt: skip
+TOWN_RADII = (2500, 5000)
+SPOT_RADII = (500, 1500)
+# the words Nominatim reads as the category (its « special phrases »: « train station » finds nothing, « bank » finds
+# benches), and the OSM types kept for it (a fuzzy match is dropped). Measured on Nominatim, 28/11/2026.
+PHRASES = {"bank": "banks", "atm": "cash machine", "train station": "railway station", "fitness centre": "gym",
+           "pizza": "pizzeria", "bookshop": "book shop"}  # fmt: skip
+TYPES = {
+    "supermarket": {"supermarket", "convenience", "department_store", "greengrocer"},
+    "bakery": {"bakery", "pastry"},
+    "pharmacy": {"pharmacy", "chemist"},
+    "restaurant": {"restaurant", "fast_food", "food_court", "pizza", "cafe"},
+    "hospital": {"hospital", "clinic"},
+    "train station": {"station", "train_station", "halt", "stop"},
+    "subway station": {"subway", "station", "subway_entrance"},
+    "parking": {"parking", "parking_entrance", "parking_space"},
+    "fuel": {"fuel"},
+    "bank": {"bank"},
+    "atm": {"atm", "bank"},
+    "post office": {"post_office"},
+    "school": {"school"},
+    "kindergarten": {"kindergarten", "childcare"},
+}
+FAR_M = 50_000  # a shop or a building farther than this from the anchor is another place with the same name
+
+
+def category(query: str) -> tuple[str, str] | None:
+    """(OSM kind key, qualifier) when ``query`` names a category of place (« supermarchés », « pharmacy »,
+    « restaurant végétarien »), else None (a name: « tour Eiffel », « Carrefour Market »)."""
+    q = " ".join(str(query or "").replace("’", "'").split())
+    if not q or ";" in q:
+        return None
+    if q.lower() in _KIND_KEYS:
+        return q.lower(), ""
+    m = _CATEGORY.match(q)
+    if not m:
+        return None
+    kind = next(k for rx, k in KINDS if re.fullmatch(rx, m.group("kind"), re.I))
+    rest = m.group("rest").strip()
+    if rest and not any(rx.search(rest) for rx, _ in _QUALIFIERS) and not re.match(
+        r"^(?:de\s+(?:quartier|proximit[ée])|proches?|ouverte?s?|bio|pas chers?|cheap|nearby|local)\b", rest, re.I
+    ):
+        return None  # « gare de Lyon », « école des Mines »: a name that starts with a kind word
+    return kind, rest
+
+
+def _radii(anchor: geo.Place) -> tuple[int, ...]:
+    return TOWN_RADII if (anchor.kind or "").lower() in TOWN_KINDS else SPOT_RADII
+
+
+def _anchor(hits: list[geo.Place], lang: str) -> geo.Place | None:
+    """The place « near » means: the most important hit, but a hit in France for a French conversation when it is
+    nearly as important (« Défense » is La Défense, not the Ministry of Defence in London)."""
+    if not hits:
+        return None
+    hits = sorted(hits, key=lambda h: -(h.importance or 0.0))
+    top = hits[0]
+    if lang == "fr" and top.country_code and top.country_code != "FR":
+        home = next((h for h in hits if h.country_code == "FR"), None)
+        if home is not None and (home.importance or 0.0) >= 0.6 * (top.importance or 0.0):
+            return home
+    return top
+
+
+def _qualifier_note(rest: str, lang: str) -> str:
+    kinds = {k for rx, k in _QUALIFIERS if rx.search(rest or "")}
+    if "garde" in kinds:
+        return ("OpenStreetMap ne dit pas quelle pharmacie est de garde aujourd'hui : présente ces pharmacies du "
+                "secteur avec leurs horaires, et pour la garde de nuit ou du dimanche indique le 3237 ou 3237.fr."
+                if lang == "fr" else
+                "OpenStreetMap does not say which pharmacy is on duty today: list these pharmacies with their hours, "
+                "and for the night or Sunday duty pharmacy point to 3237 or 3237.fr (France).")  # fmt: skip
+    if "veg" in kinds:
+        return (f"OpenStreetMap ne précise pas pour ces lieux le critère « {rest} » : présente-les comme les "
+                "restaurants du secteur, et ne dis végétarien que celui dont la fiche le dit."
+                if lang == "fr" else
+                f"OpenStreetMap does not state '{rest}' for these places: present them as the restaurants of the "
+                "area, and call vegetarian only one whose details say so.")  # fmt: skip
+    if rest:
+        return (f"Le critère « {rest} » n'est pas vérifié par OpenStreetMap : ne l'affirme pas." if lang == "fr"
+                else f"'{rest}' is not checked by OpenStreetMap: do not claim it.")  # fmt: skip
+    return ""
 
 
 def _osm(lat: float, lon: float, z: int = 18) -> str:
@@ -219,6 +316,7 @@ def find_places(args: dict, ctx) -> str:
     g = geo.Geocoder(ctx)
     center = None
     plan = ""
+    qualifier = ""
     if ";" in query:
         from birds.harness.mapwords import plan_of
 
@@ -238,22 +336,33 @@ def find_places(args: dict, ctx) -> str:
         plan = asked if asked in ("order", "distances") else plan_of(said)
         plan = plan if len(places) >= 2 else ""
     else:
+        cat = category(query)
+        if cat is not None:
+            query, qualifier = cat[0], cat[1]
         if near:
             # « aix »: several towns match; the most important one (a city before villages) is the likely meaning
-            hits = sorted(g.search(near, limit=5, lang=lang), key=lambda h: -(h.importance or 0.0))[:1]
-            if not hits:
+            center = _anchor(g.search(near, limit=5, lang=lang), lang)
+            if center is None:
                 ctx.step_info = {"found": 0}
                 return _none(near, lang)
-            center = hits[0]
-        if center is not None and query.lower() in _KIND_KEYS:
+        if center is not None and cat is not None:
             mode = "near"
-            places = g.search(query, near=center, limit=MAX_CARDS, lang=lang)
+            radii = _radii(center)
+            want = TYPES.get(query)
+            places = g.search(PHRASES.get(query, query), near=center, limit=20, lang=lang, radii=radii,
+                              keep=(lambda p: (p.kind or "").lower() in want) if want else None)  # fmt: skip
+            # the box's corners reach farther than its radius: nothing past the last radius is « near »
+            places = [p for p in places if (p.distance_m or 0) <= radii[-1] * 1.2][:MAX_CARDS]
         elif center is not None:
             mode = "route"
             hits = g.search(query, limit=1, lang=lang)
             places = hits[:1]
             if places:
                 places[0].distance_m = geo.distance_m(center.lat, center.lon, places[0].lat, places[0].lon)
+                far = places[0].distance_m > FAR_M and (places[0].kind or "").lower() not in TOWN_KINDS
+                if far and (places[0].importance or 0.0) < 0.4:
+                    # a shop of that name 887 km away is not the one meant: the one around the anchor, or none
+                    places = g.search(query, near=center, limit=1, lang=lang, radii=(TOWN_RADII[-1],))[:1]
         else:
             mode = "where"
             hits = g.search(query, limit=3, lang=lang)
@@ -370,6 +479,8 @@ def find_places(args: dict, ctx) -> str:
         )
     if mode == "list" and plan:
         lines.append(_plan_text(widget, lang))
+    if qualifier:
+        lines.append(_qualifier_note(qualifier, lang))
     lines.append(_tail(lang) + (f" Source à citer : [{n_src}]." if lang == "fr" else f" Source to cite: [{n_src}]."))
     return "\n".join(lines)
 
