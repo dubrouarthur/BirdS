@@ -45,12 +45,22 @@ Objectif : le niveau d'OpenAI dans les usages de bureau, porté par un petit mod
 4. Modules du catalogue (`docs/research/rich-catalogue-2026-11.json`), 3 lots : structure de réponse, données, documents métier.
    Données ouvertes : **fusionné le 28/11/2026** (`open-apis`, `docs/OPENDATA.md`, 12 sources sans clé, 6 fiches
    choisies par le routeur ; catalogue du routeur 985 jetons) ; reste : mesure du routeur en réel ; prochain lot : Hub'Eau, qualité de l'air, catalogue data.gouv.fr.
+   Marchés (`finance-api`, `docs/FINANCE.md`) : fiche de cours et historique (cryptoactifs CoinGecko, devises BCE
+   sans clé ; actions et indices via Twelve Data dès que `BIRD_TWELVEDATA_API_KEY` d'une offre avec droit d'affichage
+   est fournie) ; reste : la clé, et revérifier en réel « dois-je acheter … ».
 5. Canevas avancé, objectif « exceptionnel » (dès la vérification du Canevas terminée) :
    - diapos : ~20 mises en page (couverture plein cadre, chiffre clé géant, comparaison, frise, grille d'images, citation,
      graphique + message clé, clôture), thèmes marqués, mise en page choisie d'après le contenu ; images Openverse +
      Wikimedia (licences vérifiées, crédits), « Remplacer » / « Sans image » par diapositive ;
+     Fait sur la branche `canvas-decks` (docs/CANVAS.md § 9) : 21 mises en page + couverture, 4 thèmes avec masques
+     .pptx, aperçu = fichier (règle commune testée), Openverse + Commons, menu « Mise en page », glisser-déposer,
+     restauration de version, carte avec couverture et suites ; mesure live 3,5 → 6,2 mises en page par deck, 2 → 5
+     decks sur 6 au canevas ; reste : images en production (limites de débit des API), ouverture dans PowerPoint ;
    - documents type Word au même niveau : page de garde, sommaire, styles de titres, encadrés, tableaux, figures légendées,
      images, notes, sources ; édition en place, sections déplaçables, export .docx fidèle à l'aperçu ;
+     **Fait sur la branche `canvas-docs`** (docs/CANVAS.md, section 9 : six modèles choisis par le modèle, pages A4,
+     ✦ à deux variantes, historique avec restauration, une seule carte, .docx vérifié contre l'aperçu) ; reste : la
+     mesure en réel « après » sur les 6 demandes fixes (l'avant est noté).
    - code avec Web preview façon ChatGPT : aperçu HTML/CSS/JS en direct (iframe isolée), plusieurs fichiers, console,
      responsive (mobile / tablette / bureau), « Corriger avec Bird », itérations versionnées, export / copie ;
    - ✦ par bloc, retouche d'une sélection avec variantes, versions + restauration, le document modifié fait foi ;

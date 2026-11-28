@@ -72,20 +72,68 @@ def _clean(text) -> str:
     return " ".join(html.unescape(text).split())
 
 
+# Engines a SearXNG instance can query without a key or a CAPTCHA, asked by name when its default engines answer
+# nothing (``engines=`` reaches an engine even when the instance has it off). Probe of the production instance,
+# 28/11/2026: duckduckgo (CAPTCHA) and google cse (suspended) answered 0 results; bing 10, brave 20, yahoo 7;
+# qwant « access denied »; mojeek, startpage, wikipedia not installed. ``BIRD_SEARXNG_FALLBACK`` overrides the list.
+FALLBACK_ENGINES = ("bing", "brave", "yahoo")
+DEGRADED_S = 300.0  # once the default engines failed, the fallback engines are asked first for this long
+_DEGRADED: dict[str, float] = {}
+
+
+def fallback_engines() -> tuple[str, ...]:
+    import os
+
+    raw = os.environ.get("BIRD_SEARXNG_FALLBACK")
+    if raw is None:
+        return FALLBACK_ENGINES
+    return tuple(e.strip() for e in raw.split(",") if re.fullmatch(r"[\w .-]{2,40}", e.strip()))
+
+
 class SearxngBackend:
     """SearXNG JSON API (`/search?format=json`; the instance must enable the json format).
 
-    The base URL is set by the operator, not by the model, so it may be a local address.
+    The base URL is set by the operator, not by the model, so it may be a local address. An answer with no result
+    while engines were unresponsive (CAPTCHA, suspended, timeout) is an outage, not « no results »: the keyless
+    fallback engines are asked by name, and when they answer nothing either a ``search_unavailable`` error lets
+    ``FallbackSearch`` answer from Wikipedia. ``last`` says which engines answered.
     """
 
     name, label = "searxng", "SearXNG"
 
-    def __init__(self, base_url: str, http, timeout: float = 10.0):
+    def __init__(self, base_url: str, http, timeout: float = 10.0, clock=None):
+        import time
+
         self.url, self.http, self.timeout = base_url.rstrip("/") + "/search", http, timeout
+        self.clock = clock or time.monotonic
+        self.last: dict = {}
+
+    def _ask(self, query: str, lang: str | None, engines: tuple[str, ...] = ()) -> dict:
+        params = {"q": query, "format": "json", **({"language": lang} if lang else {})}
+        if engines:
+            params["engines"] = ",".join(engines)
+        r = self.http.get(self.url, params=params, timeout=self.timeout)
+        return _json(r, self.label)
 
     def search(self, query: str, n: int, lang: str | None = None) -> list[dict]:
-        params = {"q": query, "format": "json", **({"language": lang} if lang else {})}
-        r = self.http.get(self.url, params=params, timeout=self.timeout)
+        spare = fallback_engines()
+        degraded = _DEGRADED.get(self.url, 0.0) > self.clock()
+        data = self._ask(query, lang, spare if degraded and spare else ())
+        down = [str(e[0]) for e in data.get("unresponsive_engines") or [] if isinstance(e, (list, tuple)) and e]
+        used = "fallback" if degraded and spare else "default"
+        if not data.get("results") and down and spare and not degraded:
+            _DEGRADED[self.url] = self.clock() + DEGRADED_S
+            data, used = self._ask(query, lang, spare), "fallback"
+            down = [str(e[0]) for e in data.get("unresponsive_engines") or [] if isinstance(e, (list, tuple)) and e]
+        results = data.get("results") or []
+        if used == "fallback":  # bing and yahoo add broken links and their own pages: kept out; home pages go last
+            results = [x for x in results if _link(x.get("url"))]
+            results = [x for x in results if _article(x.get("url"))] + [x for x in results if not _article(x.get("url"))]
+        if not results and down:
+            raise SearchError("search_unavailable", f"{self.label}: no engine answered ({', '.join(down[:4])})")
+        if results and used == "default":
+            _DEGRADED.pop(self.url, None)
+        self.last = {"engines": used, **({"down": down[:6]} if down else {})}
         return [
             {
                 "title": x.get("title") or "",
@@ -93,8 +141,68 @@ class SearxngBackend:
                 "snippet": x.get("content") or "",
                 **_image(x.get("thumbnail") or x.get("img_src")),
             }
-            for x in (_json(r, self.label).get("results") or [])[:n]
+            for x in results[:n]
         ]
+
+
+_ENGINE_HOSTS = re.compile(r"(^|\.)(bing|yahoo|brave|duckduckgo|google|msn)\.[a-z.]+$")
+_ENGINE_PATHS = ("/search", "/ck/", "/aclick", "/go/", "/url", "/r/")
+
+
+def _link(url) -> bool:
+    """A usable result link: http(s), a real host, and not the search engine's own home or redirect page
+    (``in.bing.com/``, ``bing.com/ck/…``). A site's home page stays: it is the answer to « le site de la mairie »."""
+    from urllib.parse import urlsplit
+
+    try:
+        p = urlsplit(str(url or ""))
+    except ValueError:
+        return False
+    host = p.hostname or ""
+    engine_page = _ENGINE_HOSTS.search(host) and (p.path.strip("/") == "" or p.path.startswith(_ENGINE_PATHS))
+    return p.scheme in ("http", "https") and "." in host and not engine_page
+
+
+def _article(url) -> bool:
+    """A result that points at a page: an http(s) URL with a host and a path (not a bare home page)."""
+    from urllib.parse import urlsplit
+
+    try:
+        p = urlsplit(str(url or ""))
+    except ValueError:
+        return False
+    return p.scheme in ("http", "https") and "." in p.netloc and (p.path.strip("/") != "" or bool(p.query))
+
+
+def probe(base_url: str, http, *, query: str = "Paris", timeout: float = 4.0) -> dict:
+    """The health of a SearXNG instance (``/api/health``): results on a canary query with its default engines, the
+    engines that answered, the unresponsive ones and why, and whether the fallback engines answer. Never raises."""
+    import time
+
+    url = base_url.rstrip("/") + "/search"
+    out: dict = {"backend": "searxng", "query": query}
+    t0 = time.monotonic()
+    for key, engines in (("default", ()), ("fallback", fallback_engines())):
+        if key == "fallback" and (out.get("results") or not engines):
+            break
+        params = {"q": query, "format": "json", **({"engines": ",".join(engines)} if engines else {})}
+        try:
+            r = http.get(url, params=params, timeout=timeout)
+            data = _json(r, "SearXNG")
+        except Exception as e:  # noqa: BLE001 - the probe reports, never raises
+            out[key] = {"ok": False, "error": e.code if isinstance(e, SearchError) else type(e).__name__}
+            continue
+        results = data.get("results") or []
+        alive = sorted({str(en) for x in results for en in (x.get("engines") or [])})
+        down = [{"engine": str(e[0]), "why": str(e[1])[:80] if len(e) > 1 else ""}
+                for e in data.get("unresponsive_engines") or [] if isinstance(e, (list, tuple)) and e]  # fmt: skip
+        out[key] = {"ok": bool(results), "results": len(results), "alive": alive, "unresponsive": down,
+                    **({"engines": list(engines)} if engines else {})}  # fmt: skip
+        out["results"] = out.get("results", 0) or len(results)
+    out["ok"] = bool((out.get("default") or {}).get("ok"))
+    out["degraded"] = not out["ok"] and bool((out.get("fallback") or {}).get("ok"))
+    out["seconds"] = round(time.monotonic() - t0, 2)
+    return out
 
 
 class BraveBackend:
@@ -271,14 +379,17 @@ class FallbackSearch:
     def search(self, query: str, n: int, lang: str | None = None) -> list[dict]:
         try:
             results = self.primary.search(query, n, lang=lang)
-            self.last = {"backend": self.primary.name, "label": self.primary.label}
+            self.last = {"backend": self.primary.name, "label": self.primary.label,
+                         **dict(getattr(self.primary, "last", None) or {})}  # fmt: skip
             return results
         except Exception as e:  # noqa: BLE001 - any failure of the keyed backend: try the free one
             code = e.code if isinstance(e, SearchError) else "search_failed"
             results = self.fallback.search(query, n, lang=lang)
+            inner = dict(getattr(self.fallback, "last", None) or {})  # a chain (SearXNG → Brave → Wikipedia)
             self.last = {
-                "backend": self.fallback.name,
-                "label": self.fallback.label_for(lang) if hasattr(self.fallback, "label_for") else self.fallback.label,
+                "backend": inner.get("backend") or self.fallback.name,
+                "label": inner.get("label")
+                or (self.fallback.label_for(lang) if hasattr(self.fallback, "label_for") else self.fallback.label),
                 "fallback_from": self.primary.label,
                 "fallback_code": code,
             }
@@ -286,21 +397,21 @@ class FallbackSearch:
 
 
 def make_search(cfg, http):
-    """The backend the configuration asks for (SearXNG > Brave > Tavily > Wikipedia), or None when search is off.
-
-    A keyed backend falls back to Wikipedia on failure unless ``search_default="none"``.
-    """
+    """The search chain the configuration gives: SearXNG first (the default), then Brave, then Tavily, each one
+    the backup of the one before, and the no-key Wikipedia search last (unless ``search_default="none"``).
+    None when search is off."""
     contact = getattr(cfg, "search_contact", None)
     wiki = (
         WikipediaBackend(http, contact=contact) if getattr(cfg, "search_default", "wikipedia") == "wikipedia" else None
     )
-    primary = None
+    chain = []
     if getattr(cfg, "searxng_url", None):
-        primary = SearxngBackend(cfg.searxng_url, http)
-    elif getattr(cfg, "brave_api_key", None):
-        primary = BraveBackend(cfg.brave_api_key, http)
-    elif getattr(cfg, "tavily_api_key", None):
-        primary = TavilyBackend(cfg.tavily_api_key, http)
-    if primary is None:
-        return wiki
-    return FallbackSearch(primary, wiki) if wiki else primary
+        chain.append(SearxngBackend(cfg.searxng_url, http))
+    if getattr(cfg, "brave_api_key", None):
+        chain.append(BraveBackend(cfg.brave_api_key, http))
+    if getattr(cfg, "tavily_api_key", None):
+        chain.append(TavilyBackend(cfg.tavily_api_key, http))
+    tail = wiki
+    for backend in reversed(chain):
+        tail = FallbackSearch(backend, tail) if tail else backend
+    return tail

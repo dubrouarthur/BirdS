@@ -35,7 +35,7 @@ import { renderPlan } from "./plan.js"; // task plan checklist (w1-harness)
 import { canvasCard } from "./canvas.js";
 import { enhanceAnswer } from "./modules.js";
 import { renderChips, transforms } from "./followups.js";
-import { flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
+import { birdIcon, flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -80,16 +80,12 @@ function liveLine(turn) {
   let text;
   let sub = "";
   let calm = false;
-  let retry = null;
   if (turn.live?.state === "waking") {
+    // the model was asleep (scaled to zero): one calm line, no attempt counter nor retry countdown; Bird retries
+    // on its own and the thin bar below fills slowly while the wait lasts
     text = t("live.waking");
-    sub = t("live.waking.sub", { n: turn.live.attempt || 1 });
+    sub = t("live.waking.sub");
     calm = true;
-    const wait = Number(turn.live.retry_in);
-    if (wait >= 0) {
-      const at = String((turn.live.at || Date.now()) + wait * 1000);
-      retry = h("span", { class: "num", "data-retry-at": at, text: retryText(Number(at)) });
-    }
   } else if (running) {
     const key = `live.${running.tool}`;
     const label = t(key) === key ? t("live.tool") : t(key);
@@ -115,38 +111,52 @@ function liveLine(turn) {
   return h(
     "div",
     { class: `live${calm ? " live-calm" : ""}` },
-    bird || h("span", { class: calm ? "pulse" : "spinner", "aria-hidden": "true" }),
+    bird || (calm ? birdIcon("hirondelle", "rf-flap live-wake-bird") : h("span", { class: "spinner", "aria-hidden": "true" })),
     h(
       "div",
-      null,
+      { class: "live-body" },
       h(
         "p",
         { class: "live-text" },
         h("span", { text }),
         h("span", { class: "live-time num", "data-since": String(since), "aria-hidden": "true", text: elapsed(since) }),
       ),
-      sub ? h("p", { class: "live-sub" }, retry && [retry, " · "], sub) : auto,
+      sub ? h("p", { class: "live-sub", text: sub }) : auto,
+      calm && wakeBar(since),
     ),
   );
 }
 
-function retryText(at) {
-  const left = Math.max(0, Math.ceil((at - Date.now()) / 1000));
-  return left > 0 ? t("live.retry.in", { n: left }) : t("live.retry.now");
+function wakeBar(since) {
+  const fill = h("span", { "data-wake-since": String(since) });
+  fill.style.inlineSize = `${wakeShare(since)}%`; // CSSOM, not a style attribute: the CSP allows no inline styles
+  return h("div", { class: "wake-bar", "aria-hidden": "true" }, fill);
 }
+
+// A wake-up lasts from a few tens of seconds to a few minutes: the bar fills fast at first, then ever more slowly
+// (time constant 60 s), and never reaches the end before the first word does.
+function wakeShare(since) {
+  const s = Math.max(0, (Date.now() - Number(since)) / 1000);
+  return Math.round(6 + 86 * (1 - Math.exp(-s / 60)));
+}
+
+// Nothing to say in the first seconds of a normal answer (Bird may be reasoning): a quiet line from 25 s,
+// the Stop hint from 60 s only.
+const SLOW_AFTER_S = 25;
+const SLOWER_AFTER_S = 60;
 
 function autoSub(started, first) {
   const s = (Date.now() - started) / 1000;
   if (s < 3) return first ? t("live.first") : "";
-  if (s < 8) return "";
-  return t(s < 20 ? "live.slow" : "live.slower");
+  if (s < SLOW_AFTER_S) return "";
+  return t(s < SLOWER_AFTER_S ? "live.slow" : "live.slower");
 }
 
 
 /** Called every second while a request runs: only the small timers change, nothing else is redrawn. */
 export function tick() {
   for (const el of document.querySelectorAll("[data-since]")) el.textContent = elapsed(el.dataset.since);
-  for (const el of document.querySelectorAll("[data-retry-at]")) el.textContent = retryText(Number(el.dataset.retryAt));
+  for (const el of document.querySelectorAll("[data-wake-since]")) el.style.inlineSize = `${wakeShare(el.dataset.wakeSince)}%`;
   for (const el of document.querySelectorAll("[data-auto-sub]")) {
     const line = autoSub(Number(el.dataset.started), el.dataset.autoSub);
     if (el.textContent !== line) el.textContent = line;
@@ -239,7 +249,7 @@ function renderSteps(turn) {
           ),
           step.info?.label &&
             h("span", {
-              class: `badge badge-src${step.info.fallback_from ? " badge-warn" : ""}`,
+              class: "badge badge-src", // a fallback is a calm line in the step, never a warning
               title: step.info.fallback_from
                 ? t("steps.fallback", { from: step.info.fallback_from, label: step.info.label })
                 : t("steps.via", { label: step.info.label }),
@@ -250,9 +260,9 @@ function renderSteps(turn) {
           injection &&
             h(
               "span",
-              { class: "badge badge-warn" },
+              { class: "badge badge-warn badge-flag", title: t("steps.flagged") },
               icon("alert"),
-              t("steps.flagged"),
+              h("span", { class: "badge-flag-text", text: t("steps.flagged") }),
             ),
           h(
             "span",
@@ -626,8 +636,9 @@ function filePreview(preview, onDownload, onEdit = null) {
 }
 
 function renderFiles(turn) {
+  const inCanvas = turn.answer?.canvas?.files || []; // a Word document is one card: the canvas card
   const files = (turn.files || []).filter(
-    (f) => f && typeof f.name === "string",
+    (f) => f && typeof f.name === "string" && !inCanvas.includes(f.name),
   );
   if (!files.length) return null;
   turn.ui.fileOpen = turn.ui.fileOpen || {};
@@ -718,6 +729,16 @@ function renderFiles(turn) {
   );
 }
 
+// « [Prénom] », « [date] »: the blanks the draft leaves to the user, marked so they are not sent as they are
+function fillMarks(text) {
+  return text
+    .split(/(\[[^[\]\n]{1,40}\])/)
+    .map((part, i) => (i % 2 ? h("mark", { class: "email-fill", title: t("email.fill"), text: part }) : part));
+}
+
+// a quiet dashed pill: what is still to add before the mail can leave
+const missingPill = (key) => h("span", { class: "email-missing" }, icon("plus"), h("span", { text: t(key) }));
+
 function renderEmail(turn) {
   const draft = turn.answer?.draft_email;
   if (!draft || typeof draft !== "object") return null;
@@ -734,9 +755,14 @@ function renderEmail(turn) {
     .map((s) => s.trim())
     .map((s) => (s.match(/<([^<>\s]+@[^<>\s]+)>$/) || [null, s])[1])
     .filter(Boolean);
-  const hint = [String(draft.to_hint ?? "").trim(), ...parts.filter((s) => !isAddress(s))]
-    .filter(Boolean)
-    .join(", ");
+  // a placeholder the model wrote in place of a recipient (« [destinataires] », « <nom> », « à compléter ») is not
+  // a name: the card says plainly that a recipient is to add
+  const isPlaceholder = (s) =>
+    /^[[<{(].*[\]>})]$/.test(s) || /^(destinataires?|recipients?|à compléter|to complete|tbd|\?+|…|\.\.\.)$/i.test(s);
+  const names = [String(draft.to_hint ?? ""), ...parts.filter((s) => !isAddress(s))]
+    .flatMap((s) => s.split(","))
+    .map((s) => s.trim())
+    .filter((s) => s && !isPlaceholder(s));
   const addresses = parts.filter(isAddress);
   // A mailto: link the user chooses to click. It only opens their own mail app with the draft: nothing is sent.
   const mailto = `mailto:${addresses
@@ -755,18 +781,28 @@ function renderEmail(turn) {
         "div",
         { class: "card-title" },
         h("p", { class: "card-name", text: subject || t("email.title") }),
-        h("p", {
-          class: "card-meta",
-          text: [
-            addresses.length || !hint ? `${t("email.to")} ${addresses.join(", ") || "—"}` : "",
-            hint ? `${t("email.tohint")} ${hint}` : "",
-          ]
-            .filter(Boolean)
-            .join(" · "),
-        }),
+        h(
+          "p",
+          { class: "card-meta email-to" },
+          h("span", { text: `${t("email.to")} ` }),
+          // the addresses, then each name with its own « adresse à ajouter »: a name never reads as a real recipient
+          // (it is not in the mailto: link); nobody at all reads « destinataire à ajouter »
+          addresses.length || names.length
+            ? [...addresses, ...names].flatMap((who, i, all) => {
+                // the comma stays with the recipient before it: a line never starts with « , »
+                const sep = i < all.length - 1 ? "," : "";
+                return [
+                  i ? " " : null,
+                  i < addresses.length
+                    ? h("span", { class: "email-addr" }, who + sep)
+                    : h("span", { class: "email-name" }, who, " ", missingPill("email.to.noaddr"), sep),
+                ];
+              })
+            : missingPill("email.to.missing"),
+        ),
       ),
     ),
-    h("div", { class: "email-body", text: body }),
+    h("div", { class: "email-body" }, fillMarks(body)),
     h(
       "div",
       { class: "card-actions" },
@@ -1288,14 +1324,22 @@ const FRIENDLY_ERRORS = new Set(
 function renderError(turn, isLast) {
   if (!turn.error) return null;
   const code = turn.error.code;
-  const calm = code === "waking";
+  // the model asleep or paused is not the user's doing: a calm card (moon, no red), in words for people. The
+  // server's sentence for a paused endpoint speaks to its administrator: folded away, and only for someone who
+  // set their own endpoint in Settings.
+  const down = code === "endpoint_down";
+  const calm = code === "waking" || down;
   const friendly = FRIENDLY_ERRORS.has(code) || /^http_\d+$/.test(code);
   // an HTTP status without a sentence (a gateway page) gets a plain message; its number stays in the details
-  const raw = friendly
-    ? /^http_\d+$/.test(code)
-      ? turn.error.detail || ""
+  const raw = down
+    ? state.prefs.endpoint
+      ? turn.error.message || ""
       : ""
-    : turn.error.detail || turn.error.message;
+    : friendly
+      ? /^http_\d+$/.test(code)
+        ? turn.error.detail || ""
+        : ""
+      : turn.error.detail || turn.error.message;
   const done = turn.steps.filter((s) => s.status === "done").length;
   const before =
     !calm && done
@@ -1323,8 +1367,10 @@ function renderError(turn, isLast) {
     h(
       "div",
       { class: "notice-text" },
-      h("strong", { text: calm ? t("error.waking.title") : t("turn.error") }),
-      h("p", { text: calm ? t("error.waking") : friendly ? turn.error.message : t("error.internal") }),
+      h("strong", { text: down ? t("error.down.title") : calm ? t("error.waking.title") : t("turn.error") }),
+      h("p", {
+        text: down ? t("error.down") : calm ? t("error.waking") : friendly ? turn.error.message : t("error.internal"),
+      }),
       before,
       raw &&
         h(
@@ -1502,6 +1548,11 @@ function basedOn(turn) {
   );
 }
 
+function quoteFirst(turn) {
+  const list = turn.answer?.widgets?.length ? turn.answer.widgets : turn.widgets || [];
+  return list.some((w) => w && w.type === "quote");
+}
+
 function widgetsFor(turn, entry) {
   // the answer's cards, or the ones sent as each pre-called tool returned (`widget` event): shown while the model
   // writes, and kept when it fails
@@ -1589,9 +1640,11 @@ function fillAssistant(el, turn, isLast) {
         )),
     hasText && entry.md,
     turn.answer?.fallback && h("p", { class: "answer-note", "data-notice": "fallback", text: turn.answer.fallback }),
+    // markets: the quote card (its period chips) comes before the chart it drives (finance.js)
+    quoteFirst(turn) && widgetsFor(turn, entry),
     renderCharts(turn),
     renderWebImages(turn),
-    widgetsFor(turn, entry),
+    !quoteFirst(turn) && widgetsFor(turn, entry),
     turn.crew?.done && renderChecks(turn), // « Vérifications faites »: the team's checks, figure by figure
     canvasCard(turn), // the deck, document, page or sheet of this turn, in the canvas
     basedOn(turn),

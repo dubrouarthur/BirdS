@@ -38,7 +38,7 @@ function outside(e) {
   if (!picker.menu.contains(e.target) && !picker.button.contains(e.target)) close(false);
 }
 
-function open() {
+function open(byKeyboard = true) {
   renderMenu();
   const phone = window.matchMedia("(max-width: 640px)").matches;
   const box = picker.button.getBoundingClientRect();
@@ -49,7 +49,10 @@ function open() {
   picker.scrim.hidden = !phone;
   picker.button.setAttribute("aria-expanded", "true");
   document.addEventListener("pointerdown", outside, true);
-  picker.menu.querySelector("#rf-range")?.focus();
+  // from the keyboard, straight onto the slider; from a tap or a click, onto the sheet itself, so no focus ring
+  // is drawn around the slider (Tab still goes to the switch, then the slider)
+  if (byKeyboard) picker.menu.querySelector("#rf-range")?.focus();
+  else picker.menu.focus({ preventScroll: true });
 }
 
 const valueText = (key) => `${nameOf(key)} · ${t(`rf.level.${key}.label`)}`;
@@ -86,10 +89,12 @@ function renderMenu() {
   const ticks = LEVELS.map((key) =>
     h("button", { class: "rf-tick", type: "button", tabindex: "-1", "data-level": key, title: valueText(key), onclick: () => pick(key) }, birdIcon(key)),
   );
+  // the bird rides the thumb: a tinted badge that follows the slider and flaps its wings at each new choice
+  const flyer = h("span", { class: "rf-flyer", "aria-hidden": "true" });
   const slider = h(
     "div",
     { class: "rf-slider" },
-    range,
+    h("div", { class: "rf-track" }, range, flyer),
     h("div", { class: "rf-ticks", "aria-hidden": "true" }, ...ticks),
     h("div", { class: "rf-scale", "aria-hidden": "true" }, h("span", { text: t("rf.slider.fast") }), h("span", { text: t("rf.slider.deep") })),
   );
@@ -108,7 +113,7 @@ function renderMenu() {
     now,
     slider,
   );
-  picker.ui = { range, autoSwitch, now, nowIcon, nowName, nowLabel, nowHint, ticks, slider, shown: null };
+  picker.ui = { range, autoSwitch, now, nowIcon, nowName, nowLabel, nowHint, ticks, slider, flyer, shown: null };
   syncMenu();
 }
 
@@ -125,7 +130,10 @@ function syncMenu() {
   ui.autoSwitch.checked = auto;
   if (ui.range.value !== String(index)) ui.range.value = String(index);
   ui.range.setAttribute("aria-valuetext", auto ? `${t("rf.level.auto")} · ${t("rf.level.auto.hint")}` : valueText(shown));
-  ui.slider.style.setProperty("--rf-pos", `${(index / (LEVELS.length - 1)) * 100}%`);
+  const n = index / (LEVELS.length - 1);
+  ui.slider.style.setProperty("--rf-pos-n", String(n));
+  // the filled track ends under the thumb's centre (half a thumb in from each end)
+  ui.slider.style.setProperty("--rf-pos", `calc(11px + (100% - 22px) * ${n})`);
   ui.slider.dataset.level = shown;
   ui.slider.classList.toggle("is-auto", auto);
   ui.now.hidden = auto; // « Auto » is already said by the switch row: the card names a bird only when one is chosen
@@ -139,6 +147,18 @@ function syncMenu() {
   ui.nowLabel.textContent = auto ? "" : ` · ${t(`rf.level.${shown}.label`)}`;
   ui.nowHint.textContent = t(`rf.level.${key}.hint`);
   ui.ticks.forEach((b, i) => b.classList.toggle("is-on", !auto && i === index));
+  if (ui.flyer.dataset.drawn !== key) {
+    const first = !ui.flyer.dataset.drawn;
+    ui.flyer.dataset.drawn = key;
+    ui.flyer.dataset.level = key;
+    ui.flyer.replaceChildren(birdIcon(key));
+    if (!first) {
+      // restart the flight: remove, force a layout, add again
+      ui.flyer.classList.remove("rf-in-flight");
+      void ui.flyer.offsetWidth;
+      ui.flyer.classList.add("rf-in-flight");
+    }
+  }
 }
 
 /** A choice applies at once and the popover stays open: Escape, Tab past the slider or a click outside closes it. */
@@ -175,13 +195,13 @@ export function mountPicker(slot, onPick) {
     "aria-expanded": "false",
     "aria-controls": "rf-menu",
   });
-  const menu = h("div", { id: "rf-menu", class: "rf-menu", role: "dialog", "aria-labelledby": "rf-menu-title", hidden: true });
+  const menu = h("div", { id: "rf-menu", class: "rf-menu", role: "dialog", "aria-labelledby": "rf-menu-title", tabindex: "-1", hidden: true });
   const scrim = h("div", { class: "rf-scrim", hidden: true, onclick: () => close(false) });
   menu.addEventListener("keydown", onKey);
   // no focus on press (as the send button): focusing the dock shows it « typing », hides its note and moves it,
   // and the release then landed on the text box (seen at 360 px): the click opened nothing
   button.addEventListener("mousedown", (e) => e.preventDefault());
-  button.addEventListener("click", () => (menu.hidden ? open() : close()));
+  button.addEventListener("click", (e) => (menu.hidden ? open(e.detail === 0) : close())); // detail 0: Enter or Space
   button.addEventListener("keydown", (e) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();

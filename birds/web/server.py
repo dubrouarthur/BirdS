@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -125,7 +125,7 @@ class ChatBody(BaseModel):
     reflexion: Literal["auto", "colibri", "hirondelle", "faucon", "chouette", "albatros"] | None = None
     agent: Literal["auto", "on", "off"] = "auto"  # Mode Agent (birds.harness.crew): Auto, Activé, Désactivé
     # Mode Agent, wave 2: "plan" asks for the plan card first (the app); omitted, a decided team starts at once (API)
-    agent_flow: Literal["plan"] | None = None
+    agent_flow: Literal["plan", "run"] | None = None  # "run": the app, the team starts at once (no plan card first)
     agent_plan: AgentPlanIn | None = None  # « Lancer »: the signed plan, edited
     agent_slice: str | None = Field(default=None, max_length=600_000)  # the next slice of a long task (signed state)
     agent_notes: list[AgentNoteIn] = Field(default_factory=list, max_length=12)  # notes not delivered live
@@ -210,6 +210,8 @@ def harness_config(s: Settings) -> dict:
         "searxng_url": s.searxng_url,
         "brave_api_key": s.brave_api_key,
         "tavily_api_key": s.tavily_api_key,
+        "twelvedata_api_key": s.twelvedata_api_key,
+        "coingecko_api_key": s.coingecko_api_key,
         "search_default": s.search_default,
         "search_contact": s.search_contact,
         "pin_dns": s.pin_dns,
@@ -412,6 +414,46 @@ TOOL_TEXT.update(OPENDATA_TEXT)
 # --- end open data
 
 
+SEARCH_PROBE_TTL_S = 300.0  # the SearXNG health is probed at most once in this long
+SEARCH_PROBE_WAIT_S = 1.5  # /api/health waits this long for a fresh probe, then answers « checking »
+_PROBE: dict = {"at": -1e9, "value": None, "running": False}
+_PROBE_LOCK = threading.Lock()
+
+
+def _search_probe(s: Settings) -> dict | None:
+    """The cached health of the SearXNG instance (birds.harness.tools.search.probe): engines that answer, results on
+    a canary query, unresponsive engines. Probed in a thread at most every SEARCH_PROBE_TTL_S; never blocks health
+    for more than SEARCH_PROBE_WAIT_S."""
+    if not s.searxng_url:
+        return None
+    with _PROBE_LOCK:
+        fresh = time.monotonic() - _PROBE["at"] < SEARCH_PROBE_TTL_S
+        start = not fresh and not _PROBE["running"]
+        if start:
+            _PROBE["running"] = True
+    if start:
+        done = threading.Event()
+
+        def run() -> None:
+            import httpx
+
+            from birds.harness.tools.search import probe
+
+            try:
+                with httpx.Client(timeout=4.0, follow_redirects=False) as http:
+                    value = probe(s.searxng_url, http)
+            except Exception as e:  # noqa: BLE001 - the probe reports, never breaks health
+                value = {"backend": "searxng", "ok": False, "error": type(e).__name__}
+            with _PROBE_LOCK:
+                _PROBE.update(at=time.monotonic(), value=value, running=False)
+            done.set()
+
+        threading.Thread(target=run, name="bird-search-probe", daemon=True).start()
+        done.wait(SEARCH_PROBE_WAIT_S)
+    value = _PROBE["value"]
+    return dict(value) if value is not None else {"backend": "searxng", "status": "checking"}
+
+
 def tools_info(s: Settings, backend) -> dict:
     """Which tools the model may use here, which are off, and why. Also which search backend answers."""
     from birds.tools import PRODUCT_TOOL_NAMES
@@ -467,7 +509,12 @@ def create_app(
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
-        response = await call_next(request)
+        from .canvas_web import frame_request_refused
+
+        if frame_request_refused(request):  # only /canvas/frame may load in a frame (the sandboxed preview)
+            response = PlainTextResponse("frame refused", status_code=403)
+        else:
+            response = await call_next(request)
         for key, value in SECURITY_HEADERS.items():
             response.headers[key] = value
         path = request.url.path
@@ -596,6 +643,8 @@ def create_app(
                 "classes": [{"fr": fr, "en": en, "active_params_b": b} for fr, en, b in s.compare_classes],
                 "reference": s.reference,
             },
+            # the web search's health (SearXNG engines alive, results on a canary query), cached a few minutes
+            **({"search": probe} if (probe := _search_probe(s)) is not None else {}),
             "thinking_default": True,
             "reflexion_default": "auto",
             "default_mode": default_mode(),
@@ -1013,6 +1062,11 @@ def create_app(
     @app.get("/manifest.webmanifest", include_in_schema=False)
     def manifest() -> FileResponse:
         return FileResponse(STATIC_DIR / "manifest.webmanifest", media_type="application/manifest+json")
+
+    @app.get("/install.sh", include_in_schema=False)
+    def install_script() -> FileResponse:
+        # « curl -fsSL https://<site>/install.sh | sh »: Bird and its model on the user's own machine (docs/LOCAL.md)
+        return FileResponse(Path(__file__).with_name("install.sh"), media_type="text/plain; charset=utf-8")
 
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon() -> FileResponse:

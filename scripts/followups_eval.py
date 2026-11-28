@@ -1,4 +1,4 @@
-"""Follow-up chips, before / after, on real answers of the live endpoint (docs/HARNESS.md § 17).
+"""Follow-up chips, before / after, on real answers of the live endpoint (docs/HARNESS.md § 18).
 
   # 1. record: each prompt of PROMPTS through the real app (HarnessBackend, live endpoint), one turn each; the
   #    answer event and Bird's next steps (nextsteps.generate, raw output kept before validation) are saved
@@ -363,7 +363,7 @@ def main(argv=None) -> int:
     ap.add_argument("--replay", type=Path, help="with --out: today's prompt on the recorded answers of this file")
     ap.add_argument("--out", type=Path)
     ap.add_argument("--strict", nargs=3, type=Path, metavar=("BEFORE", "AFTER", "JUDGED"),
-                    help="the strict hand re-score of three arms (docs/HARNESS.md § 17)")
+                    help="the strict hand re-score of three arms (docs/HARNESS.md § 18)")
     ap.add_argument("--only", default="")
     ap.add_argument("--dump", action="store_true", help="print every chip of each arm (for the hand judgement)")
     ap.add_argument("--cases", action="store_true", help="router_data.NEXTSTEPS_CASES: old chips offline")

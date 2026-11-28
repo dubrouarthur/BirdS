@@ -28,7 +28,7 @@ Document model (``v`` 1)::
 
     {"v": 1, "kind": "deck"|"doc"|"code"|"sheet", "title", "subtitle", "theme", "lang",
      "blocks": [{"id": "b1", "title": str, "parts": [part, ...], "notes": str}],   # deck, doc
-     "code": {"lang": str, "text": str},                                          # code
+     "code": {"lang", "text", "entry", "files": [{"name", "lang", "text"}]},       # code (see code.py)
      "sheet": {"columns": [str], "rows": [[str]]},                                # sheet
      "media": {"<id>": {"kind": "web"|"user"|"gen", "alt", "credit", "licence", "source", "w", "h"}}}
 
@@ -41,17 +41,55 @@ import copy
 import re
 
 KINDS = ("deck", "doc", "code", "sheet")
-THEMES = ("corporate", "modern", "warm")
+THEMES = ("corporate", "modern", "warm", "forest", "night")
+DECK_THEMES = ("corporate", "forest", "warm", "night")  # the four branded deck themes (Bird blue, forest, terracotta, night)
 THEME_ALIASES = {
     "corporate": "corporate", "sobre": "corporate", "classique": "corporate", "classic": "corporate",
-    "institutionnel": "corporate", "bleu": "corporate", "blue": "corporate", "pro": "corporate",
-    "modern": "modern", "moderne": "modern", "tech": "modern", "startup": "modern", "vert": "modern",
+    "institutionnel": "corporate", "bleu": "corporate", "blue": "corporate", "pro": "corporate", "bird": "corporate",
+    "modern": "modern", "moderne": "modern", "tech": "modern", "startup": "modern",
     "warm": "warm", "chaleureux": "warm", "chaud": "warm", "chaleureuse": "warm", "orange": "warm",
+    "terracotta": "warm", "terre": "warm", "terrecuite": "warm",
+    "forest": "forest", "foret": "forest", "forêt": "forest", "vert": "forest", "green": "forest", "nature": "forest",
+    "night": "night", "nuit": "night", "sombre": "night", "dark": "night", "noir": "night",
 }  # fmt: skip
-PART_TYPES = ("text", "list", "kpi", "image", "chart", "table", "timeline", "quote", "code", "callout", "heading")
+PART_TYPES = ("text", "list", "kpi", "image", "chart", "table", "timeline", "quote", "code", "callout", "heading",
+              "compare", "steps", "cards")  # fmt: skip
 CHART_TYPES = ("bar", "line", "pie")
-TONES = ("info", "warn", "ok")
-CODE_LANGS = ("html", "svg", "css", "js", "python", "mermaid", "markdown", "json", "text")
+# the slide layouts a block may ask for (birds/canvas/layouts.py picks and validates them; the cover is the deck's own)
+LAYOUT_NAMES = ("section", "agenda", "statement", "bullets", "columns", "figure", "kpis", "versus", "compare",
+                "timeline", "steps", "quote", "image-left", "image-right", "image-full", "image-grid", "chart",
+                "table", "cards", "closing", "code")  # fmt: skip
+LAYOUT_ALIASES = {
+    "section": "section", "intercalaire": "section", "divider": "section", "chapitre": "section",
+    "agenda": "agenda", "sommaire": "agenda", "programme": "agenda", "plan": "agenda",
+    "statement": "statement", "message": "statement", "phrase": "statement", "idee": "statement",
+    "bullets": "bullets", "liste": "bullets", "list": "bullets", "points": "bullets",
+    "columns": "columns", "deux-colonnes": "columns", "two-columns": "columns",
+    "figure": "figure", "chiffre": "figure", "chiffre-cle": "figure", "big-number": "figure", "bignumber": "figure",
+    "kpis": "kpis", "kpi": "kpis", "chiffres": "kpis", "indicateurs": "kpis",
+    "versus": "versus", "vs": "versus", "avant-apres": "versus", "compare": "compare", "comparaison": "compare",
+    "comparison": "compare", "timeline": "timeline", "frise": "timeline", "steps": "steps", "etapes": "steps",
+    "processus": "steps", "process": "steps", "quote": "quote", "citation": "quote",
+    "image-left": "image-left", "image-gauche": "image-left", "image-right": "image-right",
+    "image-droite": "image-right", "image": "image-full", "image-full": "image-full", "plein-cadre": "image-full",
+    "photo": "image-full", "image-grid": "image-grid", "grille": "image-grid", "galerie": "image-grid",
+    "gallery": "image-grid", "chart": "chart", "graphique": "chart", "table": "table", "tableau": "table",
+    "cards": "cards", "cartes": "cards", "equipe": "cards", "team": "cards", "closing": "closing",
+    "conclusion": "closing", "fin": "closing", "cta": "closing", "merci": "closing", "code": "code",
+}  # fmt: skip
+_LAYOUT_TAG = re.compile(r"\s*\{\s*(?:\.|layout\s*[=:]\s*|mise en page\s*[=:]\s*)?([\w\- éèà]{2,30})\s*\}\s*$", re.I)
+_LAYOUT_LINE = re.compile(r"^\s*(?:layout|mise en page|disposition)\s*[:=]\s*([\w\- éèà]{2,30})\s*$", re.I)
+
+
+def layout_of(word: object) -> str | None:
+    """A layout name the model wrote (« image-droite », « Chiffre clé ») -> its id, or None."""
+    w = re.sub(r"[\s_]+", "-", str(word or "").strip().lower())
+    w = w.translate(str.maketrans("éèêàâîôûç", "eeeaaiouc"))
+    return LAYOUT_ALIASES.get(w)
+
+
+TONES = ("info", "warn", "ok", "key")  # key: « à retenir »
+CODE_LANGS = ("html", "svg", "css", "js", "python", "mermaid", "markdown", "json", "text", "ts", "sql", "bash", "yaml")
 
 MAX_BLOCKS = 40
 MAX_PARTS = 14
@@ -86,22 +124,35 @@ _FRONT_KEYS = {
     "title": "title", "titre": "title", "subtitle": "subtitle", "sous-titre": "subtitle", "sous titre": "subtitle",
     "soustitre": "subtitle", "theme": "theme", "thème": "theme", "style": "theme", "kind": "kind", "type": "kind",
     "lang": "lang", "langue": "lang",
+    "template": "template", "modèle": "template", "modele": "template", "gabarit": "template",
+    "author": "author", "auteur": "author", "autrice": "author", "rédacteur": "author", "redacteur": "author",
+    "to": "recipient", "destinataire": "recipient", "recipient": "recipient",
+    "image": "image", "cover": "image", "couverture": "image",
+    "photo": "image",
 }  # fmt: skip
 _ATTR = re.compile(r"""([A-Za-zÀ-ÿ_][\w-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|«\s*([^»]*?)\s*»|(\S+))""")
 _TYPE_ALIASES = {
     "kpi": "kpi", "kpis": "kpi", "stats": "kpi", "stat": "kpi", "chiffres": "kpi", "chiffres-cles": "kpi",
     "figures": "kpi", "metrics": "kpi", "indicateurs": "kpi",
     "image": "image", "img": "image", "photo": "image", "picture": "image", "illustration": "image",
+    "figure": "image",
     "chart": "chart", "graph": "chart", "graphique": "chart", "graphe": "chart", "diagramme": "chart",
     "bar": "chart", "line": "chart", "pie": "chart", "courbe": "chart", "barres": "chart", "camembert": "chart",
     "table": "table", "tableau": "table", "grid": "table",
     "timeline": "timeline", "frise": "timeline", "calendrier": "timeline", "planning": "timeline",
-    "roadmap": "timeline", "etapes": "timeline", "étapes": "timeline", "steps": "timeline",
+    "roadmap": "timeline", "etapes": "steps", "étapes": "steps", "steps": "steps", "process": "steps",
+    "processus": "steps", "methode": "steps", "méthode": "steps",
+    "compare": "compare", "comparaison": "compare", "comparison": "compare", "versus": "compare", "vs": "compare",
+    "colonnes": "compare", "columns": "compare", "avant-apres": "compare", "avant-après": "compare",
+    "cards": "cards", "cartes": "cards", "equipe": "cards", "équipe": "cards", "team": "cards", "piliers": "cards",
+    "pillars": "cards", "offres": "cards", "features": "cards",
     "quote": "quote", "citation": "quote", "cite": "quote",
     "code": "code",
     "callout": "callout", "note": "callout", "info": "callout", "important": "callout", "warning": "callout",
     "attention": "callout", "alerte": "callout", "tip": "callout", "astuce": "callout", "ok": "callout",
     "success": "callout", "succes": "callout", "succès": "callout", "danger": "callout", "risque": "callout",
+    "cle": "callout", "clé": "callout", "key": "callout", "retenir": "callout", "a-retenir": "callout",
+    "à-retenir": "callout", "essentiel": "callout", "key-point": "callout", "takeaway": "callout",
     "notes": "notes", "speaker": "notes", "orateur": "notes",
     "list": "list", "liste": "list", "points": "list",
     "text": "text", "texte": "text", "paragraph": "text",
@@ -112,6 +163,11 @@ _CHART_WORDS = {"bar": "bar", "barres": "bar", "bars": "bar", "histogramme": "ba
 _WARN = re.compile(r"^\W{0,3}(?:attention|avertissement|vigilance|risques?|warning|caution|alerte|danger)\b", re.I)
 _INFO = re.compile(r"^\W{0,3}(?:à retenir|a retenir|important|note|nb|n\.b\.|conseil|astuce|en bref|key takeaway|tip)\b",
                    re.I)  # fmt: skip
+_KEY = re.compile(r"^\W{0,3}(?:à retenir|a retenir|important|essentiel|en bref|key takeaway|key point)\b", re.I)
+# Footnotes: « … 40 % des trajets[^1] » in the text, « [^1]: Source, 2024 » on its own line anywhere.
+FOOTNOTE_DEF = re.compile(r"^\s*\[\^([\w-]{1,8})\]\s*:\s*(.+?)\s*$")
+FOOTNOTE_REF = re.compile(r"\[\^([\w-]{1,8})\]")
+MAX_FOOTNOTES = 30
 _NUM = re.compile(r"[+\-−]?\d{1,3}(?:[\s  ]\d{3})+(?:[.,]\d+)?|[+\-−]?\d+(?:[.,]\d+)?")
 _DELTA = re.compile(r"^[+\-−]\s?\d")
 
@@ -333,6 +389,9 @@ def _tone(kind_word: str, text: str) -> str:
         return "warn"
     if w in ("ok", "success", "succes", "succès"):
         return "ok"
+    if w in ("cle", "clé", "key", "retenir", "a-retenir", "à-retenir", "essentiel", "key-point", "takeaway",
+             "important") or _KEY.match(text):
+        return "key"
     return "info"
 
 
@@ -390,6 +449,18 @@ def directive_part(word: str, rest: str, body: list[str], title: str, repairs: l
     if kind == "callout":
         text = " ".join(_clean_inline(ln) for ln in text_lines) or left
         return [{"t": "callout", "tone": _tone(word, text), "text": _cut(text, MAX_TEXT)}] if text else []
+    if kind == "compare":
+        part = compare_part(text_lines, left)
+        if part:
+            return [part]
+        repairs.append("comparison without two columns kept as a list")
+        return [{"t": "list", "items": [_list_item(ln) for ln in text_lines][:MAX_ITEMS], "ordered": False}]
+    if kind in ("steps", "cards"):
+        items = card_items(text_lines)
+        if kind == "steps" and items and all(_DATEISH.match(x["title"]) for x in items):
+            return [{"t": "timeline", "items": [{"when": x["title"][:40], "what": x["text"] or x["title"]}
+                                                for x in items]}]  # fmt: skip
+        return [{"t": kind, "items": items}] if items else []
     if kind == "list":
         items = [_list_item(ln) for ln in text_lines]
         return [{"t": "list", "items": [i for i in items if i.strip()][:MAX_ITEMS], "ordered": False}]
@@ -399,11 +470,62 @@ def directive_part(word: str, rest: str, body: list[str], title: str, repairs: l
     return _content_parts(body, repairs)
 
 
+_DATEISH = re.compile(r"^(?:\d{4}|[TSQH]\d\b|semaine|week|jour|day|mois|month|janv|f[ée]v|mars|avr|mai|juin|juil|"
+                      r"ao[uû]t|sept|oct|nov|d[ée]c|jan|feb|mar|apr|may|jun|jul|aug|sep|dec|printemps|[ée]t[ée]|"
+                      r"automne|hiver|spring|summer|autumn|winter)", re.I)  # fmt: skip
+_CARD = re.compile(r"^(?P<title>[^:|—–]{1,80}?)\s*(?::|\||—|–|\s-\s)\s*(?P<text>.+)$")
+_GROUP = re.compile(r"^\s*(?:#{1,6}\s*)?(?P<t>[^:|]{1,60}?)\s*:\s*$")
+
+
+def card_items(lines: list[str]) -> list[dict]:
+    """'Titre : texte' (or 'Titre | texte', 'Titre — texte') lines -> [{title, text}] (steps, cards)."""
+    out = []
+    for raw in lines:
+        s = _strip_marker(raw)
+        if not s:
+            continue
+        m = _CARD.match(s)
+        out.append({"title": _cut(m.group("title"), 80), "text": _cut(m.group("text"), 300)} if m
+                   else {"title": _cut(s, 80) if len(s) <= 80 else "", "text": "" if len(s) <= 80 else _cut(s, 300)})
+    return out[:8]
+
+
+def compare_part(lines: list[str], words: str = "") -> dict | None:
+    """Two or three columns: a header row 'Avant | Après' then 'x | y' rows, or groups ('Avant :' then bullets).
+    None when fewer than two columns come out."""
+    rows = [ln for ln in lines if ln.strip() and not _SEP_ROW.match(ln)]
+    cols: list[dict] = []
+    if rows and "|" in rows[0]:
+        head = [_clean_inline(c) for c in rows[0].strip().strip("|").split("|")][:3]
+        cols = [{"title": _cut(h, 80), "items": []} for h in head]
+        for r in rows[1:]:
+            cells = [_clean_inline(c) for c in r.strip().strip("|").split("|")]
+            for k, c in enumerate(cells[: len(cols)]):
+                if c.strip(" -"):
+                    cols[k]["items"].append(_cut(c, 300))
+    else:
+        for r in rows:
+            g = _GROUP.match(r)
+            if g and not _BULLET.match(r):
+                cols.append({"title": _cut(_clean_inline(g.group("t")), 80), "items": []})
+            elif cols:
+                cols[-1]["items"].append(_cut(_strip_marker(r), 300))
+        if not cols and re.search(r"\bvs\.?\b|\bversus\b|\bcontre\b", words, re.I):
+            names = re.split(r"\s+(?:vs\.?|versus|contre)\s+", words, flags=re.I)[:2]
+            cols = [{"title": _cut(n, 80), "items": []} for n in names]
+    cols = [c for c in cols if c["title"] or c["items"]][:3]
+    for c in cols:
+        c["items"] = c["items"][:6]
+    return {"t": "compare", "columns": cols} if len(cols) >= 2 else None
+
+
 def code_lang(word: object) -> str:
     w = str(word or "").strip().lower()
     aliases = {"htm": "html", "xhtml": "html", "javascript": "js", "jsx": "js", "mjs": "js", "py": "python",
                "python3": "python", "md": "markdown", "mmd": "mermaid", "flowchart": "mermaid", "graph": "mermaid",
-               "txt": "text", "plain": "text", "": "text", "svg+xml": "svg", "xml": "html"}  # fmt: skip
+               "txt": "text", "plain": "text", "": "text", "svg+xml": "svg", "xml": "html", "typescript": "ts",
+               "tsx": "ts", "sh": "bash", "shell": "bash", "zsh": "bash", "yml": "yaml", "postgresql": "sql",
+               "mysql": "sql", "sqlite": "sql"}  # fmt: skip
     w = aliases.get(w, w)
     return w if w in CODE_LANGS else "text"
 
@@ -420,8 +542,26 @@ def _list_item(line: str) -> str:
 # ------------------------------------------------------------------ the free content of a block
 
 
+_PLACEHOLDER = re.compile(
+    r"^\s*(?:[-*•+]\s+|\d+[.)]\s+)?[\[(]\s*(photo|image|illustration|visuel|picture|img|pictogramme|icône|icone)s?"
+    r"\s*(?:[:：–—-]|d['’]un[e]?|de)\s*(.+?)\s*[\])]\s*\.?\s*$",
+    re.I,
+)
+
+
 def _content_parts(lines: list[str], repairs: list[str]) -> list[dict]:
     """Paragraphs, lists, tables, quotes, code fences, Markdown images and sub-headings of a block's free text."""
+    # « [Photo : chaton heureux] » written as text or as a bullet is a picture the model meant, never words to print:
+    # it becomes an image search (the same path as « ::: image query=… », licence checked, credit shown)
+    fixed = []
+    for line in lines:
+        ph = _PLACEHOLDER.match(line)
+        if ph and ph.group(2).strip():
+            repairs.append("image placeholder written as text became an image search")
+            fixed.append(f"![{ph.group(2).strip()}](placeholder)")
+        else:
+            fixed.append(line)
+    lines = fixed
     parts: list[dict] = []
     i, n = 0, len(lines)
     para: list[str] = []
@@ -548,18 +688,31 @@ def _front_matter(lines: list[str], repairs: list[str]) -> tuple[dict, int]:
             return meta, j
         return {}, i + 1  # a lone separator at the top
     j = i
+    end = 0
     while j < len(lines):
+        if not lines[j].strip() and meta:  # « title: … », a blank line, « image: … » (a 4B habit): still the head
+            j += 1
+            continue
         m = _KV.match(lines[j])
         if not (m and m.group(1).strip().lower() in _FRONT_KEYS):
             break
         meta[_FRONT_KEYS[m.group(1).strip().lower()]] = _clean_inline(m.group(2)).strip("\"'«» ")
         j += 1
-    return meta, (j if meta else 0)
+        end = j
+    if meta and end < len(lines):
+        k = end
+        while k < len(lines) and not lines[k].strip():
+            k += 1
+        if k < len(lines) and re.fullmatch(r"\s*-{3,}\s*", lines[k]):
+            end = k + 1  # the closing « --- » of a front matter whose opening one was left out
+            repairs.append("front matter without its opening line read")
+    return meta, (end if meta else 0)
 
 
 def _clean_heading(text: str) -> tuple[str, str | None]:
-    """'[b3] Diapositive 3 : **Les risques**' -> ('Les risques', 'b3')."""
-    s = _clean_inline(text)
+    """'[b3] Diapositive 3 : **Les risques**' -> ('Les risques', 'b3'). A layout tag ``{versus}`` is cut off
+    (``_heading_layout`` reads it)."""
+    s = _clean_inline(_LAYOUT_TAG.sub("", text))
     m = _ID_TAG.match(s)
     bid = m.group(1) if m else None
     if m:
@@ -609,6 +762,21 @@ def parse(text: object, kind: str = "deck", lang: str = "fr", repairs: list[str]
         doc["kind"] = "doc"
     doc["title"] = _cut(meta.get("title") or "", MAX_TITLE)
     doc["subtitle"] = _cut(meta.get("subtitle") or "", MAX_TITLE)
+    for key in ("template", "author", "recipient"):  # read as written; turn.finish_doc checks them
+        if meta.get(key):
+            doc[key] = _cut(meta[key], 120)
+    notes, kept, fence = [], [], False
+    for ln in lines:  # footnote definitions, wherever the model put them, outside code
+        if _FENCE.match(ln):
+            fence = not fence
+        m = None if fence else FOOTNOTE_DEF.match(ln)
+        if m and len(notes) < MAX_FOOTNOTES:
+            notes.append({"n": m.group(1), "text": _cut(_clean_inline(m.group(2)), 600)})
+        elif not m:
+            kept.append(ln)
+    if notes:
+        lines = kept
+        doc["footnotes"] = notes
     if meta.get("theme"):
         doc["theme"] = theme_of(meta["theme"])
         if doc["theme"] is None:
@@ -648,13 +816,15 @@ def parse(text: object, kind: str = "deck", lang: str = "fr", repairs: list[str]
         h = _HEADING.match(ln)
         if h and h.group(2).strip() and level is not None and len(h.group(1)) <= level:
             title, bid = _clean_heading(h.group(2))
+            tag = _LAYOUT_TAG.search(h.group(2))
+            hint = layout_of(tag.group(1)) if tag else None
             if titled and not saw_title and len(h.group(1)) < level:
                 saw_title = True
                 if not doc["title"]:
                     doc["title"] = title
                 continue
             close()
-            cur = {"title": title, "bid": bid}
+            cur = {"title": title, "bid": bid, "layout": hint}
             continue
         if _HR.match(ln) and cur is not None and any(x.strip() for x in body):
             close()  # Marp-style separator between two slides
@@ -672,7 +842,20 @@ def parse(text: object, kind: str = "deck", lang: str = "fr", repairs: list[str]
         if all(p["t"] == "text" for p in pre) and sum(len(p["text"]) for p in pre) <= 300:
             blocks.pop(0)  # « Voici la présentation : » before the first heading is chat, not a slide
             repairs.append("preamble before the first heading left out")
+    if meta.get("image"):
+        q = _cut(re.sub(r"^https?://\S+$", "", meta["image"]).strip(), 120)
+        if q:
+            doc["cover"] = {"query": q}
     for raw in blocks:
+        lines_ = list(raw["lines"])
+        hint = raw.get("layout")
+        first = next((k for k, x in enumerate(lines_) if x.strip()), None)
+        if first is not None and (lm := _LAYOUT_LINE.match(lines_[first])):
+            hint = hint or layout_of(lm.group(1))
+            if not layout_of(lm.group(1)):
+                repairs.append("unknown layout ignored")
+            lines_.pop(first)
+        raw["lines"] = lines_
         parts, notes = _block_parts(raw["lines"], raw["title"], repairs)
         title = raw["title"]
         if not title and parts and parts[0]["t"] == "text" and len(parts[0]["text"]) <= 80 and len(parts) > 1:
@@ -682,6 +865,8 @@ def parse(text: object, kind: str = "deck", lang: str = "fr", repairs: list[str]
         if len(parts) > MAX_PARTS:
             repairs.append(f"block cut to {MAX_PARTS} parts")
         blk = {"id": "", "title": _cut(title, MAX_TITLE), "parts": parts[:MAX_PARTS], "notes": _cut(notes, MAX_TEXT)}
+        if hint:
+            blk["layout"] = hint
         if raw.get("bid"):
             blk["id"] = raw["bid"]
         blocks_out = doc["blocks"]
@@ -899,8 +1084,18 @@ def _part_dsl(p: dict) -> list[str]:
     if t == "code":
         return [f"```{p.get('lang', '')}", p.get("text", ""), "```"]
     if t == "callout":
-        word = {"warn": "attention", "ok": "ok"}.get(p.get("tone"), "note")
+        word = {"warn": "attention", "ok": "ok", "key": "cle"}.get(p.get("tone"), "note")
         return [f"::: {word}", p.get("text", ""), ":::"]
+    if t == "compare":
+        cols = p.get("columns") or []
+        depth = max([len(c.get("items") or []) for c in cols] + [0])
+        rows = [" | ".join(c.get("title") or "" for c in cols)]
+        for k in range(depth):
+            rows.append(" | ".join(((c.get("items") or [])[k] if k < len(c.get("items") or []) else "") for c in cols))
+        return ["::: compare"] + rows + [":::"]
+    if t in ("steps", "cards"):
+        return [f"::: {t}"] + [f"{x.get('title')} : {x.get('text')}" if x.get("text") and x.get("title")
+                               else str(x.get("title") or x.get("text") or "") for x in p.get("items") or []] + [":::"]
     return []
 
 
@@ -913,7 +1108,8 @@ def _fmt(v) -> str:
 
 
 def block_dsl(b: dict, ids: bool = True, level: int = 1) -> str:
-    lines = ["#" * level + " " + (f"[{b['id']}] " if ids else "") + (b.get("title") or "")]
+    lines = ["#" * level + " " + (f"[{b['id']}] " if ids else "") + (b.get("title") or "")
+             + (f" {{{b['layout']}}}" if b.get("layout") in LAYOUT_NAMES else "")]
     for p in b.get("parts") or []:
         lines += _part_dsl(p)
     if b.get("notes"):
@@ -924,8 +1120,9 @@ def block_dsl(b: dict, ids: bool = True, level: int = 1) -> str:
 def to_dsl(doc: dict, ids: bool = True) -> str:
     """The document as the text format (``ids``: block ids in the headings, for a patch turn)."""
     if doc.get("kind") == "code":
-        c = doc.get("code") or {}
-        return f"```{c.get('lang', '')}\n{c.get('text', '')}\n```\n"
+        from .code import files_of
+
+        return "".join(f"```{f['lang']} {f['name']}\n{f['text']}\n```\n" for f in files_of(doc))
     if doc.get("kind") == "sheet":
         sh = doc.get("sheet") or {}
         rows = [sh.get("columns") or []] + list(sh.get("rows") or [])
@@ -935,8 +1132,15 @@ def to_dsl(doc: dict, ids: bool = True) -> str:
         head.append(f"subtitle: {doc['subtitle']}")
     if doc.get("theme"):
         head.append(f"theme: {doc['theme']}")
+    for key in ("template", "author", "recipient"):
+        if doc.get(key):
+            head.append(f"{key}: {doc[key]}")
+    if (doc.get("cover") or {}).get("query"):
+        head.append(f"image: {doc['cover']['query']}")
     head.append("---")
-    return "\n".join(head) + "\n" + "\n".join(block_dsl(b, ids) for b in doc.get("blocks") or [])
+    notes = "".join(f"[^{x['n']}]: {x['text']}\n" for x in doc.get("footnotes") or [])
+    return "\n".join(head) + "\n" + "\n".join(block_dsl(b, ids) for b in doc.get("blocks") or []) + (
+        "\n" + notes if notes else "")
 
 
 def summary_line(b: dict) -> str:
@@ -950,7 +1154,7 @@ def summary_line(b: dict) -> str:
             bits.append(f"image « {p.get('query', '')[:40]} »")
         elif t == "kpi":
             bits.append(f"{len(p.get('items') or [])} chiffres")
-        elif t in ("chart", "table", "timeline", "quote", "code", "callout"):
+        elif t in ("chart", "table", "timeline", "quote", "code", "callout", "compare", "steps", "cards"):
             bits.append(t)
         elif t == "text":
             bits.append("texte")
@@ -1059,6 +1263,19 @@ def _part_ok(p) -> dict:
                                   for x in items[:MAX_ITEMS] if isinstance(x, dict)]}  # fmt: skip
     if t == "quote":
         return {"t": t, "text": _str(p.get("text"), 600), "by": _str(p.get("by"), 120)}
+    if t == "compare":
+        cols = p.get("columns")
+        if not isinstance(cols, list) or not 2 <= len(cols) <= 3:
+            raise Invalid("compare columns")
+        return {"t": t, "columns": [{"title": _str(c.get("title"), 80),
+                                     "items": [_str(x, 300) for x in (c.get("items") or [])[:6]]}
+                                    for c in cols if isinstance(c, dict) and isinstance(c.get("items") or [], list)]}
+    if t in ("steps", "cards"):
+        items = p.get("items")
+        if not isinstance(items, list):
+            raise Invalid("card items")
+        return {"t": t, "items": [{"title": _str(x.get("title"), 80), "text": _str(x.get("text"), 300)}
+                                  for x in items[:8] if isinstance(x, dict)]}  # fmt: skip
     return {"t": "code", "lang": code_lang(p.get("lang")), "text": _str(p.get("text"), MAX_CODE)}
 
 
@@ -1089,19 +1306,31 @@ def validate(doc) -> dict:
             parts = b.get("parts") or []
             if not isinstance(parts, list) or len(parts) > MAX_PARTS:
                 raise Invalid("parts")
-            out["blocks"].append(
-                {
-                    "id": bid,
-                    "title": _str(b.get("title"), MAX_TITLE),
-                    "parts": [_part_ok(p) for p in parts],
-                    "notes": _str(b.get("notes"), MAX_TEXT),
-                }
-            )
+            blk = {
+                "id": bid,
+                "title": _str(b.get("title"), MAX_TITLE),
+                "parts": [_part_ok(p) for p in parts],
+                "notes": _str(b.get("notes"), MAX_TEXT),
+            }
+            if b.get("layout") in LAYOUT_NAMES:
+                blk["layout"] = b["layout"]
+            out["blocks"].append(blk)
+        cover = doc.get("cover")
+        if isinstance(cover, dict) and (cover.get("query") or cover.get("media")):
+            out["cover"] = {"query": _str(cover.get("query"), 120)}
+            if isinstance(cover.get("media"), str) and re.fullmatch(r"[a-z]{1,2}\d{1,4}", cover["media"]):
+                out["cover"]["media"] = cover["media"]
+            if cover.get("off") is True:
+                out["cover"]["off"] = True
+        if kind == "doc":
+            _doc_fields(doc, out)
     elif kind == "code":
-        c = doc.get("code")
-        if not isinstance(c, dict):
-            raise Invalid("code")
-        out["code"] = {"lang": code_lang(c.get("lang")), "text": _str(c.get("text"), MAX_CODE)}
+        from .code import normalize
+
+        try:
+            out["code"] = normalize(doc.get("code"))
+        except ValueError as e:
+            raise Invalid(str(e)) from None
     else:
         sh = doc.get("sheet")
         if not isinstance(sh, dict) or not isinstance(sh.get("columns"), list) or not isinstance(sh.get("rows"), list):
@@ -1128,6 +1357,41 @@ def validate(doc) -> dict:
         top = max(int(b["id"][1:]) for b in out["blocks"])
         out["_next"] = max(out["_next"], top + 1)
     return out
+
+
+def _doc_fields(doc: dict, out: dict) -> None:
+    """The fields of a Word-like document: its template, author, recipient (letters), date and footnotes."""
+    from . import templates
+
+    tpl = templates.of(doc.get("template"))
+    if tpl:
+        out["template"] = tpl
+    for key, n in (("author", 120), ("recipient", 300), ("date", 40)):
+        if doc.get(key):
+            out[key] = _str(doc.get(key), n)
+    notes = doc.get("footnotes")
+    if isinstance(notes, list):
+        clean = [{"n": _str(x.get("n"), 8), "text": _str(x.get("text"), 600)}
+                 for x in notes[:MAX_FOOTNOTES] if isinstance(x, dict) and x.get("text")]  # fmt: skip
+        if clean:
+            out["footnotes"] = clean
+
+
+def footnote_order(doc: dict) -> list[dict]:
+    """The footnotes as numbered on the page: by first call in the text (blocks in order), then the ones never
+    called. [{'key', 'n' (1, 2…), 'text'}]. The preview and the .docx number them the same way."""
+    defs = {str(x.get("n")): x.get("text") or "" for x in doc.get("footnotes") or []}
+    order: list[str] = []
+    for b in doc.get("blocks") or []:
+        for p in b.get("parts") or []:
+            texts = [p.get("text") or ""] + [str(i) for i in p.get("items") or [] if isinstance(i, str)]
+            texts += [str(c) for r in p.get("rows") or [] for c in r if isinstance(c, str)]
+            for t in texts:
+                for m in FOOTNOTE_REF.finditer(t):
+                    if m.group(1) in defs and m.group(1) not in order:
+                        order.append(m.group(1))
+    order += [k for k in defs if k not in order]
+    return [{"key": k, "n": i, "text": defs[k]} for i, k in enumerate(order, 1)]
 
 
 def clone(doc: dict) -> dict:

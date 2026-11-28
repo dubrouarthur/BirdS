@@ -104,10 +104,14 @@ export const resetPrefs = () =>
 
 /** The mode actually used for requests: the saved choice if this server offers it, else the server default. */
 export function activeMode() {
-  const modes = state.health?.modes || { demo: true };
+  // no health yet (cold start, slow network): the real model, never the demo; a failed send then says so plainly
+  if (!state.health) return "server";
+  const modes = state.health.modes || {};
   const wanted = state.prefs.mode;
+  // a deployment with a real model never answers from the demo, whatever an earlier visit stored
+  if (wanted === "demo" && modes.server) return "server";
   if (wanted && modes[wanted]) return wanted;
-  return state.health?.default_mode || "demo";
+  return state.health.default_mode || (modes.server ? "server" : "demo");
 }
 export const isDemo = () => activeMode() === "demo";
 /** The product name shown to people (the technical name served by the endpoint stays in the details). */
@@ -214,6 +218,9 @@ const ICONS = {
   camera:
     '<path d="M3 7.2c0-.9.7-1.6 1.6-1.6h2l1.2-1.800h4.400l1.200 1.800h2c.900 0 1.600.700 1.600 1.600v7.200c0 .900-.700 1.600-1.600 1.600H4.600c-.900 0-1.600-.700-1.600-1.600z"/><circle cx="10" cy="10.600" r="3"/>',
   word: '<path d="M5.500 3h6l3.500 3.500V17h-9.500z"/><path d="M11.500 3v3.500H15M7.500 9.500l1 4 1.500-3 1.500 3 1-4"/>',
+  phone: '<rect x="6" y="2.500" width="8" height="15" rx="1.600"/><path d="M9 15h2"/>',
+  tablet: '<rect x="3.500" y="3" width="13" height="14" rx="1.600"/><path d="M9 14.500h2"/>',
+  monitor: '<rect x="2.500" y="3.500" width="15" height="10" rx="1.400"/><path d="M7 17h6M10 13.500V17"/>',
   moon: '<path d="M16 11.600A6.600 6.600 0 0 1 8.400 4a6.600 6.600 0 1 0 7.600 7.600z"/>',
 };
 

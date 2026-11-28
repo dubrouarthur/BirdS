@@ -13,7 +13,7 @@ detection as the router) returns 0 to 3 suggestions ``{label, prompt}``:
 The call reads only the user's own request and Bird's answer, never a page or a tool result (no injection carried
 over from fetched text). Everything the model writes is validated here (``validate``): schema, lengths, language,
 user voice, duplicates, links and instructions, capabilities that are off. The regexes below are a safety net on the
-model's output, never the decider. Measured in docs/HARNESS.md § 17 (scripts/followups_eval.py).
+model's output, never the decider. Measured in docs/HARNESS.md § 18 (scripts/followups_eval.py).
 """
 
 from __future__ import annotations

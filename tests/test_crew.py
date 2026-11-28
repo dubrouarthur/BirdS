@@ -282,7 +282,8 @@ SEARCH = StaticBackend(
 
 
 def make_agent(tmp_path, llm, *, extra="", hooks=None, confirm=None):
-    cfg = Config(workspace=tmp_path, audit_file=None)
+    # the pause / resume machinery is tested with the stricter rule (every deliverable asked after a flagged page)
+    cfg = Config(workspace=tmp_path, audit_file=None, confirm_deliverables=True)
     return Agent(llm, Tok(), cfg, search=SEARCH, http=web(extra), hooks=hooks or Hooks(), confirm=confirm)
 
 
@@ -1170,7 +1171,7 @@ def test_web_crew_confirm_token_resumes_without_generating(tmp_path, monkeypatch
     monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
     s = Settings(demo_delay=0.0, signing_secret=b"x" * 32, signing="configured", rate_limit=0)
     llm = Script(deck_script())
-    first = create_app(s, server_backend=HarnessBackend(llm, Tok(), model="m", http=web(INJECTION), search=SEARCH))
+    first = create_app(s, server_backend=HarnessBackend(llm, Tok(), model="m", http=web(INJECTION), search=SEARCH, config={"confirm_deliverables": True}))
     body = {"messages": [{"role": "user", "content": ASK_DECK}]}
     with TestClient(first) as client:
         confirm = next(e for e in _sse(client, body) if e["type"] == "confirm")
@@ -1195,7 +1196,7 @@ def _confirm_then(tmp_path, monkeypatch, decision: bool):
 
     monkeypatch.setattr("tempfile.tempdir", str(tmp_path))
     s = Settings(demo_delay=0.0, signing_secret=b"x" * 32, signing="configured", rate_limit=0)
-    first = create_app(s, server_backend=HarnessBackend(Script(deck_script()), Tok(), model="m", http=web(INJECTION), search=SEARCH))  # fmt: skip
+    first = create_app(s, server_backend=HarnessBackend(Script(deck_script()), Tok(), model="m", http=web(INJECTION), search=SEARCH, config={"confirm_deliverables": True}))  # fmt: skip
     body = {"messages": [{"role": "user", "content": ASK_DECK}]}
     with TestClient(first) as client:
         paused = _sse(client, body)

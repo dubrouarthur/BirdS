@@ -980,7 +980,109 @@ correction), la relecture de Chouette en réel, l'échantillonnage (plusieurs pa
 `{"level": …}` comme seul tour à apprendre, 9 gabarits FR/EN (≈ 95 enregistrements en train, gabarits retenus
 entiers pour l'évaluation ; les phrases de `REFLEXION_LEVELS` n'entrent jamais en train).
 
-## 17. Suites proposées : Bird écrit ses suggestions, dans la voix de l'utilisateur
+## 17. Questions pratiques locales et panne de la recherche web (28/11/2026)
+
+Signalement de production : « comment aller faire ses courses a saint cloud quels sont les supermarchés », niveau
+Albatros. Chaîne observée, reproduite à l'identique en local sur l'endpoint réel (`scripts/local_live.py`) :
+
+1. **Mode Agent forcé** : `bird.agent = "on"` enregistré par l'ancien sélecteur du compositeur forçait l'équipe à
+   chaque demande ; et Albatros prenait `crew.decide(mode="on")`, qui envoie toute question informative en recherche
+   approfondie. Correctif : `agent-mode.js` migre une fois `on` → `auto` ; « Activé » choisi dans Réglages ne vaut
+   que pour la session (sessionStorage) ; Albatros ne lance l'équipe que pour une tâche d'équipe confirmée par le
+   routeur (le modèle : aucun module demandé, `agent` différent de « off » ; appel mémorisé, `Agent.run` le
+   réutilise). Routeur indisponible ou repli des analyseurs : seulement une recette à livrable ou une demande
+   explicite de recherche approfondie. La décision d'Albatros n'est jamais « forcée ».
+2. **Recherche en panne** : l'instance SearXNG répondait HTTP 200, 0 résultat, `unresponsive_engines` = duckduckgo
+   « CAPTCHA », google cse « Suspended ». `SearxngBackend` traite ce cas comme une panne : il redemande aux moteurs
+   sans clé de la même instance, nommés (`engines=bing,brave,yahoo`, qui répondent même désactivés ;
+   `BIRD_SEARXNG_FALLBACK` remplace la liste), en priorité pendant 5 min ; sinon `search_unavailable` et
+   `FallbackSearch` répond depuis Wikipédia. L'étape le dit d'une ligne calme (« Recherche web (SearXNG) indisponible
+   pour le moment : réponse à partir de Wikipédia »). Les pages d'accueil et liens cassés de ces moteurs sont écartés.
+   `/api/health` porte `search` : requête témoin, moteurs vivants, moteurs muets et pourquoi, moteurs de secours
+   (sonde dans un fil, cache 5 min, 1,5 s d'attente au plus).
+3. **Lieux** : le modèle écrivait `query: "supermarché"`, qui n'était pas une clé de catégorie : `find_places`
+   passait en mode itinéraire et cherchait le mot dans le monde entier, d'où une boutique de vêtements nommée
+   « supermarché » à Berlin, 887 km. `places.category()` lit la catégorie dans les mots du modèle (intents.KINDS :
+   supermarché, boulangerie, pharmacie, restaurant, hôpital, gare, parking, station-service, banque, DAB, poste,
+   école…) ; le reste est un qualificatif qu'OSM ne vérifie pas (« de garde » : le 3237 ; « végétarien » : non
+   affirmé). Recherche bornée : 2,5 puis 5 km autour d'une ville ou d'un quartier, 500 m puis 1,5 km autour d'un
+   point ; rien au-delà ; seuls les types OSM de la catégorie (« bank » trouvait des bancs). Phrases Nominatim
+   mesurées : « railway station » (« train station » : 0), « banks », « cash machine », « gym », « pizzeria ». Une
+   ancre en France pour une conversation française (« Défense » était le ministère à Londres). Un nom trouvé à plus
+   de 50 km sans importance n'est pas celui qu'on cherche.
+4. **Carte en double** : deux `find_places` (« Saint-Cloud », « Saint-Cloud, France ») trouvaient les mêmes lieux ;
+   les cartes sont dédoublonnées par contenu (mode et lieux) dans la réponse et dans les cartes envoyées en direct.
+5. **Réponse** : l'outil demande les 3 à 5 lieux les plus proches (nom, adresse, distance, horaires), jamais « je n'ai
+   rien trouvé » ; sans résultat, dire ce qui a été cherché et proposer une suite. Contrôle final
+   (`rescue.check_places_answer`) : une réponse qui abandonne, ou ne nomme aucun lieu d'une carte « autour de », est
+   réécrite depuis les résultats de l'outil ; sans résultat, une réponse qui renvoie vers « un voisin » dit ce que Bird
+   a cherché et propose d'élargir la zone.
+
+**Mesure réelle** (28/11/2026, endpoint vLLM Bird S 4B, `serve.py` en local, routeur `hybrid`, Mode Agent Auto,
+Réflexion Auto, 12 demandes fixes de `scripts/local_live.py`, un passage ; détails :
+`docs/measures/local-practical-2026-11-28.json`) :
+
+| critère | avant | après |
+| --- | --- | --- |
+| `find_places` choisi | 12/12 | 12/12 |
+| une carte de lieux affichée | 9/12 | **12/12** |
+| catégorie cherchée autour de l'ancre (mode « autour de ») | 7/12 | **12/12** |
+| lieux à plus de 6 km de l'ancre | 3 (Berlin ×2, Bordeaux) | **0** |
+| ancre fausse | 1 (« Défense » → Londres) | 0 (Montreuil → Montreuil-sur-Mer, homonyme plus « important » pour Nominatim) |
+| réponse qui s'appuie sur les lieux trouvés, sans abandon | 5/12 | **12/12** |
+| « je n'ai pas trouvé » / « demandez à un voisin / à l'accueil » | 2/12 (+1 « vérifiez le site ») | **0/12** |
+| carte en double (même contenu) | 1 (Saint-Cloud) | 0 |
+| temps médian / moyen | 7,5 s / 8,3 s | 9,2 s / 9,6 s |
+
+Le temps monte de 1,3 s en moyenne : les réponses listent maintenant 3 à 5 lieux avec adresse et horaires (plus de
+jetons) au lieu d'une phrase d'abandon. Cas Albatros du signalement : avant, Mode Agent (forcé), 4 recherches à 0
+résultat, deux cartes Saint-Cloud → Berlin, réponse « demandez à un voisin » ; après, pas d'équipe, une carte de
+8 supermarchés (Lidl 161 m, Monoprix 539 m, Monop' 814 m…, horaires), réponse qui les liste. « Recherche approfondie
+sur l'AI Act… » au niveau Albatros lance toujours l'équipe (carte de plan, non forcée). Reste vu : « pharmacie de garde
+à Lyon 3e » liste bien les pharmacies mais le modèle a ajouté un hôpital qui n'est pas dans les résultats ; Montreuil
+seul est pris pour Montreuil-sur-Mer.
+
+Banc des déclenchements : famille `maps_category` (20 demandes « catégorie près d'une ville » dans 14 villes, avec la
+formulation du modèle, + 10 noms qui commencent par un mot de catégorie) : **13/30 avant, 30/30 après** ; total
+2 124/2 124, aucune régression. `router_data.py` porte les mêmes cas (`maps_category`) pour l'évaluation du routeur.
+
+**Instance SearXNG : ce que le propriétaire doit changer.** Sonde de l'instance de production (28/11/2026,
+`/config` lisible, requêtes `engines=` nommées) : moteurs généraux activés = duckduckgo (CAPTCHA) et google cse
+(suspendu) seulement ; **bing 10 résultats, brave 20, yahoo 7** (désactivés mais fonctionnels) ; qwant « access
+denied » ; mojeek, startpage, wikipedia, wikidata absents de l'instance. Dans `settings.yml` : activer `bing`,
+`brave` et `yahoo` (catégorie general), ajouter `mojeek`, `startpage`, `wikipedia` et `wikidata` (moteurs sans clé),
+laisser duckduckgo mais pas seul, retirer `google cse` (quota épuisé) ; garder `formats: [html, json]` ; envisager
+`limiter: false` si l'instance n'est appelée que par Bird. Option sûre en plus : une clé **Brave Search API**
+(offre gratuite) enregistrée comme secret réseau de l'environnement (`BIRD_BRAVE_API_KEY`) : avec SearXNG configuré,
+la chaîne devient SearXNG → Brave Search → Wikipédia (`make_search`). `/api/health` → `search.degraded` dit quand
+l'instance retombe sur ses moteurs de secours.
+
+**Vérification adverse avant fusion** (28/11/2026, même endpoint, `serve.py` local, 10 demandes hors du jeu fixe :
+homonymes, classement, anglais, nom de boutique ; détails : `adversarial_before` / `adversarial_after` et `verify12`
+dans `docs/measures/local-practical-2026-11-28.json`). Trouvé puis corrigé :
+
+| demande | avant correctif | après |
+| --- | --- | --- |
+| « Où se situent les 3 meilleures pizzerias de Paris » (signalement Chouette) | `query` « 3 meilleures pizzerias de Paris », mode « où est » → « Meilleurtaux Paris 16 », réponse « Je n'ai pas de données fiables » | `pizza les meilleures` autour de Paris (réparation des arguments + `category`), 8 pizzerias à 1 – 1,4 km, plus une recherche web ; note « OpenStreetMap ne contient ni notes ni avis » |
+| « restaurants à Saint-Cloud » | Boulogne-Billancourt à 1,2 km (Nominatim rend les plus pertinents d'une boîte de 2,5 km, pas les plus proches ; 40 restaurants à moins de 300 m) | rayons 1 km → 2,5 km → 5 km : Les Frères Dufour 116 m, Nino 155 m, Venise 176 m |
+| « quels supermarchés à Montreuil ? » | Montreuil-sur-Mer (Campigneulles, Attin) | Montreuil (93) : Naturalia 103 m, Biocoop 111 m — l'ancre préfère le nom exact demandé, s'il est presque aussi important |
+| « bakeries near Valence » (anglais) | Valencia (Espagne) | Valence (26000) |
+| « pharmacie de garde à Lyon 3e » (le modèle écrit `pharmacy`) | pas de 3237 ; une fois « le reste est fermé ce soir » | le « de garde » de l'utilisateur tient ; la ligne 3237 est ajoutée par le harnais quand la réponse ne l'a pas |
+| deux points OSM d'un même lieu (« A Tavola » ×2 à 9 m) | deux fiches | une fiche (même nom à moins de 80 m) |
+
+Contrôle final élargi (`check_places_answer`) : un élément de liste qui nomme un lieu absent des résultats (le cas
+« hôpital à Marseille » sous les pharmacies de Lyon) est retiré, la numérotation refaite ; un conseil sans lieu
+(« appelez le 3237 ») reste. Une boîte plus large qui échoue (« busy », plafond) garde ce que la plus petite a
+trouvé, au lieu de tout perdre ; plafond de requêtes de géocodage par réponse : 4 → 6 (ancre + 3 rayons).
+Jeu fixe de 12 rejoué après correctifs : 12/12 cartes, 0 lieu à plus de 6 km, 12/12 réponses qui s'appuient sur les
+lieux, 0 abandon ; médiane 11,3 s (9,2 s avant ces correctifs : réponses plus complètes, un rayon de plus quand la
+première boîte compte moins de 3 lieux). Recherche coupée (`--searxng` injoignable) : repli Wikipédia vérifié ; si
+Wikipédia limite aussi (HTTP 429), l'étape le dit et la réponse reste calme. Pas corrigé ici : « Saint-Germain »
+seul reste un village homonyme (Bayon, 54) — la réponse affiche le code postal ; « le magasin Supermarché à Berlin »
+est lu comme la catégorie (choix du modèle). Banc : `maps_category` 37/37 (+4 classements, +3 noms), total
+2 131/2 131.
+
+## 18. Suites proposées : Bird écrit ses suggestions, dans la voix de l'utilisateur
 
 Code : `birds/harness/nextsteps.py` (appel, invite, validation, démo), `birds/web/backends.py`
 (`HarnessBackend._suggest`, `demo_suggest_kind`), `birds/web/static/followups.js` (`cleanSuggestions`,
@@ -1065,7 +1167,7 @@ toutes les capacités) et le JSON des suites comme seul tour à apprendre, 10 ga
 mail, présentation, information manquante, salutations sans suite) ; chaque cible passe la validation ; les
 demandes de `NEXTSTEPS_CASES` n'entrent jamais en train.
 
-### 17.1 Revue du 28/11 : suites faisables, tour libéré, consommation complète
+### 18.1 Revue du 28/11 : suites faisables, tour libéré, consommation complète
 
 **Le tour n'attend plus les suites.** L'appel en plus tournait avant `done` : pendant 2 à 6 s la réponse finie
 restait « occupée » (ni actions, ni reçu, ni puces, bouton Stop), et un Stop à ce moment marquait « Réponse
@@ -1098,7 +1200,7 @@ lieux : ce que les modules font vraiment ; une étiquette avec son complément, 
 ajoutés : une météo, une liste de lieux, une demande d'informations sans suite (FR), une météo et un mail en
 attente d'informations (EN). Invite : ≈ 1 700 jetons (préfixe statique), sortie ≈ 90 jetons.
 
-**Mesure, notée sévèrement.** La note « faisable 0,96 » du § 17 surestimait : elle venait des motifs du code. Ici
+**Mesure, notée sévèrement.** La note « faisable 0,96 » du § 18 surestimait : elle venait des motifs du code. Ici
 chaque puce est relue à la main contre ce que les outils de Bird font avec ce que la conversation contient
 (`docs/measures/followups-2026-11-28-strict.json` ; F = infaisable, G = passe-partout, redondante ou quasi doublon,
 W = mal formulée). Trois bras sur les **mêmes 20 réponses** enregistrées : « livré » (ce que le premier passage

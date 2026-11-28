@@ -1,0 +1,123 @@
+# SearXNG tuned for Bird: a private, JSON-first meta-search behind Bird's server (not a public instance).
+# Principle: many engines, each asked rarely, so none of them blocks us; engines that hit a CAPTCHA are
+# suspended for a while and the others answer. Bird can also ask engines by name (`engines=` parameter).
+# The secret comes from the SEARXNG_SECRET variable (never commit one here).
+
+use_default_settings:
+  engines:
+    # only these engines exist on the instance: fewer useless calls, faster answers
+    keep_only:
+      - bing
+      - brave
+      - duckduckgo
+      - google
+      - mojeek
+      - qwant
+      - startpage
+      - yahoo
+      - wikipedia
+      - wikidata
+      - wikicommons.images
+      - bing news
+      - qwant news
+      - yahoo news
+      - bing images
+      - openverse
+      - currency
+      - wikinews
+
+general:
+  instance_name: "Bird Search"
+  debug: false
+  enable_metrics: true
+
+search:
+  safe_search: 1           # moderate
+  autocomplete: ""
+  default_lang: "all"       # Bird sends `language` per request (fr, en…)
+  formats:
+    - html
+    - json                  # Bird's API format
+  ban_time_on_fail: 5
+  max_ban_time_on_fail: 120
+  suspended_times:
+    SearxEngineAccessDenied: 600
+    SearxEngineCaptcha: 1800
+    SearxEngineTooManyRequests: 300
+    cf_SearxEngineCaptcha: 3600
+    cf_SearxEngineAccessDenied: 3600
+    recaptcha_SearxEngineCaptcha: 3600
+
+server:
+  # SEARXNG_SECRET (Railway variable) overrides this placeholder; the container refuses the default key
+  secret_key: "set-SEARXNG_SECRET"
+  limiter: false            # only Bird's server calls this instance (no bot protection needed, no Valkey)
+  public_instance: false
+  image_proxy: false
+  method: "GET"
+  http_protocol_version: "1.1"
+
+valkey:
+  url: false
+
+ui:
+  default_locale: "fr"
+  query_in_title: false
+  infinite_scroll: false
+
+outgoing:
+  request_timeout: 4.0      # one slow engine never holds the answer
+  max_request_timeout: 8.0
+  pool_connections: 100
+  pool_maxsize: 20
+  enable_http2: true
+  retries: 1                # one retry, on another connection
+
+engines:
+  # ---- general web: several independent indexes, so a CAPTCHA on one changes nothing
+  - name: bing
+    disabled: false
+    weight: 1.2
+  - name: brave
+    disabled: false
+    weight: 1.2
+  - name: mojeek
+    disabled: false
+    inactive: false
+    weight: 0.8
+  - name: qwant
+    disabled: false
+    weight: 1.0
+  - name: yahoo
+    disabled: false
+    weight: 0.9
+  - name: duckduckgo
+    disabled: false
+    weight: 1.0
+  - name: startpage
+    # uses a proof-of-work captcha: kept off by default, enable it when the others are short
+    disabled: true
+  - name: google
+    # blocks shared cloud IPs quickly: off by default; turn on if your instance is not blocked
+    disabled: true
+  # ---- reference
+  - name: wikipedia
+    disabled: false
+  - name: wikidata
+    disabled: false
+  # ---- news
+  - name: bing news
+    disabled: false
+  - name: qwant news
+    disabled: false
+  - name: yahoo news
+    disabled: false
+  - name: wikinews
+    disabled: false
+  # ---- images (licences are checked by Bird; Openverse and Commons are openly licensed)
+  - name: openverse
+    disabled: false
+  - name: wikicommons.images
+    disabled: false
+  - name: bing images
+    disabled: false

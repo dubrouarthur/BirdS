@@ -975,12 +975,28 @@ details[open] > summary > .chev {
   font-size: 0.94rem;
   color: var(--ink-2);
 }
+/* the model waking up: the same quiet line as any wait (no box, no alert), a hovering bird and a thin bar */
 .live-calm {
   align-items: flex-start;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
+}
+
+.live-body {
+  min-inline-size: 0;
+}
+.wake-bar {
+  inline-size: min(240px, 100%);
+  block-size: 3px;
+  margin-block-start: 10px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.wake-bar > span {
+  display: block;
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: inline-size 1s linear;
 }
 .live-sub {
   font-size: 0.84rem;
@@ -995,32 +1011,11 @@ details[open] > summary > .chev {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
-.pulse {
-  inline-size: 12px;
-  block-size: 12px;
-  margin-block-start: 6px;
-  flex: none;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: pulse 1.8s ease-in-out infinite;
-}
 @keyframes spin {
   to {
     transform: rotate(360deg);
   }
 }
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 0.35;
-    transform: scale(0.85);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
 /* steps */
 .steps {
   border: 1px solid var(--line);
@@ -1110,6 +1105,21 @@ details[open] > summary > .chev {
 .step-label {
   font-weight: 600;
   font-size: 0.92rem;
+}
+/* on a phone the step's name keeps its line: the « contenu suspect » badge shrinks to its icon (the warning
+   inside the step says it in full) */
+@media (max-width: 640px) {
+  .badge-flag {
+    padding-inline: 5px;
+  }
+  .badge-flag-text {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 .step-target {
   min-inline-size: 0;
@@ -1777,6 +1787,42 @@ details[open] > summary > .chev {
   background: var(--bg);
   white-space: pre-wrap;
   font-size: 0.96rem;
+}
+/* the recipient line: what is known, then a quiet dashed hint for what is still to add. Plain inline text, so
+   « À » stays at the head of the first line and long addresses wrap after it instead of dropping below it */
+.email-to {
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+/* a name and its hint move to the next line together, never the hint alone */
+.email-name {
+  display: inline-block;
+  max-inline-size: 100%;
+}
+.email-missing {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-inline-start: 2px;
+  line-height: 1.4;
+  white-space: nowrap;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px 1px 6px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 999px;
+  color: var(--ink-2);
+  font-size: 0.76rem;
+}
+.email-missing .icon {
+  inline-size: 0.85em;
+  block-size: 0.85em;
+}
+/* a blank the user fills in (« [Prénom] »): highlighted softly, never sent unnoticed */
+.email-fill {
+  padding: 0 2px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: inherit;
 }
 .card-actions {
   display: flex;
@@ -2488,17 +2534,21 @@ details[open] > summary > .chev {
   overflow-y: auto; /* same scrollbar gutter as the conversation above, so both columns line up */
   scrollbar-gutter: stable;
 }
+/* « Aller à la fin »: a small round arrow over the conversation (its words in the title and for screen readers),
+   so it hides as little of the answer as possible */
 .btn-jump {
   position: absolute;
   inset-block-end: calc(100% + 10px);
   inset-inline-start: 50%;
   transform: translateX(-50%);
-  min-block-size: 34px;
-  padding: 0 14px;
+  inline-size: 36px;
+  min-block-size: 36px;
+  padding: 0;
+  justify-content: center;
   border-color: var(--line-strong);
+  border-radius: 50%;
   background: var(--surface);
   box-shadow: var(--shadow);
-  font-size: 0.84rem;
   z-index: 4;
 }
 .composer {
@@ -3397,19 +3447,19 @@ kbd {
   .stat-wide {
     grid-column: 1 / -1;
   }
+  /* phone top bar: menu, title, then two plain icons like the pencil. The model chip (a bare dot on a phone,
+     it only opened Settings, which the menu already has) is left out; the footprint is a quiet leaf. */
+  #btn-model {
+    display: none;
+  }
   #footprint-total {
     display: none;
   }
-  .btn-footprint {
-    inline-size: 34px;
+  #btn-footprint {
+    inline-size: 40px;
     padding: 0;
-  }
-  #model-name {
-    display: none;
-  }
-  #btn-model {
-    inline-size: 34px;
-    padding: 0;
+    border-color: transparent;
+    background: none;
   }
   .dock-note .dock-keys {
     display: none;
@@ -4137,6 +4187,7 @@ button.att-card {
 .live-time {
   font-size: 0.8rem;
   color: var(--muted);
+  white-space: nowrap;
 }
 .btn-export {
   min-inline-size: 0;
@@ -5128,6 +5179,7 @@ ol.a4-list > li::before {
   }
   .btn-icon,
   .btn-send,
+  .btn-jump,
   .btn-chip {
     min-inline-size: 44px;
   }
@@ -6084,6 +6136,9 @@ ol.a4-list > li::before {
   margin: 0;
 }
 .widget-head-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 18px;
   margin-block-start: -6px;
   font-size: 0.86rem;
 }
