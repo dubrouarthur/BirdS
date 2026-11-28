@@ -272,6 +272,25 @@ def test_correcting_an_address_is_still_a_lookup():
     assert opendata_route.veto_reason(R.Call("find_commune", dict(_ask(ask)[1])), ask) == ""
 
 
+def _qty(amount, unit):
+    unit = unit if unit == "1" else "http://www.wikidata.org/entity/" + unit
+    return [{"rank": "normal", "mainsnak": {"datavalue": {"value": {"amount": amount, "unit": unit}}}}]
+
+
+def test_entity_figures_keep_small_values_and_never_lose_their_currency():
+    from birds.harness.tools.opendata import entity as E
+
+    city = E.facts_of({"claims": {"P2046": _qty("+0.44", "Q712226")}}, "city", "fr", {})
+    assert city[0]["value"] == "0,44 km²"  # Vatican City, never « 0 km² »
+    assert E.facts_of({"claims": {"P2046": _qty("+0.44", "Q712226")}}, "city", "en", {})[0]["value"] == "0.44 km²"
+    sek = E.facts_of({"claims": {"P2139": _qty("+232600000000", "Q122922")}}, "company", "fr", {})
+    assert sek[0]["value"] == "233 Md SEK"
+    # a currency (or any unit) Bird does not know: the figure is left out, never shown as if in euros
+    assert E.facts_of({"claims": {"P2139": _qty("+1000000000", "Q999999")}}, "company", "fr", {}) == []
+    assert E.facts_of({"claims": {"P2046": _qty("+12", "Q999999")}}, "city", "fr", {}) == []
+    assert E.facts_of({"claims": {"P1082": _qty("+764", "1")}}, "city", "fr", {})[0]["value"] == "764"
+
+
 def test_the_veto_never_blocks_what_the_parser_itself_starts():
     for q, _tool, _args in OD.OPENDATA_YES:
         got = [i for i in opendata_intents.detect(q, False, "fr", today=OD.TODAY) if i.args]

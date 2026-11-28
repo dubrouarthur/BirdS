@@ -49,7 +49,9 @@ FACTS = {
               ("P159", "Siège", "Headquarters", "item"), ("P856", "Site officiel", "Website", "url")],
 }  # fmt: skip
 UNITS = {"Q4916": "€", "Q4917": "$", "Q25224": "£", "Q712226": "km²", "Q11573": "m", "Q828224": "km", "Q25344": "CHF",
-         "Q8146": "¥", "Q11570": "kg"}  # fmt: skip
+         "Q8146": "¥", "Q11570": "kg", "Q122922": "SEK"}  # fmt: skip
+MONEY = {"P2139"}  # a sum of money without a known currency is never shown (it would read as euros)
+UNITLESS = {"", "1"}  # Wikidata's unit « 1 »: a count (population, employees)
 MONTHS_FR = "janvier février mars avril mai juin juillet août septembre octobre novembre décembre".split()
 MONTHS_EN = "January February March April May June July August September October November December".split()
 
@@ -117,6 +119,9 @@ def _num(x: float, lang: str) -> str:
         s, suf = x / 1e6, (" M" if lang == "fr" else " M")
     else:
         s, suf = x, ""
+    if not suf and 0 < abs(x) < 10:  # « 0,44 km² » (Vatican City), never « 0 »: two significant digits
+        txt = f"{x:.2g}" if abs(x) >= 1e-4 else f"{x:.2e}"
+        return txt.replace(".", ",") if lang == "fr" else txt
     txt = f"{s:,.1f}" if suf and s < 100 else f"{s:,.0f}"
     txt = txt.removesuffix(".0")
     return (txt.replace(",", " ").replace(".", ",") if lang == "fr" else txt) + suf
@@ -146,7 +151,10 @@ def facts_of(ent: dict, kind: str, lang: str, labels: dict) -> list[dict]:
                     amount = float(str(v.get("amount", "")).lstrip("+"))
                 except ValueError:
                     continue
-                unit = UNITS.get(str(v.get("unit", "")).rsplit("/", 1)[-1], "")
+                qid = str(v.get("unit", "")).rsplit("/", 1)[-1]
+                unit = UNITS.get(qid, "")
+                if not unit and (prop in MONEY or qid not in UNITLESS):
+                    continue  # « 233 Md » in Swedish kronor, an area in acres: a figure without its unit misleads
                 values.append(_num(amount, lang) + (f" {unit}" if unit else ""))
             elif vk == "url" and isinstance(v, str) and re.match(r"https?://", v):
                 values.append(v[:200])
