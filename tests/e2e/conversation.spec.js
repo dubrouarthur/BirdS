@@ -49,6 +49,9 @@ async function closeDrawer(page) {
 
 async function newChat(page) {
   await page.evaluate(() => document.querySelectorAll("dialog[open]").forEach((d) => d.close()));
+  // a part that leaves the canvas open (« Livrables » → Ouvrir) would cover the phone's top bar: close it like a user
+  await page.evaluate(() => document.documentElement.classList.contains("cv-open") && document.querySelector('.cv-panel [data-act="close"], .cv-close')?.click());
+  await page.waitForTimeout(150);
   await closeDrawer(page);
   const narrow = await page.evaluate(() => innerWidth < 900);
   await page.click(narrow ? "#btn-new-top" : "#btn-new").catch(() => {});
