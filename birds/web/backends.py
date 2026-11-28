@@ -590,6 +590,33 @@ class DemoBackend:
     )
 
     def run(self, request: ChatRequest, ctx: RunContext) -> None:
+        """The scripted turn, then its scripted next steps (nextsteps.DEMO): the same ``suggestions`` event as a
+        live turn, after the answer, picked from what the answer is (a draft, a deck, a question, a text)."""
+        seen: list[dict] = []
+        made: list[str] = []  # the canvas kinds this turn made (deck, doc)
+        emit = ctx.emit
+
+        def watch(event: dict) -> None:
+            if event.get("type") == "answer":
+                seen.append(event)
+            elif event.get("type") == "canvas" and event.get("phase") == "final":
+                made.append(str(event.get("kind") or ""))
+            emit(event)
+
+        ctx.emit = watch
+        try:
+            self._run(request, ctx)
+        finally:
+            ctx.emit = emit
+        if seen and not ctx.cancel.is_set():
+            kind = demo_suggest_kind(seen[-1], made[-1] if made else "")
+            if kind:
+                from birds.harness import nextsteps
+
+                lang = "en" if request.lang == "en" else "fr"
+                ctx.emit({"type": "suggestions", "items": nextsteps.demo(kind, lang), "source": "demo"})
+
+    def _run(self, request: ChatRequest, ctx: RunContext) -> None:
         lang = "en" if request.lang == "en" else "fr"
         run = _DemoRun(self, request, ctx, lang)
         if request.resume is not None:
@@ -636,6 +663,23 @@ class DemoBackend:
                 run.followup, scenario = again, names[again.tool]
         getattr(run, "scenario_" + scenario)()
 
+
+def demo_suggest_kind(answer: dict, canvas_kind: str = "") -> str:
+    """Which scripted next steps fit a demo answer: a draft, a deck, a question offering options; '' otherwise
+    (a card answer: the widget chips of followups.js cover it; a greeting or a plain text: nothing scripted)."""
+    content = str(answer.get("content") or "").strip()
+    if answer.get("stop_reason", "answer") != "answer" or not content:
+        return ""
+    if answer.get("draft_email"):
+        return "mail"
+    if canvas_kind in ("deck", "doc"):
+        return canvas_kind
+    if any(str(f.get("name", "")).endswith(".pptx") for f in answer.get("files") or []):
+        return "deck"
+    last = content.split("\n")[-1].strip()
+    if last.endswith("?") and re.search(r"\b(?:ou|or)\b", last):
+        return "ask"
+    return ""
 
 
 def canvas_ref(tool: str, arguments: dict, lang: str) -> dict | None:
@@ -751,7 +795,14 @@ class _DemoRun:
             self.pause(0.035)
 
     def finish(
-        self, content: str, sources=None, files=None, draft_email=None, charts=None, web_images=None, widgets=None,
+        self,
+        content: str,
+        sources=None,
+        files=None,
+        draft_email=None,
+        charts=None,
+        web_images=None,
+        widgets=None,
         plan=None,
     ) -> None:
         from .widgets import enrich_sources
@@ -843,9 +894,14 @@ class _DemoRun:
                 else:
                     (tmp / name).write_text(doc["content"], encoding="utf-8")
                 names.append(name)
-            self._data = data_hooks.prepare(tmp, list(reversed(names)), words, self.lang,
-                                            history=self.req.messages[:-1],
-                                            fresh=data_hooks.brought(self.req.attachments, self.req.messages[:-1]))
+            self._data = data_hooks.prepare(
+                tmp,
+                list(reversed(names)),
+                words,
+                self.lang,
+                history=self.req.messages[:-1],
+                fresh=data_hooks.brought(self.req.attachments, self.req.messages[:-1]),
+            )
             # rules only: no model in the demo
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
@@ -1119,16 +1175,22 @@ class _DemoRun:
                 f"closest: {names} [1].\n\nOpening hours come from OpenStreetMap: check them before going. I "
                 "give no ratings or prices, which I do not have.",
             )
-        elif w["mode"] == "list" and (w.get("plan") == "order" or w.get("missing") or w.get("unchecked") or w.get("not_shown")):
+        elif w["mode"] == "list" and (
+            w.get("plan") == "order" or w.get("missing") or w.get("unchecked") or w.get("not_shown")
+        ):
             from . import rescue
 
             # a visit order or places not found: the same words as the answer written from the card
             text = " ".join(rescue.places_lines(w, self.lang)) + " [1]"
             if w.get("plan") == "order":
                 by = {p["n"]: p["name"] for p in ps}
-                text += "\n\n" + " → ".join(f"**{by[n]}**" for n in w["order"] if n in by) + self.t(
-                    ". Les distances sont à vol d'oiseau ; le lien « Itinéraire complet » donne la route.",
-                    ". Distances are as the crow flies; the 'Full route' link gives the road route.",
+                text += (
+                    "\n\n"
+                    + " → ".join(f"**{by[n]}**" for n in w["order"] if n in by)
+                    + self.t(
+                        ". Les distances sont à vol d'oiseau ; le lien « Itinéraire complet » donne la route.",
+                        ". Distances are as the crow flies; the 'Full route' link gives the road route.",
+                    )
                 )
         elif w["mode"] == "list":
             text = self.t(
@@ -2473,8 +2535,14 @@ class HarnessBackend:
                 # the model gets the result and only explains it (birds/harness/analysis/hooks.py)
                 from birds.harness.analysis import hooks as data_hooks
 
-                data_prep = data_hooks.prepare(workspace, names, words, rl, **self._data_planner(agent, cfg, request),
-                                               fresh=data_hooks.brought(request.attachments, request.messages[:-1]))
+                data_prep = data_hooks.prepare(
+                    workspace,
+                    names,
+                    words,
+                    rl,
+                    **self._data_planner(agent, cfg, request),
+                    fresh=data_hooks.brought(request.attachments, request.messages[:-1]),
+                )
                 if data_prep is not None:
                     user_sent = data_hooks.strip_note(user_sent) + data_prep.note
                 ctx.emit({"type": "user", "content": user_sent})
@@ -2488,7 +2556,9 @@ class HarnessBackend:
                     try:
                         # the canvas (birds.canvas): a change to the open artifact comes first; a new deck, document or
                         # page is made after the Mode Agent declined it (its research decks stay the team's)
-                        cplan = canvas_web.plan_for(request, words, rl, self.canvas, attached=bool(names or image_texts))
+                        cplan = canvas_web.plan_for(
+                            request, words, rl, self.canvas, attached=bool(names or image_texts)
+                        )
                         canvas_kw = dict(user_sent=user_sent, words=words, system=system, history=kept, lang=rl,
                                          mode="server", attached=bool(names or image_texts))  # fmt: skip
                         if cplan is not None and cplan.mode != "create":
@@ -2703,11 +2773,41 @@ class HarnessBackend:
                     history=hist_stats,
                 )
             )
+            # after the answer and its receipt, never before: Bird writes the next steps the user may want
+            # (birds/harness/nextsteps.py), from the request and the answer only
+            if stop_reason == "answer" and content.strip() and not ctx.cancel.is_set():
+                self._suggest(agent, cfg, request_words, content, run.lang or lang, ctx)
         finally:
             if ephemeral:
                 shutil.rmtree(workspace, ignore_errors=True)
             else:  # a persistent workspace keeps no copy of the pictures of one message
                 shutil.rmtree(workspace / ".bird_images", ignore_errors=True)
+
+    @staticmethod
+    def _suggest(agent, cfg, request_words: str, content: str, lang: str, ctx: RunContext) -> None:
+        """The ``suggestions`` event: 0-3 next steps written by the model, validated (nextsteps.validate). Sent
+        only when the model answered; nothing on a failure (the client keeps its widget chips). Never raises."""
+        import logging
+        import os
+
+        from birds.harness import nextsteps, router
+
+        left = ctx.seconds_left() - 1.0
+        if left < 2.0 or os.environ.get("BIRD_NEXTSTEPS", "on").strip().lower() in ("off", "0", "false"):
+            return
+        try:
+            names = router.available_names(cfg, agent)
+            tools = set(agent._allowed())
+            got = nextsteps.generate(agent.llm, agent.tok, request_words, content, lang=lang, names=names,
+                                     tools=tools, budget=min(nextsteps.BUDGET_S, left),
+                                     cache_salt=cfg.cache_salt)  # fmt: skip
+        except Exception:  # noqa: BLE001 - next steps are optional: never lose the turn for them
+            return
+        logging.getLogger("bird.nextsteps").info(json.dumps({
+            "event": "nextsteps", "source": got["source"], "n": len(got["items"]), "seconds": got["seconds"],
+            "dropped": [why for _, why in got.get("dropped", [])], "why": got.get("why", "")}))  # fmt: skip
+        if got["source"] == "model" and not ctx.cancel.is_set():
+            ctx.emit({"type": "suggestions", "items": got["items"], "source": "model"})
 
     # ---- rich results independent of the model (birds/web/rescue.py)
     @staticmethod

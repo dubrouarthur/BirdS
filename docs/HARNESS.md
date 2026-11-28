@@ -979,3 +979,87 @@ correction), la relecture de Chouette en réel, l'échantillonnage (plusieurs pa
 **Entraînement.** `build_tools_mix.py` ajoute la tâche `reflexion` : l'invite exacte de `reflexion.messages` et
 `{"level": …}` comme seul tour à apprendre, 9 gabarits FR/EN (≈ 95 enregistrements en train, gabarits retenus
 entiers pour l'évaluation ; les phrases de `REFLEXION_LEVELS` n'entrent jamais en train).
+
+## 17. Suites proposées : Bird écrit ses suggestions, dans la voix de l'utilisateur
+
+Code : `birds/harness/nextsteps.py` (appel, invite, validation, démo), `birds/web/backends.py`
+(`HarnessBackend._suggest`, `demo_suggest_kind`), `birds/web/static/followups.js` (`cleanSuggestions`,
+`chipItems`, `renderChips`) · tests : `tests/test_nextsteps.py`, `tests/js/modules.test.mjs`,
+`tests/e2e/nextsteps.spec.js` · mesure : `scripts/followups_eval.py` · cas : `scripts/router_data.py`
+(`NEXTSTEPS_CASES`) · exemples d'entraînement : `scripts/build_tools_mix.py` (tâche `nextsteps`).
+
+**Le défaut.** Les puces sous une réponse venaient de deux sources fixes : les puces des widgets (météo, carte,
+brouillon, tableau) et `clarifyOptions`, une expression régulière qui découpait la dernière question de Bird. Sur
+« Souhaitez-vous que je vous aide à intégrer des images spécifiques ou à structurer la diapositive visuellement ? »,
+elle donnait « Vous aide à intégrer des images spécifiques » et « À structurer la diapositive visuellement » : des
+morceaux de la phrase de Bird, dans sa voix, pas des demandes de l'utilisateur.
+
+**Ce qui change.** Après la réponse et son reçu, **un** appel court (≤ 200 jetons, température 0, schéma
+`{"suggestions":[{label ≤ 42, prompt}] ≤ 3}` imposé quand l'endpoint le permet, même détection que le routeur ;
+invite statique en préfixe avec les capacités du déploiement, réutilisée par le cache) renvoie 0 à 3 suites :
+une demande que l'utilisateur taperait (« Ajoute une diapositive sur les outils numériques… »), propre à la
+réponse, les choix d'une question de Bird réécrits comme ses réponses, rien après une salutation. L'appel ne lit
+que la demande de l'utilisateur et la réponse, jamais une page ni un résultat d'outil. Tout est validé dans le code
+(`nextsteps.validate`) : schéma, longueurs (une étiquette coupée par le schéma finit sur un mot entier), langue,
+doublons, voix de Bird (« Vous aide… », « Souhaitez-vous… », « Oui »), liens, adresses et consignes (« ignore… »),
+actions impossibles (« envoie », « réserve », ce que l'utilisateur fait lui-même : « Valide le mail », « Provide
+the client's email address »), et un module éteint sur le déploiement (météo, carte, recherche web…). Les
+expressions régulières ne décident pas : elles filtrent la sortie du modèle. L'événement SSE `suggestions` part
+après `answer` et `usage` : la réponse n'attend jamais. L'interface met les suites de Bird en premier, puis les
+puces des widgets jusqu'à trois, sans doublon ; `clarifyOptions` est supprimée. Rien d'envoyé si l'appel échoue
+(les puces des widgets restent). `BIRD_NEXTSTEPS=off` coupe l'appel. Démo : suites scriptées selon ce qu'est la
+réponse (brouillon, présentation, document, question à choix), passées par la même validation.
+
+**Mesure réelle (28/11/2026, endpoint vLLM, Bird S 4B, température 0, un passage).** 20 vraies réponses
+enregistrées par l'application elle-même (`HarnessBackend`, `--record`), demandes de bureau variées : mails (4),
+présentations (3), documents (3), recherche (3), météo (2), carte (2), données et calcul (2), question posée en
+retour (1). Réglages : `BIRD_ROUTER=regex` et Colibri pour tenir le budget d'appels (le routeur et le choix
+d'oiseau auraient coûté deux générations par tour). Fichier : `docs/measures/followups-2026-11-28.json` (réponses,
+sortie brute du modèle, sortie validée, temps, jugements). « Avant » = `followups.js` du commit de base (941cfc9),
+exécuté dans node sur ces mêmes réponses. « Après (brut) » = ce que le modèle a écrit ; « après » = après la
+validation finale.
+
+Grille (un point par critère et par puce) : **voix** (une demande de l'utilisateur, pas une question ou un morceau
+de phrase de Bird ; vérifié par le code) ; **grammaire** (phrase entière et correcte : jugée à la main, puce par
+puce, 125 puces lues) ; **précis** (reprend un sujet, un nom ou un chiffre de la demande ou de la réponse) ;
+**faisable** (Bird sait le faire ici : ni « envoie », ni un module éteint, ni une capacité absente, jugé à la main
+pour « carte de la météo » et « comparer avec la semaine dernière ») ; **existe** (le module nommé est allumé).
+
+| bras | puces | tours avec puces | voix | grammaire | précis | faisable | existe |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| avant (puces fixes + `clarifyOptions`) | 17 | 8/20 | 0,94 | 0,88 | 0,35 | 1,00 | 1,00 |
+| après (brut, modèle) | 56 | 20/20 | 1,00 | 0,95 | 0,93 | 0,89 | 1,00 |
+| **après (validé)** | 52 | 19/20 | 1,00 | 0,96 | 0,92 | 0,96 | 1,00 |
+
+Latence de l'appel en plus (20 appels) : **p50 2,0 s, p95 2,9 s**, après la réponse (la réponse et son reçu
+arrivent avant ; le bouton Envoyer revient ≈ 2 s plus tard). Budget : 60 générations sur 60 (2 pour un essai de l'invite, 3 pour un premier
+enregistrement perdu, la météo bloquée par l'épinglage DNS derrière le mandataire du bac à sable, 55 pour le jeu).
+
+Lecture franche. Avant, 12 tours sur 20 n'avaient aucune puce (présentations, documents, recherche), et les puces
+présentes étaient génériques (« Plus court », « En anglais », « Restaurants autour » après une météo) : 0,35 de
+précision. La seule question posée en retour du jeu (`ask_review`) donnait « Préfères-tu d'abord lister tes
+accomplissements » (la question de Bird) ; après : « Fais un plan détaillé », « Liste mes accomplissements ». Ce
+que la validation retire sur ce jeu (4 puces) : « Valide le mail… et confirme l'envoi », deux « Provide the
+client's… » (Bird venait de demander ces informations : tour sans puce, voulu), « Fournis un document sur le
+marché ». Trois étiquettes coupées à 42 caractères par le schéma (« Ajoute une diapositive sur les modalités d »)
+finissent désormais sur un mot. Restent après validation : deux suites impossibles non détectées par le code
+(« Fais une carte de la météo », « Compare avec la semaine dernière » : pas d'historique météo), deux étiquettes
+maladroites (« Raccourcis la diapo de 2 slides », « Prévois mai »). La validation a été réglée après lecture de ce
+jeu (verbes de l'utilisateur, étiquettes coupées) : les chiffres « après (validé) » sont donc optimistes ; la sortie
+brute du modèle, elle, n'a pas été retouchée (invite et schéma inchangés depuis l'enregistrement).
+
+**Non mesuré en réel** : la salutation et le remerciement (« aucune suite » ; budget épuisé), le cas de la capture
+(il sert d'exemple dans l'invite, il ne peut pas servir de test), et les 8 cas fixes `NEXTSTEPS_CASES`
+(`scripts/followups_eval.py --cases --live`, 8 générations) : hors ligne, l'ancien code en rate 1 sur 8, le cas de
+la capture (« Vous aide à intégrer… »). Jeu de 20 réponses et non 25 : le plafond de 60 générations a été atteint
+(certaines réponses coûtent 3 à 6 générations : brouillon de mail, recherche web).
+
+**Interface.** Puces discrètes comme chez ChatGPT : contour fin, fond transparent, flèche « ↳ », texte qui passe à
+la ligne dans la puce à 360 px, anneau de focus visible, Entrée envoie la demande ; mêmes jetons de couleur en clair
+et en sombre. Vu à 360 px et 1 280 px, clair et sombre (`tests/e2e/nextsteps.spec.js`) : aucune requête vers un
+tiers, aucune erreur CSP, pas de défilement horizontal.
+
+**Entraînement.** `build_tools_mix.py` ajoute la tâche `nextsteps` : l'invite exacte de `nextsteps.messages` (avec
+toutes les capacités) et le JSON des suites comme seul tour à apprendre, 10 gabarits FR/EN (questions à choix,
+mail, présentation, information manquante, salutations sans suite) ; chaque cible passe la validation ; les
+demandes de `NEXTSTEPS_CASES` n'entrent jamais en train.

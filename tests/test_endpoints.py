@@ -446,6 +446,7 @@ def test_endpoint_test_rejections_and_modes(dns, monkeypatch):
 
 def test_chat_through_a_user_endpoint_never_logs_or_echoes_the_token(dns, monkeypatch, capsys, caplog):
     monkeypatch.setenv("BIRD_ROUTER", "regex")  # one request exactly (the router's own call: tests/test_router.py)
+    monkeypatch.setenv("BIRD_NEXTSTEPS", "off")  # and no next-steps call (tests/test_nextsteps.py)
     seen = []
 
     def handler(request: httpx.Request) -> httpx.Response:

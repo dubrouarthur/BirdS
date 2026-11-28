@@ -1309,6 +1309,13 @@ def build(n: int = 6000, seed: int = 0, heldout_share: float = 0.12) -> dict:
         st[split]["records"] += len(rx[split])
         st[split]["fr"] += sum(r["lang"] == "fr" for r in rx[split])
     st["held_out_templates"] = sorted(set(st["held_out_templates"]) | set(rx["held"]))
+    ns = nextsteps_records(seed)  # next steps under an answer (task « nextsteps »)
+    for split in ("train", "eval"):
+        out[split] += ns[split]
+        st[split]["nextsteps"] = len(ns[split])
+        st[split]["records"] += len(ns[split])
+        st[split]["fr"] += sum(r["lang"] == "fr" for r in ns[split])
+    st["held_out_templates"] = sorted(set(st["held_out_templates"]) | set(ns["held"]))
     out["stats"] = st
     return out
 
@@ -1397,6 +1404,97 @@ def reflexion_records(seed: int = 0, heldout_share: float = 0.12) -> dict:
                     out[split].append({"id": f"{SOURCE}-{split}-x{len(out[split]):06d}", "source": SOURCE,
                                        "license": LICENSE, "lang": lang, "task": "reflexion", "thinking": False,
                                        "messages": msgs, "template": tid})  # fmt: skip
+    return out
+
+
+# ---------------------------------------------------------------- next steps (birds/harness/nextsteps.py)
+# The exact prompt (nextsteps.messages with the full capabilities line) and the suggestions JSON as the one
+# assistant turn: in the user's voice, specific, the options of Bird's question as the user's answers, none after
+# small talk. The eval cases of router_data.NEXTSTEPS_CASES never reach train.
+
+NS_TEMPLATES = [  # (template id, lang, request, answer, [(label, prompt)]) with {slots}
+    ("ns_ask_format", "fr", "j'ai besoin de présenter {sujet} à {qui}",
+     "Je peux préparer ce support sur {sujet}. Préférez-vous une présentation ou une note d'une page ?",
+     [("Fais une présentation", "Fais une présentation de {sujet} pour {qui}."),
+      ("Rédige une note d'une page", "Rédige une note d'une page sur {sujet} pour {qui}.")]),
+    ("ns_ask_detail", "fr", "explique-moi {notion}",
+     "{Notion} désigne… Voulez-vous un exemple chiffré ou une version plus courte ?",
+     [("Donne un exemple chiffré", "Donne un exemple chiffré de {notion}."),
+      ("Fais une version plus courte", "Explique {notion} en trois phrases.")]),
+    ("ns_mail", "fr", "rédige un mail à {qui} pour {objet}",
+     "Objet : {Objet}\n\nBonjour, je vous écris pour {objet}…",
+     [("Rends le ton plus chaleureux", "Rends ce mail à {qui} plus chaleureux."),
+      ("Ajoute une date limite", "Ajoute au mail une date limite de réponse."),
+      ("Traduis-le en anglais", "Traduis ce mail en anglais.")]),
+    ("ns_deck", "fr", "fais une présentation sur {sujet}",
+     "La présentation « {Sujet} » est dans le canevas : 5 diapositives.",
+     [("Ajoute une diapo de chiffres clés", "Ajoute une diapositive de chiffres clés sur {sujet}."),
+      ("Ajoute une conclusion", "Ajoute une diapositive de conclusion avec trois messages clés.")]),
+    ("ns_info", "fr", "écris un mail à {qui} pour {objet}",
+     "Il me manque l'adresse et la date. Pouvez-vous me les donner ?",
+     [("Rédige-le avec des champs à compléter", "Rédige le mail à {qui} avec l'adresse et la date à compléter.")]),
+    ("ns_hello", "fr", "{salut}", "Bonjour ! Comment puis-je vous aider ?", []),
+    ("ns_thanks", "fr", "{merci}", "Avec plaisir ! Bonne journée.", []),
+    ("ns_ask_en", "en", "help me prepare {topic_en}",
+     "Here is an outline for {topic_en}. Would you like a checklist or a timeline?",
+     [("Make a checklist", "Make a checklist for {topic_en}."),
+      ("Draw up a timeline", "Draw up a timeline for {topic_en}.")]),
+    ("ns_mail_en", "en", "draft an email to {who} to {task}",
+     "Subject: Quick update\n\nHi, I am writing to {task}…",
+     [("Make it shorter", "Make this email to {who} shorter."), ("Add a call to action", "Add a clear call to action.")]),
+    ("ns_thanks_en", "en", "{thanks_en}", "You're welcome! Have a great day.", []),
+]
+NS_SLOTS = {
+    "sujet": ["le budget 2027", "notre offre de formation", "le plan de recrutement", "la nouvelle politique RSE"],
+    "qui": ["le comité de direction", "l'équipe", "nos clients", "le conseil d'administration"],
+    "notion": ["la TVA intracommunautaire", "l'amortissement", "le BFR", "la marge brute"],
+    "objet": ["décaler la réunion à jeudi", "relancer le devis de mars", "remercier pour le rendez-vous"],
+    "salut": ["bonjour", "salut !", "coucou Bird"], "merci": ["merci !", "super, merci", "parfait, merci beaucoup"],
+    "topic_en": ["a client workshop", "our quarterly review", "a product launch"],
+    "who": ["John", "the team", "a supplier"], "task": ["move the meeting to Friday", "confirm the order"],
+    "thanks_en": ["thanks!", "great, thank you", "perfect, thanks"],
+}  # fmt: skip
+
+
+def nextsteps_records(seed: int = 0, heldout_share: float = 0.12) -> dict:
+    """{"train": […], "eval": […], "held": [template ids]}, like reflexion_records."""
+    import router_data as D
+
+    from birds.harness import nextsteps as N
+
+    rng = random.Random(f"{seed}-nextsteps")
+    banned = {R.fold(c[2]) for c in D.NEXTSTEPS_CASES}
+    held = {t for t, *_ in NS_TEMPLATES if int(hashlib.sha1(f"{seed}{t}".encode()).hexdigest(), 16) % 1000
+            < heldout_share * 1000 * 2}  # fmt: skip
+    caps = {lg: N.capabilities(lg, None, None) for lg in ("fr", "en")}
+    out, seen = {"train": [], "eval": [], "held": sorted(held)}, set()
+
+    def fill(text: str, pick: dict) -> str:
+        def one(m):
+            k = m.group(1)
+            v = pick.setdefault(k.lower(), rng.choice(NS_SLOTS[k.lower()]))
+            return v[:1].upper() + v[1:] if k[:1].isupper() else v
+
+        return re.sub(r"\{(\w+)\}", one, text)
+
+    for tid, lang, req, ans, sugg in NS_TEMPLATES:
+        for _ in range(16):
+            pick: dict = {}
+            r, a = fill(req, pick), fill(ans, pick)
+            items = [(fill(x, pick), fill(y, pick)) for x, y in sugg]
+            k = R.fold(r + " " + a)
+            if k in seen or R.fold(r) in banned:
+                continue
+            seen.add(k)
+            kept, dropped = N.validate({"suggestions": [{"label": x, "prompt": y} for x, y in items]}, lang=lang)
+            assert not dropped, (tid, dropped)  # a training target always passes the validation
+            split = "eval" if tid in held else "train"
+            msgs = N.messages(r, a, lang, caps[lang]) + [
+                {"role": "assistant", "content": json.dumps({"suggestions": kept}, ensure_ascii=False,
+                                                            separators=(",", ":"))}]  # fmt: skip
+            out[split].append({"id": f"{SOURCE}-{split}-n{len(out[split]):06d}", "source": SOURCE,
+                               "license": LICENSE, "lang": lang, "task": "nextsteps", "thinking": False,
+                               "messages": msgs, "template": tid})  # fmt: skip
     return out
 
 

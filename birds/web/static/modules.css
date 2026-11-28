@@ -575,7 +575,7 @@ a.rs-link {
   border-radius: 3px;
 }
 
-/* ---------------------------------------------------------------- chips (follow-ups, clarify, filters) */
+/* ---------------------------------------------------------------- chips (follow-ups, filters) */
 .chips-row {
   display: flex;
   flex-wrap: wrap;
@@ -614,9 +614,30 @@ a.rs-link {
   border-radius: 50%;
   background: var(--accent);
 }
-.chips-row.is-clarify .mchip {
-  border-color: var(--accent);
-  color: var(--link);
+/* the next steps under an answer: quiet, like ChatGPT's; long labels wrap inside the chip at 360 px */
+.chips-row .mchip {
+  max-inline-size: 100%;
+  border-color: var(--line);
+  border-radius: 18px;
+  background: transparent;
+  color: var(--ink-2);
+  line-height: 1.3;
+  text-align: start;
+  white-space: normal;
+}
+.chips-row .mchip:hover {
+  border-color: var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.mchip-arrow {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.95em;
+  line-height: 1;
+}
+.chips-row .mchip-research::before {
+  display: none;
 }
 .gr-filter[aria-pressed="false"] {
   opacity: 0.55;

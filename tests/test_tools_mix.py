@@ -121,3 +121,20 @@ def test_reflexion_records_teach_the_level_decision(mix):
     for x in rec:
         assert x["messages"][0] == RX.messages("", x["lang"])[0]  # the exact static prompt of reflexion.decide
         assert R.fold(_user(x).split(":", 1)[-1]) not in evals
+
+
+def test_nextsteps_records_teach_the_users_voice(mix):
+    from birds.harness import nextsteps as N
+
+    rec = [x for x in mix["train"] if x["task"] == "nextsteps"]
+    assert len(rec) >= 30 and mix["stats"]["train"]["nextsteps"] == len(rec)
+    evals = {R.fold(c[2]) for c in D.NEXTSTEPS_CASES}
+    empty = 0
+    for x in rec:
+        assert x["messages"][0] == N.messages("", "", x["lang"], N.capabilities(x["lang"], None, None))[0]
+        obj = json.loads(x["messages"][-1]["content"])
+        assert N.validate(obj, lang=x["lang"])[1] == []  # every target passes the validation of the live call
+        empty += not obj["suggestions"]
+        req = _user(x).split("\n", 1)[0].split(":", 1)[-1]
+        assert R.fold(req) not in evals
+    assert 0 < empty < len(rec) // 2  # small talk teaches « nothing more »

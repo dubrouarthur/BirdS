@@ -63,6 +63,7 @@ import { setModuleHooks } from "./modules.js";
 import { applyResearchEvent } from "./research.js";
 import { mountPicker, updatePicker } from "./reflexion.js"; // Mode Réflexion: the bird picker
 import { normalizeChoice, thinks } from "./reflexion-data.js";
+import { cleanSuggestions } from "./followups.js"; // Bird's next steps (the suggestions event)
 
 // Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
 const AGENT_MODES = ["auto", "on", "off"];
@@ -1331,6 +1332,9 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
     }
     case "usage":
       turn.usage = event;
+      break;
+    case "suggestions": // Bird's next steps, after the answer (birds/harness/nextsteps.py): drawn when the turn ends
+      if (turn.answer) turn.answer.suggestions = cleanSuggestions(event.items);
       break;
     case "agent_plan": {
       const said = applyAgentEvent(turn, event);

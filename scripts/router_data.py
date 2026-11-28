@@ -440,3 +440,48 @@ def calc_ok(answer: str, wants: list[list[str]]) -> tuple[bool, int]:
         else:
             hit += any(w.lower() in a or w.lower().replace(" ", "") in squeezed for w in forms)
     return hit == len(wants), hit
+
+
+# ---------------------------------------------------------------- next steps (birds/harness/nextsteps.py)
+# Fixed answers and what Bird's next steps must do with them: (id, lang, request, answer, expectation).
+# ``none``: no suggestion at all; ``words``: every suggestion names one of these (the options of Bird's question,
+# rephrased as the user's answer); ``not``: no suggestion matches this pattern (Bird's voice, an impossible action).
+# Held out of the training templates of build_tools_mix.py (tests/test_tools_mix.py), measured live by
+# scripts/followups_eval.py --cases and offline by tests/test_nextsteps.py (the validation part).
+NEXTSTEPS_CASES = [
+    ("slide_ask", "fr", "fais une diapo sur notre offre de conseil",
+     "Voici la diapositive « Notre offre de conseil ». Souhaitez-vous que je vous aide à intégrer des images "
+     "spécifiques ou à structurer la diapositive visuellement ?",
+     {"words": ["image", "structur", "bloc", "visuel"], "not": r"(?i)^(?:vous aide|à structurer|oui)"}),
+    ("format_ask", "fr", "j'ai besoin de présenter le budget 2027 au comité",
+     "Je peux vous préparer ce support. Souhaitez-vous un mail, une note ou un tableau ?",
+     {"words": ["mail", "note", "tableau"], "not": r"(?i)^(?:un mail|une note|un tableau)$"}),
+    ("length_ask", "fr", "explique-moi la TVA intracommunautaire",
+     "La TVA intracommunautaire s'applique aux échanges entre entreprises de l'UE… Voulez-vous la version "
+     "courte ou la version détaillée avec un exemple chiffré ?",
+     {"words": ["court", "détaill", "exemple"]}),
+    ("hello", "fr", "bonjour", "Bonjour ! Comment puis-je vous aider aujourd'hui ?", {"none": True}),
+    ("thanks", "fr", "merci beaucoup", "Avec plaisir ! N'hésitez pas si vous avez besoin d'autre chose.", {"none": True}),
+    ("info_needed", "en", "draft an email to a client to postpone our meeting",
+     "I need the client's name and the new date before I can draft it. Could you share them?",
+     {"not": r"(?i)^(?:provide|share|give)"}),
+    ("mail_done", "fr", "rédige un mail pour relancer la facture 2024-118",
+     "Objet : Relance – facture 2024-118. Bonjour, sauf erreur de notre part, la facture 2024-118 reste impayée…",
+     {"not": r"(?i)\b(?:envoie|envoyer|valide)\b"}),
+    ("offsite_en", "en", "help me plan a team offsite",
+     "Here is a one-day outline: morning workshop, lunch, afternoon hike. Would you like a budget or a "
+     "sample invitation?",
+     {"words": ["budget", "invitation"]}),
+]  # fmt: skip
+
+
+def nextsteps_ok(items: list[dict], expect: dict) -> bool:
+    """Is a list of suggestions what ``expect`` (a NEXTSTEPS_CASES expectation) asks for?"""
+    if expect.get("none"):
+        return not items
+    if expect.get("not") and any(re.search(expect["not"], f"{x['label']} {x['prompt']}") for x in items):
+        return False
+    words = expect.get("words")
+    if words:
+        return bool(items) and all(any(w in (x["label"] + " " + x["prompt"]).lower() for w in words) for x in items)
+    return True
