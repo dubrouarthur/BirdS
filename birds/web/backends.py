@@ -2272,36 +2272,37 @@ class HarnessBackend:
                     run = self._ocr_answer(image_texts + docs, image_usage, rl, cfg, time.monotonic() - t0)
                     image_usage = []  # already counted in run.report
                 else:
-                    # the canvas (birds.canvas): a change to the open artifact comes first; a new deck, document or
-                    # page is made after the Mode Agent declined it (its research decks stay the team's)
-                    cplan = canvas_web.plan_for(request, words, rl, self.canvas, attached=bool(names or image_texts))
-                    canvas_kw = dict(user_sent=user_sent, words=words, system=system, history=kept, lang=rl,
-                                     mode="server", attached=bool(names or image_texts))  # fmt: skip
-                    if cplan is not None and cplan.mode != "create":
-                        run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
-                    else:
-                        decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
-                        run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
-                                                system=system, lang=rl, names=names, workspace=workspace,
-                                                history=kept)  # fmt: skip
-                        if run is None and cplan is not None:
-                            run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
-                if run is None:
                     from birds.harness.llm import EndpointError
 
                     try:
-                        run = agent.run(
-                            user_sent,
-                            history=kept or None,
-                            system=system,
-                            thinking=request.thinking,
-                            lang=rl,
-                            request_text=words,
-                            attached=bool(names or image_texts),
-                            tz=request.tz,
-                        )
+                        # the canvas (birds.canvas): a change to the open artifact comes first; a new deck, document or
+                        # page is made after the Mode Agent declined it (its research decks stay the team's)
+                        cplan = canvas_web.plan_for(request, words, rl, self.canvas, attached=bool(names or image_texts))
+                        canvas_kw = dict(user_sent=user_sent, words=words, system=system, history=kept, lang=rl,
+                                         mode="server", attached=bool(names or image_texts))  # fmt: skip
+                        if cplan is not None and cplan.mode != "create":
+                            run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
+                        else:
+                            decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
+                            run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
+                                                    system=system, lang=rl, names=names, workspace=workspace,
+                                                    history=kept)  # fmt: skip
+                            if run is None and cplan is not None:
+                                run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
+                        if run is None:
+                            run = agent.run(
+                                user_sent,
+                                history=kept or None,
+                                system=system,
+                                thinking=request.thinking,
+                                lang=rl,
+                                request_text=words,
+                                attached=bool(names or image_texts),
+                                tz=request.tz,
+                            )
                     except EndpointError:
-                        # the model failed after a pre-called tool returned: answer from its result, not an error
+                        # the model failed after a pre-called tool returned (a plain, crew or canvas turn): answer
+                        # from its result, not an error
                         if not live or not self._rescue(live, request, ctx, rl):
                             raise
                         return

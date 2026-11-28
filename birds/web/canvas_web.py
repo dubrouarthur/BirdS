@@ -184,8 +184,15 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
     if not any(i.kind == "mail" for i in taskplan.extract(words, lang)):
         hide += ("draft_email",)
     a2 = turn.derive_agent(agent, hooks, turn.sink_for(captured), hide=hide, kind=kind)
-    run = a2.run(turn.turn_message(p, user_sent, lang), history=history or None, system=system,
-                 thinking=request.thinking, lang=lang, request_text=words, attached=attached, tz=request.tz)  # fmt: skip
+    from birds.harness.llm import EndpointError
+
+    try:
+        run = a2.run(turn.turn_message(p, user_sent, lang), history=history or None, system=system,
+                     thinking=request.thinking, lang=lang, request_text=words, attached=attached, tz=request.tz)  # fmt: skip
+    except EndpointError:
+        if stream.doc is not None:
+            emit_doc(ctx, p, None, "abort", lang)  # the snapshot streamed so far is not left as the result
+        raise  # the backend answers from the cards already shown, or reports the error
     stream.flush()
     text = str(run.answer or "") if run.stop_reason in ("answer", "length", "repetition") else ""
     repairs: list[str] = []

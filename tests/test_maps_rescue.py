@@ -310,3 +310,14 @@ def test_build_widgets_never_cuts_a_list_without_saying_so():
     shown = [p["n"] for p in out["places"]]
     assert _size(out) <= MAX_LIST_BYTES and len(shown) < 25 and len(out["not_shown"]) == 25 - len(shown)
     assert sorted(out["order"]) == shown and out["itinerary"].count("loc=") == len(shown)
+
+
+def test_a_canvas_turn_whose_model_fails_keeps_the_card_as_the_answer(monkeypatch):
+    """« Fais une présentation des restaurants près de la gare de Lyon »: the map came first; a failed model then
+    ends the turn on the card, like the same ask on a plain turn, never on an error."""
+    from birds.canvas import images
+
+    monkeypatch.setattr(images, "search_commons", lambda *a, **k: None)
+    events = chat(Down(), "Fais une présentation des restaurants près de la gare de Lyon")
+    kinds = [e["type"] for e in events]
+    assert "widget" in kinds and "error" not in kinds and "answer" in kinds, kinds
