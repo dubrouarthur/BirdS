@@ -723,7 +723,10 @@ Code : `birds/harness/analysis/` (lecture `table.py`, profil `profile.py`, moteu
   « Avec une moyenne mobile sur 3 mois », « En camembert »…) ; un clic envoie la suite comme message, le serveur écrit
   la spécification dans le mémo (`[Analyse de « ventes.csv » — {…}]`), le planificateur la modifie, et la réponse
   réaffiche le graphique à jour avec son numéro de version (fiche compacte, tableau replié) ; les versions
-  précédentes restent dans la conversation.
+  précédentes restent dans la conversation. Le numéro ne monte que pour une modification de l'analyse précédente
+  (une suite appliquée par les règles, ou une spécification du modèle sur la même mesure avec la même opération) ;
+  une autre analyse repart à la version 1. Un total seul propose « Par {catégorie} » et « Par mois », une
+  corrélation « {mesure} par mois », « {mesure} par {catégorie} » et « Distribution de {mesure} ».
 - **Module = catalogue + exemples + évaluations** : entrée `analyze_table` de `catalog.py` (hors du catalogue du
   routeur : décidée par son propre appel, seulement quand un tableau est joint), enregistrements `task: "data_plan"`
   de `scripts/build_tools_mix.py` (4 formes de tableaux × 14 gabarits FR/EN + négatifs, 2 gabarits tenus à l'écart),

@@ -383,3 +383,45 @@ def test_a_par_category_edit_of_a_time_series_a_distribution_and_a_comparison(fr
     got = P.rule_plan(frame, "CA par région et par produit", series)
     assert got["why"] == "template" and got["query"]["agg"] == "sum"
     assert P.rule_plan(frame, "Par mois", series) is None or "by" not in P.rule_plan(frame, "Par mois", series)["query"]
+
+
+def _history(prep):
+    from birds.harness.analysis.hooks import memo_line
+
+    return [{"role": "user", "content": "x"}, {"role": "assistant", "content": "y", "memo": memo_line(prep)}]
+
+
+def test_the_version_goes_up_only_for_an_edit_of_the_previous_analysis():
+    first = prepare(DATA, ["ventes.csv"], "quel est le CA moyen par mois ?")
+    assert first.card["answer"]["version"] == 1
+    # review 28/11/2026: an unrelated analysis that follows one was « Version 2 »
+    other = prepare(DATA, ["ventes.csv"], "combien de clients ?", history=_history(first))
+    assert other.result is not None and other.card["answer"]["version"] == 1 and not other.card.get("compact")
+    edit = prepare(DATA, ["ventes.csv"], "Par trimestre", history=_history(first))
+    assert edit.card["answer"]["version"] == 2 and edit.card.get("compact") is True
+    # the model's spec: an edit when it keeps the measure and the operation
+    same = Scripted({"analysis": {"op": "aggregate", "measure": "CA (€)", "agg": "mean", "time": "Date",
+                                  "period": "week"}, "chart": "line"})  # fmt: skip
+    got = prepare(DATA, ["ventes.csv"], "et par semaine", llm=same, tok=TOK, mode="hybrid", structured="x",
+                  history=_history(first))  # fmt: skip
+    assert got.card["answer"]["version"] == 2
+    new = Scripted({"analysis": {"op": "aggregate", "measure": "Quantité", "agg": "sum", "by": "Produit"},
+                    "chart": "bar"})  # fmt: skip
+    got = prepare(DATA, ["ventes.csv"], "quantité par produit", llm=new, tok=TOK, mode="hybrid", structured="x",
+                  history=_history(first))  # fmt: skip
+    assert got.card["answer"]["version"] == 1
+
+
+@pytest.mark.parametrize("question, kind", [("quel est le CA total ?", "scalar"),
+                                            ("corrélation entre Quantité et Remise", "scatter")])
+def test_scalar_and_correlation_cards_offer_next_steps_that_keep_the_measure(question, kind):
+    first = prepare(DATA, ["ventes.csv"], question)
+    assert first.result["kind"] == kind
+    nexts = first.card["answer"]["next"]
+    assert 2 <= len(nexts) <= 3, nexts
+    for chip in nexts:  # each chip, sent as the next message, computes an analysis of the same measure
+        got = prepare(DATA, ["ventes.csv"], chip["ask"], history=_history(first), fresh=[])
+        assert got is not None and got.result is not None, chip
+        q = got.plan["query"]
+        assert q.get("measure") in (first.plan["query"].get("measure"), first.plan["query"].get("y"),
+                                    first.plan["query"].get("x")), (chip, q)  # fmt: skip

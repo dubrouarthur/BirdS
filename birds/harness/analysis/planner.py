@@ -325,7 +325,8 @@ def revise(f: Frame, previous: dict, words: str) -> dict | None:
             q.pop("pivot")
         q["by"], q["sort"], changed = col, "desc", True
     for period, pat in _PERIOD:
-        if re.search(r"\b(?:par|by|per|en|au|a la)\b.*" + pat, t) and (q.get("time") or dates):
+        if re.search(r"\b(?:par|by|per|en|au|a la)\b.*" + pat, t) and (q.get("time") or dates) \
+                and q.get("op") in ("aggregate", "compare"):  # fmt: skip
             if not q.get("time") and q.get("op") == "aggregate":  # « par mois » after « par région »: over time
                 q["time"] = dates[0]
                 q.pop("by", None), q.pop("top", None), q.pop("share", None)

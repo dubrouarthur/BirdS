@@ -178,7 +178,7 @@ def prepare(workspace: Path, names: list[str], words: str, lang: str = "fr", *, 
         if result is None and not new:
             return None  # a table of an earlier message, and no analysis asked of it: not this turn's topic
         previous = planner.previous_spec(history)
-        version = int((previous or {}).get("version") or 1) + 1 if previous and plan else 1
+        version = int(previous.get("version") or 1) + 1 if plan and _edits(plan, previous) else 1
         answer = {"label": result["title"], "query": result["query"], "result": slim_result(result), "chart": chart,
                   "next": next_steps(f, result, lang), "version": version} if result else None  # fmt: skip
         card = build_card(f, prof, sugg, name=name, origin=origin, lang=lang, answer=answer)
@@ -201,6 +201,21 @@ def prepare(workspace: Path, names: list[str], words: str, lang: str = "fr", *, 
         return None
 
 
+def _edits(plan: dict, previous: dict | None) -> bool:
+    """Whether ``plan`` is a new version of the previous turn's analysis (its version number goes up): an edit by
+    rule (« en courbe », « par trimestre »), or the model's spec on the same measure with the same operation. Any
+    other analysis that follows one starts again at version 1."""
+    if not previous:
+        return False
+    if plan.get("why") == "revised":
+        return True
+    if plan.get("why") != "model":
+        return False
+    a, b = plan.get("query") or {}, previous.get("analysis") or {}
+    subject = lambda q: q.get("measure") or frozenset((q.get("x"), q.get("y")))  # noqa: E731
+    return a.get("op") == b.get("op") and subject(a) == subject(b)
+
+
 def _chart_type(plan: dict, result: dict) -> str | None:
     """The chart the planner chose, when it suits the result (a donut of a time series is not drawn)."""
     want = plan.get("chart")
@@ -221,10 +236,12 @@ def _chart_type(plan: dict, result: dict) -> str | None:
 _NEXT = {
     "fr": {"donut": "En camembert", "line": "En courbe", "bar": "En barres", "top5": "Seulement le top 5",
            "quarter": "Par trimestre", "month": "Par mois", "year": "Par année", "window": "Avec une moyenne mobile sur 3 mois",
-           "change": "Évolution en % d'une période à l'autre", "by": "Par {name}", "heatmap": "En carte de chaleur"},
+           "change": "Évolution en % d'une période à l'autre", "by": "Par {name}", "heatmap": "En carte de chaleur",
+           "m_month": "{m} par mois", "m_by": "{m} par {name}", "dist": "Distribution de {m}"},
     "en": {"donut": "As a donut", "line": "As a line", "bar": "As bars", "top5": "Only the top 5",
            "quarter": "By quarter", "month": "By month", "year": "By year", "window": "With a 3-month moving average",
-           "change": "Percent change from one period to the next", "by": "By {name}", "heatmap": "As a heat map"},
+           "change": "Percent change from one period to the next", "by": "By {name}", "heatmap": "As a heat map",
+           "m_month": "{m} by month", "m_by": "{m} by {name}", "dist": "Distribution of {m}"},
 }  # fmt: skip
 
 
@@ -266,6 +283,18 @@ def next_steps(f: Frame, result: dict, lang: str = "fr") -> list[dict]:
             out.append(w["month"])
     elif kind == "describe" and cats:
         out.append(w["by"].format(name=cats[0].name))
+    elif kind == "scalar":  # « Total CA (€) »: broken down by a category, over time
+        out += [w["by"].format(name=c.name) for c in cats[:1]]
+        if dates:
+            out.append(w["month"])
+        out += [w["by"].format(name=c.name) for c in cats[1:2]]
+    elif kind == "scatter" and q.get("op") == "corr":  # each measure of the pair, on its own
+        y = q.get("y") or ""
+        if dates:
+            out.append(w["m_month"].format(m=y))
+        if cats:
+            out.append(w["m_by"].format(m=y, name=cats[0].name))
+        out.append(w["dist"].format(m=q.get("x") or ""))
     return [{"label": x, "ask": x} for x in out[:3]]
 
 
