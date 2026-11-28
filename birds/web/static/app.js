@@ -1311,7 +1311,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         code_checks: Array.isArray(event.code_checks) ? event.code_checks.slice(0, 50) : [], // syntax badges
         widgets: Array.isArray(event.widgets) ? event.widgets : [],
         fallback: event.fallback ? String(event.fallback) : "", // written from the results, not by the model
-        canvas: event.canvas?.aid ? { aid: event.canvas.aid, version: event.canvas.version, doc: !!event.canvas.doc } : null,
+        canvas: event.canvas?.aid ? canvasRef(event.canvas) : null,
         reflexion: event.reflexion && typeof event.reflexion === "object" ? event.reflexion : null, // checked when drawn
       };
       if (event.plan !== undefined) turn.plan = cleanPlan(event.plan); // the final checklist, or none
@@ -2432,6 +2432,10 @@ async function init() {
     },
     headers: requestHeaders,
     save: (c) => saveConv(c),
+    // a document changed in the canvas (an edit, a chosen variant, a restore): its cards in the chat follow
+    changed: (aid) => {
+      for (const tn of state.conv?.turns || []) if (tn.answer?.canvas?.aid === aid) updateTurn(tn);
+    },
     busy: () => state.busy || !!pendingConfirm(),
     mode: activeMode,
     // on a laptop the canvas takes the sidebar's room while it is open; the saved preference is kept
@@ -2508,3 +2512,20 @@ async function init() {
 }
 
 init();
+
+/** The answer's link to its canvas artifact, as kept on the turn: the next-step chips the harness computed from
+ * the document's structure, and the file cards it replaces (a Word document is one card, in the canvas). */
+function canvasRef(c) {
+  const str = (x) => typeof x === "string";
+  return {
+    aid: c.aid,
+    version: c.version,
+    doc: !!c.doc,
+    variants: !!c.variants,
+    next: (Array.isArray(c.next) ? c.next : [])
+      .filter((x) => x && str(x.label) && str(x.prompt))
+      .slice(0, 3)
+      .map((x) => ({ label: x.label.slice(0, 60), prompt: x.prompt.slice(0, 200) })),
+    files: (Array.isArray(c.files) ? c.files : []).filter(str).slice(0, 8),
+  };
+}

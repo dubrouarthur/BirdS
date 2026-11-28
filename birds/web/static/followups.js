@@ -2,6 +2,7 @@
 // Deterministic: the chips depend on what the answer IS (its widgets, its draft, a table), never on what the model
 // suggests. A chip only sends a request the user could have typed; the harness reads it like any other.
 import { h, state, t } from "./core.js";
+import { canvasSuggestions } from "./canvas.js";
 
 const lang = () => (state.prefs.lang === "en" ? "en" : "fr");
 const L = (fr, en) => (lang() === "en" ? en : fr);
@@ -24,6 +25,10 @@ export function suggestions(answer) {
     if (out.length < 3 && !out.some((x) => x.prompt === prompt))
       out.push({ label, prompt, kind });
   };
+  // a document that evolves in the canvas: the next steps the harness read in its structure (a missing section…)
+  for (const c of answer.canvas?.next || []) add(c.label, c.prompt, "canvas");
+  if (answer.canvas?.aid)
+    for (const c of canvasSuggestions(answer.canvas)) add(c.label, c.prompt, c.kind);
   const widgets = answer.widgets || [];
   for (const w of widgets) {
     if (w.type === "weather") {
@@ -220,7 +225,11 @@ export function renderChips(turn, onSuggest, busy = false) {
   const clarify = clarifyOptions(turn.answer.content);
   const items = clarify.length
     ? clarify.map((c) => ({ label: c, prompt: c, kind: "clarify" }))
-    : suggestions(turn.answer);
+    : suggestions(
+        turn.canvasLive?.phase === "final" && !turn.answer.canvas
+          ? { ...turn.answer, canvas: turn.canvasLive } // a deck made this turn (its card is above the chips)
+          : turn.answer,
+      );
   if (!items.length) return null;
   return h(
     "div",

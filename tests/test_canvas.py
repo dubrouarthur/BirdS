@@ -204,7 +204,7 @@ def test_ids_are_never_reused():
         ("mets la diapo 4 au début", [{"op": "move", "id": "b4", "after": "start"}]),
         ("déplace la slide 5 avant la slide 2", [{"op": "move", "id": "b5", "after": "b1"}]),
         ("passe en thème chaleureux", [{"op": "theme", "theme": "warm"}]),
-        ("change le thème", [{"op": "theme", "theme": "warm"}]),  # the next one after « modern »
+        ("change le thème", [{"op": "theme", "theme": "forest"}]),  # deck cycle: corporate, forest, warm, night
         (
             "remplace l'image de la slide 1 par une photo de tramway à Lyon",
             [{"op": "image", "id": "b1", "query": "tramway à Lyon", "again": False}],
@@ -1064,7 +1064,7 @@ def test_chat_text_drops_an_excuse_before_the_deck():
     d = dsl.parse(DECK, "deck")
     text = turn.chat_text("deck", d, "fr", before="Je n'ai pas accès à vos données internes ni à l'outil web.")
     assert "accès" not in text
-    assert "ajoute une section" in turn.chat_text("doc", dsl.parse("# A\nx\n# B\ny", "doc"), "fr")
+    assert "✦ sur une section" in turn.chat_text("doc", dsl.parse("# A\nx\n# B\ny", "doc"), "fr")
 
 
 # ------------------------------------------------------------------ the task plan on canvas turns

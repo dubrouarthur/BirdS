@@ -218,7 +218,8 @@ _MOVE = re.compile(r"\b(?:d[ée]place[rz]?|mets?|mettre|passe[rz]?|remonte[rz]?|
 _SWAP = re.compile(r"\b(?:inverse[rz]?|[ée]change[rz]?|permute[rz]?|swap)\b", re.I)
 _THEME_WORD = re.compile(r"\b(?:th[eè]me|style|look|habillage|couleurs?|palette|design|theme)\b", re.I)
 _THEME_NAME = re.compile(
-    r"\b(sobre|corporate|classique|institutionnel|moderne?|modern|tech|chaleureu(?:x|se)|warm|chaud)\b", re.I
+    r"\b(sobre|corporate|classique|institutionnel|bleu|bird|moderne?|modern|tech|chaleureu(?:x|se)|warm|chaud|"
+    r"terracotta|for[êe]t|forest|vert|nature|nuit|night|sombre|dark|noir)\b", re.I
 )
 _IMAGE_WORD = re.compile(r"\b(?:images?|photos?|illustrations?|visuels?|pictures?|picture)\b", re.I)
 _REPLACE = re.compile(r"\b(?:remplace[rz]?|change[rz]?|modifie[rz]?|autre|nouvelle|replace|swap|another|different)\b",
@@ -282,7 +283,7 @@ def direct_ops(words: str, doc: dict) -> tuple[list[dict], str] | None:
     if _THEME_WORD.search(text) and (theme or re.search(r"\b(?:change|autre|another|different)", text, re.I)):
         if theme:
             return [{"op": "theme", "theme": dsl.theme_of(theme.group(1))}], "theme"
-        order = list(dsl.THEMES)
+        order = list(dsl.DECK_THEMES if doc.get("kind") == "deck" else dsl.THEMES[:3])
         cur = doc.get("theme") if doc.get("theme") in order else "corporate"
         return [{"op": "theme", "theme": order[(order.index(cur) + 1) % len(order)]}], "theme"
     if not ids:
@@ -383,10 +384,39 @@ def _default_after(doc: dict, words: str) -> str:
         j = _index(doc, ids[0])
         return doc["blocks"][j - 1]["id"] if j > 0 else "start"
     blocks = doc.get("blocks") or []
+    placed = _template_place(doc, words)
+    if placed:
+        return placed
     if len(blocks) > 1 and re.match(r"(?i)^\s*(?:merci|thanks?|thank you|questions?|conclusion|contact|q ?& ?a|"
                                     r"prochaines? [ée]tapes|next steps)", blocks[-1].get("title") or ""):  # fmt: skip
         return blocks[-2]["id"]
     return "end"
+
+
+def _template_place(doc: dict, words: str) -> str | None:
+    """A section the document's template expects (« ajoute une section Périmètre »): after the last section of
+    the document that comes before it in the template's order (« Périmètre » after « Objectifs »), else first."""
+    if doc.get("kind") != "doc" or not doc.get("template"):
+        return None
+    from . import templates
+
+    tpl = templates.TEMPLATES.get(doc["template"])
+    if tpl is None or not tpl.sections:
+        return None
+    said = templates.fold(words)
+    asked = next((k for k, sec in enumerate(tpl.sections) if re.search(rf"\b(?:{sec.match})", said)
+                  and re.search(r"\b(?:section|partie|ajoute|add)\b", said)), None)  # fmt: skip
+    if asked is None:
+        return None
+    at = "start"
+    for b in doc.get("blocks") or []:
+        title = templates.fold(b.get("title") or "")
+        rank = next((k for k, sec in enumerate(tpl.sections) if re.search(rf"\b(?:{sec.match})", title)), None)
+        if rank is not None and rank < asked:
+            at = b["id"]
+        elif rank is not None and rank > asked:
+            break
+    return at
 
 
 _STRUCTURE = re.compile(r"(?m)^\s{0,3}#{1,3}\s+\S|^\s*:::|^-{3,}\s*$")
@@ -610,6 +640,11 @@ def rewrite(old: dict, new: dict) -> dict:
     out["title"] = new.get("title") or old.get("title") or ""
     out["subtitle"] = new.get("subtitle") or old.get("subtitle") or ""
     out["theme"] = new.get("theme") or old.get("theme")
+    if new.get("footnotes"):
+        out["footnotes"] = new["footnotes"]
+    if new.get("cover"):
+        keep = (old.get("cover") or {}) if (old.get("cover") or {}).get("query") == new["cover"].get("query") else {}
+        out["cover"] = {**new["cover"], **({"media": keep["media"]} if keep.get("media") else {})}
     by_title = {re.sub(r"\W+", " ", (b.get("title") or "").lower()).strip(): b for b in old.get("blocks") or []}
     blocks = []
     used: set[str] = set()
@@ -617,6 +652,8 @@ def rewrite(old: dict, new: dict) -> dict:
         key = re.sub(r"\W+", " ", (b.get("title") or "").lower()).strip()
         prev = by_title.get(key)
         nb = {"id": "", "title": b.get("title") or "", "parts": b.get("parts") or [], "notes": b.get("notes") or ""}
+        if b.get("layout"):
+            nb["layout"] = b["layout"]
         if prev and prev["id"] not in used:
             nb["id"] = prev["id"]
             used.add(prev["id"])

@@ -626,8 +626,9 @@ function filePreview(preview, onDownload, onEdit = null) {
 }
 
 function renderFiles(turn) {
+  const inCanvas = turn.answer?.canvas?.files || []; // a Word document is one card: the canvas card
   const files = (turn.files || []).filter(
-    (f) => f && typeof f.name === "string",
+    (f) => f && typeof f.name === "string" && !inCanvas.includes(f.name),
   );
   if (!files.length) return null;
   turn.ui.fileOpen = turn.ui.fileOpen || {};
