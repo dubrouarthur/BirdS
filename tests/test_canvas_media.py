@@ -330,7 +330,7 @@ def test_a_miss_cut_short_by_the_network_is_not_remembered():
 
     with images.tracing() as log:
         assert images.search_openverse("red fox", Down(openverse=[_ov(1, "Red fox")])) is None
-    assert log[0]["why"] == {"fetch_429": 1}
+    assert log[0]["why"] == {"fetch_429@live.staticflickr.com": 1}  # the cause and the host that refused
     f = Fake(openverse=[_ov(1, "Red fox")])
     assert images.search_openverse("red fox", f) is not None  # searched again: the miss was not cached
     # a miss for what the results are (no word of the subject) is remembered

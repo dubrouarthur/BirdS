@@ -20,7 +20,7 @@ import io
 import re
 import time
 from contextlib import contextmanager
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from birds.harness import office_media as om
 
@@ -386,7 +386,7 @@ def _search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: 
         if not creator and not lic.startswith(("CC0", "Domaine")):
             no("no_author")
             continue  # a CC BY licence needs its author
-        m, err = None, ""
+        m, errs = None, []
         for big in _openverse_urls(r):
             try:
                 m = om.prepare(fetch.image(big), mid, "web", max_bytes=SHOW_BYTES, alt=q, title=title[:120],
@@ -394,9 +394,9 @@ def _search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: 
                 m.src = big
                 break
             except Exception as e:  # noqa: BLE001 - this copy fails, the next one may not
-                err = error_status(e)
+                errs.append(f"{error_status(e)}@{urlsplit(big).hostname or '?'}")
         if m is None:
-            no("fetch_" + (err or "no_url"))
+            no("fetch_" + ("+".join(errs) or "no_url"))
             continue
         if m.w < 400 or m.h < 260:
             no("small")
