@@ -271,16 +271,25 @@ export const isImageFile = (file) =>
 // ------------------------------------------------------------------ cards
 
 /** A document card. `doc`: {name, size, encoding, status?, content?}. */
-export function docCard(doc, { onRemove, status, compact, excerpt } = {}) {
+export function docCard(doc, { onRemove, status, compact, excerpt, onOpen } = {}) {
   const k = kindOf(doc.name);
   const ext = extOf(doc.name) || "txt";
+  // `onOpen`: a click (or Enter) on the card shows what Bird will read in it; the remove button keeps its own job
+  const open = onOpen
+    ? {
+        onclick: (e) => !e.target.closest(".att-x, details") && onOpen(),
+        onkeydown: (e) => (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && (e.preventDefault(), onOpen()),
+        "aria-description": t("att.excerpt"),
+      }
+    : {};
   return h(
     "div",
     {
-      class: `att-card att-doc ${k.cls}${compact ? " is-compact" : ""}`,
+      class: `att-card att-doc ${k.cls}${compact ? " is-compact" : ""}${onOpen ? " is-openable" : ""}`,
       tabindex: "0",
       title: doc.name,
       "data-att": doc.name,
+      ...open,
     },
     h("span", {
       class: "att-badge",

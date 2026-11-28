@@ -1,0 +1,337 @@
+/* Conversation engine (conversation.js): documents in context, version pager, inline edit, dialogs, sidebar extras.
+   Uses the app's tokens only (app.css :root, light and dark), so both themes follow. */
+
+/* ------------------------------------------------------------ « 2 documents en contexte » */
+.cx-ctx {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 2px 0;
+}
+.cx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 32px;
+  max-inline-size: 100%;
+  padding: 0 10px 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font: 500 0.8rem/1.2 var(--sans);
+  cursor: pointer;
+}
+.cx-pill:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.cx-pill .icon {
+  inline-size: 15px;
+  block-size: 15px;
+  flex: none;
+}
+.cx-pill .cx-chev {
+  transform: rotate(90deg);
+  transition: transform 0.15s;
+  opacity: 0.7;
+}
+.cx-pill[aria-expanded="true"] .cx-chev {
+  transform: rotate(-90deg);
+}
+.cx-pill[aria-expanded="true"] {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+.cx-pill.is-lost {
+  border-color: var(--danger-line);
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+/* opens in place, inside the composer (never clipped by it, never over the conversation) */
+.cx-ctx-pop {
+  flex-basis: 100%;
+  padding: 8px 8px 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+}
+.cx-ctx-pop[hidden] {
+  display: none;
+}
+.cx-ctx-title {
+  margin: 0 0 6px;
+  font: 600 0.84rem/1.3 var(--sans);
+  color: var(--ink);
+}
+.cx-ctx-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cx-ctx-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.cx-ctx-name {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-inline-size: 0;
+  min-block-size: 40px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--ink-2);
+  font: 0.86rem/1.2 var(--sans);
+  text-align: start;
+  cursor: pointer;
+}
+.cx-ctx-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cx-ctx-name:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.cx-ctx-name:disabled {
+  cursor: default;
+  color: var(--danger-ink);
+}
+.cx-ctx-name .icon {
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
+}
+.cx-ctx-note {
+  margin: 8px 0 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.cx-ctx-row.is-lost + .cx-ctx-row:not(.is-lost) {
+  margin-block-start: 4px;
+  border-block-start: 1px solid var(--line);
+  padding-block-start: 4px;
+}
+.att-card.is-openable {
+  cursor: pointer;
+}
+.att-card.is-openable:hover {
+  border-color: var(--line-strong);
+}
+
+/* ------------------------------------------------------------ « ‹ 1/2 › » */
+.cx-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.cx-pager .btn-icon {
+  inline-size: 30px;
+  min-block-size: 30px;
+}
+.cx-pager .btn:disabled {
+  opacity: 0.35;
+}
+.cx-pager-n {
+  min-inline-size: 2.4em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.cx-flip {
+  transform: scaleX(-1);
+}
+
+/* ------------------------------------------------------------ the question's own actions, and its inline editor */
+.cx-user-acts {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 2px;
+  margin-block-start: 2px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.turn-user:hover .cx-user-acts,
+.turn-user:focus-within .cx-user-acts,
+.cx-user-acts:has(.cx-pager) {
+  opacity: 1;
+}
+@media (hover: none) {
+  .cx-user-acts {
+    opacity: 1;
+  }
+}
+.turn-user.cx-has-acts {
+  flex-direction: column;
+  align-items: flex-end;
+}
+.cx-edit {
+  display: grid;
+  gap: 8px;
+  inline-size: min(100%, 36rem);
+  padding: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--surface);
+}
+.cx-edit-input {
+  inline-size: 100%;
+  min-block-size: 3.2em;
+  padding: 6px 8px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  line-height: 1.5;
+  resize: none;
+}
+.cx-edit-input:focus {
+  outline: none;
+}
+.cx-edit:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.cx-edit-note {
+  margin: 0;
+  padding-inline: 8px;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.cx-edit-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ------------------------------------------------------------ dialogs (confirm, preview) */
+.cx-dialog {
+  inline-size: min(28rem, calc(100vw - 32px));
+  max-block-size: calc(100dvh - 32px);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-lg);
+}
+.cx-dialog[open] {
+  animation: rise 0.18s ease-out;
+}
+.cx-dialog::backdrop {
+  background: var(--backdrop);
+}
+.cx-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cx-dialog-title {
+  flex: 1;
+  min-inline-size: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font: 600 1.12rem/1.3 var(--serif);
+}
+.cx-dialog-text {
+  margin: 10px 0 0;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+.cx-dialog-sub {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.cx-dialog-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-block-start: 20px;
+}
+.btn-danger-solid {
+  border-color: var(--danger-ink);
+  background: var(--danger-ink);
+  color: var(--surface);
+}
+.btn-danger-solid:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+.cx-preview {
+  inline-size: min(40rem, calc(100vw - 32px));
+}
+.cx-preview-text {
+  max-block-size: min(60dvh, 32rem);
+  margin: 12px 0 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font: 0.8rem/1.5 var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------ sidebar: live answer, menu, search snippet */
+.cx-live {
+  flex: none;
+  inline-size: 12px;
+  block-size: 12px;
+  margin-inline: 4px 2px;
+  border: 2px solid var(--line-strong);
+  border-block-start-color: var(--accent);
+  border-radius: 50%;
+  animation: cx-spin 0.9s linear infinite;
+}
+@keyframes cx-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cx-live {
+    animation: none;
+    border-color: var(--accent);
+  }
+}
+.conv-open .cx-snippet {
+  display: block;
+  overflow: hidden;
+  margin-block-start: 2px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+.cx-snippet mark {
+  border-radius: 3px;
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.conv-menu[role="menu"] {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 0;
+  padding: 2px 4px 6px;
+}
+.conv-menu[role="menu"] .btn {
+  justify-content: flex-start;
+  min-block-size: 36px;
+  border-radius: 8px;
+}
+.conv-menu[role="menu"] .btn:focus-visible {
+  background: var(--surface-2);
+}

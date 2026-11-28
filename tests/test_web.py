@@ -713,7 +713,9 @@ def test_static_payload_budget():
     # and Word-like documents in the canvas (canvas-doc.js, A4 pages, variants: +47 kB raw, +12 kB gzipped)
     # then the canvas code mode (several files, preview by device, console with file:line, per-file versions, zip:
     # +37 kB raw, +11 kB gzipped)
-    assert total < 1_520_000, f"static payload is {total} bytes"  # measured 1 509 029 (decks + documents + code)
+    # then the conversation engine (versions, inline edit, documents in context, dialogs, back button: conversation*.js
+    # and conversation.css)
+    assert total < 1_600_000, f"static payload is {total} bytes"  # measured 1 509 029 before the conversation engine
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"
@@ -728,8 +730,12 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     # Mode Réflexion keeps its strings apart (reflexion-i18n.js, merged at load; parity in tests/js/reflexion.test.mjs)
     rf = (STATIC_DIR / "reflexion-i18n.js").read_text().split("\n  en: {", 1)[0]
     fr |= set(re.findall(r'^\s+"(rf\.[\w.]+)":', rf, re.M))
+    # the conversation engine too (conversation-i18n.js, cx.* keys; parity in tests/js/conversation.test.mjs)
+    cxs = (STATIC_DIR / "conversation-i18n.js").read_text().split("\n  en: {", 1)[0]
+    fr |= set(re.findall(r'^\s+"(cx\.[\w.]+)":', cxs, re.M))
     used = set()
-    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js"]:
+    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js",
+                 "conversation.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))
     used |= set(re.findall(r'data-i18n(?:-aria|-placeholder)?="([\w.]+)"', (STATIC_DIR / "index.html").read_text()))
     assert not used - fr, sorted(used - fr)

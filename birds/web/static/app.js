@@ -63,6 +63,8 @@ import { setModuleHooks } from "./modules.js";
 import { applyResearchEvent } from "./research.js";
 import { mountPicker, updatePicker } from "./reflexion.js"; // Mode Réflexion: the bird picker
 import { normalizeChoice, thinks } from "./reflexion-data.js";
+import * as cx from "./conversation.js"; // versions, inline edit, documents in context, dialogs, back button
+import { contextDocs } from "./conversation-data.js";
 
 // Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
 const AGENT_MODES = ["auto", "on", "off"];
@@ -880,19 +882,24 @@ function renderAttachments() {
   keepTrayFocus(box, () => drawAttachments(box));
 }
 function drawAttachments(box) {
-  const docs = state.conv?.attachments || [];
+  const all = state.conv?.attachments || [];
+  // the composer holds only what the next message brings; the files of earlier messages sit in their message, and
+  // a small « 2 documents en contexte » pill lists them (read only when a question is about them)
+  const { pending: docs, context, lost } = contextDocs(all);
   const imgs = pending.images;
-  box.hidden = !docs.length && !imgs.length;
+  box.hidden = !docs.length && !imgs.length && !context.length && !lost.length;
   if (box.hidden) return box.replaceChildren();
   const rerender = () => (renderAttachments(), updateComposer());
-  const removeDoc = (i) => () => {
-    announce(t("att.removed", { name: docs[i].name }));
-    docs.splice(i, 1);
+  const dropDoc = (doc, said) => {
+    const i = all.indexOf(doc);
+    if (i < 0) return;
+    announce(t(said, { name: doc.name }));
+    all.splice(i, 1);
     rerender();
     renderEmpty();
     saveIfStarted();
   };
-  box.replaceChildren(
+  const tray = (docs.length || imgs.length) && [
     h(
       "ul",
       { class: "att-tray", "aria-label": t("att.tray") },
@@ -907,7 +914,7 @@ function drawAttachments(box) {
           }),
         ),
       ),
-      docs.map((doc, i) =>
+      docs.map((doc) =>
         h(
           "li",
           { class: `att-in${isNew(doc.name) ? " att-new" : ""}` },
@@ -917,12 +924,9 @@ function drawAttachments(box) {
               size: doc.size || (doc.content ? doc.content.length : 0),
             },
             {
-              onRemove: removeDoc(i),
-              status: doc.lost
-                ? { kind: "err", text: t("att.doc.lost") }
-                : doc.sent
-                  ? { kind: "ok", text: t("att.doc.inconv") }
-                  : { kind: "ok", text: t("att.ready") },
+              onRemove: () => dropDoc(doc, "att.removed"),
+              onOpen: () => cx.previewDialog(doc),
+              status: { kind: "ok", text: t("att.ready") },
             },
           ),
         ),
@@ -934,6 +938,14 @@ function drawAttachments(box) {
       icon("info"),
       t(imgs.length ? "att.note.images" : "composer.attach.note"),
     ),
+  ];
+  box.replaceChildren(
+    ...(tray || []),
+    cx.contextPill(context, lost, {
+      onRemove: (doc) => dropDoc(doc, "cx.ctx.removed"),
+      onPreview: (doc) => cx.previewDialog(doc),
+      onReattach: () => $("file-input").click(),
+    }) || [],
   );
 }
 const saveIfStarted = () => state.conv.turns.length && saveConv();
@@ -2391,6 +2403,7 @@ function refreshAll() {
 
 let canvasClosedSide = false; // the canvas closed the sidebar: it opens again when the canvas closes
 async function init() {
+  cx.ensureStyles();
   setHandlers({
     onConfirm: answerConfirm,
     onRegenerate: regenerate,

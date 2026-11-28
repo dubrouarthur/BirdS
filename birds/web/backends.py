@@ -15,7 +15,7 @@ import shutil
 import tempfile
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -622,14 +622,16 @@ class DemoBackend:
         found = demo_modules.modules_match(last, request)
         if found:
             return demo_modules.demo_modules(run, found)
-        scenario = pick_scenario(last, bool(request.attachments))
+        # only the files THIS message brings make it a question about a document (the app re-sends all of them)
+        joined = bool(request.attachments) and run.data_prep_new()
+        scenario = pick_scenario(last, joined)
         if scenario in ("attachment", "plain", "chart") and run.data_prep() is not None:
             scenario = "data"  # data analysis hook: a CSV / XLSX or a pasted table, computed by the harness
         elif scenario == "attachment" and not run.data_prep_new():
             scenario = pick_scenario(last)  # only files of earlier messages, and none of them is asked about
-        if scenario != "data" and demo_plan(last, lang) and not request.attachments:
+        if scenario != "data" and demo_plan(last, lang) and not joined:
             scenario = "plan"  # a deck and a mail in one ask: the task plan's checklist (w1-harness)
-        if scenario == "plain" and not request.attachments:
+        if scenario == "plain" and not joined:
             from birds.harness import followup
 
             again = followup.resolve(last, followup.previous(request.messages[:-1]), lang)
@@ -1826,6 +1828,11 @@ _DENIED_SUMMARY = {
     "denied_cap": ("Limite d'actions par requête atteinte", "Limit of actions per request reached"),
 }
 _ATTACH_NOTE = {"fr": "Fichier joint", "en": "Attached file"}
+# a file of an earlier message whose note the history window dropped: still readable, never « to read first »
+_EARLIER_NOTE = {
+    "fr": "Document de la conversation, à lire seulement si la demande porte dessus",
+    "en": "Document from this conversation, to read only if the request is about it",
+}
 ATTACH_DIR = "pieces-jointes"
 
 
@@ -2114,9 +2121,15 @@ def prepare_turn(
     history_tokens: int,
     msg_cap_tokens: int,
     clock: Callable[[], datetime] = paris_now,
+    earlier_names: Sequence[str] = (),
 ):
     """Pure: (system, kept history, user_sent, stats) for one request. user_sent is EXACTLY the text the model gets
-    as this turn's user message; the client stores it and sends it back as that turn's content afterwards."""
+    as this turn's user message; the client stores it and sends it back as that turn's content afterwards.
+
+    ``attachment_names`` are the files THIS message brings (noted « [Fichier joint : x] », read first);
+    ``earlier_names`` are the files of earlier messages, still in the workspace: the history already notes them, so
+    nothing is added (a general question after a document is answered as such, never « d'après le fichier »), except
+    for a file whose note the history window cut, named once as available only if the request is about it."""
     from birds.harness import guard
     from birds.harness.history import window
     from birds.sources.identity import DEFAULT_SYSTEM
@@ -2131,8 +2144,12 @@ def prepare_turn(
     lines = [ln for ln in lines if ln not in user]
     if lines:
         user += "\n\n" + "\n".join(lines)
-    user_sent = guard.defang(user)
     kept, summary, stats = window(history, history_tokens, lang=conv, msg_cap_tokens=msg_cap_tokens)
+    told = "\n".join(str(m.get("content") or "") for m in kept if m.get("role") == "user")
+    gone = [n for n in earlier_names if f"[{_ATTACH_NOTE[rl]} : {n}]" not in told and n not in user]
+    if gone:
+        user += "\n\n" + "\n".join(f"[{_EARLIER_NOTE[rl]} : {n}]" for n in gone)
+    user_sent = guard.defang(user)
     kept = [{**m, "content": guard.defang(m["content"])} for m in kept]
     system = DEFAULT_SYSTEM[conv] + ("\n\n" + summary if summary else "")
     system += "\n\n" + date_line(conv, clock())  # last: a small model otherwise guesses "today" with confidence
@@ -2379,6 +2396,13 @@ class HarnessBackend:
                 else:
                     (attach_dir / name).write_text(doc["content"], encoding="utf-8")
                 names.append(name if ephemeral else f"{ATTACH_DIR}/{name}")
+            # the app re-sends every file of the conversation each turn: only those THIS message brings are « joined »
+            # to it (noted, read first, ``attached``); the others stay readable when the request is about them
+            from birds.harness.analysis.hooks import brought as _brought
+
+            fresh = set(_brought(request.attachments, request.messages[:-1]) or [])
+            new_names = [n for n in names if Path(n).name in fresh]
+            old_names = [n for n in names if n not in new_names]
             cfg = self._config(workspace, request, ctx)
             offset = len(request.images) if request.resume is None else 0
 
@@ -2471,7 +2495,8 @@ class HarnessBackend:
                 image_usage += scan_usage
                 offset = len(request.images) + len(scan_usage)  # the agent's steps come after these
                 system, kept, user_sent, hist_stats = prepare_turn(
-                    request.messages, conv, rl, names, image_texts, self.history_tokens, self.msg_cap_tokens
+                    request.messages, conv, rl, new_names, image_texts, self.history_tokens, self.msg_cap_tokens,
+                    earlier_names=old_names,
                 )
                 state_ui = len(kept) + 1  # index of this turn's user message in the agent's messages
                 # ---- data analysis hook: an attached CSV / XLSX (or a pasted table) is computed on by the harness;
@@ -2493,16 +2518,17 @@ class HarnessBackend:
                     try:
                         # the canvas (birds.canvas): a change to the open artifact comes first; a new deck, document or
                         # page is made after the Mode Agent declined it (its research decks stay the team's)
-                        cplan = canvas_web.plan_for(request, words, rl, self.canvas, attached=bool(names or image_texts))
+                        joined = bool(new_names or image_texts)  # this message brings a file or an image
+                        cplan = canvas_web.plan_for(request, words, rl, self.canvas, attached=joined)
                         canvas_kw = dict(user_sent=user_sent, words=words, system=system, history=kept, lang=rl,
-                                         mode="server", attached=bool(names or image_texts))  # fmt: skip
+                                         mode="server", attached=joined)  # fmt: skip
                         if cplan is not None and cplan.mode != "create":
                             run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
                         else:
-                            decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
+                            decision = crew_web.decide_for(request, words, len(new_names), len(image_texts), rl)
                             if request.reflexion == "albatros" and decision.recipe is None and request.agent == "auto":
                                 # Albatros, Endurance: a request the team can take runs as a team (crew « on »)
-                                strong = crew_web.decide_for(request, words, len(names), len(image_texts), rl,
+                                strong = crew_web.decide_for(request, words, len(new_names), len(image_texts), rl,
                                                              mode="on")  # fmt: skip
                                 decision = strong if strong.recipe and not strong.no_deliverable else decision
                             run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
@@ -2518,7 +2544,7 @@ class HarnessBackend:
                                 thinking=request.thinking,
                                 lang=rl,
                                 request_text=words,
-                                attached=bool(names or image_texts),
+                                attached=joined,
                                 tz=request.tz,
                                 reflexion=request.reflexion,
                             )
