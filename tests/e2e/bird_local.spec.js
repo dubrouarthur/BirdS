@@ -153,9 +153,14 @@ async function send(page, text) {
       if (!(await down.count())) problems.push(`${cfg.name}: no « ne répond pas » card with Bird local stopped`);
       else {
         const text = await down.innerText();
-        if (!/vllm serve adubrou\/Bird-S-4B --host 127\.0\.0\.1 --port 8000/.test(text) || !/bird_local\.py/.test(text))
-          problems.push(`${cfg.name}: the card lacks the commands`);
-        if ((await down.locator(".local-step").count()) !== 3) problems.push(`${cfg.name}: not three steps`);
+        // one command for the visitor's system, the page waits on its own; the developer steps fold away
+        if (!/curl -fsSL https:\/\/\S+\/install\.sh \| sh|irm https:\/\/\S+\/install\.ps1 \| iex/.test(text))
+          problems.push(`${cfg.name}: the card lacks the one install command`);
+        if (/vllm serve|bird_local\.py|appairage/.test(text)) problems.push(`${cfg.name}: developer steps shown unfolded`);
+        if (!/En attente de Bird/.test(text)) problems.push(`${cfg.name}: no « En attente de Bird »`);
+        await down.locator('.local-os[data-os="windows"]').click();
+        if (!/irm https:\/\/\S+\/install\.ps1 \| iex/.test(await down.innerText())) problems.push(`${cfg.name}: Windows tab`);
+        if ((await down.locator(".local-manual .local-step").count()) !== 3) problems.push(`${cfg.name}: manual steps missing`);
         if (/TypeError|Failed|HTTP|ERR_/.test(text)) problems.push(`${cfg.name}: raw error in the card`);
       }
       await noHScroll(page, cfg.name, "settings (down)");
@@ -178,6 +183,11 @@ async function send(page, text) {
         await ctx.close();
         continue;
       }
+      // found: one button opens the local page (no code there); the code form stays folded for this page
+      const open = page.locator('#local-panel [data-act="local-open"]');
+      if ((await open.getAttribute("href")) !== `${LOCAL}/`) problems.push(`${cfg.name}: « Ouvrir Bird local » href`);
+      await shot(page, `local-found-${cfg.name}.png`, page.locator("#local-panel"));
+      await page.locator("#local-panel .local-manual > summary").click();
       // a wrong code is refused, in words
       await page.fill("#local-code", "WXYZ-WXYZ");
       await page.click('[data-act="local-connect"]');

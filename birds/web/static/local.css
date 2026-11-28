@@ -215,3 +215,110 @@
   margin-block-start: 3px;
   color: var(--eco);
 }
+
+/* one command for the visitor's system; the developer steps fold away */
+.local-install {
+  display: grid;
+  gap: 8px;
+}
+.local-oses {
+  display: inline-flex;
+  justify-self: start;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+}
+.local-os {
+  min-block-size: 32px;
+  padding: 4px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.local-os[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px var(--line-strong);
+}
+.local-os:focus-visible {
+  outline: 2px solid var(--eco);
+  outline-offset: 1px;
+}
+@media (pointer: coarse) {
+  .local-os {
+    min-block-size: 44px;
+  }
+}
+.local-install .local-cmd code {
+  font-size: 0.9rem;
+}
+.local-where {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.local-note {
+  color: var(--muted);
+}
+.local-waiting {
+  margin: 0;
+}
+.local-manual > summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.local-manual[open] > summary {
+  margin-block-end: 10px;
+}
+.local-manual .local-steps {
+  margin-block-end: 8px;
+}
+.local-ready {
+  display: grid;
+  gap: 12px;
+}
+.local-manual > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+}
+.local-manual > summary::-webkit-details-marker {
+  display: none;
+}
+.local-manual > summary::before {
+  content: "";
+  inline-size: 6px;
+  block-size: 6px;
+  border-inline-end: 1.5px solid currentColor;
+  border-block-end: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+}
+.local-manual[open] > summary::before {
+  transform: rotate(45deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .local-manual > summary::before {
+    transition: none;
+  }
+}
+/* the install URL is one long word: at 360 px it may break inside, never widen the settings */
+.local-install,
+.local-down,
+.local-ready {
+  min-inline-size: 0;
+}
+.local-install .local-tok {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

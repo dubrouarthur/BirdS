@@ -2799,6 +2799,9 @@ async function loadHealth() {
   if (!health) {
     state.health = null;
     showBanner(t("error.health"));
+    // never leave the page believing there is no model: keep asking quietly, then show the real state
+    clearTimeout(loadHealth.retry);
+    loadHealth.retry = setTimeout(() => loadHealth().then(() => state.health && refreshAll()), 5000);
     return;
   }
   state.health = health;

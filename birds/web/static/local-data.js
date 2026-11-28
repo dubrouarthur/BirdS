@@ -189,3 +189,17 @@ export async function pair(fetchFn, base, code, { timeoutMs = 4000 } = {}) {
     return { ok: false, status: "unreachable" };
   }
 }
+
+/** The visitor's system, for the one install command: "windows", "mac" or "linux". */
+export function osOf(ua) {
+  const u = String(ua || "");
+  if (/Windows/i.test(u)) return "windows";
+  if (/Mac OS X|Macintosh/i.test(u) && !/\b(iPhone|iPad|iPod)\b/.test(u)) return "mac";
+  return "linux";
+}
+
+/** One command per system: it installs Bird and the model, starts them, and this page connects on its own. */
+export function installCommand(os, origin) {
+  const site = /^https:\/\//.test(String(origin || "")) ? origin : "https://bird-s.vercel.app";
+  return os === "windows" ? `irm ${site}/install.ps1 | iex` : `curl -fsSL ${site}/install.sh | sh`;
+}

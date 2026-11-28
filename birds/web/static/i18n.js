@@ -626,6 +626,7 @@ export const STRINGS = {
     "set.mode.server": "Serveur",
     "set.mode.server.hint": "Modèle configuré par l'administrateur : {model}.",
     "set.mode.server.off": "Aucun modèle n'est configuré sur ce serveur.",
+    "set.mode.server.waking": "Connexion au modèle en cours : il se réveille, quelques secondes.",
     "set.mode.user": "Mon endpoint",
     "set.endpoint.choose": "Choisissez « Mon endpoint » pour saisir l'adresse et le jeton de votre propre serveur.",
     "set.mode.user.hint":
@@ -1826,6 +1827,7 @@ export const STRINGS = {
     "set.mode.server": "Server",
     "set.mode.server.hint": "Model configured by the administrator: {model}.",
     "set.mode.server.off": "No model is configured on this server.",
+    "set.mode.server.waking": "Reaching the model: it is waking up, a few seconds.",
     "set.mode.user": "My endpoint",
     "set.endpoint.choose": "Choose \"My endpoint\" to enter the address and token of your own server.",
     "set.mode.user.hint":

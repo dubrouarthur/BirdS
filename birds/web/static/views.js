@@ -1179,21 +1179,20 @@ export function renderSettings() {
           "aria-labelledby": "set-model-title",
         },
         // the demo exists only where no model is connected (a showcase deployment, the e2e server): never beside a real one
-        !modes.server && modeCard("demo", t("set.mode.demo"), t("set.mode.demo.hint"), true),
+        // health not known yet (a cold start): the server is being reached, it is not « unavailable »
+        state.health && !modes.server && modeCard("demo", t("set.mode.demo"), t("set.mode.demo.hint"), true),
         modeCard(
           "server",
           t("set.mode.server"),
           modes.server
             ? t("set.mode.server.hint", { model: hl.model || "bird" })
-            : t("set.mode.server.off"),
-          !!modes.server,
+            : state.health
+              ? t("set.mode.server.off")
+              : t("set.mode.server.waking"),
+          !!modes.server || !state.health,
         ),
-        modeCard(
-          "user",
-          t("set.mode.user"),
-          modes.user ? t("set.mode.user.hint") : t("set.mode.user.off"),
-          !!modes.user,
-        ),
+        // a choice the visitor cannot make is not shown (never a greyed « indisponible » card)
+        modes.user && modeCard("user", t("set.mode.user"), t("set.mode.user.hint"), true),
         localOffered() && modeCard("local", t("local.mode"), t("local.mode.hint"), true),
       ),
       shown === "local" && localPanel({ onPrefs: () => hooks.onPrefs() }),
