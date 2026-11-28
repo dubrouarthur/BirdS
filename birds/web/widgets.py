@@ -17,10 +17,12 @@ from birds.harness import geo, when
 from . import mapimg
 
 # cards the harness computes itself (birds.harness.calc, birds.harness.research), kept from ``extra`` as they are
-HARNESS_CARDS = ("calc", "research", "graph", "timeline", "matrix", "checklist")
+HARNESS_CARDS = ("calc", "research", "graph", "timeline", "matrix", "checklist", "report", "figures", "proscons",
+                 "glossary", "sourcecards")
 MAX_WIDGET_BYTES = 8_000
 MAX_LIST_BYTES = 16_000  # a map of up to 25 places (« montre sur une carte : a ; b ; c … »)
-MAX_TOTAL_BYTES = 32_000
+MAX_REPORT_BYTES = 16_000  # the full deep research report (birds.harness.research_report.REPORT_BYTES)
+MAX_TOTAL_BYTES = 48_000  # a deep research: its card, graph, timeline, matrix and report
 DEFAULT_TZ = "Europe/Paris"
 
 _TITLE = re.compile(
@@ -192,6 +194,7 @@ def build_widgets(steps, request_text: str, lang: str, now: datetime, secret: by
     kept, total = [], 0
     for w in out:  # caps of the history: each widget <= 8 KB (a list of places 16 KB), all <= 32 KB
         cap = MAX_LIST_BYTES if w.get("type") == "places" and w.get("mode") == "list" else MAX_WIDGET_BYTES
+        cap = MAX_REPORT_BYTES if w.get("type") == "report" else cap
         n = _size(w)
         if n > cap and cap == MAX_LIST_BYTES:
             from birds.harness.tools.places import fit_list

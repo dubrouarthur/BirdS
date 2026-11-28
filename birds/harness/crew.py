@@ -369,6 +369,29 @@ def standalone(instr: str, sig: dict) -> bool:
     return bool(sig["pasted"] or _TOPIC.search(instr))
 
 
+_QUERY_OK = re.compile(r"^[\w\s'’\-À-ÿ.,&+/:]{4,90}$")
+
+
+def checked_sub_questions(args: dict | None, request: str, limit: int = 5) -> list[tuple[str, str]]:
+    """The (sub-question, web query) pairs of a ``plan_search`` call, each checked in code: the query has 2 to 10
+    words, no URL or operator, is about the request (a long word of the request in it) and is no duplicate. Shared by
+    the deliverable recipes and deep research (birds.harness.research)."""
+    req = {cc.fold(w)[:6] for w in re.findall(r"[\wÀ-ÿ]{5,}", request)}
+    out, keys = [], set()
+    for sq in ((args or {}).get("sub_questions") or [])[:limit]:
+        if not isinstance(sq, dict):
+            continue
+        q = " ".join(str(sq.get("query") or "").replace('"', " ").split())
+        words = q.split()
+        key = " ".join(sorted(cc.fold(q).split()))
+        if (not _QUERY_OK.match(q) or not 2 <= len(words) <= 10 or "http" in q.lower() or ":" in q
+                or key in keys or not any(cc.fold(w)[:6] in req for w in words if len(w) >= 5)):  # fmt: skip
+            continue
+        keys.add(key)
+        out.append((cp.clean_line(sq.get("question"), 140) or q, q))
+    return out
+
+
 def team(agent, decision: Decision, **kw):
     """The team for this decision: deep research has its own recipe class (birds.harness.research)."""
     if decision.recipe == "deep_research":
@@ -1017,8 +1040,6 @@ class Crew:
         core = re.sub(r"\s+(?:depuis|since|de|from)\s+(?:l.an\s+)?(?:19|20)\d\d.*$", "", core, flags=re.I).strip()
         return topic, core or topic, since
 
-    _QUERY_OK = re.compile(r"^[\w\s'’\-À-ÿ.,&+/:]{4,90}$")
-
     def _plan_queries(self, topic: str, core: str, fallback: list[str]) -> list[str]:
         """Up to 3 web queries for the request's sub-questions, planned by the model in one short generation
         (``plan_search``), each checked in code: 2 to 10 words, no URL or operator, about the request (a long word
@@ -1030,20 +1051,8 @@ class Crew:
         g = self._gen("chercheur", "research", self._user(data, instr), [PLAN_SEARCH], 260, temperature=0.0,
                       until=self.t0 + 25)  # fmt: skip
         args = self._args(g, "plan_search") or {}
-        req = {cc.fold(w)[:6] for w in re.findall(r"[\wÀ-ÿ]{5,}", self.instr + " " + core)}
-        out, questions, keys = [], [], set()
-        for sq in (args.get("sub_questions") or [])[:5]:
-            if not isinstance(sq, dict):
-                continue
-            q = " ".join(str(sq.get("query") or "").replace('"', " ").split())
-            words = q.split()
-            key = " ".join(sorted(cc.fold(q).split()))
-            if (not self._QUERY_OK.match(q) or not 2 <= len(words) <= 10 or "http" in q.lower() or ":" in q
-                    or key in keys or not any(cc.fold(w)[:6] in req for w in words if len(w) >= 5)):  # fmt: skip
-                continue
-            keys.add(key)
-            out.append(q)
-            questions.append(cp.clean_line(sq.get("question"), 140) or q)
+        pairs = checked_sub_questions(args, self.instr + " " + core, 5)
+        out, questions = [q for _, q in pairs], [sq for sq, _ in pairs]
         if g:
             self._step("chercheur", "running", "research", tokens=g["tokens"], questions=questions[:3])
         self.trace["planned"] = len(out[:3])

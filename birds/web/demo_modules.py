@@ -41,6 +41,13 @@ _PAGES = {
         "HydroNord fournit l'hydrogène des stations de Mobilis H2 depuis 2023, selon ce texte d'exemple.\n"
         "Le coût de l'hydrogène renouvelable reste deux à trois fois supérieur à celui de l'hydrogène fossile.",
     ),
+    "https://example.edu/budget-region": (
+        "Budget régional de l'hydrogène (exemple)",
+        "Selon ce budget fictif, la Région Exemple a consacré en 2023 un plan de 45 millions d'euros à l'hydrogène "
+        "renouvelable, un montant revu à la hausse.\n"
+        "Le plan régional de l'hydrogène renouvelable est piloté par l'agence Énergie Exemple depuis 2023.\n"
+        "Les stations de Mobilis H2 sont approvisionnées par HydroNord depuis 2023, d'après ce document d'exemple.",
+    ),
 }
 _N = {u: i for i, u in enumerate(_PAGES, 1)}
 
@@ -86,6 +93,18 @@ def _claims(n: int) -> list[dict]:
              "entities": [{"name": "HydroNord", "type": "organisation"}, {"name": "Mobilis H2", "type": "organisation"}],
              "relations": [{"from": "HydroNord", "to": "Mobilis H2", "label": "fournit"}]},
         ],
+        4: [
+            # another site, another amount for the same plan the same year: a contradiction, shown as such
+            {"source": 4, "claim": "La Région Exemple a consacré en 2023 un plan de 45 millions d'euros à l'hydrogène "
+             "renouvelable", "quote": "la Région Exemple a consacré en 2023 un plan de 45 millions d'euros à "
+             "l'hydrogène renouvelable", "date": "2023",
+             "entities": [{"name": "Région Exemple", "type": "lieu"}]},
+            # the same fact as page 3 on another site: corroborated
+            {"source": 4, "claim": "HydroNord approvisionne les stations de Mobilis H2 depuis 2023",
+             "quote": "Les stations de Mobilis H2 sont approvisionnées par HydroNord depuis 2023", "date": "2023",
+             "entities": [{"name": "HydroNord", "type": "organisation"}, {"name": "Mobilis H2", "type": "organisation"}],
+             "relations": [{"from": "HydroNord", "to": "Mobilis H2", "label": "fournit"}]},
+        ],
     }  # fmt: skip
     return c[n]
 
@@ -103,6 +122,10 @@ _REPORT = {
         {"heading": "Usages", "text": "Mobilis H2 exploite une flotte de 80 taxis à hydrogène en 2025 [3]. Le coût "
          "de l'hydrogène renouvelable reste deux à trois fois supérieur à celui de l'hydrogène fossile [3]."},
     ],
+    "comparison": {"columns": ["Acteur", "Activité", "Depuis"],
+                   "rows": [["HydroNord", "fournit l'hydrogène des stations de Mobilis H2", "2023"],
+                            ["ÉlectroLys", "atelier de 120 salariés", "2024"],
+                            ["Mobilis H2", "flotte de 80 taxis à hydrogène", "2025"]]},
 }  # fmt: skip
 
 
@@ -128,14 +151,15 @@ class _Scripted:
     def generate(self, prompt, max_tokens, stop, *, on_token=None, **_):
         p = json.loads(prompt)
         tools, user = p["tools"], p["messages"][-1]["content"]
-        if tools == ["plan_research"]:
-            out = _call("plan_research", questions=[
-                "Quels financements publics soutiennent la filière ?", "Quels industriels, et comment sont-ils liés ?",
-                "Quels usages concrets aujourd'hui ?"], queries=["hydrogène Région Exemple", "électrolyseurs exemple",
-                                                                 "mobilité hydrogène exemple"])  # fmt: skip
+        if tools == ["plan_search"]:  # Mode Agent's search planning, as in production
+            out = _call("plan_search", sub_questions=[
+                {"question": "Quels financements publics soutiennent la filière ?",
+                 "query": "financement hydrogène Région Exemple"},
+                {"question": "Quels industriels, et comment sont-ils liés ?", "query": "industriels hydrogène filière"},
+                {"question": "Quels usages concrets aujourd'hui ?", "query": "mobilité hydrogène taxis filière"}])  # fmt: skip
             self.pause(0.9)
         elif tools == ["record_claims"]:
-            out = _call("record_claims", claims=[c for n in (1, 2, 3) if f"[{n}] " in user for c in _claims(n)])
+            out = _call("record_claims", claims=[c for n in (1, 2, 3, 4) if f"[{n}] " in user for c in _claims(n)])
             self.pause(1.4)
         elif tools == ["write_report"]:
             out = _call("write_report", **_REPORT)
@@ -186,9 +210,12 @@ def demo_research(run) -> None:
                 self.index += 1
             self._emit({"kind": "tool_start", "index": index, "tool": name, "arguments": args, "agent": lane})
             run.pause(0.5 if name == "read_page" else 0.7)
-            if name == "web_search":
+            if name == "web_search":  # each query finds the example pages in its own order
+                items = list(_PAGES.items())
+                k = sum(map(ord, str(args.get("query")))) % len(items)
+                items = items[k:] + items[:k]
                 text = "Résultats (exemple) :\n" + "\n".join(f"{i}. {ti}\n   {u}" for i, (u, (ti, _)) in
-                                                                enumerate(_PAGES.items(), 1))  # fmt: skip
+                                                                enumerate(items, 1))  # fmt: skip
             else:
                 u = str(args.get("url"))
                 title, body = _PAGES.get(u, ("", ""))

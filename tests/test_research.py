@@ -123,12 +123,15 @@ REPORT = {
 
 def respond_for(report=REPORT, plan=None, claims=GOOD_CLAIMS):
     def respond(tools, user, deadline):
-        if tools == ["plan_research"]:
+        if tools == ["plan_search"]:  # Mode Agent's own search planning, reused
             return plan if plan is not None else call(
-                "plan_research",
-                questions=["Quels financements publics pour l'hydrogène vert ?", "Quels industriels et quels liens ?",
-                           "Quelles perspectives pour 2030 ?"],
-                queries=["hydrogène vert France", "électrolyseurs France industriels"],
+                "plan_search",
+                sub_questions=[
+                    {"question": "Quels financements publics pour l'hydrogène vert ?", "query": "hydrogène vert France"},
+                    {"question": "Quels industriels et quels liens ?", "query": "électrolyseurs France industriels"},
+                    {"question": "Quelles perspectives pour 2030 ?", "query": "hydrogène vert France 2030 objectifs"},
+                    {"question": "x", "query": "https://evil.test/hydrogène"},  # a URL: dropped by the shared check
+                ],
             )  # fmt: skip
         if tools == ["record_claims"]:
             got = [c for n, cs in claims.items() if f"[{n}] " in user for c in cs]
@@ -224,7 +227,7 @@ def test_deep_research_end_to_end(tmp_path):
     assert "### Ce que l'équipe a fait" in a and "### À vérifier" in a
     assert len(run.sources) == 3 and all(u.startswith("https://") for u in run.sources)
     types = [w["type"] for w in run.widgets]
-    assert types[:2] == ["research", "graph"] and "timeline" in types
+    assert types[:2] == ["research", "graph"] and "timeline" in types and types[-1] == "report"
     card = run.widgets[0]
     assert len(card["questions"]) == 3 and {s["domain"] for s in card["sources"]} == {
         "energie.test",
@@ -242,16 +245,32 @@ def test_deep_research_end_to_end(tmp_path):
     # each widget fits the history caps, and build_widgets keeps them as they are
     kept = build_widgets([], "", "fr", None, b"x", extra=run.widgets)
     assert [w["type"] for w in kept] == types
-    # the team board: plan items, domains read, a done event
+    # the team board: the plan's sub-questions, then the live research board
     steps = [e for e in events if e.get("type") == "agent_step"]
-    assert any(e.get("items") for e in steps if e["id"] == "planificateur")
-    assert any("energie.test" in (e.get("domains") or []) for e in steps if e["id"] == "chercheur")
+    assert any(e.get("questions") for e in steps if e["id"] == "planificateur")
+    boards = [e for e in events if e.get("type") == "agent_research"]
+    assert [q["query"] for q in boards[0]["questions"]] == ["hydrogène vert France", "électrolyseurs France industriels",
+                                                            "hydrogène vert France 2030 objectifs"]  # fmt: skip
+    assert {q["status"] for q in boards[0]["questions"]} == {"open"}
+    phases = [b["phase"] for b in boards]
+    assert phases.index("search") < phases.index("read") < phases.index("extract") < phases.index("write")
+    assert phases[-1] == "done"
+    # sources arrive one by one: reading, then kept
+    statuses = [{s["domain"]: s["status"] for s in b["sources"]} for b in boards]
+    assert any(st.get("energie.test") == "reading" for st in statuses) and statuses[-1]["energie.test"] == "kept"
+    # the graph grows during the extraction (each extractor's claims), never with an unverified relation
+    grow = [len((b["graph"] or {}).get("nodes", [])) for b in boards if b["phase"] == "extract"]
+    assert grow and grow == sorted(grow) and grow[-1] >= 4
+    last = boards[-1]
+    assert last["claims"]["checked"] == 5 and last["claims"]["seen"] == 8
+    assert any(q["status"] == "resolved" for q in last["questions"])
+    assert all(len(json.dumps(b, ensure_ascii=False)) <= 14_000 for b in boards)
     done = [e for e in events if e.get("type") == "agent_done"][-1]
     assert done["ok"] and done["recipe"] == "deep_research" and done["calls"] <= 6
 
 
 def test_broken_plan_and_broken_report_still_give_a_sourced_report(tmp_path):
-    run = run_research(tmp_path, respond_for(report="Voici le rapport : la filière va bien.", plan='{"questions": ['))
+    run = run_research(tmp_path, respond_for(report="Voici le rapport : la filière va bien.", plan='{"sub_questions": ['))
     a = run.answer
     assert "rapport écrit par le code" in a
     assert "[1]" in a and "[2]" in a
@@ -292,3 +311,90 @@ def test_decision_object_for_team_factory(tmp_path):
     a = agent(tmp_path, Script(lambda *a: "x"))
     assert type(team(a, Decision("deep_research"))).__name__ == "Research"
     assert type(team(a, Decision("generic"))).__name__ == "Crew"
+
+
+# ------------------------------------------------------------------ the full report, cross-checks, comparison
+
+
+def test_the_report_widget_holds_sentences_citations_sources_and_confidence(tmp_path):
+    run = run_research(tmp_path, respond_for())
+    rep = next(w for w in run.widgets if w["type"] == "report")
+    assert rep["title"] == "La filière hydrogène vert en France"
+    assert [s["heading"] for s in rep["sections"]] == ["Financements publics", "Acteurs industriels"]
+    first = rep["sections"][0]["sents"][0]
+    assert first["c"] == [1] and "[" not in first["t"] and "9 milliards" in first["t"]  # moved from [2] to [1]
+    assert not any("100 000" in x["t"] for s in rep["sections"] for x in s["sents"])  # removed, never shown
+    assert {s["n"]: s["cited"] for s in rep["sources"]} == {1: True, 2: True, 3: True}
+    assert all(c["conf"] in ("high", "medium", "low") for c in rep["claims"]) and len(rep["claims"]) == 5
+    assert all(c["q"] for c in rep["claims"])  # each claim keeps its quote (the bubble shows it)
+    values = [f["value"] for f in rep["figures"]]
+    assert "9 milliards d'euros" in values
+    assert len(json.dumps(rep, ensure_ascii=False)) <= 16_000
+    assert build_widgets([], "", "fr", None, b"x", extra=[rep])[0]["type"] == "report"
+
+
+def test_cross_check_corroborates_across_sites_and_flags_contradictions():
+    from birds.harness import research_report as rr
+
+    pages = [{"n": 1, "domain": "a.test"}, {"n": 2, "domain": "b.test"}, {"n": 3, "domain": "a.test"},
+             {"n": 4, "domain": "c.test"}]  # fmt: skip
+    claims = [
+        {"n": 1, "claim": "Le télétravail concerne 26 % des salariés du privé en 2023", "quote": "26 % des salariés "
+         "du privé télétravaillent en 2023", "date": "2023"},
+        {"n": 2, "claim": "En 2023, 26 % des salariés du privé pratiquent le télétravail", "quote": "26 % des "
+         "salariés du privé pratiquent le télétravail en 2023", "date": "2023"},
+        {"n": 4, "claim": "Le télétravail concerne 31 % des salariés du privé en 2023", "quote": "31 % des salariés "
+         "du privé télétravaillent en 2023", "date": "2023"},
+        # the same site again: never a corroboration
+        {"n": 3, "claim": "Le télétravail concerne 26 % des salariés du privé en 2023 selon la Dares", "quote": "x",
+         "date": "2023"},
+        {"n": 2, "claim": "Les cadres sont les plus nombreux à télétravailler", "quote": "les cadres sont les plus "
+         "nombreux", "date": ""},
+    ]  # fmt: skip
+    out, contra = rr.cross_check(claims, pages)
+    assert 2 in out[0]["also"] and 3 not in out[0]["also"]
+    assert out[2]["conf"] == "low" and 1 in out[2]["against"] and 2 in out[2]["against"]
+    assert contra and {contra[0]["a"]["value"], contra[0]["b"]["value"]} == {"26 %", "31 %"}
+    assert out[4]["conf"] == "medium" and not out[4]["also"]
+    figs = rr.key_figures(out)  # one tile per value: 26 % once, 31 % once, both marked as disputed
+    assert sorted(f["value"] for f in figs) == ["26 %", "31 %"] and {f["conf"] for f in figs} == {"low"}
+    alone, _ = rr.cross_check([dict(claims[0]), dict(claims[1])], pages)
+    assert [c["conf"] for c in alone] == ["high", "high"] and rr.key_figures(alone)[0]["conf"] == "high"
+
+
+def test_the_writers_comparison_is_kept_only_with_sourced_figures():
+    from birds.harness import research_report as rr
+
+    pages = [{"n": 1, "domain": "a.test", "text": "McPhy et Lhyfe sont deux acteurs. McPhy emploie 300 salariés."},
+             {"n": 2, "domain": "b.test", "text": "Lhyfe emploie 120 salariés et produit depuis 2021."}]  # fmt: skip
+    claims = [{"n": 1, "claim": "McPhy emploie 300 salariés", "quote": "McPhy emploie 300 salariés"},
+              {"n": 2, "claim": "Lhyfe emploie 120 salariés", "quote": "Lhyfe emploie 120 salariés"}]  # fmt: skip
+    raw = {"columns": ["Acteur", "Salariés", "Chiffre d'affaires"],
+           "rows": [["McPhy", "300", "45 M€"], ["Lhyfe", "120", "12 M€"], ["Siemens", "90 000", "70 Md€"]]}  # fmt: skip
+    w, blanked = rr.check_comparison(raw, claims, pages)
+    assert w["type"] == "matrix" and w["origin"] == "sources"
+    assert [r[0] for r in w["rows"]] == ["McPhy", "Lhyfe"]  # Siemens is in no page read
+    assert w["rows"][0] == ["McPhy", "300", "—"] and blanked == 2  # the turnover is in no quote
+    assert rr.check_comparison({"columns": ["a"], "rows": []}, claims, pages)[0] is None
+    assert rr.check_comparison("pas du JSON", claims, pages)[0] is None
+
+
+def test_research_comparison_reaches_the_widgets(tmp_path):
+    report = {**REPORT, "comparison": {"columns": ["Acteur", "Fait"], "rows": [["McPhy", "gigafactory en 2024"],
+                                                                               ["Hysetco", "taxis à Paris"]]}}  # fmt: skip
+    run = run_research(tmp_path, respond_for(report=report))
+    m = next(w for w in run.widgets if w["type"] == "matrix")
+    assert [r[0] for r in m["rows"]] == ["McPhy", "Hysetco"]
+
+
+def test_the_plan_cards_exclusions_and_preferences_steer_the_reading(tmp_path):
+    from birds.harness import crew_plan
+
+    d = decide(ASK, mode="auto")
+    plan = crew_plan.make_plan(d, ASK, "fr")
+    plan, _ = crew_plan.apply_edits(plan, {"exclude": ["industrie.test"]})
+    events = []
+    a = agent(tmp_path, Script(respond_for()), events)
+    run = team(a, d, lang="fr", plan=plan).run(ASK, ASK)
+    reads = [s.arguments["url"] for s in run.steps if s.tool == "read_page"]
+    assert reads and not any("industrie.test" in u for u in reads)

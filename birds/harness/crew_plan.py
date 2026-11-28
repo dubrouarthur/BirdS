@@ -50,6 +50,13 @@ LABELS = {
             "check": "Vérifier chaque chiffre et chaque source",
             "build": "Créer le livrable",
         },
+        "steps_deep": {
+            "plan": "Découper la question en sous-questions",
+            "research": "Chercher des sources sur le web",
+            "read": "Lire les pages et relever les affirmations",
+            "drafts": "Rédiger le rapport sourcé",
+            "check": "Recouper chaque affirmation avec sa source",
+        },
     },
     "en": {
         "audience": {"general": "General public", "decision": "Decision makers", "experts": "Experts"},
@@ -71,6 +78,13 @@ LABELS = {
             "draft_one": "Write the spreadsheet",
             "check": "Check every figure and every source",
             "build": "Build the deliverable",
+        },
+        "steps_deep": {
+            "plan": "Split the question into sub-questions",
+            "research": "Search the web for sources",
+            "read": "Read the pages and record the claims",
+            "drafts": "Write the sourced report",
+            "check": "Cross-check every claim with its source",
         },
     },
 }
@@ -173,13 +187,14 @@ class Plan:
 
 
 def _steps(recipe: str, deliverable: str | None, lang: str) -> list[dict]:
-    lab = LABELS["en" if lang == "en" else "fr"]["steps"]
+    lab = LABELS["en" if lang == "en" else "fr"]["steps" if recipe != "deep_research" else "steps_deep"]
     ids = {
         "deck_research": ["research", "read", "drafts", "check", "build"],
         "doc_research": ["research", "read", "drafts", "check", "build"],
         "compare_write": ["read_offers", "drafts", "check", "build"],
         "minutes_actions": ["read_notes", "drafts", "check", "build"],
         "sheet_pasted": ["read_table", "draft_one", "check", "build"],
+        "deep_research": ["plan", "research", "read", "drafts", "check"],  # birds.harness.research: no file
     }.get(recipe, ["plan", "research", "drafts", "check", "build"])
     return [{"id": i, "label": lab[i]} for i in ids]
 
@@ -209,7 +224,7 @@ def make_plan(decision, own: str = "", lang: str = "fr") -> Plan:
     tool = {"deck_research": "make_slides", "doc_research": "make_document", "minutes_actions": "make_document",
             "sheet_pasted": "make_sheet"}.get(recipe) or decision.deliverable  # fmt: skip
     p = Plan(recipe=recipe, deliverable=tool, steps=_steps(recipe, tool, lang))
-    p.web = recipe in ("deck_research", "doc_research", "generic")
+    p.web = recipe in ("deck_research", "doc_research", "generic", "deep_research")
     if tool == "make_slides":
         m = re.search(r"(\d{1,2})\s*(?:slides?|diapo\w*|diapositives?)", own or "", re.I)
         p.n_slides = max(3, min(12, int(m.group(1)))) if m else 6

@@ -1,6 +1,6 @@
 """Deep research (« Recherche approfondie ») in Mode Agent: a recipe of short, typed generations checked in code.
 
-    plan (1 generation: sub-questions and searches) -> searches in parallel -> 6 to 10 pages read (0 generation)
+    plan (1 generation: Mode Agent's plan_search, sub-questions each with its query) -> searches in parallel -> 6 to 10 pages read (0 generation)
     -> 3 extractors in parallel (claims with an exact quote, entities, relations) -> checks in code (each quote must be
     in its page, each figure in its quote, each entity in its page, each relation's two ends in its quote)
     -> 1 report (sections, numbered citations) -> checks in code (figures against the cited page, citations moved
@@ -21,13 +21,15 @@ from __future__ import annotations
 import itertools
 import json
 import re
+import threading
 import time
 from urllib.parse import unquote, urlsplit
 
 from birds.harness import crew_checks as cc
+from birds.harness import research_report as rr
 from birds.harness.agent import Run
-from birds.harness.crew import ABSTAIN, Crew, _Fallback
-from birds.harness.crew_tools import _fn
+from birds.harness.crew import _LOW, _OFFICIAL, ABSTAIN, Crew, _Fallback, checked_sub_questions
+from birds.harness.crew_tools import PLAN_SEARCH, _fn
 
 # ------------------------------------------------------------------ triggers (own words only)
 
@@ -97,12 +99,8 @@ def question(instr: str) -> bool:
 # ------------------------------------------------------------------ virtual tools
 
 _S = {"type": "string"}
-PLAN_RESEARCH = _fn(
-    "plan_research",
-    "Plan a deep research: 3 to 5 precise sub-questions and 3 to 5 short web searches.",
-    {"questions": {"type": "array", "items": _S}, "queries": {"type": "array", "items": _S}},
-    ["questions", "queries"],
-)
+# the plan is Mode Agent's own search planning (crew_tools.PLAN_SEARCH, checked by crew.checked_sub_questions):
+# each sub-question comes with its web query, so the board can say which question each page answers
 ENTITY_TYPES = ("organisation", "personne", "lieu", "produit", "texte", "concept")
 RECORD_CLAIMS = _fn(
     "record_claims",
@@ -150,15 +148,23 @@ WRITE_REPORT = _fn(
             "type": "array",
             "items": {"type": "object", "properties": {"heading": _S, "text": _S}, "required": ["heading", "text"]},
         },
+        "comparison": {
+            "type": "object",
+            "description": "Only when the request compares options: columns (the first names the options) and rows.",
+            "properties": {"columns": {"type": "array", "items": _S},
+                           "rows": {"type": "array", "items": {"type": "array", "items": _S}}},
+        },
     },
     ["title", "summary", "sections"],
 )
 
 PROMPTS = {
     "fr": {
-        "plan": "Tu planifies une recherche approfondie sur la demande ci-dessus. Écris 3 à 5 sous-questions précises "
-        "(une par aspect : faits et chiffres, acteurs, évolution, enjeux…) et 3 à 5 recherches web courtes en "
-        "mots-clés, dans la langue de la demande. Appelle plan_research.",
+        "plan": "Sujet : {topic}. Découpe cette recherche approfondie en 3 à 5 sous-questions précises (une par aspect : "
+        "faits et chiffres, acteurs et liens, évolution, enjeux ou risques), chacune avec une requête web courte de 3 à "
+        "8 mots-clés, sans guillemets ni opérateur, dans la langue de la demande. Une requête au moins vise une source "
+        "primaire ou officielle (statistique publique, rapport, texte de loi). Année en cours : {year}. Appelle "
+        "plan_search.",
         "extract": "Voici des extraits numérotés [n]. Relève au plus 10 affirmations utiles pour : {topic}. Pour "
         "chacune : le numéro de l'extrait, une phrase courte, la citation exacte recopiée mot pour mot, la date si "
         "elle est écrite, les entités nommées (organisation, personne, lieu, produit, texte de loi, concept) et les "
@@ -167,19 +173,24 @@ PROMPTS = {
         "report": "Écris le rapport de recherche à partir des seules affirmations vérifiées ci-dessus. Titre, résumé "
         "de 3 à 4 phrases, puis une section par sous-question (titre court, 80 à 160 mots). Chaque phrase qui "
         "donne un fait finit par le numéro de sa source, par exemple [2]. Aucun chiffre qui n'est pas dans les "
-        "affirmations. Appelle write_report.",
+        "affirmations. Si la demande compare des options (offres, pays, technologies), ajoute comparison : colonnes "
+        "(la première nomme les options) et une ligne par option, valeurs copiées des affirmations. Appelle "
+        "write_report.",
     },
     "en": {
-        "plan": "You are planning a deep research on the request above. Write 3 to 5 precise sub-questions (one per "
-        "aspect: facts and figures, players, trend, stakes…) and 3 to 5 short keyword web searches, in the language "
-        "of the request. Call plan_research.",
+        "plan": "Topic: {topic}. Split this deep research into 3 to 5 precise sub-questions (one per aspect: facts and "
+        "figures, players and links, trend, stakes or risks), each with a short web query of 3 to 8 keywords, no "
+        "quotes or operators, in the language of the request. At least one query targets a primary or official source "
+        "(public statistics, a report, a law). Current year: {year}. Call plan_search.",
         "extract": "Here are numbered extracts [n]. Record at most 10 useful claims for: {topic}. For each: the extract "
         "number, one short sentence, the exact quote copied word for word, the date if written, the named entities "
         "(organisation, person, place, product, law, concept) and the relations between them (from, to, short verb: "
         "« owns », « acquired », « regulates », « funds »). Invent nothing. Call record_claims.",
         "report": "Write the research report from the verified claims above only. Title, a 3-4 sentence summary, then "
         "one section per sub-question (short heading, 80 to 160 words). Every sentence that states a fact ends with "
-        "its source number, e.g. [2]. No figure that is not in the claims. Call write_report.",
+        "its source number, e.g. [2]. No figure that is not in the claims. If the request compares options (offers, "
+        "countries, technologies), add comparison: columns (the first names the options) and one row per option, "
+        "values copied from the claims. Call write_report.",
     },
 }
 
@@ -192,6 +203,7 @@ EXTRACT_CHARS = 2200  # a page's extract given to an extractor
 GROUP_CHARS = 6600
 MAX_CLAIMS = 40
 READ_UNTIL = 110.0  # seconds after t0: no page read starts later
+READ_BATCH = 3  # pages read side by side (the board shows them arriving)
 WIDGET_BYTES = 7600
 
 LABELS = {
@@ -493,58 +505,116 @@ class Research(Crew):
         subject = re.split(r"[.?!\n]|\s+(?:avec|with)\s+(?:des|les)?\s*(?:sources|chiffres)", subject)[0]
         return " ".join(subject.split())[:120] or " ".join(self.instr.split())[:120]
 
+    # -------------------------------------------------------------- the live board (agent_research events)
+    def _board_init(self, topic: str) -> None:
+        self.board_lock = threading.Lock()
+        self.board = {"topic": topic, "phase": "plan", "questions": [], "queries": [], "sources": [],
+                      "claims": {"seen": 0, "checked": 0, "dropped": 0, "crossed": 0}, "contradictions": [],
+                      "graph": None}  # fmt: skip
+
+    def _board(self, **changes) -> None:
+        """Update the board and send it whole (small, capped): the browser replaces its copy."""
+        with self.board_lock:
+            self.board.update(changes)
+            snap = rr.board_snapshot(self.board)
+        self._emit(snap)
+
+    def _resolve(self, claims: list[dict], pages: list[dict], final: bool = False) -> None:
+        """A sub-question is resolved once a verified claim comes from a page its query found, or talks about it
+        (most of its long words); at the end, a question with none is « peu de sources »."""
+        qid = {p["n"]: p.get("qid") for p in pages}
+        for q in self.board["questions"]:
+            mine = [c for c in claims if qid.get(c["n"]) == q["id"] or rr.similarity(q["text"], c["claim"]) >= 0.5]
+            q["claims"] = len(mine)
+            if mine:
+                q["status"] = "resolved"
+            elif final:
+                q["status"] = "thin"
+
+    # -------------------------------------------------------------- 1. plan (Mode Agent's search planning)
     def _research_plan(self, topic: str) -> tuple[list[str], list[str]]:
         fr = self.lang == "fr"
         year = time.localtime().tm_year
-        data = ("Demande : " if fr else "Request: ") + self.instr + (f"\nAnnée : {year}" if fr else f"\nYear: {year}")
+        data = ("Demande : " if fr else "Request: ") + self.instr
         if self.history:
             data = self.history + "\n\n" + data
-        g = self._gen("planificateur", "plan", self._user(data, PROMPTS[self.lang]["plan"]), [PLAN_RESEARCH], 320,
-                      temperature=0.0, until=self.t0 + 40)  # fmt: skip
-        args = self._args(g, "plan_research") or {}
-        questions, queries = [], []
-        for q in args.get("questions") or []:
-            q = " ".join(str(q).split())
-            if 8 <= len(q) <= 180 and cc.fold(q) not in {cc.fold(x) for x in questions}:
-                questions.append(q)
-        for q in args.get("queries") or []:
-            q = " ".join(str(q).split()).strip("\"'«» ")
-            if 3 <= len(q) <= 90 and cc.fold(q) not in {cc.fold(x) for x in queries}:
-                queries.append(q)
-        planned = bool(questions and queries)
-        if not questions:  # the plan failed: generic sub-questions, written by code (no facts in them)
-            questions = ([f"Quels sont les faits et chiffres clés sur {topic} ?", f"Qui sont les principaux acteurs de "
-                          f"{topic} et comment sont-ils liés ?", f"Quelles évolutions récentes pour {topic} ?"] if fr else
-                         [f"What are the key facts and figures on {topic}?", f"Who are the main players in {topic} "
-                          f"and how are they linked?", f"What recent changes for {topic}?"])  # fmt: skip
-        head = [topic] + [q for q in queries if cc.fold(q) != cc.fold(topic)]
-        if len(head) < 3:
-            head += [f"{topic} {'chiffres clés' if fr else 'key figures'}", f"{topic} {'acteurs' if fr else 'players'}",
-                     f"{topic} {year}"]  # fmt: skip
-        out, seen = [], set()
-        for q in head:
-            if cc.fold(q) not in seen:
-                seen.add(cc.fold(q))
-                out.append(q)
+        self._step("planificateur", "running", "plan")
+        g = self._gen("planificateur", "plan", self._user(data, PROMPTS[self.lang]["plan"].format(topic=topic, year=year)),
+                      [PLAN_SEARCH], 360, temperature=0.0, until=self.t0 + 40)  # fmt: skip
+        pairs = checked_sub_questions(self._args(g, "plan_search") or {}, self.instr + " " + topic, MAX_QUERIES)
+        planned = bool(pairs)
+        if not pairs:  # the plan failed: generic sub-questions, written by code (no facts in them)
+            pairs = ([(f"Quels sont les faits et chiffres clés sur {topic} ?", f"{topic} chiffres clés"),
+                      (f"Qui sont les principaux acteurs de {topic} et comment sont-ils liés ?", f"{topic} acteurs"),
+                      (f"Quelles évolutions récentes pour {topic} ?", f"{topic} {year}")] if fr else
+                     [(f"What are the key facts and figures on {topic}?", f"{topic} key figures"),
+                      (f"Who are the main players in {topic} and how are they linked?", f"{topic} players"),
+                      (f"What recent changes for {topic}?", f"{topic} {year}")])  # fmt: skip
+        prefer = self.plan.prefer if self.plan is not None else []
+        if prefer:  # the user's preferred site (plan card) gets a query of its own
+            pairs = [*pairs[: MAX_QUERIES - 1], (pairs[0][0], f"{topic} site:{prefer[0]}")]
+        questions = [q for q, _ in pairs]
+        queries = list(dict.fromkeys(qq for _, qq in pairs))
+        self.trace["planned"] = len(questions) if planned else 0
+        self._board(phase="search", questions=[{"id": f"q{i + 1}", "text": q, "query": qq, "status": "open",
+                                                "claims": 0} for i, (q, qq) in enumerate(pairs)],
+                    queries=[{"q": q, "status": "queued", "results": 0} for q in queries])  # fmt: skip
+        detail = (f"{len(questions)} sous-questions" if fr else f"{len(questions)} sub-questions") if planned else (
+            "plan par défaut" if fr else "default plan")
         if g:
-            self._step("planificateur", "done", "plan", tokens=g["tokens"], seconds=g["seconds"],
-                       detail=f"{len(questions)} sous-questions" if fr else f"{len(questions)} sub-questions",
-                       items=questions[:5], planned=planned)  # fmt: skip
+            self._step("planificateur", "done", "plan", tokens=g["tokens"], seconds=g["seconds"], detail=detail,
+                       questions=questions[:3], planned=planned)  # fmt: skip
         else:
-            self._step("planificateur", "done", "plan", detail="plan par défaut" if fr else "default plan",
-                       items=questions[:5])  # fmt: skip
-        return questions[:5], out[:MAX_QUERIES]
+            self._step("planificateur", "done", "plan", detail=detail, questions=questions[:3])
+        return questions[:MAX_QUERIES], queries[:MAX_QUERIES]
 
     # -------------------------------------------------------------- 2. search and read
+    def _rank(self, urls: list[str]) -> list[str]:
+        """The plan card's exclusions out; preferred sites, then official ones, then the engine's order; forums,
+        social networks and video sites last; one page per site first (several points of view)."""
+        from birds.harness import crew_plan as cp
+
+        plan = self.plan
+        if plan is not None and plan.exclude:
+            urls = [u for u in urls if not cp.matches(u, plan.exclude)]
+        prefer = plan.prefer if plan is not None else []
+        rank = {u: (0 if prefer and cp.matches(u, prefer) else 1 if _OFFICIAL.search(_domain(u)) else
+                    3 if _LOW.search(_domain(u)) else 2, i) for i, u in enumerate(urls)}  # fmt: skip
+        urls = sorted(urls, key=rank.__getitem__)
+        firsts, sites = [], set()
+        for u in urls:
+            if _domain(u) not in sites:
+                sites.add(_domain(u))
+                firsts.append(u)
+        return firsts + [u for u in urls if u not in firsts]
+
     def _gather(self, queries: list[str], topic: str) -> list[dict]:
+        from concurrent.futures import as_completed
+
         fr = self.lang == "fr"
         lane = "chercheur"
         self._step(lane, "running", "research", detail=" · ".join(queries))
-        results = list(self.pool.map(lambda q: self._tool(lane, "web_search", {"query": q, "max_results": 6}), queries))
-        rows = [re.findall(r"^\s+(https?://\S+)\s*$", text, re.M) for _, step, text, _ in results if not step.error]
-        urls, seen = [], set()
+        qid = {}
+        for q in self.board["questions"]:
+            qid.setdefault(q["query"], q["id"])
+        for row in self.board["queries"]:
+            row["status"] = "running"
+        self._board()
+        futures = {self.pool.submit(self._tool, lane, "web_search", {"query": q, "max_results": 6}): q for q in queries}
+        found: dict[str, list[str]] = {}
+        for f in as_completed(futures):
+            q = futures[f]
+            _, step, text, _ = f.result()
+            got = [] if step.error else re.findall(r"^\s+(https?://\S+)\s*$", text, re.M)
+            found[q] = got
+            for row in self.board["queries"]:
+                if row["q"] == q:
+                    row.update(status="error" if step.error else "done", results=len(got))
+            self._board()
+        rows = [found.get(q, []) for q in queries]
+        urls, seen, origin = [], set(), {}
         for row in itertools.zip_longest(*rows):
-            for u in row:
+            for k, u in enumerate(row):
                 if not u:
                     continue
                 p = urlsplit(unquote(u))
@@ -552,48 +622,67 @@ class Research(Crew):
                 if key not in seen:
                     seen.add(key)
                     urls.append(u)
+                    origin[u] = qid.get(queries[k])
+        urls = self._rank(urls)
         if not urls:
             self._step(lane, "error", "research", detail="no_results")
             raise _Fallback("no_results")
-        firsts, sites = [], set()
-        for u in urls:  # one page per site first: several points of view, not one site read three times
-            if _domain(u) not in sites:
-                sites.add(_domain(u))
-                firsts.append(u)
-        urls = (firsts + [u for u in urls if u not in firsts])[: MAX_READ + 4]
+        urls = urls[: MAX_READ + 4]
         self.trace["queries"] = len(queries)
         head = [w for w in re.findall(r"[\wÀ-ÿ'-]{3,}", topic)][:8]
         pages: list[dict] = []
         read, skipped, domains = 0, 0, []
-        for u in urls:
+        self._board(phase="read", sources=[{"domain": _domain(u), "title": "", "status": "queued", "url": u,
+                                            "qid": origin.get(u)} for u in urls])  # fmt: skip
+        by_url = {s["url"]: s for s in self.board["sources"]}
+        at = 0
+        while at < len(urls):
             if len(pages) >= MAX_READ or time.monotonic() - self.t0 > READ_UNTIL or self._left() < 110:
                 break
-            _, step, text, _ = self._tool(lane, "read_page", {"url": u})
-            read += 1
-            if step.error:
-                continue
-            if step.flags:  # a page that talks to the assistant is not given to a model at all
-                skipped += 1
-                continue
-            url = (re.search(r"^URL: (\S+)", text, re.M) or [None, u])[1]
-            title = (re.search(r"^Title: ([^\n]+)", text, re.M) or [None, ""])[1].strip()
-            body = text.split("\n\n", 1)[-1]
-            ext = cc.evidence(body, head, None, EXTRACT_CHARS, need_figure=False)
-            if len(ext) < 200:
-                ext = "\n".join(p for p in body.split("\n") if len(p.strip()) > 60)[:EXTRACT_CHARS]
-            if len(ext) < 200:
-                continue
-            n = len(pages) + 1
-            pages.append({"n": n, "url": url, "title": title or _domain(url), "domain": _domain(url),
-                          "text": body[:PAGE_TEXT], "extract": ext})  # fmt: skip
-            domains.append(_domain(url))
+            batch = urls[at : at + min(READ_BATCH, MAX_READ - len(pages))]
+            at += len(batch)
+            for u in batch:
+                by_url[u]["status"] = "reading"
+            self._board()
+            reads = list(self.pool.map(lambda u: self._tool(lane, "read_page", {"url": u}), batch))
+            for u, (_, step, text, _) in zip(batch, reads, strict=True):
+                read += 1
+                src = by_url[u]
+                if step.error:
+                    src["status"] = "error"
+                    continue
+                if step.flags:  # a page that talks to the assistant is not given to a model at all
+                    skipped += 1
+                    src["status"] = "flagged"
+                    continue
+                url = (re.search(r"^URL: (\S+)", text, re.M) or [None, u])[1]
+                title = (re.search(r"^Title: ([^\n]+)", text, re.M) or [None, ""])[1].strip()
+                src["title"] = title[:90]
+                body = text.split("\n\n", 1)[-1]
+                ext = cc.evidence(body, head, None, EXTRACT_CHARS, need_figure=False)
+                if len(ext) < 200:
+                    ext = "\n".join(p for p in body.split("\n") if len(p.strip()) > 60)[:EXTRACT_CHARS]
+                if len(ext) < 200 or len(pages) >= MAX_READ:
+                    src["status"] = "thin"
+                    continue
+                n = len(pages) + 1
+                pages.append({"n": n, "url": url, "title": title or _domain(url), "domain": _domain(url),
+                              "text": body[:PAGE_TEXT], "extract": ext, "qid": src.get("qid")})  # fmt: skip
+                src.update(status="kept", n=n)
+                domains.append(_domain(url))
+            self._board()
             self._step(lane, "running", "research", detail=(f"{len(pages)} page(s) retenue(s)" if fr else
-                       f"{len(pages)} page(s) kept"), domains=list(dict.fromkeys(domains))[:12],
-                       progress=round(min(1.0, len(pages) / MAX_READ), 2))  # fmt: skip
+                       f"{len(pages)} page(s) kept"), progress=round(min(1.0, len(pages) / MAX_READ), 2))  # fmt: skip
+        for src in self.board["sources"]:
+            if src["status"] == "queued":
+                src["status"] = "unread"
         self.trace.update(read=read, kept=len(pages), suspicious=skipped)
+        self.consulted = [{"domain": s["domain"], "title": s["title"], "url": s["url"][:300], "status": s["status"]}
+                          for s in self.board["sources"] if s["status"] in ("thin", "error", "flagged")]  # fmt: skip
+        self._board()
         self._step(lane, "done", "research", seconds=round(time.monotonic() - self.t0, 1),
                    detail=(f"{read} page(s) lue(s), {len(pages)} retenue(s)" if fr else f"{read} page(s) read, "
-                           f"{len(pages)} kept"), domains=list(dict.fromkeys(domains))[:12])  # fmt: skip
+                           f"{len(pages)} kept"))  # fmt: skip
         if len(pages) < MIN_PAGES:
             raise _Fallback("no_facts")
         return pages
@@ -608,10 +697,14 @@ class Research(Crew):
             pages.append({"n": len(pages) + 1, "url": "", "title": name[:90], "domain": "", "text": body,
                           "extract": body[:EXTRACT_CHARS * 2]})  # fmt: skip
         self.trace.update(read=len(pages), kept=len(pages), own=True)
+        self._board(phase="read", sources=[{"domain": "", "title": p["title"], "status": "kept", "n": p["n"], "url": ""}
+                                           for p in pages])  # fmt: skip
         return pages
 
     # -------------------------------------------------------------- 3. extract
     def _extract(self, pages: list[dict], topic: str) -> tuple[list[dict], dict]:
+        from concurrent.futures import as_completed
+
         groups: list[list[dict]] = [[] for _ in range(EXTRACTORS)]
         if len(pages) == 1 and len(pages[0]["extract"]) > EXTRACT_CHARS:  # one long own text: cut in parts
             body = pages[0]["extract"]
@@ -625,6 +718,7 @@ class Research(Crew):
         jobs = [(f"lecteur_{i + 1}", g) for i, g in enumerate(groups) if g]
         for i in range(len(jobs), EXTRACTORS):
             self._step(f"lecteur_{i + 1}", "skipped", "brief", detail="—")
+        self._board(phase="extract")
 
         def one(job):
             lane, group = job
@@ -650,24 +744,34 @@ class Research(Crew):
 
         claims, totals = [], {"seen": 0, "no_quote": 0, "figure": 0, "weak": 0}
         seen = set()
-        for got, stats in self.pool.map(one, jobs):
+        futures = [self.pool.submit(one, j) for j in jobs]
+        for f in as_completed(futures):  # each extractor's claims reach the board (and the graph) as they come
+            got, stats = f.result()
             for k in totals:
                 totals[k] += stats[k]
             for c in got:
                 if cc.fold(c["claim"]) not in seen:
                     seen.add(cc.fold(c["claim"]))
                     claims.append(c)
+            for s in self.board["sources"]:
+                if s.get("n"):
+                    s["claims"] = sum(1 for c in claims if c["n"] == s["n"])
+            self._resolve(claims, pages)
+            self._board(claims={"seen": totals["seen"], "checked": len(claims), "dropped": totals["seen"] - len(claims),
+                                "crossed": 0}, graph=build_graph(sorted(claims, key=lambda c: c["n"]), self.lang))  # fmt: skip
         claims.sort(key=lambda c: c["n"])
         self.trace.update(claims=len(claims), claims_seen=totals["seen"])
         return claims[:MAX_CLAIMS], totals
 
     # -------------------------------------------------------------- 4. report, checked in code
-    def _report_text(self, title: str, summary: str, sections: list[dict], pages: list[dict]) -> tuple[str, dict]:
+    def _report_text(self, title: str, summary: str, sections: list[dict], pages: list[dict]):
+        """The report as Markdown, and as sentences with their citations (the full-screen view): each figure is
+        checked against the page it cites (moved to the page that holds it, or the sentence is removed)."""
         by_source = {p["n"]: p["text"] for p in pages}
         stats = {"removed": 0, "recited": 0, "weak": []}
         cite = re.compile(r"\[(\d{1,2})\]")
 
-        def clean(text: str) -> str:
+        def clean(text: str) -> list[dict]:
             keep = []
             for sent in re.split(r"(?<=[.!?])\s+", " ".join(str(text or "").split())):
                 if not sent:
@@ -684,15 +788,21 @@ class Research(Crew):
                     cited = [holder]
                 if cited and cc.support(sent, " ".join(by_source[n] for n in cited)) < 0.34:
                     stats["weak"].append({"sentence": sent[:160], "cited": cited})
-                keep.append(sent)
-            return " ".join(keep)
+                keep.append({"t": sent, "c": cited})
+            return keep
 
-        parts = [f"## {title}", "", clean(summary)]
+        head = clean(summary)
+        parts = [f"## {title}", "", " ".join(x["t"] for x in head)]
+        out = []
         for s in sections:
-            body = clean(s["text"])
-            if body:
-                parts += ["", f"### {s['heading']}", "", body]
-        return "\n".join(parts).strip(), stats
+            sents = clean(s["text"])
+            if sents:
+                parts += ["", f"### {s['heading']}", "", " ".join(x["t"] for x in sents)]
+                out.append({"heading": s["heading"], "sents": sents})
+        # the full-screen view shows the sentences without their marks: the [n] become citation buttons
+        for x in [*head, *(y for sec in out for y in sec["sents"])]:
+            x["t"] = cite.sub("", x["t"]).replace(" .", ".").strip()
+        return "\n".join(parts).strip(), stats, head, out
 
     def _code_report(self, topic: str, claims: list[dict], pages: list[dict]) -> tuple[str, str, list[dict]]:
         """The report written by code from the verified claims, when the writer failed: one section per source."""
@@ -708,7 +818,7 @@ class Research(Crew):
                    f"{len(claims)} claims checked in {len({c['n'] for c in claims})} sources.")  # fmt: skip
         return title, summary, sections
 
-    def _write(self, topic, questions, claims, pages) -> tuple[str, dict, bool]:
+    def _write(self, topic, questions, claims, pages):
         fr = self.lang == "fr"
         lines = [("Demande : " if fr else "Request: ") + self.instr, "",
                  "Sous-questions :" if fr else "Sub-questions:", *[f"- {q}" for q in questions], "",
@@ -717,8 +827,9 @@ class Research(Crew):
         lines += [f"[{c['n']}] {c['claim']}" + (f" ({c['date']})" if c["date"] else "") for c in claims]
         lines += ["", "Sources :" if fr else "Sources:"] + [f"[{p['n']}] {p['title']}" + (f" — {p['domain']}" if p["domain"] else "")
                                                            for p in pages]  # fmt: skip
+        self._board(phase="write")
         g = self._gen("redacteur_a", "drafts", self._user("\n".join(lines), PROMPTS[self.lang]["report"]), [WRITE_REPORT],
-                      1700, temperature=0.2, until=self.deadline - 15)  # fmt: skip
+                      1900, temperature=0.2, until=self.deadline - 15)  # fmt: skip
         args = self._args(g, "write_report") or {}
         sections = []
         raw = args.get("sections")
@@ -737,18 +848,22 @@ class Research(Crew):
             self._step("redacteur_a", "done" if written else "error", "drafts", tokens=g["tokens"], seconds=g["seconds"],
                        detail=(f"{len(sections)} section(s)" if written else ("rapport écrit par le code" if fr else
                                "report written by code")))  # fmt: skip
-        text, stats = self._report_text(title, summary, sections, pages)
-        if written and len(re.findall(r"^### ", text, re.M)) == 0:  # every section lost its sentences
+        text, stats, head, secs = self._report_text(title, summary, sections, pages)
+        if written and not secs:  # every section lost its sentences
             title, summary, sections = self._code_report(topic, claims, pages)
-            text, stats = self._report_text(title, summary, sections, pages)
+            text, stats, head, secs = self._report_text(title, summary, sections, pages)
             written = False
-        return text, stats, written
+        matrix, blanked = rr.check_comparison(args.get("comparison"), claims, pages, self.lang) if written else (None, 0)
+        stats["blanked"] = blanked
+        return text, stats, written, {"title": title, "summary": head, "sections": secs, "matrix": matrix}
 
     # -------------------------------------------------------------- the whole run
     def _research_run(self) -> Run:
         fr = self.lang == "fr"
         topic = self._subject()
         own = bool(self.pasted or self.docs)
+        self._board_init(topic)
+        self.consulted = []
         if own:
             questions, queries = [], []
             pages = self._own_pages()
@@ -757,9 +872,17 @@ class Research(Crew):
             pages = self._gather(queries, topic)
         claims, cstats = self._extract(pages, topic)
         if not claims:
+            self._board(phase="done")
             raise _Fallback("no_facts")
         self._step("verificateur", "running", "check")
-        text, rstats, written = self._write(topic, questions, claims, pages)
+        claims, contradictions = rr.cross_check(claims, pages)
+        crossed = sum(1 for c in claims if c["also"])
+        self._board(phase="check", claims={**self.board["claims"], "crossed": crossed}, contradictions=contradictions)
+        text, rstats, written, rep = self._write(topic, questions, claims, pages)
+        for x in rstats["weak"]:  # a weak report sentence lowers the confidence of the claims of its source
+            for c in claims:
+                if c["n"] in x["cited"] and c["conf"] == "medium" and rr.similarity(x["sentence"], c["claim"]) >= 0.5:
+                    c["conf"] = "low"
         caveats = []
         dropped = cstats["seen"] - len(claims)
         if dropped:
@@ -769,14 +892,21 @@ class Research(Crew):
         if rstats["removed"]:
             caveats.append(f"{rstats['removed']} phrase(s) du rapport retirée(s) : chiffre absent des sources" if fr else
                            f"{rstats['removed']} report sentence(s) removed: figure in no source")  # fmt: skip
+        for c in contradictions[:2]:
+            caveats.append(f"les sources divergent : {c['a']['value']} [{c['a']['n']}] contre {c['b']['value']} "
+                           f"[{c['b']['n']}]" if fr else f"sources disagree: {c['a']['value']} [{c['a']['n']}] against "
+                           f"{c['b']['value']} [{c['b']['n']}]")  # fmt: skip
         for w in rstats["weak"][:3]:
             caveats.append(f"à vérifier dans la source [{w['cited'][0]}] : « {w['sentence'][:110]} »" if fr else
                             f"to check in source [{w['cited'][0]}]: “{w['sentence'][:110]}”")  # fmt: skip
         self._step("verificateur", "done", "check",
-                   detail=(f"{len(claims)} affirmation(s) vérifiée(s) · {rstats['recited']} citation(s) corrigée(s)"
-                           if fr else f"{len(claims)} claim(s) checked · {rstats['recited']} citation(s) fixed"))  # fmt: skip
+                   detail=(f"{len(claims)} affirmation(s) vérifiée(s) · {crossed} recoupée(s) · {rstats['recited']} "
+                           f"citation(s) corrigée(s)" if fr else f"{len(claims)} claim(s) checked · {crossed} "
+                           f"corroborated · {rstats['recited']} citation(s) fixed"))  # fmt: skip
         counts = {"queries": len(queries), "read": self.trace.get("read", 0), "kept": len(pages), "claims": len(claims),
-                  "dropped": dropped, "removed": rstats["removed"], "recited": rstats["recited"]}  # fmt: skip
+                  "dropped": dropped, "removed": rstats["removed"], "recited": rstats["recited"], "crossed": crossed,
+                  "contradictions": len(contradictions)}  # fmt: skip
+        self._resolve(claims, pages, final=True)
         parts = [text]
         if caveats:
             parts += ["", "### À vérifier" if fr else "### To check", ""] + [f"- {c}" for c in caveats]
@@ -786,8 +916,9 @@ class Research(Crew):
              f"page(s) read, {len(pages)} source(s) kept from {len({p['domain'] for p in pages})} site(s)")
             if not own else ("vos documents comme seules sources, rien n'a été cherché sur le web" if fr else
                              "your documents as the only sources, nothing searched on the web"),
-            (f"{cstats['seen']} affirmation(s) relevée(s), {len(claims)} vérifiée(s) mot pour mot dans leur source"
-             if fr else f"{cstats['seen']} claim(s) found, {len(claims)} checked word for word in their source"),
+            (f"{cstats['seen']} affirmation(s) relevée(s), {len(claims)} vérifiée(s) mot pour mot dans leur source, "
+             f"{crossed} recoupée(s) par un autre site" if fr else f"{cstats['seen']} claim(s) found, {len(claims)} "
+             f"checked word for word in their source, {crossed} corroborated by another site"),
             ("rapport rédigé par le modèle puis vérifié phrase par phrase" if written else
              "rapport écrit par le code à partir des affirmations vérifiées") if fr else
             ("report written by the model, then checked sentence by sentence" if written else
@@ -799,13 +930,23 @@ class Research(Crew):
         web = [p for p in pages if p["url"]]
         run.sources = [p["url"] for p in web] if len(web) == len(pages) else []
         run.source_titles = {p["url"]: p["title"] for p in web}
-        run.widgets = [research_card(topic, questions, pages, claims, counts, self.lang)]
+        qs = [{"text": q["text"], "status": q["status"], "claims": q.get("claims", 0)} for q in self.board["questions"]]
+        card = research_card(topic, questions, pages, claims, counts, self.lang)
+        card["resolved"] = [q["status"] == "resolved" for q in qs]
+        run.widgets = [card]
         graph = build_graph(claims, self.lang)
         if graph:
             run.widgets.append(graph)
         tl = build_timeline(claims, self.lang)
         if tl:
             run.widgets.append(tl)
+        if rep["matrix"]:
+            run.widgets.append(rep["matrix"])
+        run.widgets.append(rr.report_widget(
+            title=rep["title"], summary=rep["summary"], sections=rep["sections"], pages=pages,
+            consulted=self.consulted, claims=claims, figures=rr.key_figures(claims), contradictions=contradictions,
+            questions=qs, counts=counts, lang=self.lang))  # fmt: skip
+        self._board(phase="done", graph=graph)
         run.answer = answer
         self._stream(answer)
         run.usage = list(self.usage)
