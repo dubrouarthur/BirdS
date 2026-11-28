@@ -34,6 +34,7 @@ import {
   itemsOf,
   mainPart,
   pick as pickLayout,
+  sizeKey,
 } from "./canvas-layouts.js";
 
 Object.assign(STRINGS.fr, CANVAS_STRINGS.fr);
@@ -522,7 +523,7 @@ function sizeText(doc) {
   if (doc.kind === "deck") {
     const n = (doc.blocks || []).length;
     const kinds = new Set((doc.blocks || []).map((b, i) => pickLayout(b, i, n)));
-    return t("cv.card.slides", { n, layouts: kinds.size }); // as the chat says it: the cover is not counted
+    return t(sizeKey(n, kinds.size), { n, layouts: kinds.size }); // as the chat says it: the cover is not counted
   }
   if (doc.kind === "doc")
     return t("cv.sections", { n: (doc.blocks || []).length });

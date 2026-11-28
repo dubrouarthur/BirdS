@@ -14,6 +14,17 @@ const ASSET = /^\/api\/(img|map|icon)\?\S*$/; // pictures signed by the local Bi
 
 export const isLoopback = (hostname) => ["127.0.0.1", "localhost", "[::1]"].includes(String(hostname || "").toLowerCase());
 
+/** Safari (macOS, and every iOS browser, all WebKit) blocks an https page from calling http://127.0.0.1: the page
+ * served by Bird local is the way there. Chrome, Edge, Firefox and their iOS-less cousins accept the loopback. */
+export function isSafari(ua) {
+  const u = String(ua || "");
+  if (/\b(iPhone|iPad|iPod)\b/.test(u)) return true;
+  return /Safari\//.test(u) && !/(Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS|Android)/.test(u);
+}
+
+/** Errors of a local turn that mean the user's model server (vLLM) is down while Bird local itself answers. */
+export const MODEL_DOWN = new Set(["unreachable", "endpoint_down", "timeout", "waking"]);
+
 /** The two exact loopback origins the page may reach (the CSP lists the same two, nothing wider). */
 export const localBases = (port = DEFAULT_PORT) => [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
 
@@ -68,6 +79,13 @@ export function codeFromHash(hash) {
   return m && codeShapeOk(m[1]) ? formatCode(m[1]) : null;
 }
 
+/** « #bird-local=8765:ABCD-EFGH », the ready-made link scripts/bird_local.py prints for the hosted chat: {port, code}
+ * or null. Nothing to type; the fragment never leaves the browser. */
+export function linkFromHash(hash) {
+  const m = /(?:^#|&)bird-local=(\d{2,5}):([A-Za-z0-9-]{4,20})(?:&|$)/.exec(String(hash || ""));
+  return m && codeShapeOk(m[2]) ? { port: Number(m[1]), code: formatCode(m[2]) } : null;
+}
+
 const plainHeaders = (headers) => {
   const out = {};
   if (!headers) return out;
@@ -79,21 +97,25 @@ const plainHeaders = (headers) => {
 /**
  * Where a request of the page goes. ctx: {mode, base, code, onLocal}.
  * - the page served by Bird local itself (onLocal): same URL, plus the pairing code;
- * - the hosted page in « local » mode: /api/* (health excepted) to the local Bird, with the code, without cookies,
+ * - the hosted page in « local » mode: /api/* (health excepted) to the local Bird, with the code (even without one:
+ *   never to the host), without cookies,
  *   with the hosted-only headers removed and the server mode of the local Bird;
  * - anything else: unchanged.
  */
 export function routeRequest(input, init = {}, ctx = {}) {
   const url = typeof input === "string" ? input : null;
-  if (!url || !url.startsWith("/api/") || !ctx.code) return { input, init };
+  if (!url || !url.startsWith("/api/")) return { input, init };
   if (ctx.onLocal) {
+    if (!ctx.code) return { input, init };
     const headers = { ...plainHeaders(init.headers), "x-bird-pair": ctx.code };
     return { input, init: { ...init, headers } };
   }
   if (ctx.mode !== "local" || !ctx.base || url.startsWith("/api/health")) return { input, init };
   const headers = plainHeaders(init.headers);
   for (const k of HOSTED_ONLY) delete headers[k];
-  headers["x-bird-pair"] = ctx.code;
+  // no code in this tab yet: still the machine, never the host; Bird local answers pair_required
+  if (ctx.code) headers["x-bird-pair"] = ctx.code;
+  else delete headers["x-bird-pair"];
   if (headers["x-bird-mode"]) headers["x-bird-mode"] = "server";
   return {
     input: ctx.base + url,

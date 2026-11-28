@@ -15,8 +15,8 @@ import shutil
 import tempfile
 import threading
 import time
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -26,7 +26,7 @@ from birds.harness import guard
 from birds.harness.llm import Cancelled, accepts  # Cancelled: the client went away or pressed stop
 from birds.web.tidy import code_checks, tidy
 
-from . import rescue
+from . import citations, rescue
 from .widgets import enrich_sources
 
 Event = dict[str, Any]
@@ -262,6 +262,13 @@ def step_event(
         "flags": list(flags or []),
         "preview": preview,
     }
+
+
+def final_event(pending: list[str] | None = None) -> Event:
+    """The end of the turn for the user: the answer and its receipt are sent. The client gives Send back, shows the
+    actions and counts a Stop as nothing; ``pending`` names the late events still to come on this stream
+    (``suggestions``: Bird's next steps), then ``done`` closes it."""
+    return {"type": "final", "pending": list(pending or [])}
 
 
 def usage_event(
@@ -523,6 +530,21 @@ def pick_scenario(text: str, has_attachment: bool = False) -> str:
     return "plain"
 
 
+# what the app sends for « Continuer » after Stop (conversation-i18n.js « cx.continue.prompt »)
+CONTINUE_PROMPTS = (
+    "Continue ta réponse précédente exactement là où elle s'est arrêtée, sans la répéter ni la réintroduire.",
+    "Continue your previous answer exactly where it stopped, without repeating or reintroducing it.",
+)
+
+
+def demo_continuation(messages: list[dict]) -> str | None:
+    """The words already written when the last message is the app's « Continuer » after an interrupted answer."""
+    if len(messages) < 3 or messages[-1].get("role") != "user" or messages[-1].get("content") not in CONTINUE_PROMPTS:
+        return None
+    prev = messages[-2]
+    return str(prev.get("content") or "") if prev.get("role") == "assistant" and prev.get("interrupted") else None
+
+
 def demo_plan(text: str, lang: str) -> bool:
     """The demo's task-plan scenario: one ask that names a deck AND a mail (« prépare une présentation … et un mail
     … »), read by the harness's own plan extraction."""
@@ -571,6 +593,7 @@ class DemoBackend:
     """Scripted, deterministic backend. No model is involved: nothing here is measured."""
 
     delay: float = 1.0  # multiplier on the scripted pauses (0 in tests)
+    NEXT_PAUSE = 1.2  # seconds before the scripted next steps (the live call: p50 2.0 s)
     kind: str = "demo"
     model: str = "bird-demo"
     images: bool = True  # scripted: a fake transcription, labelled as such
@@ -595,6 +618,36 @@ class DemoBackend:
     )
 
     def run(self, request: ChatRequest, ctx: RunContext) -> None:
+        """The scripted turn, then its scripted next steps (nextsteps.DEMO): the same ``suggestions`` event as a
+        live turn, after the answer, picked from what the answer is (a draft, a deck, a question, a text)."""
+        seen: list[dict] = []
+        made: list[str] = []  # the canvas kinds this turn made (deck, doc)
+        emit = ctx.emit
+
+        def watch(event: dict) -> None:
+            if event.get("type") == "answer":
+                seen.append(event)
+            elif event.get("type") == "canvas" and event.get("phase") == "final":
+                made.append(str(event.get("kind") or ""))
+            emit(event)
+
+        ctx.emit = watch
+        try:
+            self._run(request, ctx)
+        finally:
+            ctx.emit = emit
+        if seen and not ctx.cancel.is_set():
+            kind = demo_suggest_kind(seen[-1], made[-1] if made else "")
+            ctx.emit(final_event(["suggestions"] if kind else []))
+            # the live call takes ≈ 2 s after the answer (docs/HARNESS.md § 18): the demo keeps a pause, so the
+            # late event is seen as it is live (Send back first, the chips after)
+            if kind and not ctx.cancel.wait(self.NEXT_PAUSE * self.delay):
+                from birds.harness import nextsteps
+
+                lang = "en" if request.lang == "en" else "fr"
+                ctx.emit({"type": "suggestions", "items": nextsteps.demo(kind, lang), "source": "demo"})
+
+    def _run(self, request: ChatRequest, ctx: RunContext) -> None:
         lang = "en" if request.lang == "en" else "fr"
         run = _DemoRun(self, request, ctx, lang)
         if request.resume is not None:
@@ -602,6 +655,11 @@ class DemoBackend:
                 raise ValueError("this confirmation does not belong to the demo")
             run.resume_email(request.resume, bool(request.decision))
             return
+        cut = demo_continuation(request.messages)
+        if cut is not None:  # « Continuer » after Stop: the same scripted answer, from where it stopped
+            request = replace(request, messages=request.messages[:-2])
+            run = _DemoRun(self, request, ctx, lang)
+            run.cut = cut
         last = next((m["content"] for m in reversed(request.messages) if m["role"] == "user"), "")
         if request.images:
             run.scenario_image()
@@ -624,14 +682,16 @@ class DemoBackend:
         found = demo_modules.modules_match(last, request)
         if found:
             return demo_modules.demo_modules(run, found)
-        scenario = pick_scenario(last, bool(request.attachments))
+        # only the files THIS message brings make it a question about a document (the app re-sends all of them)
+        joined = bool(request.attachments) and run.data_prep_new()
+        scenario = pick_scenario(last, joined)
         if scenario in ("attachment", "plain", "chart") and run.data_prep() is not None:
             scenario = "data"  # data analysis hook: a CSV / XLSX or a pasted table, computed by the harness
         elif scenario == "attachment" and not run.data_prep_new():
             scenario = pick_scenario(last)  # only files of earlier messages, and none of them is asked about
-        if scenario != "data" and demo_plan(last, lang) and not request.attachments:
+        if scenario != "data" and demo_plan(last, lang) and not joined:
             scenario = "plan"  # a deck and a mail in one ask: the task plan's checklist (w1-harness)
-        if scenario == "plain" and not request.attachments:
+        if scenario == "plain" and not joined:
             from birds.harness import followup
 
             again = followup.resolve(last, followup.previous(request.messages[:-1]), lang)
@@ -641,6 +701,23 @@ class DemoBackend:
                 run.followup, scenario = again, names[again.tool]
         getattr(run, "scenario_" + scenario)()
 
+
+def demo_suggest_kind(answer: dict, canvas_kind: str = "") -> str:
+    """Which scripted next steps fit a demo answer: a draft, a deck, a question offering options; '' otherwise
+    (a card answer: the widget chips of followups.js cover it; a greeting or a plain text: nothing scripted)."""
+    content = str(answer.get("content") or "").strip()
+    if answer.get("stop_reason", "answer") != "answer" or not content:
+        return ""
+    if answer.get("draft_email"):
+        return "mail"
+    if canvas_kind in ("deck", "doc"):
+        return canvas_kind
+    if any(str(f.get("name", "")).endswith(".pptx") for f in answer.get("files") or []):
+        return "deck"
+    last = content.split("\n")[-1].strip()
+    if last.endswith("?") and re.search(r"\b(?:ou|or)\b", last):
+        return "ask"
+    return ""
 
 
 def canvas_ref(tool: str, arguments: dict, lang: str) -> dict | None:
@@ -756,11 +833,21 @@ class _DemoRun:
             self.pause(0.035)
 
     def finish(
-        self, content: str, sources=None, files=None, draft_email=None, charts=None, web_images=None, widgets=None,
+        self,
+        content: str,
+        sources=None,
+        files=None,
+        draft_email=None,
+        charts=None,
+        web_images=None,
+        widgets=None,
         plan=None,
     ) -> None:
         from .widgets import enrich_sources
 
+        cut = getattr(self, "cut", "")
+        if cut and content.startswith(cut.rstrip()):  # « Continuer »: only what was not written yet
+            content = content[len(cut.rstrip()) :]
         self.pause(0.3)
         self.stream(content)
         self.ctx.emit(
@@ -848,9 +935,14 @@ class _DemoRun:
                 else:
                     (tmp / name).write_text(doc["content"], encoding="utf-8")
                 names.append(name)
-            self._data = data_hooks.prepare(tmp, list(reversed(names)), words, self.lang,
-                                            history=self.req.messages[:-1],
-                                            fresh=data_hooks.brought(self.req.attachments, self.req.messages[:-1]))
+            self._data = data_hooks.prepare(
+                tmp,
+                list(reversed(names)),
+                words,
+                self.lang,
+                history=self.req.messages[:-1],
+                fresh=data_hooks.brought(self.req.attachments, self.req.messages[:-1]),
+            )
             # rules only: no model in the demo
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
@@ -1124,16 +1216,22 @@ class _DemoRun:
                 f"closest: {names} [1].\n\nOpening hours come from OpenStreetMap: check them before going. I "
                 "give no ratings or prices, which I do not have.",
             )
-        elif w["mode"] == "list" and (w.get("plan") == "order" or w.get("missing") or w.get("unchecked") or w.get("not_shown")):
+        elif w["mode"] == "list" and (
+            w.get("plan") == "order" or w.get("missing") or w.get("unchecked") or w.get("not_shown")
+        ):
             from . import rescue
 
             # a visit order or places not found: the same words as the answer written from the card
             text = " ".join(rescue.places_lines(w, self.lang)) + " [1]"
             if w.get("plan") == "order":
                 by = {p["n"]: p["name"] for p in ps}
-                text += "\n\n" + " → ".join(f"**{by[n]}**" for n in w["order"] if n in by) + self.t(
-                    ". Les distances sont à vol d'oiseau ; le lien « Itinéraire complet » donne la route.",
-                    ". Distances are as the crow flies; the 'Full route' link gives the road route.",
+                text += (
+                    "\n\n"
+                    + " → ".join(f"**{by[n]}**" for n in w["order"] if n in by)
+                    + self.t(
+                        ". Les distances sont à vol d'oiseau ; le lien « Itinéraire complet » donne la route.",
+                        ". Distances are as the crow flies; the 'Full route' link gives the road route.",
+                    )
                 )
         elif w["mode"] == "list":
             text = self.t(
@@ -1828,6 +1926,11 @@ _DENIED_SUMMARY = {
     "denied_cap": ("Limite d'actions par requête atteinte", "Limit of actions per request reached"),
 }
 _ATTACH_NOTE = {"fr": "Fichier joint", "en": "Attached file"}
+# a file of an earlier message whose note the history window dropped: still readable, never « to read first »
+_EARLIER_NOTE = {
+    "fr": "Document de la conversation, à lire seulement si la demande porte dessus",
+    "en": "Document from this conversation, to read only if the request is about it",
+}
 ATTACH_DIR = "pieces-jointes"
 
 
@@ -2117,9 +2220,15 @@ def prepare_turn(
     history_tokens: int,
     msg_cap_tokens: int,
     clock: Callable[[], datetime] = paris_now,
+    earlier_names: Sequence[str] = (),
 ):
     """Pure: (system, kept history, user_sent, stats) for one request. user_sent is EXACTLY the text the model gets
-    as this turn's user message; the client stores it and sends it back as that turn's content afterwards."""
+    as this turn's user message; the client stores it and sends it back as that turn's content afterwards.
+
+    ``attachment_names`` are the files THIS message brings (noted « [Fichier joint : x] », read first);
+    ``earlier_names`` are the files of earlier messages, still in the workspace: the history already notes them, so
+    nothing is added (a general question after a document is answered as such, never « d'après le fichier »), except
+    for a file whose note the history window cut, named once as available only if the request is about it."""
     from birds.harness import guard
     from birds.harness.history import window
     from birds.sources.identity import DEFAULT_SYSTEM
@@ -2134,8 +2243,12 @@ def prepare_turn(
     lines = [ln for ln in lines if ln not in user]
     if lines:
         user += "\n\n" + "\n".join(lines)
-    user_sent = guard.defang(user)
     kept, summary, stats = window(history, history_tokens, lang=conv, msg_cap_tokens=msg_cap_tokens)
+    told = "\n".join(str(m.get("content") or "") for m in kept if m.get("role") == "user")
+    gone = [n for n in earlier_names if f"[{_ATTACH_NOTE[rl]} : {n}]" not in told and n not in user]
+    if gone:
+        user += "\n\n" + "\n".join(f"[{_EARLIER_NOTE[rl]} : {n}]" for n in gone)
+    user_sent = guard.defang(user)
     kept = [{**m, "content": guard.defang(m["content"])} for m in kept]
     system = DEFAULT_SYSTEM[conv] + ("\n\n" + summary if summary else "")
     system += "\n\n" + date_line(conv, clock())  # last: a small model otherwise guesses "today" with confidence
@@ -2382,6 +2495,13 @@ class HarnessBackend:
                 else:
                     (attach_dir / name).write_text(doc["content"], encoding="utf-8")
                 names.append(name if ephemeral else f"{ATTACH_DIR}/{name}")
+            # the app re-sends every file of the conversation each turn: only those THIS message brings are « joined »
+            # to it (noted, read first, ``attached``); the others stay readable when the request is about them
+            from birds.harness.analysis.hooks import brought as _brought
+
+            fresh = set(_brought(request.attachments, request.messages[:-1]) or [])
+            new_names = [n for n in names if Path(n).name in fresh]
+            old_names = [n for n in names if n not in new_names]
             cfg = self._config(workspace, request, ctx)
             offset = len(request.images) if request.resume is None else 0
 
@@ -2478,15 +2598,22 @@ class HarnessBackend:
                 image_usage += scan_usage
                 offset = len(request.images) + len(scan_usage)  # the agent's steps come after these
                 system, kept, user_sent, hist_stats = prepare_turn(
-                    request.messages, conv, rl, names, image_texts, self.history_tokens, self.msg_cap_tokens
+                    request.messages, conv, rl, new_names, image_texts, self.history_tokens, self.msg_cap_tokens,
+                    earlier_names=old_names,
                 )
                 state_ui = len(kept) + 1  # index of this turn's user message in the agent's messages
                 # ---- data analysis hook: an attached CSV / XLSX (or a pasted table) is computed on by the harness;
                 # the model gets the result and only explains it (birds/harness/analysis/hooks.py)
                 from birds.harness.analysis import hooks as data_hooks
 
-                data_prep = data_hooks.prepare(workspace, names, words, rl, **self._data_planner(agent, cfg, request),
-                                               fresh=data_hooks.brought(request.attachments, request.messages[:-1]))
+                data_prep = data_hooks.prepare(
+                    workspace,
+                    names,
+                    words,
+                    rl,
+                    **self._data_planner(agent, cfg, request),
+                    fresh=data_hooks.brought(request.attachments, request.messages[:-1]),
+                )
                 if data_prep is not None:
                     user_sent = data_hooks.strip_note(user_sent) + data_prep.note
                 ctx.emit({"type": "user", "content": user_sent})
@@ -2500,16 +2627,17 @@ class HarnessBackend:
                     try:
                         # the canvas (birds.canvas): a change to the open artifact comes first; a new deck, document or
                         # page is made after the Mode Agent declined it (its research decks stay the team's)
-                        cplan = canvas_web.plan_for(request, words, rl, self.canvas, attached=bool(names or image_texts))
+                        joined = bool(new_names or image_texts)  # this message brings a file or an image
+                        cplan = canvas_web.plan_for(request, words, rl, self.canvas, attached=joined)
                         canvas_kw = dict(user_sent=user_sent, words=words, system=system, history=kept, lang=rl,
-                                         mode="server", attached=bool(names or image_texts))  # fmt: skip
+                                         mode="server", attached=joined)  # fmt: skip
                         if cplan is not None and cplan.mode != "create":
                             run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
                         else:
-                            decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
+                            decision = crew_web.decide_for(request, words, len(new_names), len(image_texts), rl)
                             if request.reflexion == "albatros" and decision.recipe is None and request.agent == "auto":
                                 # Albatros, Endurance: a team task runs as a team; the router says which ones are
-                                strong = crew_web.albatros_decision(agent, request, words, len(names),
+                                strong = crew_web.albatros_decision(agent, request, words, len(new_names),
                                                                     len(image_texts), rl, history=kept)  # fmt: skip
                                 decision = strong or decision
                             run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
@@ -2525,7 +2653,7 @@ class HarnessBackend:
                                 thinking=request.thinking,
                                 lang=rl,
                                 request_text=words,
-                                attached=bool(names or image_texts),
+                                attached=joined,
                                 tz=request.tz,
                                 reflexion=request.reflexion,
                             )
@@ -2569,16 +2697,22 @@ class HarnessBackend:
                 tout += int(u.get("completion_tokens") or 0)
                 cached += min(int(u.get("cached_tokens") or 0), int(u.get("prompt_tokens") or 0))
                 busy += float(u.get("busy_seconds") or 0.0)
-            est = None
-            if image_usage and energy_method == "power_time" and cfg.gpu_watts:
-                est = estimate_power_time(cfg.gpu_watts, busy, pue=cfg.pue, label=cfg.gpu_label)
-            elif image_usage and energy_method == "tokens":  # the reading calls' tokens count like the others
-                o = energy_options(cfg)
-                est = estimate_tokens(tin, tout, cached=cached, wh_per_1k_in=o["wh_per_1k_in"] or 0.0,
-                                      wh_per_1k_out=o["wh_per_1k_out"] or 0.0, in_range=o["wh_per_1k_in_range"],
-                                      out_range=o["wh_per_1k_out_range"], cached_share=o["cached_input_share"],
-                                      serving_overhead=o["serving_overhead"],
-                                      exact=bool(report.get("tokens_exact", True)))  # fmt: skip
+
+            def estimate(tin: int, tout: int, cached: int, busy: float) -> dict | None:
+                """The energy of the turn's calls when it is estimated (tokens, or power x time); None: measured."""
+                if energy_method == "power_time" and cfg.gpu_watts:
+                    return estimate_power_time(cfg.gpu_watts, busy, pue=cfg.pue, label=cfg.gpu_label)
+                if energy_method == "tokens":
+                    o = energy_options(cfg)
+                    return estimate_tokens(tin, tout, cached=cached, wh_per_1k_in=o["wh_per_1k_in"] or 0.0,
+                                           wh_per_1k_out=o["wh_per_1k_out"] or 0.0, in_range=o["wh_per_1k_in_range"],
+                                           out_range=o["wh_per_1k_out_range"], cached_share=o["cached_input_share"],
+                                           serving_overhead=o["serving_overhead"],
+                                           exact=bool(report.get("tokens_exact", True)))  # fmt: skip
+                return None
+
+            # the reading calls' tokens count like the others
+            est = estimate(tin, tout, cached, busy) if image_usage else None
             if est is not None:
                 energy, energy_source, energy_basis = est["energy_wh"], est["energy_source"], est["energy_basis"]
             if energy_kind == "measured" and carry.get("energy_wh") is not None:
@@ -2644,6 +2778,10 @@ class HarnessBackend:
             )
             tidied = tidy(str(run.answer), run.stop_reason)
             content = hide_out_paths(strip_tool_echo(strip_memo(tidied.text)))
+            # a sourced answer the model left unmarked: [n] after each sentence the page read really holds (R27)
+            content, _cited = citations.attribute(
+                content, sources, citations.source_texts(run.messages, run.steps, sources)
+            )
             widgets = self._widgets(run, request, ctx, lang, draft)
             stop_reason, fallback = tidied.stop_reason, None
             if run.stop_reason in rescue.NO_ANSWER and widgets and not run.salvaged:
@@ -2696,34 +2834,98 @@ class HarnessBackend:
                 }
             )
             rlv = (getattr(run, "reflexion", None) or {}).get("level")
-            ctx.emit(
-                crew_web.usage_extra(report)
-                | usage_event(
-                    model=self.model,
-                    thinking=request.thinking if rlv is None else rlv != "colibri",
-                    prompt_tokens=tin,
-                    completion_tokens=tout,
-                    cached_tokens=cached,
-                    seconds=seconds,
-                    tool_calls=(report.get("tool_calls") or len(run.steps)) + len(image_usage),
-                    bytes_fetched=report.get("bytes_fetched") or 0,
-                    energy_wh=energy,
-                    energy_kind=energy_kind,
-                    energy_source=energy_source,
-                    tokens_kind="counted" if report.get("tokens_exact", True) else "estimated",
-                    energy_method=energy_method,
-                    energy_basis=energy_basis,
-                    busy_seconds=busy or None,
-                    first_token_seconds=(image_usage[0].get("first_token_seconds") if image_usage else None)
-                    or report.get("first_token_seconds"),
-                    history=hist_stats,
+
+            def receipt(tin: int, tout: int, cached: int, busy: float, energy, energy_source, energy_basis, **more):
+                return (
+                    crew_web.usage_extra(report)
+                    | usage_event(
+                        model=self.model,
+                        thinking=request.thinking if rlv is None else rlv != "colibri",
+                        prompt_tokens=tin,
+                        completion_tokens=tout,
+                        cached_tokens=cached,
+                        seconds=seconds,
+                        tool_calls=(report.get("tool_calls") or len(run.steps)) + len(image_usage),
+                        bytes_fetched=report.get("bytes_fetched") or 0,
+                        energy_wh=energy,
+                        energy_kind=energy_kind,
+                        energy_source=energy_source,
+                        tokens_kind="counted" if report.get("tokens_exact", True) else "estimated",
+                        energy_method=energy_method,
+                        energy_basis=energy_basis,
+                        busy_seconds=busy or None,
+                        first_token_seconds=(image_usage[0].get("first_token_seconds") if image_usage else None)
+                        or report.get("first_token_seconds"),
+                        history=hist_stats,
+                    )
+                    | more
                 )
-            )
+
+            ctx.emit(receipt(tin, tout, cached, busy, energy, energy_source, energy_basis))
+            # after the answer and its receipt, never before: the turn is over for the user (``final``: Send is
+            # back, the actions and the receipt show, a Stop is no longer an interruption); then Bird writes the
+            # next steps the user may want (birds/harness/nextsteps.py), from the request and the answer only, as
+            # a late event of the same stream
+            later = stop_reason == "answer" and bool(content.strip()) and self._suggest_on(ctx)
+            ctx.emit(final_event(["suggestions"] if later else []))
+            if later:
+                made = draft is not None or bool(files) or bool(canvas_web.ref(run))  # a mail, a file, a deck
+                got = self._suggest(agent, cfg, request_words, content, run.lang or lang, ctx, made=made)
+                used = (got or {}).get("usage") or {}
+                if used.get("prompt_tokens") or used.get("completion_tokens"):
+                    # the receipt again, with the next-steps call in it: the Consommation panel and the ledger
+                    # count every generation of the turn (the client keeps the last usage event of the stream)
+                    n_in, n_out = int(used.get("prompt_tokens") or 0), int(used.get("completion_tokens") or 0)
+                    n_cached = min(int(used.get("cached_tokens") or 0), n_in)
+                    t_in, t_out, t_cached = tin + n_in, tout + n_out, cached + n_cached
+                    t_busy = busy + float(got.get("seconds") or 0.0)
+                    e, e_source, e_basis = energy, energy_source, energy_basis
+                    est2 = estimate(t_in, t_out, t_cached, t_busy)
+                    if est2 is not None:
+                        e, e_source, e_basis = est2["energy_wh"], est2["energy_source"], est2["energy_basis"]
+                    nxt = {"prompt_tokens": n_in, "completion_tokens": n_out, "seconds": got.get("seconds")}
+                    if not ctx.cancel.is_set():
+                        ctx.emit(receipt(t_in, t_out, t_cached, t_busy, e, e_source, e_basis, nextsteps=nxt))
         finally:
             if ephemeral:
                 shutil.rmtree(workspace, ignore_errors=True)
             else:  # a persistent workspace keeps no copy of the pictures of one message
                 shutil.rmtree(workspace / ".bird_images", ignore_errors=True)
+
+    @staticmethod
+    def _suggest_on(ctx: RunContext) -> bool:
+        """Will this turn get Bird's next steps: switched on, time left, the user still there."""
+        import os
+
+        off = os.environ.get("BIRD_NEXTSTEPS", "on").strip().lower() in ("off", "0", "false")
+        return not off and ctx.seconds_left() - 1.0 >= 2.0 and not ctx.cancel.is_set()
+
+    @staticmethod
+    def _suggest(agent, cfg, request_words: str, content: str, lang: str, ctx: RunContext,
+                 made: bool = False) -> dict | None:  # fmt: skip
+        """The ``suggestions`` event: 0-3 next steps written by the model, validated (nextsteps.validate). Sent
+        only when the model answered; nothing on a failure (the client keeps its widget chips). Never raises."""
+        import logging
+
+        from birds.harness import nextsteps, router
+
+        left = ctx.seconds_left() - 1.0
+        if not HarnessBackend._suggest_on(ctx):
+            return None
+        try:
+            names = router.available_names(cfg, agent)
+            tools = set(agent._allowed())
+            got = nextsteps.generate(agent.llm, agent.tok, request_words, content, lang=lang, names=names,
+                                     tools=tools, budget=min(nextsteps.BUDGET_S, left),
+                                     cache_salt=cfg.cache_salt, made=made)  # fmt: skip
+        except Exception:  # noqa: BLE001 - next steps are optional: never lose the turn for them
+            return None
+        logging.getLogger("bird.nextsteps").info(json.dumps({
+            "event": "nextsteps", "source": got["source"], "n": len(got["items"]), "seconds": got["seconds"],
+            "dropped": [why for _, why in got.get("dropped", [])], "why": got.get("why", "")}))  # fmt: skip
+        if got["source"] == "model" and not ctx.cancel.is_set():
+            ctx.emit({"type": "suggestions", "items": got["items"], "source": "model"})
+        return got
 
     # ---- rich results independent of the model (birds/web/rescue.py)
     @staticmethod

@@ -1,5 +1,16 @@
 # Bird local — le modèle sur votre machine
 
+**Le plus simple :**
+
+- Linux / macOS : `curl -fsSL https://bird-s.vercel.app/install.sh | sh`
+- Windows (PowerShell) : `irm https://bird-s.vercel.app/install.ps1 | iex` — avec WSL (recommandé pour une carte
+  NVIDIA, `wsl --install` une fois) tout s'installe dans WSL ; sans WSL, Bird se branche sur un serveur compatible
+  OpenAI déjà lancé (LM Studio, Ollama, vLLM : `$env:BIRD_VLLM_URL`).
+
+La page qui s'ouvre (http://127.0.0.1:8765) marche tout de suite, **sans code**. Pour utiliser votre Bird local depuis
+bird-s.vercel.app, ouvrez le lien que la commande affiche (« Depuis bird-s.vercel.app, ouvrez : … ») : il est déjà
+appairé, rien à taper.
+
 Bird est léger : son modèle s'installe où vous voulez, y compris sur votre propre machine. **Bird local** fait tourner
 le harnais complet de Bird (routage, outils, modules, empreinte) chez vous, devant votre serveur vLLM, et vous l'utilisez
 soit depuis le chat hébergé (https://bird-s.vercel.app), soit directement dans votre navigateur
@@ -68,11 +79,15 @@ signées par Bird local (`/api/img`, `/api/map`, `/api/icon`) sont affichées de
 - **Code d'appairage.** Chaque appel d'API (y compris depuis la page servie par Bird local) porte l'en-tête
   `X-Bird-Pair` ; comparaison à temps constant (`hmac.compare_digest`). Code de 8 caractères sans lettres ambiguës
   (~39 bits), conservé entre deux lancements dans `~/.config/bird/local.json` (droits 0600) ; `--new-code` le change.
-  Après 8 codes faux en une minute, l'API se verrouille une minute (429). Seuls `/api/health` (sans le code ni l'URL
+  Après 8 codes faux en une minute, l'API se verrouille une minute (429), y compris pour le bon code : celui qui
+  devine n'apprend rien pendant le verrou. Seuls `/api/health` (sans le code ni l'URL
   vLLM) et les images signées répondent sans code. La commande ouvre `http://127.0.0.1:8765/#pair=CODE` : le fragment
   ne quitte jamais le navigateur et la page l'efface de la barre d'adresse.
 - **Côté navigateur**, le code est gardé dans `sessionStorage` (cet onglet) ; dans `localStorage` seulement avec « Se
-  souvenir de ce code sur cet appareil ». « Oublier le code » et « Tout effacer » le suppriment.
+  souvenir de ce code sur cet appareil ». « Oublier le code » et « Tout effacer » le suppriment. Un nouvel onglet sans
+  le code reste en Bird local : la requête part vers la machine, qui demande le code ; jamais de repli silencieux vers
+  le modèle hébergé.
+- **Journaux** : `install.sh` met `~/.bird/logs` (qui contient le code affiché) en mode 700.
 - **CSP du chat hébergé.** L'unique exception à « aucun tiers » : `connect-src` et `img-src` gagnent exactement
   `http://127.0.0.1:8765 http://localhost:8765` (votre propre machine), rien de plus large, aucun autre port.
   `BIRD_LOCAL_BIRD_PORT=off` retire le choix et l'exception ; `BIRD_LOCAL_BIRD_PORT=9876` change de port (≥ 1024).
@@ -90,10 +105,14 @@ La page Empreinte le dit en une ligne ; `--grid-intensity` donne les émissions 
 
 Le chat ne montre jamais d'erreur brute : une carte « Bird local ne répond pas » donne les trois étapes (commandes à
 copier), « Réessayer » et « Revenir au modèle hébergé ». Si Bird local a été relancé avec un nouveau code, le tour
-demande de se reconnecter dans les réglages.
+demande de se reconnecter dans les réglages. Si Bird local répond mais pas vLLM, la carte « Le modèle ne répond pas
+sur votre machine » donne la commande `vllm serve …`. Si le serveur sert un autre modèle que Bird (sans `--model`), la
+commande le signale.
 
 Limites connues : Safari bloque les appels d'une page https vers `http://127.0.0.1` ; utilisez alors directement
-http://127.0.0.1:8765 (l'application complète, servie par Bird local). Firefox et les navigateurs Chromium acceptent.
+http://127.0.0.1:8765 (l'application complète, servie par Bird local) ; sur Safari (et tout navigateur iOS), la carte
+« ne répond pas » le dit. Firefox et les navigateurs Chromium acceptent. Sous Windows, la commande s'affiche sans
+planter sur une console cp1252.
 
 ## Tests
 
@@ -121,7 +140,9 @@ Your conversations go from your browser to your machine, never through our serve
 Security: loopback bind and exact `Host` check (DNS rebinding); one exact allowed origin (default
 `https://bird-s.vercel.app`, `--allow-origin` to change), CORS for it alone, no credentials; Chrome's Private Network
 Access preflight answered for it alone; every API call carries the pairing code (`X-Bird-Pair`, constant-time compare,
-lock after 8 wrong codes a minute); the code is kept in `sessionStorage`, or `localStorage` with « Remember », and
+lock after 8 wrong codes a minute, the right code included); the code is kept in `sessionStorage`, or `localStorage` with « Remember », and
 « Forget the code » removes it; the hosted CSP gains exactly `http://127.0.0.1:8765 http://localhost:8765` in
 `connect-src` and `img-src`, nothing wider (`BIRD_LOCAL_BIRD_PORT=off` removes it); rate limit; the hosted server never
-sees a local conversation. Energy is estimated for your machine from tokens, or measured with `--measure-gpu`.
+sees a local conversation, not even from a new tab without the code (it asks the machine, which asks for the code).
+A model server down behind Bird local gets its own card with the `vllm serve` command; Safari users are told to open
+http://127.0.0.1:8765 directly. Energy is estimated for your machine from tokens, or measured with `--measure-gpu`.

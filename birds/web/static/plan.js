@@ -54,15 +54,25 @@ function missingText(plan) {
     : t("plan.partial.many", { items: left.join(", ") });
 }
 
+/**
+ * The head of the checklist: the check only when every item is done, the alert when the turn ended short (a final
+ * partial plan, or an answer that failed before the plan's last word: « 0 sur 2 faites » is never ticked), nothing
+ * while it runs or once stopped by the reader.
+ */
+export function planHead(plan, status) {
+  const total = plan.items.length;
+  const done = plan.items.filter((i) => i.status === "done").length;
+  const running = (status === "running" || status === "confirm") && !plan.final;
+  const ended = plan.final || status === "error" || status === "done";
+  const partial = ended && !running && (plan.partial || done < total) && status !== "stopped";
+  const icon = done === total && !plan.partial ? "check" : partial ? "alert" : null;
+  return { done, total, running, partial, icon };
+}
+
 export function renderPlan(turn) {
   const plan = turn.plan;
   if (!plan || !Array.isArray(plan.items) || plan.items.length < 2) return null;
-  const done = plan.items.filter((i) => i.status === "done").length;
-  const running = turn.status === "running" && !plan.final;
-  const partial =
-    plan.final &&
-    (plan.partial || done < plan.items.length) &&
-    turn.status !== "stopped";
+  const { done, running, partial, icon: head } = planHead(plan, turn.status);
   turn.ui = turn.ui || {};
   const open = turn.ui.planOpen ?? (running || partial);
   const box = h(
@@ -75,7 +85,7 @@ export function renderPlan(turn) {
       "summary",
       { "data-act": "plan" },
       icon("chevron", "chev"),
-      icon(partial ? "alert" : "check", "tplan-head-icon"),
+      head && icon(head, "tplan-head-icon"),
       h("span", { class: "tplan-title", text: t("plan.title") }),
       h("span", {
         class: "tplan-count",
@@ -110,7 +120,9 @@ export function renderPlan(turn) {
     "div",
     { class: "tplan-wrap" },
     box,
+    // an answer that failed says so in its own notice: the « manquent » line is for a plan that ended short
     partial &&
+      plan.final &&
       h(
         "p",
         { class: "tplan-missing", role: "status" },

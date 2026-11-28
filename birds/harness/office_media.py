@@ -314,7 +314,7 @@ class Fetcher:
             return user_agent(getattr(self.cfg, "search_contact", None))
         return guard.IMAGE_USER_AGENT
 
-    def json(self, url: str, retry: float = 1.2) -> dict:
+    def json(self, url: str, retry: float = 1.2, headers: dict | None = None) -> dict:
         """The JSON of a search API. A 429 (rate limit) is asked again once after ``retry`` seconds: the picture
         APIs refuse in short windows (seen live on Commons and Openverse), the second try often passes."""
         import json
@@ -326,7 +326,9 @@ class Fetcher:
             try:
                 status, _, body, _ = guard.fetch_bytes(
                     self.http, self.cfg, url, accept="application/json", types=("application/json",),
-                    max_bytes=400_000, user_agent=self.user_agent(url), timeout=8.0,
+                    max_bytes=400_000, user_agent=self.user_agent(url), timeout=8.0, headers=headers,
+                    # a key in the headers never follows a redirect to another host (the hops re-send the headers)
+                    redirect_ok=(lambda nxt: urlsplit(nxt).hostname == urlsplit(url).hostname) if headers else None,
                 )  # fmt: skip
             except guard.ToolError as e:
                 if attempt == 0 and retry > 0 and "429" in str(e):

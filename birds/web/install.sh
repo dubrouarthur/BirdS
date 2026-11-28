@@ -20,6 +20,7 @@
 #   BIRD_REPO       dépôt Git de Bird                        (défaut : https://github.com/dubrouarthur/BirdS.git)
 #   BIRD_REF        branche ou version                       (défaut : ccr-f7b26c02-9v78gg)
 # Arrêter : sh ~/.bird/stop.sh
+# Windows : irm https://bird-s.vercel.app/install.ps1 | iex   (PowerShell)
 set -eu
 
 BIRD_HOME="${BIRD_HOME:-$HOME/.bird}"
@@ -47,6 +48,7 @@ for p in python3.13 python3.12 python3.11 python3.10 python3; do
 done
 [ -n "$PY" ] || die "Python 3.10 ou plus est requis (https://www.python.org)."
 mkdir -p "$BIRD_HOME" "$LOGS"
+chmod 700 "$LOGS" # bird.log holds the pairing code of Bird local: this user only
 ok "Prérequis : $($PY --version), git, curl"
 
 # ---- 2. Bird
@@ -147,14 +149,14 @@ chmod +x "$BIRD_HOME/stop.sh"
 
 URL="http://127.0.0.1:$BIRD_PORT/"
 ok "Bird tourne sur votre machine : $URL"
-grep -m1 -i "code" "$LOGS/bird.log" 2>/dev/null || true # the pairing code of bird_local.py, when it prints one
-# the page opens already paired: the code rides in the fragment, which never leaves the browser (docs/LOCAL.md)
-CODE="$(sed -n "s/.*Code d'appairage *\([A-Z0-9-]*\).*/\1/p" "$LOGS/bird.log" 2>/dev/null | head -n 1)"
-[ -n "$CODE" ] && URL="$URL#pair=$CODE"
+# the page served by Bird local needs no code; the hosted chat gets a ready-made link (the code in its fragment)
+LINK="$(sed -n 's/.*\(https:[^ ]*#bird-local=[0-9]*:[A-Z0-9-]*\).*/\1/p' "$LOGS/bird.log" 2>/dev/null | head -n 1)"
+[ -n "$LINK" ] && echo "   Depuis bird-s.vercel.app, ouvrez : $LINK"
 echo "   Journaux : $LOGS   ·   Arrêter : sh $BIRD_HOME/stop.sh"
 echo "   Le modèle seul, en API compatible OpenAI :"
 echo "     curl -X POST \"$BASE_URL/chat/completions\" -H \"Content-Type: application/json\" \\"
 echo "       --data '{\"model\": \"$MODEL_ID\", \"messages\": [{\"role\": \"user\", \"content\": \"Bonjour\"}]}'"
-if command -v open >/dev/null 2>&1; then open "$URL" >/dev/null 2>&1 || true
+if [ -n "${BIRD_NO_BROWSER:-}" ]; then :  # Windows (WSL) opens the page itself
+elif command -v open >/dev/null 2>&1; then open "$URL" >/dev/null 2>&1 || true
 elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$URL" >/dev/null 2>&1 || true
 fi

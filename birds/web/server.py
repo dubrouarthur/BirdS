@@ -161,6 +161,13 @@ class ExportBody(BaseModel):
     content: str = Field(min_length=1, max_length=120_000)
 
 
+class TitleBody(BaseModel):
+    question: str = Field(min_length=1, max_length=4000)
+    answer: str = Field(default="", max_length=4000)
+    lang: Literal["fr", "en"] = "fr"
+    subject: str = Field(default="", max_length=300)  # a mail drafted in the answer: its subject is the title
+
+
 class ToolBody(BaseModel):
     tool: Literal["make_slides", "make_document", "make_sheet"]
     arguments: dict
@@ -736,6 +743,23 @@ def create_app(
         return {"ok": True, "delivered": crew_plan.REGISTRY.deliver(body.run, note), "id": note.id,
                 "kind": note.kind, "value": note.value}  # fmt: skip
 
+    @app.post("/api/title")
+    def title(body: TitleBody, request: Request) -> dict:
+        """The conversation's title after its first answer: a mail's subject when there is one (from the result),
+        else one short structured call to the model, checked (birds/harness/titles.py). ``title`` is "" when
+        nothing usable came back: the app keeps the start of the question."""
+        guard_request(request)
+        from birds.harness import titles
+
+        mode = resolve_mode(request)
+        subject = titles.from_result({"subject": body.subject})
+        if subject:
+            return {"title": subject, "source": "result"}
+        backend, _ = backend_for(mode, request)
+        llm, tok = getattr(backend, "llm", None), getattr(backend, "tok", None)
+        got = titles.propose(llm, tok, body.question, body.answer, lang=body.lang)
+        return {"title": got["title"], "source": got["source"]}
+
     @app.post("/api/export")
     def export(body: ExportBody, request: Request):
         """Any answer as a .docx (or .md): headings, lists and tables of its Markdown are kept. No model call."""
@@ -1084,6 +1108,11 @@ def create_app(
     def install_script() -> FileResponse:
         # « curl -fsSL https://<site>/install.sh | sh »: Bird and its model on the user's own machine (docs/LOCAL.md)
         return FileResponse(Path(__file__).with_name("install.sh"), media_type="text/plain; charset=utf-8")
+
+    @app.get("/install.ps1", include_in_schema=False)
+    def install_script_windows() -> FileResponse:
+        # « irm https://<site>/install.ps1 | iex »: the same, from Windows PowerShell (WSL, or a local server)
+        return FileResponse(Path(__file__).with_name("install.ps1"), media_type="text/plain; charset=utf-8")
 
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon() -> FileResponse:

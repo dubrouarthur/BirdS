@@ -157,6 +157,23 @@ conceptual illustration photo photograph picture image stock background abstract
 diverse innovative dynamic vibrant inspiring future futuristic""".split())
 
 
+_PLACEHOLDER_WORDS = re.compile(
+    r"^\s*(?:une?\s+|des\s+|la\s+|le\s+|les\s+|a\s+|an\s+|the\s+)?(?:photos?|images?|illustrations?|pictures?|"
+    r"visuels?|pictogrammes?)\s*(?:de|d['’]|du|des|of|:|-)?\s*",
+    re.I,
+)
+
+
+def clean_query(query: str) -> str:
+    """What a search engine can use: « [Paris bike cargo 1] » -> « Paris bike cargo », « Photo : chaton heureux » ->
+    « chaton heureux ». Brackets, numbering, quotes and a leading « photo de / image of » are the model's notation,
+    never words of the picture."""
+    q = re.sub(r"[\[\]{}()«»\"“”<>]", " ", str(query or ""))
+    q = _PLACEHOLDER_WORDS.sub("", q)
+    q = re.sub(r"(?<![\w-])(?:n°\s*)?\d{1,2}(?![\w-])", " ", q)  # « 1 », « n° 2 » (years such as 2024 stay)
+    return re.sub(r"\s+", " ", q).strip(" .,:;-_")[:120]
+
+
 def short_query(query: str) -> str:
     """« cyclistes et piétons dans une rue urbaine » -> « cyclistes piétons »: the two first content words, for a
     second search when the long phrase finds nothing."""
@@ -219,7 +236,8 @@ def _looks(judge, want: str, m: om.Media, tries: list[int]) -> bool:
 
 def search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: str = "w1",
                      deadline: float | None = None, judge=None, want: str = "") -> om.Media | None:  # fmt: skip
-    """The first relevant, free-licence Openverse picture for ``query``."""
+    """The first relevant, free-licence Openverse picture for ``query`` (the model's notation cleaned first)."""
+    query = clean_query(query) or query
     return _search_openverse(query, fetch, exclude, mid, deadline, judge, want)
 
 
@@ -345,11 +363,15 @@ def search_commons(query: str, fetch, exclude: list[str] | None = None, mid: str
 
 def search_web(query: str, fetch, exclude: list[str] | None = None, mid: str = "w1",
                deadline: float | None = None, judge=None) -> om.Media | None:  # fmt: skip
-    """For each variant of the query (``variants``): Openverse (wide: Flickr, museums, Commons; measured the more
-    often available of the two), then Wikimedia Commons directly. The first relevant picture wins. ``judge``
-    (``vision_judge``): the model looks at each candidate and says whether it shows the query as asked — the words
-    of a title are only a first sieve (« Night train at Høje Taastrup Station » was a politician on a stage)."""
-    for q in variants(query):
+    """For each variant of the cleaned query (``variants``): Openverse (wide: Flickr, museums, Commons; measured the
+    more often available of the two), then Wikimedia Commons directly; then Pexels when the deployment has a key
+    (BIRD_PEXELS_API_KEY): the two free sources throttle shared cloud addresses, Pexels gives a keyed quota. The
+    first relevant picture wins. ``judge`` (``vision_judge``): the model looks at each candidate and says whether it
+    shows the query as asked — the words of a title are only a first sieve (« Night train at Høje Taastrup
+    Station » was a politician on a stage)."""
+    query = clean_query(query) or str(query or "")
+    tried = variants(query)
+    for q in tried:
         if deadline is not None and time.monotonic() > deadline:
             break
         # judged against the words searched: the shorter variants keep the core of the query (« night train »)
@@ -357,7 +379,61 @@ def search_web(query: str, fetch, exclude: list[str] | None = None, mid: str = "
              or search_commons(q, fetch, exclude, mid, deadline, judge, q))  # fmt: skip
         if m is not None:
             return m
-    return None
+    if not tried:
+        return None  # a chart or a table: no photograph stands for it
+    m = search_pexels(query, fetch, exclude, mid, deadline)
+    if m is not None and not _looks(judge, query, m, [0]):
+        return None
+    return m
+
+
+PEXELS_API = "https://api.pexels.com/v1/search"
+
+
+def search_pexels(query: str, fetch, exclude: list[str] | None = None, mid: str = "w1",
+                  deadline: float | None = None) -> om.Media | None:  # fmt: skip
+    """A Pexels photograph (Pexels licence: free to use, credit shown), only with a key set by the operator."""
+    import os
+
+    key = os.environ.get("BIRD_PEXELS_API_KEY", "").strip()
+    q = clean_query(query)
+    if not key or not q or fetch is None:
+        return None
+    ck = ("pexels", q.lower(), tuple(sorted(exclude or [])))
+    hit, cached = CACHE.get(ck)
+    if hit:
+        return _renamed(cached, mid)
+    try:
+        photos = fetch.json(f"{PEXELS_API}?query={quote(q)}&per_page={SEARCH_LIMIT}&orientation=landscape",
+                            headers={"Authorization": key}).get("photos") or []  # fmt: skip
+    except Exception:  # noqa: BLE001 - no picture rather than a failed turn
+        return None
+    skip = set(exclude or [])
+    found = None
+    for p in photos:
+        if deadline is not None and time.monotonic() > deadline:
+            break
+        if not isinstance(p, dict):
+            continue
+        page = str(p.get("url") or "")
+        src = str((p.get("src") or {}).get("large2x") or (p.get("src") or {}).get("large") or "")
+        alt = str(p.get("alt") or "")
+        if not page or page in skip or not src.startswith("https://images.pexels.com/"):
+            continue
+        if alt and not relevant(q, alt):
+            continue
+        try:
+            m = om.prepare(fetch.image(src), mid, "web", max_bytes=SHOW_BYTES, alt=q, title=(alt or q)[:120],
+                           licence="Licence Pexels", source=page[:300])  # fmt: skip
+        except Exception:  # noqa: BLE001 - this file fails, the next one may not
+            continue
+        if m.w < 400 or m.h < 260:
+            continue
+        m.credit = f"{str(p.get('photographer') or 'Pexels')[:80]} — Licence Pexels — Pexels"
+        found = m
+        break
+    CACHE.put(ck, found)
+    return _renamed(found, mid)
 
 
 _PALETTES = {

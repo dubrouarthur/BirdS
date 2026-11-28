@@ -40,6 +40,19 @@ export function installRouting() {
     const routed = L.routeRequest(input, init || {}, ctx);
     return original(routed.input, routed.init);
   };
+  // the hosted chat opened from the link scripts/bird_local.py prints (#bird-local=PORT:CODE): connect at once, nothing
+  // to type; only the port this deployment's CSP allows
+  const link = L.linkFromHash(location.hash);
+  const onThatBird = link && L.isLoopback(location.hostname) && String(link.port) === location.port;
+  if (link) {
+    history.replaceState(null, "", location.pathname + location.search);
+    if (!onThatBird && link.port === localPort()) {
+      localPair.set(link.code, true);
+      state.prefs.mode = "local";
+      state.prefs.localBase = `http://127.0.0.1:${link.port}`;
+      savePrefs();
+    }
+  }
   // scripts/bird_local.py opens http://127.0.0.1:8765/#pair=CODE: keep the code for this tab, clean the address bar
   if (L.isLoopback(location.hostname)) {
     const code = L.codeFromHash(location.hash);
@@ -115,12 +128,33 @@ export function unreachableCard({ onRetry, onOff, port = localPort(), compact = 
       step(3, t("local.step3")),
     ),
     h("p", { class: "local-perm", text: t("local.perm") }),
+    // Safari never reaches the loopback from an https page: say where to go instead of three steps that cannot help
+    L.isSafari(globalThis.navigator?.userAgent) && h("p", { class: "local-perm", "data-local": "safari", text: t("local.safari") }),
+    localActions(onRetry, onOff),
+  );
+}
+
+const localActions = (onRetry, onOff) =>
+  h(
+    "div",
+    { class: "local-actions" },
+    onRetry && button("btn-primary btn-small", "retry", t("local.retry"), onRetry, { "data-act": "local-retry" }),
+    onOff && button("btn-outline btn-small", null, t("local.disconnect"), onOff, { "data-act": "local-off" }),
+  );
+
+/** Bird local answers but its model server (vLLM) does not: the one command to start it again, never a raw error. */
+export function modelDownCard({ onRetry, onOff } = {}) {
+  return h(
+    "div",
+    { class: "local-down local-compact", role: "status", "data-local": "model-down" },
     h(
       "div",
-      { class: "local-actions" },
-      onRetry && button("btn-primary btn-small", "retry", t("local.retry"), onRetry, { "data-act": "local-retry" }),
-      onOff && button("btn-outline btn-small", null, t("local.disconnect"), onOff, { "data-act": "local-off" }),
+      { class: "local-down-head" },
+      icon("monitor"),
+      h("div", null, h("strong", { text: t("local.model.title") }), h("p", { text: t("local.model.p") })),
     ),
+    commandRow(LOCAL_CMDS.vllm),
+    localActions(onRetry, onOff),
   );
 }
 
@@ -259,7 +293,7 @@ export function localPanel({ onPrefs }) {
     } else box.replaceChildren(unreachableCard({ onRetry: search }));
   };
 
-  if (activeMode() === "local") connected();
+  if (activeMode() === "local" && localPair.get()) connected();
   else queueMicrotask(search);
   return box;
 }

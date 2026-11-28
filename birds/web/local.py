@@ -8,7 +8,8 @@ backend, then ``install`` puts this guard in front of it. The guard is the whole
 - browser calls from another origin are accepted only from an exact allow-list (the hosted chat by default), with
   CORS headers for that origin alone, never ``*`` and never credentials; Chrome's Private / Local Network Access
   preflight (``Access-Control-Request-Private-Network``) is answered for those origins only;
-- every API call needs the pairing code printed by the local command (``X-Bird-Pair``, constant-time compare);
+- the app served by this server (its own origin) works without any code; every API call from the hosted chat needs
+  the pairing code (``X-Bird-Pair``, constant-time compare), which the launcher puts in a ready-made link;
   wrong codes are rate limited and lock the API for a minute after too many tries;
 - only the signed image routes (``/api/img``, ``/api/map``, ``/api/icon``: HMAC-signed by this process) and the
   health check answer without the code, so that the hosted page can find the local Bird and show its pictures.
@@ -22,6 +23,7 @@ import os
 import re
 import secrets
 import stat
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -143,6 +145,7 @@ def install(app, cfg: LocalConfig) -> None:
 
     limiter = RateLimiter(cfg.rate_per_minute)
     fails = RateLimiter(cfg.fail_per_minute)
+    locked_until = [0.0]  # while locked, every code is refused, the right one too: guessing gets no answer to read
     app.state.bird_local = cfg
 
     def refuse(status: int, code: str, message: str, origin: str | None) -> Response:
@@ -177,13 +180,18 @@ def install(app, cfg: LocalConfig) -> None:
             return PlainTextResponse("cross-site request refused", status_code=403)
         if not limiter.allow("api" if api else "page"):
             return refuse(429, "rate_limited", "too many requests, wait a minute", origin if cross else None)
-        paired = code_ok(request.headers.get(PAIR_HEADER), cfg.code)
+        # the page this server serves itself (its own origin, or a same-origin request without Origin, as a GET from
+        # the app) needs no code: no other site can send those (the Host check above stops DNS rebinding); the code is
+        # only for the hosted chat calling across origins
+        own = kind == "self" or (kind == "" and site == "same-origin")
+        paired = own or code_ok(request.headers.get(PAIR_HEADER), cfg.code)
         if api and path not in IMAGE_PATHS and path != "/api/health":
+            now = time.monotonic()
+            if request.headers.get(PAIR_HEADER) and not paired and not fails.allow("pair", now):
+                locked_until[0] = now + 60
+            if now < locked_until[0]:
+                return refuse(429, "pair_locked", "too many wrong pairing codes, wait a minute", origin if cross else None)
             if not paired:
-                if request.headers.get(PAIR_HEADER) and not fails.allow("pair"):
-                    return refuse(
-                        429, "pair_locked", "too many wrong pairing codes, wait a minute", origin if cross else None
-                    )
                 given = bool(request.headers.get(PAIR_HEADER))
                 return refuse(401, "pair_invalid" if given else "pair_required", "a valid pairing code is required",
                               origin if cross else None)  # fmt: skip

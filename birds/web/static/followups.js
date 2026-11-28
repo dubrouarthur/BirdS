@@ -1,6 +1,7 @@
-// Follow-up chips under the last answer, clarify chips when Bird asks back, one-click transforms of the answer.
-// Deterministic: the chips depend on what the answer IS (its widgets, its draft, a table), never on what the model
-// suggests. A chip only sends a request the user could have typed; the harness reads it like any other.
+// Follow-up chips under the last answer and one-click transforms of the answer. Bird writes its own next steps
+// (the ``suggestions`` event, birds/harness/nextsteps.py: the user's voice, validated server side); the widget
+// chips below (weather, map, draft, table) are deterministic and fill in. A chip only sends a request the user
+// could have typed; the harness reads it like any other.
 import { h, state, t } from "./core.js";
 import { canvasSuggestions } from "./canvas.js";
 
@@ -72,19 +73,25 @@ export function suggestions(answer) {
   const widgets = answer.widgets || [];
   for (const w of widgets) {
     if (w.type === "weather") {
-      const tomorrow = /demain|tomorrow/i.test(String(w.day || ""));
-      add(
-        tomorrow
-          ? L("Et après-demain ?", "And the day after?")
-          : L("Et demain ?", "What about tomorrow?"),
-        tomorrow
-          ? L("et après-demain ?", "what about the day after tomorrow?")
-          : L("et demain ?", "what about tomorrow?"),
-      );
-      add(
-        L("Restaurants autour", "Restaurants nearby"),
-        L("et des restaurants autour ?", "and restaurants nearby?"),
-      );
+      // the day after the one the card shows, read from its relative-day field (w.day is the ISO date)
+      const kind = w.day_kind || (/demain|tomorrow/i.test(String(w.day || "")) ? "tomorrow" : "today");
+      const place = w.place?.name ? String(w.place.name) : "";
+      const where = place ? L(` à ${place}`, ` in ${place}`) : "";
+      if (kind === "today")
+        add(L("Et demain ?", "What about tomorrow?"), L(`et demain${where} ?`, `what about tomorrow${where}?`));
+      else if (kind === "tomorrow")
+        add(
+          L("Et après-demain ?", "And the day after?"),
+          L(`et après-demain${where} ?`, `what about the day after tomorrow${where}?`),
+        );
+      else if (/^\d{4}-\d{2}-\d{2}$/.test(String(w.day || ""))) {
+        const next = new Date(`${w.day}T12:00:00Z`);
+        next.setUTCDate(next.getUTCDate() + 1);
+        const day = next.toLocaleDateString(lang() === "en" ? "en-GB" : "fr-FR", {
+          weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+        add(L("Et le lendemain ?", "And the next day?"), L(`et le ${day}${where} ?`, `what about ${day}${where}?`));
+      }
+      // no « Restaurants autour » under a forecast: Bird's own next steps fill the row
     } else if (w.type === "places" && (w.places || []).length) {
       const p = w.places[0];
       add(
@@ -178,37 +185,44 @@ export function suggestions(answer) {
   return out;
 }
 
-const ASKS_BACK =
-  /(?:souhaitez-vous|voulez-vous|préférez-vous|préfères-tu|veux-tu|souhaites-tu|vous préférez|plutôt|would you like|do you want|do you prefer|which (?:one|would)|should i)\b/i;
+const LABEL_MAX = 60; // nextsteps.LABEL_HARD: a longer label was cut, its chip is dropped (never trimmed)
+const PROMPT_MAX = 200;
+const fold = (x) =>
+  String(x || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
-/** Options of a question Bird asks back at the end of its answer (« Souhaitez-vous un mail, une note ou un
- * tableau ? »): 2 to 4 short options, else []. */
-export function clarifyOptions(text) {
-  const paras = String(text || "")
-    .trim()
-    .split(/\n\s*\n/);
-  const last = (paras.at(-1) || "").trim();
-  if (!last.endsWith("?") || last.length > 260 || !ASKS_BACK.test(last))
-    return [];
-  const sentence = last.split(/(?<=[.!])\s+/).at(-1);
-  const body = sentence
-    .replace(
-      /^.*?(?:souhaitez-vous|voulez-vous|préférez-vous|préfères-tu|veux-tu|souhaites-tu|vous préférez|would you like|do you want|do you prefer|should i)\s*/i,
-      "",
-    )
-    .replace(/\?\s*$/, "")
-    .replace(/^(?:que je|qu'on|plutôt|me|to|that i|i)\s+/i, "");
-  const parts = body
-    .split(/\s*,\s*|\s+ou bien\s+|\s+ou\s+|\s+or\s+/i)
-    .map((p) =>
-      p
-        .replace(/^(?:plutôt|rather|bien)\s+/i, "")
-        .replace(/[.;:]+$/, "")
-        .trim(),
-    )
-    .filter((p) => p.length >= 2 && p.length <= 60);
-  if (parts.length < 2 || parts.length > 4) return [];
-  return parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1));
+/** The next steps Bird wrote for this answer (the ``suggestions`` event, validated by the server in
+ * birds/harness/nextsteps.py), checked again here: strings only, lengths (a too long label drops its chip: a
+ * trimmed label would promise another request than the one sent), at most 3, no duplicates. */
+export function cleanSuggestions(items) {
+  const out = [];
+  for (const it of Array.isArray(items) ? items : []) {
+    if (!it || typeof it.label !== "string" || typeof it.prompt !== "string") continue;
+    const prompt = String(it.prompt ?? "").replace(/\s+/g, " ").trim().slice(0, PROMPT_MAX);
+    let label = String(it.label ?? "").replace(/\s+/g, " ").trim();
+    if (!prompt || !label || label.length >= LABEL_MAX) continue;
+    if (out.some((x) => fold(x.prompt) === fold(prompt) || fold(x.label) === fold(label))) continue;
+    out.push({ label, prompt });
+    if (out.length === 3) break;
+  }
+  return out;
+}
+
+/** The chips of an answer: Bird's own next steps first, then the widget chips (weather, map, draft…) to fill up
+ * to three, without repeating a request. No regex cuts Bird's question into pieces any more. */
+export function chipItems(answer) {
+  if (!answer) return [];
+  const items = cleanSuggestions(answer.suggestions).map((x) => ({ ...x, kind: "next" }));
+  for (const w of suggestions(answer)) {
+    if (items.length >= 3) break;
+    const k = fold(w.prompt);
+    if (!items.some((x) => fold(x.prompt) === k || fold(x.label) === fold(w.label))) items.push(w);
+  }
+  return items;
 }
 
 /** The transforms of the « Plus » menu: [label, prompt]. */
@@ -268,25 +282,22 @@ function fillComposer(text) {
   box.setSelectionRange(text.length, text.length);
 }
 
-/** The chip row of the last answer, or null. */
+/** The answers whose next steps are still coming (the late ``suggestions`` event after « final »): their chip row
+ * waits for them, so the row appears once, in its final order. In memory only: a reloaded turn never waits. */
+export const chipsWaiting = new WeakSet();
+
+/** The chip row of the last answer, or null: each chip sends a request the user could have typed. */
 export function renderChips(turn, onSuggest, busy = false) {
-  if (!turn?.answer || turn.status === "running" || busy) return null;
-  const clarify = clarifyOptions(turn.answer.content);
-  const items = clarify.length
-    ? clarify.map((c) => ({ label: c, prompt: c, kind: "clarify" }))
-    : suggestions(
-        turn.canvasLive?.phase === "final" && !turn.answer.canvas
-          ? { ...turn.answer, canvas: turn.canvasLive } // a deck made this turn (its card is above the chips)
-          : turn.answer,
-      );
+  if (!turn?.answer || turn.status === "running" || busy || chipsWaiting.has(turn)) return null;
+  const items = chipItems(
+    turn.canvasLive?.phase === "final" && !turn.answer.canvas
+      ? { ...turn.answer, canvas: turn.canvasLive } // a deck made this turn (its card is above the chips)
+      : turn.answer,
+  );
   if (!items.length) return null;
   return h(
     "div",
-    {
-      class: `chips-row${clarify.length ? " is-clarify" : ""}`,
-      role: "group",
-      "aria-label": clarify.length ? t("mod.chips.clarify") : t("mod.chips"),
-    },
+    { class: "chips-row", role: "group", "aria-label": t("mod.chips") },
     items.map((it) =>
       h(
         "button",
@@ -298,7 +309,8 @@ export function renderChips(turn, onSuggest, busy = false) {
           // « fill »: the chip writes the start of a message the user completes (their own figures)
           onclick: () => (it.kind === "fill" ? fillComposer(it.prompt) : onSuggest(it.prompt)),
         },
-        it.label,
+        h("span", { class: "mchip-arrow", "aria-hidden": "true" }, "↳"),
+        h("span", { class: "mchip-text" }, it.label),
       ),
     ),
   );
