@@ -303,3 +303,31 @@ def test_code_the_model_wrote_as_a_document_opens_as_code_with_its_preview():
     ref = canvas_web.ref(run)
     assert ref["kind"] == "code" and ref["open"] is True and ref["files"] == ["mini-calculatrice.html.docx"]
     assert [f["name"] for f in ref["doc"]["code"]["files"]] == ["mini-calculatrice.html"]
+
+
+def test_a_minisite_written_as_a_report_then_index_html_opens_the_site():
+    """« cree un minisite pour parler des Lychaons » (production): make_document(prose), then
+    make_document(index.html). The site is the deliverable: the canvas opens the code, never the « Rapport »."""
+    from birds.web import canvas_web
+
+    page = "<!DOCTYPE html><html><head><style>body{background:#111}</style></head><body><h1>Lychaons</h1></body></html>"
+    prose = {"title": "Lychaons – Les chiens de la nuit", "sections": [
+        {"heading": "Qui sont les Lychaons ?", "content": "Des chiens sauvages d'Afrique.\n- Chasse en meute"},
+        {"heading": "Conclusion", "content": "Une espèce menacée."}]}  # fmt: skip
+    run = SimpleNamespace(steps=[
+        SimpleNamespace(tool="make_document", error=None, arguments=prose),
+        SimpleNamespace(tool="make_document", error=None, arguments={
+            "title": "index.html", "sections": [{"heading": "Code", "content": page}]}),
+    ], canvas=None, answer="Voici un minisite.", files=["lychaons.docx", "index.html.docx"])  # fmt: skip
+    canvas_web.adopt_files(run, None, "fr", "cree un minisite pour parler des Lychaons")
+    ref = canvas_web.ref(run)
+    assert ref["kind"] == "code" and ref["open"] is True
+    assert [f["name"] for f in ref["doc"]["code"]["files"]] == ["index.html"]
+
+
+def test_a_minisite_is_a_web_request():
+    from birds.canvas import intents
+
+    for text in ("cree un minisite pour parler des Lychaons", "fais-moi un mini-site sur le Mont-Saint-Michel",
+                 "un petit site pour ma boulangerie"):  # fmt: skip
+        assert intents.ask(text) == "code", text

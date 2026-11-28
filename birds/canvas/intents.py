@@ -38,7 +38,7 @@ _DOC = (r"(?:documents?(?:\s+word)?|rapports?|report|note de synth[èe]se|note d
         r"d['’]utilisation|de bonnes pratiques|d['’]accueil)|cahier des charges|proposition commerciale|"
         r"business plan|plan d['’]action|dossier de presse|fiche (?:projet|produit|de poste|technique|pratique)|"
         r"charte|r[èe]glement int[ée]rieur|one[- ]pager|word|docx)")  # fmt: skip
-_WEB = (r"(?:page (?:web|html|d['’]accueil)|landing(?: page)?|site (?:web|vitrine)|website|web ?page|html|css|"
+_WEB = (r"(?:page (?:web|html|d['’]accueil)|landing(?: page)?|site (?:web|vitrine|internet)|(?:mini|petit)[- ]?sites?|one[- ]page|website|web ?page|html|css|"
         r"formulaire html|maquette (?:html|web)|prototype (?:html|web)|composant (?:html|web|react)|"
         r"svg|logo svg|ic[ôo]ne svg|animation css|mini[- ]jeu|jeu (?:en|html|javascript|js)|calculatrice|"
         r"compte [àa] rebours|countdown|horloge (?:en|html|js)|widget (?:html|web)|"
