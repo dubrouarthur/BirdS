@@ -2111,8 +2111,8 @@ thead .score {
 .bt-crop-slides {
   --cw: 553px;
 }
-/* Téléphone : la galerie devient un carrousel horizontal à cran, compact. */
-@media (max-width: 759px) {
+/* Téléphone et tablette : la galerie devient un carrousel horizontal à cran, compact. */
+@media (max-width: 899px) {
   .bento {
     display: flex;
     gap: 0.75rem;
@@ -3527,15 +3527,15 @@ thead .score {
   }
 }
 
-/* ---------- Téléphone : une page plus courte, des cartes compactes (brand-site) ---------- */
-@media (max-width: 759px) {
+/* ---------- Téléphone et tablette : une page plus courte, des cartes compactes (brand-site) ---------- */
+@media (max-width: 899px) {
   /* Galerie : cadres de même hauteur, capture entière centrée (jamais coupée) */
   .bento > .bt {
     flex-basis: min(86%, 21rem);
   }
   .bento .bt-img {
     flex: none;
-    height: 13.5rem;
+    height: var(--frame, 13.5rem);
     align-items: center;
   }
   .bento .bt-img img,
@@ -3546,11 +3546,21 @@ thead .score {
   }
   .bento .bt-img picture img {
     max-width: 100%;
-    max-height: 12.5rem;
+    max-height: calc(var(--frame, 13.5rem) - 1rem);
   }
   .bento .bt-img img {
     object-fit: contain;
   }
+}
+@media (min-width: 760px) and (max-width: 899px) {
+  .bento {
+    --frame: 18rem;
+  }
+  .bento > .bt {
+    flex-basis: min(62%, 28rem);
+  }
+}
+@media (max-width: 759px) {
   /* Six atouts : une ligne icône + texte, sans grand vide */
   .cards {
     gap: 0.6rem;
@@ -3600,5 +3610,29 @@ thead .score {
   }
   .rse-card p {
     font-size: 0.93rem;
+  }
+}
+/* Tablette : les trois chiffres côte à côte, les explications en lignes compactes */
+@media (min-width: 640px) and (max-width: 899px) {
+  .rse-figs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+  .rse-fig {
+    padding: 1.1rem 1rem;
+  }
+  .rse-big-n .num {
+    font-size: 3.3rem;
+  }
+  .rse-card {
+    grid-template-columns: 7rem minmax(0, 1fr);
+    column-gap: 1.25rem;
+    row-gap: 0.35rem;
+    align-items: start;
+    padding: 1.2rem 1.4rem;
+  }
+  .rse-card > .rse-ill {
+    grid-row: span 3;
+    max-width: 7rem;
   }
 }
