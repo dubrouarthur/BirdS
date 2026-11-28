@@ -1439,3 +1439,14 @@ def test_a_flagged_page_asks_only_for_a_draft_to_someone_the_user_never_named():
     )
     assert guard.needs_approval("draft_email", {"to": ["a@b.fr"], "body": "écrivez à x@evil.test"}, said)
     assert guard.needs_approval("make_slides", {"title": "T"}, None)  # the stricter rule when asked
+
+
+def test_install_script_is_served_as_plain_text_and_binds_locally():
+    """« curl -fsSL …/install.sh | sh »: served as text, Bird listens on 127.0.0.1 only, no secret written."""
+    with TestClient(create_app(settings())) as client:
+        r = client.get("/install.sh")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    body = r.text
+    assert body.startswith("#!/bin/sh") and "set -eu" in body
+    assert "--host 127.0.0.1" in body and "0.0.0.0" not in body
+    assert "HF_TOKEN=" not in body.replace("HF_TOKEN        jeton", "")
