@@ -313,6 +313,49 @@ part("deliverables", async (page, name, fail, shot) => {
   if (!(await page.evaluate(() => !!document.querySelector(".cv-panel:not([hidden]), #canvas:not([hidden])")))) fail("R16: « Ouvrir » did not open the canvas");
 });
 
+// ---------------------------------------------------------------- R4: back closes the open layer, never the app
+part("back", async (page, name, fail, shot) => {
+  await newChat(page);
+  await send(page, "Bonjour");
+  const narrow = await page.evaluate(() => innerWidth < 900);
+  const stillHere = async (what) => {
+    if (!page.url().startsWith(URL)) fail(`R4: back after ${what} left the app (${page.url()})`);
+  };
+  if (narrow) {
+    await page.click("#btn-menu");
+    await page.waitForTimeout(250);
+    await page.goBack({ waitUntil: "commit" }).catch(() => {});
+    await page.waitForTimeout(350);
+    await stillHere("the drawer");
+    if (await page.evaluate(() => document.body.classList.contains("side-open"))) fail("R4: back did not close the drawer");
+    await shot("r4-drawer-closed");
+  }
+  await page.evaluate(() => document.querySelector("#btn-model")?.click());
+  await page.waitForTimeout(300);
+  if (await page.locator("#view-settings").isHidden()) fail("R4: Settings did not open");
+  await page.goBack({ waitUntil: "commit" }).catch(() => {});
+  await page.waitForTimeout(350);
+  await stillHere("Settings");
+  if (!(await page.locator("#view-settings").isHidden())) fail("R4: back did not return from Settings");
+  await send(page, "Fais une présentation de 3 diapositives sur le vélo en ville");
+  await page.waitForTimeout(400);
+  if (await page.evaluate(() => document.documentElement.classList.contains("cv-open"))) {
+    await page.goBack({ waitUntil: "commit" }).catch(() => {});
+    await page.waitForTimeout(350);
+    await stillHere("the canvas");
+    if (await page.evaluate(() => document.documentElement.classList.contains("cv-open"))) fail("R4: back did not close the canvas");
+  } else fail("R4: the canvas did not open for the deck");
+  await page.click("#btn-deliverables").catch(() => {});
+  await page.waitForTimeout(300);
+  if (await page.locator("#deliverables[open]").count()) {
+    await page.goBack({ waitUntil: "commit" }).catch(() => {});
+    await page.waitForTimeout(350);
+    await stillHere("Livrables");
+    if (await page.locator("#deliverables[open]").count()) fail("R4: back did not close the dialog");
+  }
+  await shot("r4-after-backs");
+});
+
 (async () => {
   const browser = await chromium.launch();
   const problems = [];

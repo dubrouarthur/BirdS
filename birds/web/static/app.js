@@ -642,6 +642,8 @@ function setPhotoMenu(open, refocus = false) {
   $("photo-scrim").hidden = !open;
   $("btn-photo").setAttribute("aria-expanded", String(open));
   if (!open && refocus) $("btn-photo").focus();
+  if (open) cx.openLayer("photo", () => setPhotoMenu(false, true));
+  else cx.closedLayer("photo");
 }
 
 const isNarrow = () => window.matchMedia("(max-width: 900px)").matches;
@@ -659,6 +661,9 @@ function setSidebar(open) {
   side.inert = !open;
   if (!isNarrow()) store.set("bird.side", open ? "1" : "0");
   if (modal) $("btn-new").focus();
+  // the open drawer on a phone is closed by the back button, not the app
+  if (modal) cx.openLayer("drawer", () => setSidebar(false));
+  else cx.closedLayer("drawer");
 }
 /** Tab and Shift+Tab wrap inside the open drawer on narrow screens, so focus never leaves the modal. */
 function trapDrawer(e) {
@@ -703,6 +708,9 @@ function showView(view) {
     closeDrawer();
     $(`view-${view}`).querySelector("h2").focus();
   }
+  // the back button (or swipe-back) brings Settings, Empreinte and À propos back to the chat, never out of the app
+  if (view !== "chat") cx.openLayer("view", () => (showView("chat"), input().focus({ preventScroll: true })));
+  else cx.closedLayer("view");
   updateJump();
 }
 
@@ -2678,6 +2686,8 @@ function refreshAll() {
 let canvasClosedSide = false; // the canvas closed the sidebar: it opens again when the canvas closes
 async function init() {
   cx.ensureStyles();
+  cx.bindLayers(); // back closes the open layer (drawer, canvas, sheet, Settings, a dialog)
+  cx.watchLayer("canvas", document.documentElement, () => document.documentElement.classList.contains("cv-open"), () => canvas.close());
   setHandlers({
     onConfirm: answerConfirm,
     onRegenerate: (turn) => regenerate(state.conv.turns.indexOf(turn)),

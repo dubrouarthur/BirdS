@@ -226,28 +226,33 @@ export function contextPill(context, lost, { onRemove, onPreview, onReattach }) 
 // button or the swipe-back gesture then closes it instead of leaving the app. Closing a layer by its own button
 // takes its entry back, so the history never fills with dead entries.
 
-const layers = []; // [{name, close}]
-let skipPop = 0;
+const layers = []; // [{name, close, pushed}]
+let skipPop = 0; // popstate events caused by closedLayer (history.go), not by the user
 
-export function openLayer(name, close) {
-  if (typeof history === "undefined" || layers.some((l) => l.name === name)) return;
-  layers.push({ name, close });
+function push(layer) {
   try {
-    history.pushState({ birdLayer: name, depth: layers.length }, "");
+    history.pushState({ birdLayer: layer.name, depth: layers.length }, "");
+    layer.pushed = true;
   } catch {
     /* sandboxed frame: the layer still works */
   }
 }
 
-/** The layer was closed by the page (its button, Escape): its history entry is taken back. */
+export function openLayer(name, close) {
+  if (typeof history === "undefined" || layers.some((l) => l.name === name)) return;
+  const layer = { name, close, pushed: false };
+  layers.push(layer);
+  if (!skipPop) push(layer); // else pushed once the pending history.go has landed (popstate below)
+}
+
+/** The layer was closed by the page (its button, Escape, a choice): its history entry is taken back. */
 export function closedLayer(name) {
   const i = layers.findIndex((l) => l.name === name);
   if (i < 0) return;
-  const n = layers.length - i;
-  layers.splice(i);
-  if (history.state?.birdLayer) {
+  const back = layers.splice(i).filter((l) => l.pushed).length;
+  if (back > 0) {
     skipPop += 1;
-    history.go(-n);
+    history.go(-back);
   }
 }
 
@@ -257,11 +262,26 @@ export function bindLayers() {
   window.addEventListener("popstate", () => {
     if (skipPop > 0) {
       skipPop -= 1;
+      if (!skipPop) for (const l of layers) if (!l.pushed) push(l);
       return;
     }
     const top = layers.pop();
     if (top) top.close();
   });
+  // the page's own dialogs (Livrables, a preview, a confirmation, the lightbox): back closes them too
+  if (typeof MutationObserver === "undefined") return;
+  const ids = new WeakMap();
+  let seq = 0;
+  new MutationObserver((records) => {
+    for (const r of records) {
+      const d = r.target;
+      if (d.tagName !== "DIALOG") continue;
+      if (!ids.has(d)) ids.set(d, `dialog-${++seq}`);
+      if (d.open) openLayer(ids.get(d), () => d.open && d.close());
+      else closedLayer(ids.get(d));
+    }
+  }).observe(document.body, { attributes: true, attributeFilter: ["open"], subtree: true });
+  // a dialog removed while open (cx dialogs remove themselves on close) is closed first: nothing to watch
 }
 
 /** For layers drawn by other modules: an attribute or a class that says « open » is watched. */
