@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -507,7 +507,12 @@ def create_app(
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
-        response = await call_next(request)
+        from .canvas_web import frame_request_refused
+
+        if frame_request_refused(request):  # only /canvas/frame may load in a frame (the sandboxed preview)
+            response = PlainTextResponse("frame refused", status_code=403)
+        else:
+            response = await call_next(request)
         for key, value in SECURITY_HEADERS.items():
             response.headers[key] = value
         path = request.url.path

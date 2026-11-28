@@ -24,6 +24,8 @@ import { chartSvg } from "./previews.js";
 import { renderChart } from "./chart.js";
 import { flowSvg, parseFlow } from "./canvas-flow.js";
 import * as sheet from "./canvas-sheet.js";
+import * as cc from "./canvas-code.js";
+import { highlight } from "./richcode.js";
 import * as pages from "./canvas-doc.js";
 import {
   CATALOGUE,
@@ -64,8 +66,7 @@ let view = {
   sel: null,
   chart: null,
   console: [],
-  frameHtml: "",
-  codeDraft: null,
+  drafts: {},
 };
 let target = null; // « Demander à Bird » on one block: sent with the next message only
 const media = new Map(); // media id -> { entry, url }
@@ -148,12 +149,15 @@ function mediaUrl(id) {
 const mediaMeta = (doc, id) =>
   doc?.media?.[id] || media.get(id)?.entry || conv?.canvasMedia?.[id] || null;
 
-function pushVersion(a, doc, label) {
+function pushVersion(a, doc, label, changes = null) {
+  const prev = a.versions.at(-1)?.doc;
+  if (!changes && prev && doc.kind === "code") changes = cc.diffFiles(prev, doc);
   a.versions.push({
     n: (a.versions.at(-1)?.n || 0) + 1,
     doc,
     label: String(label || "").slice(0, 80),
     at: Date.now(),
+    ...(Array.isArray(changes) ? { changes: changes.slice(0, 12) } : {}),
   });
   if (a.versions.length > MAX_VERSIONS)
     a.versions.splice(1, a.versions.length - MAX_VERSIONS); // v1 is kept
@@ -243,6 +247,7 @@ export function onEvent(c, turn, ev) {
       a,
       ev.doc,
       ev.label || (ev.base ? t("cv.edited") : t("cv.label.created")),
+      Array.isArray(ev.changes) ? ev.changes : null,
     );
     turn.canvasLive = {
       aid: ev.aid,
@@ -507,10 +512,13 @@ function sizeText(doc) {
   }
   if (doc.kind === "doc")
     return t("cv.sections", { n: (doc.blocks || []).length });
-  if (doc.kind === "code")
-    return t("cv.lines", {
-      n: String(doc.code?.text || "").split("\n").length,
-    });
+  if (doc.kind === "code") {
+    const files = cc.filesOf(doc);
+    const n = files.reduce((s, f) => s + f.text.split("\n").length, 0);
+    return files.length > 1
+      ? t("cv.files.lines", { f: files.length, n })
+      : t("cv.lines", { n });
+  }
   if (doc.kind === "sheet")
     return t("cv.rows", {
       n: doc.sheet?.rows?.length || 0,
@@ -565,8 +573,7 @@ export function open(aid, { focus = true, quiet = false } = {}) {
       sel: null,
       chart: null,
       console: [],
-      frameHtml: "",
-      codeDraft: null,
+      drafts: {},
     };
   const first = panel.hidden;
   if (first) returnFocus = document.activeElement;
@@ -620,7 +627,22 @@ function render() {
     document.activeElement && panel.contains(document.activeElement)
       ? focusPath(document.activeElement)
       : null;
-  panel.replaceChildren(head(a, doc), status(a, doc), bodyOf(a, doc));
+  const nbody = bodyOf(a, doc);
+  const slot = nbody.querySelector?.(".cv-stage-slot");
+  if (!(slot && inPlace(a, doc, nbody, slot))) {
+    panel.replaceChildren(head(a, doc), status(a, doc), nbody);
+    if (slot) {
+      const st = stage();
+      if (!st.isConnected) {
+        // a stage put back (another tab was shown): its frames reload, so they start afresh
+        st.querySelector(".cv-viewport").replaceChildren();
+        view.frames.clear();
+        view.stageHtml = null;
+      }
+      slot.replaceWith(st);
+    }
+  }
+  if (slot) syncStage();
   for (const r of panel.querySelectorAll(".cv-doc")) {
     pages.paginate(r); // the pages are laid out once the paper has its width
     pages.watch(r);
@@ -628,6 +650,26 @@ function render() {
   const nb = panel.querySelector(".cv-body");
   if (nb) nb.scrollTop = scroll;
   if (keep) restorePath(keep);
+}
+
+/** Redraw around the preview stage without moving it (an iframe moved in the page reloads). False: not possible. */
+function inPlace(a, doc, nbody, slot) {
+  const st = view.stage;
+  if (!st || !panel.contains(st)) return false;
+  const obody = st.closest(".cv-body");
+  const opane = st.closest(".cv-pane");
+  const npane = slot.closest(".cv-pane");
+  const ok = [...obody.children];
+  const nk = [...nbody.children];
+  const op = [...opane.children];
+  const np = [...npane.children];
+  if (ok.length !== nk.length || op.length !== np.length || op.indexOf(st) !== np.indexOf(slot)) return false;
+  panel.querySelector(".cv-head")?.replaceWith(head(a, doc));
+  panel.querySelector(".cv-status")?.replaceWith(status(a, doc));
+  op.forEach((c, i) => c !== st && c.replaceWith(np[i]));
+  ok.forEach((c, i) => c !== opane && c.replaceWith(nk[i]));
+  for (const k of ["data-aid", "data-tab"]) obody.setAttribute(k, nbody.getAttribute(k) || "");
+  return true;
 }
 
 function focusPath(el) {
@@ -779,11 +821,13 @@ function downloadMenu(doc) {
     items.push(["docx", t("cv.download.docx")], ["pdf", t("cv.download.pdf")]);
   else if (doc.kind === "sheet")
     items.push(["xlsx", t("cv.download.xlsx")], ["csv", t("cv.download.csv")]);
-  else
-    items.push([
-      "file",
-      t("cv.download.file", { ext: codeExt(doc.code?.lang) }),
-    ]);
+  else {
+    const files = cc.filesOf(doc);
+    const f = files.find((x) => x.name === view.file) || files[cc.entryIndex(files)];
+    items.push(["file", t("cv.download.this", { name: f.name })]);
+    if (files.length > 1 || cc.WEB.has(f.lang))
+      items.push(["zip", t("cv.download.zip", { n: files.length })]);
+  }
   const pop = h(
     "div",
     { class: "cv-pop cv-menu", role: "menu", hidden: true },
@@ -821,34 +865,19 @@ function downloadMenu(doc) {
   return h("div", { class: "cv-menu-wrap" }, btn, pop);
 }
 
-const codeExt = (lang) =>
-  ({
-    html: "html",
-    svg: "svg",
-    css: "css",
-    js: "js",
-    python: "py",
-    mermaid: "mmd",
-    markdown: "md",
-    json: "json",
-  })[lang] || "txt";
-
 async function exportAs(doc, fmt) {
   if (fmt === "pdf") return printDoc(doc);
   if (fmt === "file") {
-    const lang = doc.code?.lang;
-    const mime =
-      lang === "html"
-        ? "text/html"
-        : lang === "svg"
-          ? "image/svg+xml"
-          : "text/plain";
-    return download(
-      `${slug(doc.title)}.${codeExt(lang)}`,
-      `${mime};charset=utf-8`,
-      String(doc.code?.text || ""),
-    );
+    const files = cc.filesOf(doc);
+    const f = files.find((x) => x.name === view.file) || files[cc.entryIndex(files)];
+    return download(f.name, `${cc.MIME[f.lang] || "text/plain"};charset=utf-8`, f.text);
   }
+  if (fmt === "zip")
+    return download(
+      `${slug(doc.title)}.zip`,
+      "application/zip",
+      new Blob([cc.zip(cc.filesOf(doc))], { type: "application/zip" }),
+    );
   if (fmt === "csv") {
     const values = sheet.compute(doc.sheet.rows);
     return download(
@@ -895,8 +924,11 @@ const slug = (s) =>
     .slice(0, 60) || "bird";
 
 function copyDoc(doc) {
-  if (doc.kind === "code")
-    return copyText(String(doc.code?.text || ""), t("cv.copied"));
+  if (doc.kind === "code") {
+    const files = cc.filesOf(doc);
+    const f = files.find((x) => x.name === view.file) || files[cc.entryIndex(files)];
+    return copyText(f.text, t("cv.copied.file", { name: f.name }));
+  }
   if (doc.kind === "sheet")
     return copyText(
       sheet.toCsv(doc.sheet.columns, sheet.compute(doc.sheet.rows), "\t"),
@@ -2548,27 +2580,32 @@ function variantsBox(a, doc, b, pending) {
 // ------------------------------------------------------------------ code
 
 const PREVIEW = new Set(["html", "svg", "js", "css", "mermaid", "markdown"]);
-
-function wrapForFrame(lang, code) {
-  if (lang === "html")
-    return /<html|<!doctype/i.test(code)
-      ? code
-      : `<!doctype html><meta charset="utf-8"><body>${code}</body>`;
-  if (lang === "svg")
-    return `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:#fff}svg{max-width:100%;max-height:100vh}</style>${code}`;
-  if (lang === "css")
-    return `<!doctype html><meta charset="utf-8"><style>${code.replace(/<\/style/gi, "<\\/style")}</style><body><h1>Titre</h1><p>Paragraphe <a href="#">lien</a></p><button>Bouton</button></body>`;
-  if (lang === "js")
-    return `<!doctype html><meta charset="utf-8"><body><script>${code.replace(/<\/script/gi, "<\\/script")}</script></body>`;
-  return "";
-}
+const DEVICES = [
+  ["mobile", "phone", 390],
+  ["tablet", "tablet", 768],
+  ["desktop", "monitor", 1280],
+];
+const SANDBOX = "allow-scripts allow-forms"; // = canvas_web.FRAME_SANDBOX (no same-origin, popups, top navigation)
 
 function codeView(a, doc) {
-  const lang = doc.code?.lang || "text";
-  const code = String(doc.code?.text || "");
-  // while the file streams the code is shown as it comes; once complete, the preview (unless the user chose a tab)
-  if (a.draft) view.tab = "code";
-  else if (!view.userTab) view.tab = PREVIEW.has(lang) ? "preview" : "code";
+  const files = cc.filesOf(doc);
+  const entry = files[cc.entryIndex(files)];
+  const lang = entry?.lang || "text";
+  const open = a.draft ? a.draft.code?.open || null : null;
+  const entryDone = !!entry && entry.name !== open && !!entry.text.trim();
+  // while the files stream: the one being written is shown as it comes, then the preview once the page is whole
+  if (!view.userTab)
+    view.tab =
+      PREVIEW.has(lang) && (!a.draft || entryDone) ? "preview" : "code";
+  if (a.draft && open && !view.userFile) {
+    view.file = open; // the file being written is followed
+    view.followed = true;
+  } else if (!a.draft && view.followed && !view.userFile) {
+    view.file = entry?.name; // once written, the page itself
+    view.followed = false;
+  }
+  if (!view.file || !files.some((f) => f.name === view.file))
+    view.file = entry?.name || files[0]?.name;
   const tabs = h(
     "div",
     { class: "cv-tabs", role: "tablist", "aria-label": t("cv.kind.code") },
@@ -2587,7 +2624,7 @@ function codeView(a, doc) {
           "aria-controls": `cv-pane-${id}`,
           tabindex: view.tab === id ? "0" : "-1",
           "data-k": `tab-${id}`,
-          disabled: id === "preview" && !!a.draft,
+          disabled: id === "preview" && !PREVIEW.has(lang),
           onclick: () => {
             view.tab = id;
             view.userTab = true;
@@ -2595,6 +2632,7 @@ function codeView(a, doc) {
             panel.querySelector(`#cv-tab-${id}`)?.focus();
           },
           onkeydown: (e) => {
+            if (!PREVIEW.has(lang)) return;
             if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
               view.userTab = true;
               view.tab = view.tab === "preview" ? "code" : "preview";
@@ -2606,45 +2644,200 @@ function codeView(a, doc) {
         label,
       ),
     ),
-    h("span", { class: "cv-lang", text: lang.toUpperCase() }),
+    view.tab === "preview" && WEB_PREVIEW.has(lang)
+      ? deviceBar()
+      : h("span", {
+          class: "cv-lang",
+          text:
+            files.length > 1
+              ? t("cv.files", { n: files.length })
+              : lang.toUpperCase(),
+        }),
   );
   const pane =
     view.tab === "preview"
-      ? previewPane(a, doc, lang, code)
-      : codePane(a, doc, lang, code);
-  return h("div", { class: "cv-body cv-codebody" }, tabs, pane);
+      ? previewPane(a, doc, lang, files, open)
+      : codePane(a, doc, files, open);
+  return h(
+    "div",
+    { class: "cv-body cv-codebody", "data-aid": a.aid, "data-tab": view.tab },
+    tabs,
+    changeStrip(a),
+    pane,
+  );
 }
 
-function codePane(a, doc, lang, code) {
+const WEB_PREVIEW = new Set(["html", "svg", "js", "css"]);
+
+function deviceBar() {
+  view.device ||= "fit"; // the page at the panel's width; a device button shows it at that device's width
+  return h(
+    "div",
+    { class: "cv-devices", role: "group", "aria-label": t("cv.device") },
+    DEVICES.map(([id, ic, w]) =>
+      h(
+        "button",
+        {
+          type: "button",
+          class: "cv-device",
+          "aria-pressed": String(view.device === id),
+          "aria-label": t(`cv.device.${id}`, { w }),
+          title: t(`cv.device.${id}`, { w }),
+          "data-k": `device-${id}`,
+          onclick: () => {
+            view.device = view.device === id ? "fit" : id;
+            render();
+            panel.querySelector(`[data-k="device-${id}"]`)?.focus();
+            announce(
+              view.device === "fit"
+                ? t("cv.device.fit")
+                : t(`cv.device.${id}`, { w }),
+            );
+          },
+        },
+        icon(ic),
+      ),
+    ),
+    button(
+      "btn-quiet btn-icon cv-reload",
+      "retry",
+      t("cv.reload"),
+      () => {
+        view.stageHtml = null; // the same page, run again from the start
+        render();
+      },
+      { "data-k": "reload" },
+    ),
+  );
+}
+
+/** « v3 · style.css +4 −1 · script.js +12 −3 »: what the shown version changed from the one before. */
+function changeStrip(a) {
+  const el = h("p", { class: "cv-changes", "data-k": "changes" });
+  if (a.draft) return el;
+  const v = a.versions[a.cur];
+  const prev = a.versions[a.cur - 1];
+  const changes = v?.changes || (prev ? cc.diffFiles(prev.doc, v.doc) : null);
+  if (!v || !prev || !changes) return el;
+  el.append(
+    h("strong", { text: t("cv.version.n", { n: v.n }) }),
+    ...[changes.length
+      ? changes
+          .slice(0, 6)
+          .map((c) =>
+            h(
+              "span",
+              { class: `cv-change is-${c.status}` },
+              h("span", { class: "cv-change-name", text: c.name }),
+              h("span", { class: "cv-plus", text: `+${c.plus}` }),
+              h("span", { class: "cv-minus", text: `−${c.minus}` }),
+            ),
+          )
+      : h("span", { class: "cv-muted", text: t("cv.changes.none") })].flat(),
+  );
+  return el;
+}
+
+function fileTabs(files, open) {
+  if (files.length < 2 && !open) return null;
+  return h(
+    "div",
+    { class: "cv-files", role: "group", "aria-label": t("cv.files.label") },
+    files.map((f) =>
+      h(
+        "button",
+        {
+          type: "button",
+          class: `cv-file${f.name === open ? " is-writing" : ""}`,
+          "aria-pressed": String(view.file === f.name),
+          "data-k": `file-${f.name}`,
+          onclick: () => {
+            view.file = f.name;
+            view.userFile = true;
+            render();
+            panel
+              .querySelector(`[data-k="file-${CSS.escape(f.name)}"]`)
+              ?.focus();
+          },
+        },
+        h("span", {
+          class: `cv-file-dot lang-${f.lang}`,
+          "aria-hidden": "true",
+        }),
+        h("span", { text: f.name }),
+        f.name === open &&
+          h("span", { class: "sr-only", text: t("cv.file.writing") }),
+        view.drafts?.[f.name] != null &&
+          view.drafts[f.name] !== f.text &&
+          h("span", {
+            class: "cv-file-dirty",
+            title: t("cv.code.changed"),
+            text: "•",
+          }),
+      ),
+    ),
+  );
+}
+
+function codePane(a, doc, files, open) {
+  const f = files.find((x) => x.name === view.file) || files[0];
+  view.drafts ||= {};
+  const draft = view.drafts[f.name];
+  const value = draft ?? f.text;
+  const key = cc.HL[f.lang] || null;
+  const hl = h("pre", { class: "cv-hl", "aria-hidden": "true" });
+  const paint = (text) => {
+    hl.innerHTML = highlight(text + "\n", key).join("\n"); // escaped by the highlighter, spans only
+  };
+  paint(value);
+  const streaming = !!a.draft && f.name === open;
   const area = h("textarea", {
     class: "cv-code",
     spellcheck: "false",
-    "aria-label": t("cv.code.label"),
+    autocapitalize: "off",
+    autocomplete: "off",
+    "aria-label": t("cv.code.label.file", { name: f.name }),
     "aria-description": t("cv.code.tabhint"),
     "data-k": "code",
     readonly: !!a.draft,
     wrap: "off",
   });
-  area.value = view.codeDraft ?? code;
+  area.value = value;
+  const sync = () => {
+    hl.scrollTop = area.scrollTop;
+    hl.scrollLeft = area.scrollLeft;
+  };
+  area.addEventListener("scroll", sync);
   const apply = button(
     "btn-primary btn-small",
     "check",
     t("cv.code.apply"),
     () => {
-      const value = area.value;
-      view.codeDraft = null;
+      const text = area.value;
+      delete view.drafts[f.name];
       commit((d) => {
-        if (d.code.text === value) return false;
-        d.code.text = value.slice(0, 60000);
+        if (cc.filesOf(d).find((x) => x.name === f.name)?.text === text)
+          return false;
+        cc.setFile(d, f.name, text.slice(0, 60000));
       }, t("cv.label.code"));
     },
     { disabled: true, "data-k": "apply" },
   );
   const note = h("span", { class: "cv-muted", "aria-live": "polite" });
+  const dirty = (text) => {
+    apply.disabled = text === f.text;
+    note.textContent = text === f.text ? "" : t("cv.code.changed");
+  };
   area.addEventListener("input", () => {
-    view.codeDraft = area.value;
-    apply.disabled = area.value === code;
-    note.textContent = area.value === code ? "" : t("cv.code.changed");
+    view.drafts[f.name] = area.value;
+    paint(area.value);
+    sync();
+    dirty(area.value);
+    const chip = panel.querySelector(`[data-k="file-${CSS.escape(f.name)}"]`);
+    const mark = chip?.querySelector(".cv-file-dirty");
+    if (chip && area.value !== f.text && !mark)
+      chip.append(h("span", { class: "cv-file-dirty", title: t("cv.code.changed"), text: "•" }));
+    else if (mark && area.value === f.text) mark.remove();
   });
   // Tab indents, as in a code editor; Escape releases it (the next Tab leaves the field), as in most editors
   let tabFree = false;
@@ -2654,6 +2847,11 @@ function codePane(a, doc, lang, code) {
       e.preventDefault();
       tabFree = true;
       announce(t("cv.code.tabfree"));
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !apply.disabled) {
+      e.preventDefault();
+      apply.click();
       return;
     }
     if (e.key !== "Tab") tabFree = false;
@@ -2670,14 +2868,29 @@ function codePane(a, doc, lang, code) {
       area.dispatchEvent(new Event("input"));
     }
   });
-  if (view.codeDraft !== null && view.codeDraft !== code) {
-    apply.disabled = false;
-    note.textContent = t("cv.code.changed");
-  }
-  const check = ["python", "json"].includes(lang)
+  dirty(value);
+  const copy = button(
+    "btn-quiet btn-small",
+    "copy",
+    t("cv.copy.file"),
+    () => copyText(area.value, t("cv.copied.file", { name: f.name })),
+    { "data-k": "copy-file" },
+  );
+  const check = ["python", "json"].includes(f.lang)
     ? h("p", { class: "cv-check", role: "status" })
     : null;
-  if (check && !a.draft) runCheck(lang, code, check);
+  if (check && !a.draft) runCheck(f.lang, f.text, check);
+  const editor = h(
+    "div",
+    { class: `cv-editor${streaming ? " is-streaming" : ""}` },
+    hl,
+    area,
+  );
+  if (streaming)
+    requestAnimationFrame(() => {
+      area.scrollTop = area.scrollHeight; // follow the file as it is written
+      sync();
+    });
   return h(
     "div",
     {
@@ -2686,10 +2899,13 @@ function codePane(a, doc, lang, code) {
       role: "tabpanel",
       "aria-labelledby": "cv-tab-code",
     },
-    area,
-    h("div", { class: "cv-code-bar" }, apply, note),
+    fileTabs(files, open),
+    editor,
+    h("div", { class: "cv-code-bar" }, apply, note, copy),
     check,
-    !PREVIEW.has(lang) && h("p", { class: "cv-muted", text: t("cv.noexec") }),
+    !PREVIEW.has(f.lang) &&
+      !WEB_PREVIEW.has(f.lang) &&
+      h("p", { class: "cv-muted", text: t("cv.noexec") }),
   );
 }
 
@@ -2722,13 +2938,15 @@ async function runCheck(lang, code, out) {
   }
 }
 
-function previewPane(a, doc, lang, code) {
+function previewPane(a, doc, lang, files, open) {
   const pane = h("div", {
     class: "cv-pane cv-preview",
     id: "cv-pane-preview",
     role: "tabpanel",
     "aria-labelledby": "cv-tab-preview",
   });
+  const entry = files[cc.entryIndex(files)];
+  const code = entry?.text || "";
   if (lang === "mermaid") {
     const svg = flowSvg(parseFlow(code), { title: doc.title });
     pane.append(
@@ -2755,74 +2973,255 @@ function previewPane(a, doc, lang, code) {
     pane.append(md);
     return pane;
   }
-  const html = wrapForFrame(lang, code);
-  view.frameHtml = html;
-  view.console = view.console || [];
-  const frame = h("iframe", {
-    class: "cv-frame",
-    src: "/canvas/frame",
-    sandbox: "allow-scripts",
-    referrerpolicy: "no-referrer",
-    title: `${t("cv.tab.preview")} — ${doc.title || ""}`,
-    loading: "eager",
+  // a file still being written is left out: the preview refreshes when a file is complete
+  const b = cc.bundle(doc, {
+    skip: open ? new Set([open]) : null,
+    partial: !!a.draft,
+    missing: (name) => t("cv.missing", { name }),
   });
+  view.pending = { html: b.previewable ? b.html : "", files, writing: open };
   pane.append(
-    frame,
-    h("p", { class: "cv-muted cv-sandbox", text: t("cv.sandbox") }),
+    h("div", { class: "cv-stage-slot" }),
+    h("p", {
+      class: "cv-muted cv-sandbox",
+      text: open ? t("cv.writing.file", { name: open }) : t("cv.sandbox"),
+      "data-k": "sandbox-note",
+    }),
     consoleBox(),
   );
   return pane;
 }
 
-function consoleBox() {
-  const list = view.console.slice(-30);
-  const err = list.find((m) => m.level === "error");
-  return h(
-    "details",
-    { class: "cv-console", open: !!err },
-    h("summary", null, t("cv.console"), list.length ? ` (${list.length})` : ""),
-    list.length
-      ? h(
-          "ul",
-          null,
-          list.map((m) => h("li", { class: `is-${m.level}`, text: m.text })),
-        )
-      : h("p", { class: "cv-muted", text: t("cv.console.empty") }),
-    err &&
-      button(
-        "btn-outline btn-small",
-        "spark",
-        t("cv.fix"),
-        () => handlers.send(t("cv.fix.msg", { err: err.text.slice(0, 300) })),
-        { "data-k": "fix-console" },
-      ),
+/** The stage: a frame scaled to the chosen device width, kept across redraws (moving an iframe reloads it). */
+function stage() {
+  if (!view.stage) {
+    view.stage = h(
+      "div",
+      { class: "cv-stage" },
+      h("div", { class: "cv-viewport" }),
+      h("div", { class: "cv-stage-empty", hidden: true }),
+    );
+    view.frames = new Map();
+    view.stageHtml = null;
+    try {
+      view.resize = new ResizeObserver(() => fitStage());
+      view.resize.observe(view.stage);
+    } catch {
+      /* old browser: the frame keeps its size */
+    }
+  }
+  return view.stage;
+}
+
+function syncStage() {
+  const st = stage();
+  const p = view.pending || { html: "" };
+  st.dataset.device = view.device || "fit";
+  const empty = st.querySelector(".cv-stage-empty");
+  empty.hidden = !!p.html;
+  if (!p.html) {
+    empty.replaceChildren(
+      h("span", { class: "cv-build-dot", "aria-hidden": "true" }),
+      h("span", {
+        text: p.writing
+          ? t("cv.writing.file", { name: p.writing })
+          : t("cv.preview.none"),
+      }),
+    );
+  }
+  if (p.html && p.html !== view.stageHtml) {
+    // the new page loads behind the shown one, which is removed once the new one is ready: no blank flash
+    view.stageHtml = p.html;
+    view.bundleFiles = p.files;
+    const frame = h("iframe", {
+      class: "cv-frame cv-loading",
+      src: "/canvas/frame",
+      sandbox: SANDBOX,
+      referrerpolicy: "no-referrer",
+      title: t("cv.preview.title", {
+        title: current(art(view.aid))?.title || "",
+      }),
+      loading: "eager",
+    });
+    st.querySelector(".cv-viewport").append(frame);
+    view.frames.set(frame, { html: p.html });
+    window.setTimeout(() => frame.isConnected && shown(frame), 2500); // a page that never says it is loaded
+  }
+  fitStage();
+}
+
+function shown(frame) {
+  if (!frame.classList.contains("cv-loading")) return;
+  frame.classList.remove("cv-loading");
+  // the page shown before stays under the new one while it fades in, then goes
+  const old = [...view.frames.keys()].filter((f) => f !== frame);
+  window.setTimeout(() => {
+    for (const f of old) {
+      view.frames.delete(f);
+      f.remove();
+    }
+  }, 220);
+}
+
+function fitStage() {
+  const st = view.stage;
+  if (!st?.isConnected) return;
+  const vp = st.querySelector(".cv-viewport");
+  const W = st.clientWidth;
+  const H = st.clientHeight;
+  if (!W || !H) return;
+  const want = DEVICES.find(([id]) => id === view.device)?.[2] || W;
+  const width = view.device === "desktop" ? Math.max(W, want) : want;
+  const scale = Math.min(1, W / width);
+  vp.style.inlineSize = `${width}px`;
+  vp.style.blockSize = `${Math.round(H / scale)}px`;
+  vp.style.transform = scale < 1 ? `scale(${scale})` : "";
+  st.dataset.scale = scale < 1 ? String(Math.round(scale * 100)) : "";
+  st.setAttribute(
+    "aria-label",
+    t("cv.stage", { w: width, pct: Math.round(scale * 100) }),
   );
 }
 
+function consoleBox() {
+  const list = (view.console || []).slice(-40);
+  const errs = list.filter((m) => m.level === "error");
+  const err = errs[0];
+  return h(
+    "details",
+    {
+      class: "cv-console",
+      open: !!err || !!view.consoleOpen,
+      "data-k": "console",
+      ontoggle: (e) => (view.consoleOpen = e.currentTarget.open),
+    },
+    h(
+      "summary",
+      null,
+      h("span", { text: t("cv.console") }),
+      errs.length
+        ? h("span", {
+            class: "cv-badge is-error",
+            text: t("cv.console.errors", { n: errs.length }),
+          })
+        : list.length
+          ? h("span", { class: "cv-badge", text: String(list.length) })
+          : null,
+    ),
+    list.length
+      ? h(
+          "ul",
+          { role: "log", "aria-label": t("cv.console") },
+          list.map((m) =>
+            h(
+              "li",
+              { class: `is-${m.level}` },
+              m.file &&
+                h(
+                  "button",
+                  {
+                    type: "button",
+                    class: "cv-where",
+                    title: t("cv.console.goto"),
+                    onclick: () => gotoLine(m.file, m.line),
+                  },
+                  `${m.file}:${m.line}`,
+                ),
+              h("span", { text: m.text }),
+            ),
+          ),
+        )
+      : h("p", { class: "cv-muted", text: t("cv.console.empty") }),
+    h(
+      "div",
+      { class: "cv-console-bar" },
+      err &&
+        button(
+          "btn-primary btn-small",
+          "spark",
+          t("cv.fix"),
+          () => {
+            const text = err.text.replace(/[«»"]/g, "'").slice(0, 300);
+            handlers.send(
+              err.file
+                ? t("cv.fix.msg.at", { file: err.file, line: err.line, err: text })
+                : t("cv.fix.msg", { err: text }),
+            );
+          },
+          { "data-k": "fix-console" },
+        ),
+      list.length > 0 &&
+        button(
+          "btn-quiet btn-small",
+          "trash",
+          t("cv.console.clear"),
+          () => {
+            view.console = [];
+            redrawConsole();
+          },
+          { "data-k": "console-clear" },
+        ),
+    ),
+  );
+}
+
+function redrawConsole() {
+  const box = panel?.querySelector(".cv-console");
+  if (box) box.replaceWith(consoleBox());
+}
+
+function gotoLine(file, line) {
+  view.tab = "code";
+  view.userTab = true;
+  view.file = file;
+  view.userFile = true;
+  render();
+  const area = panel.querySelector(".cv-code");
+  if (!area) return;
+  const lines = area.value.split("\n");
+  const n = Math.max(1, Math.min(lines.length, line || 1));
+  const start = lines.slice(0, n - 1).reduce((s, l) => s + l.length + 1, 0);
+  area.focus();
+  area.setSelectionRange(start, start + lines[n - 1].length);
+  const lh = parseFloat(getComputedStyle(area).lineHeight) || 20;
+  area.scrollTop = Math.max(0, (n - 4) * lh);
+}
+
 function onFrameMessage(e) {
-  const frame = panel?.querySelector(".cv-frame");
-  if (
-    !frame ||
-    e.source !== frame.contentWindow ||
-    !e.data ||
-    typeof e.data !== "object"
-  )
+  const frame =
+    view.frames &&
+    [...view.frames.keys()].find((f) => f.contentWindow === e.source);
+  // only our own frames (the sandboxed preview has the opaque origin "null"); anything else is ignored
+  if (!frame || !e.data || typeof e.data !== "object" || e.origin !== "null")
     return;
   if (e.data.bird === "frame") {
-    view.console = [];
-    frame.contentWindow.postMessage(
-      { bird: "render", html: view.frameHtml },
-      "*",
-    );
-  } else if (e.data.bird === "console" && e.data.level !== "ready") {
-    view.console.push({
-      level: ["error", "warn", "log", "info"].includes(e.data.level)
-        ? e.data.level
-        : "log",
-      text: String(e.data.text || "").slice(0, 600),
-    });
-    const box = panel.querySelector(".cv-console");
-    if (box) box.replaceWith(consoleBox());
+    const meta = view.frames.get(frame);
+    if (!meta || meta.sent) return; // the page asking again: it gets nothing more
+    meta.sent = true;
+    if (frame.classList.contains("cv-loading")) view.console = [];
+    frame.contentWindow.postMessage({ bird: "render", html: meta.html }, "*");
+  } else if (e.data.bird === "console") {
+    if (e.data.level === "ready") {
+      shown(frame);
+      return;
+    }
+    if (frame === [...view.frames.keys()].at(-1)) {
+      const where = cc.whereIs(String(e.data.text || "").slice(0, 600));
+      const known =
+        where.file &&
+        (view.bundleFiles || []).some((f) => f.name === where.file);
+      view.console.push({
+        level: ["error", "warn", "log", "info"].includes(e.data.level)
+          ? e.data.level
+          : "log",
+        text: where.text,
+        file: known ? where.file : null,
+        line: known ? where.line : null,
+      });
+      if (view.console.length > 200)
+        view.console.splice(0, view.console.length - 200);
+      redrawConsole();
+    }
   }
 }
 

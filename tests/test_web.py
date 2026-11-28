@@ -711,7 +711,9 @@ def test_static_payload_budget():
     # and Mode Réflexion (bird picker, drawings, flight header: +20 kB raw, +6 kB gzipped)
     # and the deck layouts (21 layouts, four themes, layout menu, drag, cover tools, chat thumbnail: +44 kB raw, +10 kB gz)
     # and Word-like documents in the canvas (canvas-doc.js, A4 pages, variants: +47 kB raw, +12 kB gzipped)
-    assert total < 1_485_000, f"static payload is {total} bytes"  # measured 1 472 524 (deck layouts + A4 documents)
+    # then the canvas code mode (several files, preview by device, console with file:line, per-file versions, zip:
+    # +37 kB raw, +11 kB gzipped)
+    assert total < 1_520_000, f"static payload is {total} bytes"  # measured 1 509 029 (decks + documents + code)
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"

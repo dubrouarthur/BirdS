@@ -293,27 +293,13 @@ print("Bonjour")
 - Des questions ?
 - contact : l'équipe projet
 """
-PAGE = """<!doctype html>
+PAGE_HTML = """<!doctype html>
 <html lang="{lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{subject}</title>
-<style>
-  :root {{ --ink: #14213d; --accent: #1e5bd8; --soft: #eef3fd; }}
-  * {{ box-sizing: border-box; }}
-  body {{ margin: 0; font-family: system-ui, sans-serif; color: var(--ink); background: #fff; }}
-  header {{ padding: 56px 24px 40px; background: linear-gradient(135deg, var(--soft), #fff); text-align: center; }}
-  h1 {{ font-size: clamp(28px, 6vw, 44px); margin: 0 0 12px; }}
-  p.lead {{ font-size: 18px; color: #4a5568; max-width: 560px; margin: 0 auto 24px; }}
-  button {{ font: inherit; padding: 12px 22px; border: 0; border-radius: 999px; background: var(--accent);
-           color: #fff; cursor: pointer; }}
-  section {{ display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            padding: 32px 24px; max-width: 900px; margin: 0 auto; }}
-  .card {{ padding: 20px; border-radius: 14px; background: var(--soft); }}
-  .card b {{ display: block; margin-bottom: 6px; }}
-  #count {{ font-weight: 700; }}
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
@@ -327,23 +313,42 @@ PAGE = """<!doctype html>
   <div class="card"><b>{c2}</b>{c2t}</div>
   <div class="card"><b>{c3}</b>{c3t}</div>
 </section>
-<script>
-  let n = 0;
-  document.getElementById("cta").addEventListener("click", () => {{
-    n += 1;
-    document.getElementById("count").textContent = n;
-    console.log("clic", n);
-  }});
-</script>
+<script src="script.js"></script>
 </body>
 </html>"""
+PAGE_CSS = """:root { --ink: #14213d; --accent: #1e5bd8; --soft: #eef3fd; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; color: var(--ink); background: #fff; }
+header { padding: 56px 24px 40px; background: linear-gradient(135deg, var(--soft), #fff); text-align: center; }
+h1 { font-size: clamp(28px, 6vw, 44px); margin: 0 0 12px; }
+p.lead { font-size: 18px; color: #4a5568; max-width: 560px; margin: 0 auto 24px; }
+button { font: inherit; padding: 12px 22px; border: 0; border-radius: 999px; background: var(--accent);
+  color: #fff; cursor: pointer; }
+section { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  padding: 32px 24px; max-width: 900px; margin: 0 auto; }
+.card { padding: 20px; border-radius: 14px; background: var(--soft); }
+.card b { display: block; margin-bottom: 6px; }
+#count { font-weight: 700; }
+@media (prefers-color-scheme: dark) {
+  :root { --ink: #e6ebf5; --soft: #1b2436; }
+  body { background: #0f1522; }
+  header { background: linear-gradient(135deg, var(--soft), #0f1522); }
+  p.lead { color: #aab4c8; }
+}"""
+PAGE_JS = """let n = 0;
+const count = document.getElementById("count");
+document.getElementById("cta").addEventListener("click", () => {
+  n += 1;
+  count.textContent = n;
+  console.log("clic", n);
+});"""
 PAGE_TEXT = {
-    "fr": {"lead": "Une page d'exemple, écrite en démo : HTML, CSS et JavaScript dans un seul fichier.",
+    "fr": {"lead": "Une page d'exemple, écrite en démo : HTML, CSS et JavaScript en trois fichiers.",
            "cta": "Essayer", "clicks": "Clics :", "c1": "Rapide", "c1t": "Aucune ressource externe.",
-           "c2": "Lisible", "c2t": "Un seul fichier à relire.", "c3": "Sûr", "c3t": "Aperçu isolé, sans réseau."},
-    "en": {"lead": "A sample page, written in demo mode: HTML, CSS and JavaScript in one file.",
+           "c2": "Lisible", "c2t": "Trois fichiers courts à relire.", "c3": "Sûr", "c3t": "Aperçu isolé, sans réseau."},
+    "en": {"lead": "A sample page, written in demo mode: HTML, CSS and JavaScript in three files.",
            "cta": "Try it", "clicks": "Clicks:", "c1": "Fast", "c1t": "No external resource.",
-           "c2": "Readable", "c2t": "One file to review.", "c3": "Safe", "c3t": "Isolated preview, no network."},
+           "c2": "Readable", "c2t": "Three short files to review.", "c3": "Safe", "c3t": "Isolated preview, no network."},
 }  # fmt: skip
 FLOW = {
     "fr": """flowchart TD
@@ -395,16 +400,27 @@ def scripted(p: turn.Plan, words: str, lang: str) -> str:
         if p.kind == "diagram":
             return f"```mermaid\n{FLOW[lg]}\n```\n" + SCRIPTED[lg]
         t = PAGE_TEXT[lg]
-        return f"```html\n{PAGE.format(lang=lg, subject=subject, **t)}\n```\n" + SCRIPTED[lg]
+        html = PAGE_HTML.format(lang=lg, subject=subject, **t)
+        return (f"```html index.html\n{html}\n```\n```css style.css\n{PAGE_CSS}\n```\n"
+                f"```js script.js\n{PAGE_JS}\n```\n" + SCRIPTED[lg])  # fmt: skip
     base = p.base or {}
     if base.get("kind") == "code":
-        code = (base.get("code") or {}).get("text") or ""
+        from birds.canvas import code as codefiles
+
+        files = {f["name"]: f for f in codefiles.files_of(base)}
+        if re.search(r"\b(?:corrige\w*|r[ée]pare\w*|fix\w*)\b", words, re.I):
+            # « Corriger avec Bird »: the scripted files are the demo's known-good version
+            fixed = {"script.js": ("js", PAGE_JS), "style.css": ("css", PAGE_CSS)}
+            out = [f"```{lang_} {name}\n{text}\n```" for name, (lang_, text) in fixed.items()
+                   if name in files and files[name]["text"] != text]  # fmt: skip
+            return "\n".join(out)
         colors = {"bleu": "#1e5bd8", "blue": "#1e5bd8", "vert": "#0d9488", "green": "#0d9488", "rouge": "#c2410c",
                   "red": "#c2410c", "orange": "#ea580c", "violet": "#6d28d9", "purple": "#6d28d9"}  # fmt: skip
         hit = next((v for k, v in colors.items() if re.search(rf"\b{k}\b", words, re.I)), None)
-        if hit and "--accent:" in code:
-            code = re.sub(r"--accent:\s*#[0-9a-fA-F]{3,8}", f"--accent: {hit}", code)
-            return f"```{(base.get('code') or {}).get('lang') or 'html'}\n{code}\n```"
+        for f in files.values():
+            if hit and "--accent:" in f["text"]:
+                text = re.sub(r"--accent:\s*#[0-9a-fA-F]{3,8}", f"--accent: {hit}", f["text"])
+                return f"```{f['lang']} {f['name']}\n{text}\n```"
         return ""
     if p.target and p.variants:
         b = next(x for x in base.get("blocks") or [] if x["id"] == p.target)
@@ -533,12 +549,27 @@ def run(demo_run, p: turn.Plan, words: str) -> None:
     if p.mode == "create" and kind in ("deck", "doc"):
         turn.finish_doc(doc, kind, words, lang)
     _illustrate(ctx, p, doc, lang)
-    emit_doc(ctx, p, doc, "final", lang, label="Création" if p.mode == "create" else words[:80])
+    from birds.web.canvas_web import code_changes
+
+    doc.get("code", {}).pop("open", None)
+    changes = code_changes(p, doc)
+    if changes == []:
+        emit_doc(ctx, p, None, "abort", lang)
+        demo_run.finish(DEMO_LIMIT[lg])
+        return
+    emit_doc(ctx, p, doc, "final", lang, label="Création" if p.mode == "create" else words[:80], changes=changes)
     version = 1 if p.mode == "create" else p.version + 1
     _ref(demo_run, p, doc, version)
     said = turn.chat_text("code" if p.kind == "diagram" else kind, doc, lang,
-                          verb="create" if p.mode == "create" else "patch", version=version)  # fmt: skip
+                          verb="create" if p.mode == "create" else "patch", version=version,
+                          changes=changes)  # fmt: skip
     demo_run.extra_completion += len(text) // 4
+    from types import SimpleNamespace
+
+    from birds.web.canvas_web import ref
+
+    version = 1 if p.mode == "create" else p.version + 1
+    demo_run.adopted = ref(SimpleNamespace(canvas={"aid": p.aid, "version": version, "doc": doc}))  # the answer's link
     demo_run.finish(said + "\n\n" + SCRIPTED[lg])
 
 

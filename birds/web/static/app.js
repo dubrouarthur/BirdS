@@ -2514,10 +2514,11 @@ async function init() {
 init();
 
 /** The answer's link to its canvas artifact, as kept on the turn: the next-step chips the harness computed from
- * the document's structure, and the file cards it replaces (a Word document is one card, in the canvas). */
+ * the document's structure, the file cards it replaces (a Word document is one card, in the canvas), and for a
+ * code page what it already has (for its next-step chips). */
 function canvasRef(c) {
   const str = (x) => typeof x === "string";
-  return {
+  const out = {
     aid: c.aid,
     version: c.version,
     doc: !!c.doc,
@@ -2528,4 +2529,12 @@ function canvasRef(c) {
       .map((x) => ({ label: x.label.slice(0, 60), prompt: x.prompt.slice(0, 200) })),
     files: (Array.isArray(c.files) ? c.files : []).filter(str).slice(0, 8),
   };
+  if (c.kind === "code" && c.hints && typeof c.hints === "object") {
+    out.kind = "code";
+    out.hints = Object.fromEntries(
+      ["web", "dark", "mobile", "js"].map((k) => [k, c.hints[k] === true]),
+    );
+    out.hints.lang = typeof c.hints.lang === "string" ? c.hints.lang.slice(0, 12) : "";
+  }
+  return out;
 }

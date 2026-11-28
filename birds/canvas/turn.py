@@ -19,6 +19,7 @@ import secrets
 import time
 from collections.abc import Callable
 
+from . import code as codefiles
 from . import convert, dsl, intents, patch
 
 FILE_TOOLS = ("make_slides", "make_document", "make_sheet")
@@ -98,14 +99,20 @@ SPEC = {
     },
     "code": {
         "fr": (
-            "[Canevas] Écris un seul fichier complet dans un bloc de code (```html pour une page, ```svg pour une "
-            "image vectorielle, ```python pour un script). Page web : HTML, CSS et JavaScript dans le même fichier, "
-            "aucune ressource externe (pas de CDN, pas de police ni d'image en ligne). Puis une phrase d'explication."
+            "[Canevas] Écris le code dans ta réponse, chaque fichier dans son propre bloc, son nom après le "
+            "langage :\n```html index.html\n…\n```\nPage ou petite application web : index.html, et si utile "
+            "style.css et script.js (reliés par <link rel=\"stylesheet\" href=\"style.css\"> et <script "
+            "src=\"script.js\"></script> en fin de body) ; une page simple tient dans index.html. Code complet et "
+            "fonctionnel, mise en page responsive, aucune ressource externe (pas de CDN, ni police ni image en "
+            "ligne). Autre langage : un seul fichier (```python main.py). Puis une phrase d'explication."
         ),
         "en": (
-            "[Canvas] Write one complete file in one code block (```html for a page, ```svg for a vector image, "
-            "```python for a script). Web page: HTML, CSS and JavaScript in the same file, no external resource (no "
-            "CDN, no online font or image). Then one sentence of explanation."
+            "[Canvas] Write the code in your answer, each file in its own block, its name after the language:\n"
+            "```html index.html\n…\n```\nWeb page or small web app: index.html, and if useful style.css and "
+            "script.js (linked by <link rel=\"stylesheet\" href=\"style.css\"> and <script src=\"script.js\">"
+            "</script> at the end of body); a simple page fits in index.html. Complete, working code, responsive "
+            "layout, no external resource (no CDN, no online font or image). Another language: one file (```python "
+            "main.py). Then one sentence of explanation."
         ),
     },
     "diagram": {
@@ -182,16 +189,22 @@ def parse_variants(text: str, base_block: dict, lang: str = "fr", repairs: list[
 
 
 CODE_PATCH = {
-    "fr": "[Canevas] Le fichier ouvert :\n```{lang}\n{code}\n```\nRéécris le fichier complet, corrigé selon la demande, "
-          "dans un seul bloc ```{lang}. Aucune ressource externe.",
-    "en": "[Canvas] The open file:\n```{lang}\n{code}\n```\nRewrite the complete file, changed as asked, in one "
-          "```{lang} block. No external resource.",
+    "fr": "[Canevas] Les fichiers ouverts :\n{files}\nRéécris seulement le ou les fichiers à changer, chacun en "
+          "entier, dans un bloc ```<langage> <nom du fichier>. Ne réécris pas les autres. Aucune ressource externe.",
+    "en": "[Canvas] The open files:\n{files}\nRewrite only the file or files to change, each one whole, in a "
+          "```<language> <file name> block. Do not rewrite the others. No external resource.",
 }  # fmt: skip
 NAMES = {
     "deck": {"fr": "la présentation", "en": "the deck"},
     "doc": {"fr": "le document", "en": "the document"},
     "code": {"fr": "le code", "en": "the code"},
     "sheet": {"fr": "le tableau", "en": "the sheet"},
+}
+OF = {
+    "deck": {"fr": "de la présentation", "en": "of the deck"},
+    "doc": {"fr": "du document", "en": "of the document"},
+    "code": {"fr": "du code", "en": "of the code"},
+    "sheet": {"fr": "du tableau", "en": "of the sheet"},
 }
 DIRECT_SAID = {
     "theme": ("Thème appliqué : {theme}.", "Theme applied: {theme}."),
@@ -213,14 +226,33 @@ def _lang2(lang: str) -> str:
     return "en" if lang == "en" else "fr"
 
 
-def code_doc(found: dict | None, lang: str, title: str = "") -> dict | None:
-    if not found:
+def code_doc(found: dict | None, lang: str, title: str = "", base: dict | None = None) -> dict | None:
+    """The code document of a parsed answer (``code.parse_files``); on a patch turn (``base``), the files written
+    replace those of the same name and the others are kept."""
+    if not found or not found.get("files"):
         return None
     doc = dsl.empty("code", lang)
     doc.pop("blocks", None)
     doc["title"] = title
-    doc["code"] = {"lang": found["lang"], "text": found["text"]}
+    files = found["files"]
+    if base is not None:
+        files, _ = codefiles.merge(codefiles.files_of(base), files, found.get("shown"))
+    doc["code"] = codefiles.make_code(files, found.get("open"))
     return doc
+
+
+def code_what(doc: dict, fr: bool) -> str:
+    """« page web en 3 fichiers (index.html, style.css, script.js) », « script Python », « schéma »."""
+    files = codefiles.files_of(doc)
+    lang_ = files[codefiles.entry_index(files)]["lang"] if files else ""
+    what = {"html": "page web" if fr else "web page", "svg": "image SVG" if fr else "SVG image",
+            "mermaid": "schéma" if fr else "diagram", "python": "script Python" if fr else "Python script",
+            "css": "feuille de style" if fr else "style sheet", "js": "script JavaScript" if fr else "JavaScript",
+            }.get(lang_, "code")  # fmt: skip
+    if len(files) > 1:
+        names = ", ".join(f["name"] for f in files[:6])
+        what += (f" en {len(files)} fichiers ({names})" if fr else f" in {len(files)} files ({names})")
+    return what
 
 
 class Stream:
@@ -256,7 +288,8 @@ class Stream:
 
 
 def chat_text(kind: str, doc: dict, lang: str, before: str = "", after: str = "", cut: bool = False,
-              verb: str = "create", repairs: list[str] | None = None, version: int = 1) -> str:  # fmt: skip
+              verb: str = "create", repairs: list[str] | None = None, version: int = 1,
+              changes: list[dict] | None = None) -> str:  # fmt: skip
     """What the chat says about the artifact (the content itself is in the canvas, never pasted twice)."""
     fr = lang != "en"
     n = len(doc.get("blocks") or [])
@@ -266,11 +299,15 @@ def chat_text(kind: str, doc: dict, lang: str, before: str = "", after: str = ""
     elif kind == "doc":
         what = f"{n} section{'s' if n > 1 else ''}" if fr else f"{n} section{'s' if n != 1 else ''}"
     else:
-        lang_ = (doc.get("code") or {}).get("lang") or ""
-        what = {"html": "page HTML" if fr else "HTML page", "svg": "image SVG" if fr else "SVG image",
-                "mermaid": "schéma" if fr else "diagram", "python": "script Python" if fr else "Python script"}.get(
-            lang_, "code")  # fmt: skip
+        what = code_what(doc, fr)
     name = NAMES.get(kind, NAMES["doc"])["fr" if fr else "en"]
+    if kind == "code" and verb == "create":
+        files = codefiles.files_of(doc)
+        if files and files[codefiles.entry_index(files)]["lang"] == "html":
+            name = "la page" if fr else "the page"
+            names = ", ".join(f["name"] for f in files[:6])
+            what = (f"{len(files)} fichiers ({names})" if fr else f"{len(files)} files ({names})") if len(files) > 1 \
+                else (f"un fichier ({names})" if fr else f"one file ({names})")  # fmt: skip
     if kind == "doc":
         from . import templates
 
@@ -300,20 +337,28 @@ def chat_text(kind: str, doc: dict, lang: str, before: str = "", after: str = ""
                "« plus court »)." if fr else
                f"Click a block to edit it, or ask me for a change (\"add {unit} on…\", \"shorter\").")  # fmt: skip
         if kind == "code":
-            tip = ("L'onglet Aperçu l'exécute à part, sans accès au réseau." if fr
-                   else "The Preview tab runs it apart, with no network access.")  # fmt: skip
-            if (doc.get("code") or {}).get("lang") == "mermaid":
+            tip = ("L'aperçu l'exécute à part, sans réseau ; la console et « Corriger avec Bird » sont juste dessous."
+                   if fr else "The preview runs it apart, with no network; the console and \"Fix with Bird\" are "
+                   "right below.")  # fmt: skip
+            files = codefiles.files_of(doc)
+            entry_lang = files[codefiles.entry_index(files)]["lang"] if files else ""
+            if entry_lang == "mermaid":
                 tip = "L'onglet Aperçu dessine le schéma." if fr else "The Preview tab draws the diagram."
-            elif (doc.get("code") or {}).get("lang") not in ("html", "svg", "js", "css", "markdown"):
-                tip = ("Le code est affiché et vérifié, jamais exécuté." if fr
-                       else "The code is shown and checked, never run.")  # fmt: skip
+            elif entry_lang not in ("html", "svg", "js", "css", "markdown"):
+                tip = ("Le code est affiché et vérifié, jamais exécuté : Bird n'a pas de bac à sable d'exécution."
+                       if fr else "The code is shown and checked, never run: Bird has no execution sandbox.")  # fmt: skip
         parts = [head, tip]
     else:
-        parts = [("Nouvelle version de " if fr else "New version of ") + name + f" ({what})."]
+        of = OF.get(kind, OF["doc"])["fr" if fr else "en"]
+        if kind == "code" and changes is not None:
+            sep = " : " if fr else ": "
+            parts = [("Nouvelle version " if fr else "New version ") + of + sep + codefiles.diff_text(changes, fr) + "."]
+        else:
+            parts = [("Nouvelle version " if fr else "New version ") + of + f" ({what})."]
     if cut:
         parts.append("La réponse a été coupée par la limite de longueur : la fin peut manquer." if fr
                      else "The answer was cut by the length limit: the end may be missing.")  # fmt: skip
-    lead = before if before and len(before) <= 300 and not re.match(r"(?i)^\s*(voici|here is|here's|bien s[uû]r|"
+    lead = before if before and len(before) <= 300 and not re.match(r"(?i)^\s*(voici|voil[àa]|here is|here's|bien s[uû]r|"
                                                                      r"d'accord|ok)\b", before) else ""  # fmt: skip
     if _EXCUSE.search(lead):
         lead = ""  # « je n'ai pas accès à vos données… » before a deck that is right there: the content speaks
@@ -334,7 +379,8 @@ def memo_line(info: dict | None, lang: str = "fr") -> str:
         heads = "; ".join(f"{b['id']} {b.get('title') or ''}"[:50] for b in (doc.get("blocks") or [])[:14])
         return f"[canvas {doc.get('kind')} v{info.get('version', '?')} « {doc.get('title', '')[:80]} »: {heads}]"
     if doc.get("kind") == "code":
-        return f"[canvas code {(doc.get('code') or {}).get('lang', '')} « {doc.get('title', '')[:80]} »]"
+        names = ", ".join(f["name"] for f in codefiles.files_of(doc))[:160]
+        return f"[canvas code v{info.get('version', '?')} « {doc.get('title', '')[:80]} »: {names}]"
     return f"[canvas {doc.get('kind')} « {doc.get('title', '')[:80]} »]"
 
 
@@ -442,8 +488,8 @@ def turn_message(p: Plan, user_sent: str, lang: str) -> str:
         return user_sent + "\n\n" + SPEC["diagram" if p.kind == "diagram" else p.kind][lg]
     doc = p.base or {}
     if doc.get("kind") == "code":
-        c = doc.get("code") or {}
-        return user_sent + "\n\n" + CODE_PATCH[lg].format(lang=c.get("lang") or "", code=(c.get("text") or "")[:12000])
+        shown, _ = codefiles.prompt_files(codefiles.files_of(doc))
+        return user_sent + "\n\n" + CODE_PATCH[lg].format(files=shown)
     if p.target:
         b = next(x for x in doc.get("blocks") or [] if x.get("id") == p.target)
         if p.variants:
@@ -457,10 +503,15 @@ def compute_for(p: Plan, words: str, lang: str) -> Callable[[str], dict | None]:
     if p.kind in ("code", "diagram") or (p.base or {}).get("kind") == "code":
         want = "mermaid" if p.kind == "diagram" else None
 
+        base = p.base if (p.base or {}).get("kind") == "code" else None
+        shown = codefiles.prompt_files(codefiles.files_of(base))[1] if base else None
+
         def code(text: str) -> dict | None:
-            found = dsl.parse_code(text, want)
+            found = codefiles.parse_files(text, want)
+            if found is not None:
+                found["shown"] = shown
             title = (p.base or {}).get("title") or convert.subject(words)
-            return code_doc(found, lang, title)
+            return code_doc(found, lang, title, base)
 
         return code
     if p.mode == "create":

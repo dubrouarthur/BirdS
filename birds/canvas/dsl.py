@@ -28,7 +28,7 @@ Document model (``v`` 1)::
 
     {"v": 1, "kind": "deck"|"doc"|"code"|"sheet", "title", "subtitle", "theme", "lang",
      "blocks": [{"id": "b1", "title": str, "parts": [part, ...], "notes": str}],   # deck, doc
-     "code": {"lang": str, "text": str},                                          # code
+     "code": {"lang", "text", "entry", "files": [{"name", "lang", "text"}]},       # code (see code.py)
      "sheet": {"columns": [str], "rows": [[str]]},                                # sheet
      "media": {"<id>": {"kind": "web"|"user"|"gen", "alt", "credit", "licence", "source", "w", "h"}}}
 
@@ -89,7 +89,7 @@ def layout_of(word: object) -> str | None:
 
 
 TONES = ("info", "warn", "ok", "key")  # key: « à retenir »
-CODE_LANGS = ("html", "svg", "css", "js", "python", "mermaid", "markdown", "json", "text")
+CODE_LANGS = ("html", "svg", "css", "js", "python", "mermaid", "markdown", "json", "text", "ts", "sql", "bash", "yaml")
 
 MAX_BLOCKS = 40
 MAX_PARTS = 14
@@ -523,7 +523,9 @@ def code_lang(word: object) -> str:
     w = str(word or "").strip().lower()
     aliases = {"htm": "html", "xhtml": "html", "javascript": "js", "jsx": "js", "mjs": "js", "py": "python",
                "python3": "python", "md": "markdown", "mmd": "mermaid", "flowchart": "mermaid", "graph": "mermaid",
-               "txt": "text", "plain": "text", "": "text", "svg+xml": "svg", "xml": "html"}  # fmt: skip
+               "txt": "text", "plain": "text", "": "text", "svg+xml": "svg", "xml": "html", "typescript": "ts",
+               "tsx": "ts", "sh": "bash", "shell": "bash", "zsh": "bash", "yml": "yaml", "postgresql": "sql",
+               "mysql": "sql", "sqlite": "sql"}  # fmt: skip
     w = aliases.get(w, w)
     return w if w in CODE_LANGS else "text"
 
@@ -1118,8 +1120,9 @@ def block_dsl(b: dict, ids: bool = True, level: int = 1) -> str:
 def to_dsl(doc: dict, ids: bool = True) -> str:
     """The document as the text format (``ids``: block ids in the headings, for a patch turn)."""
     if doc.get("kind") == "code":
-        c = doc.get("code") or {}
-        return f"```{c.get('lang', '')}\n{c.get('text', '')}\n```\n"
+        from .code import files_of
+
+        return "".join(f"```{f['lang']} {f['name']}\n{f['text']}\n```\n" for f in files_of(doc))
     if doc.get("kind") == "sheet":
         sh = doc.get("sheet") or {}
         rows = [sh.get("columns") or []] + list(sh.get("rows") or [])
@@ -1322,10 +1325,12 @@ def validate(doc) -> dict:
         if kind == "doc":
             _doc_fields(doc, out)
     elif kind == "code":
-        c = doc.get("code")
-        if not isinstance(c, dict):
-            raise Invalid("code")
-        out["code"] = {"lang": code_lang(c.get("lang")), "text": _str(c.get("text"), MAX_CODE)}
+        from .code import normalize
+
+        try:
+            out["code"] = normalize(doc.get("code"))
+        except ValueError as e:
+            raise Invalid(str(e)) from None
     else:
         sh = doc.get("sheet")
         if not isinstance(sh, dict) or not isinstance(sh.get("columns"), list) or not isinstance(sh.get("rows"), list):

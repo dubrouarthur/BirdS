@@ -2025,7 +2025,8 @@ def run_lang(raw_last: str, conv: str) -> str:
     and twice as many as the other language). "ok", "oui" or a bare URL keep the conversation's language."""
     from birds.harness.agent import _EN, _FR
 
-    n_fr, n_en = len(_FR.findall(raw_last or "")), len(_EN.findall(raw_last or ""))
+    raw_last = re.sub(r"«[^»]{0,2000}»", " ", raw_last or "")  # quoted words (an error message) are not the request's
+    n_fr, n_en = len(_FR.findall(raw_last)), len(_EN.findall(raw_last))
     if max(n_fr, n_en) >= 3:
         if n_fr >= 2 * n_en and n_fr > n_en:
             return "fr"
