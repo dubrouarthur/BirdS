@@ -1702,23 +1702,47 @@ function birdMark() {
   return svg;
 }
 
-function renderUser(turn, isLastUser) {
+let editingTurn = null; // the question being edited in place, if any
+
+/** Edit the question turns[i] in place (the last one by default): the bubble becomes an editor. */
+export function editUser(turn) {
+  if (state.busy || !turn || turn.role !== "user") return;
+  editingTurn = turn;
+  renderConversation();
+}
+
+function renderUser(turn, i) {
+  const turns = state.conv?.turns || [];
+  const files = (turn.attachments || []).length > 0 || (turn.images || []).length > 0;
+  if (editingTurn === turn && !state.busy) {
+    const done = () => {
+      editingTurn = null;
+      renderConversation();
+      document.querySelectorAll("#conversation > .turn")[i]?.querySelector('[data-act="edit"]')?.focus({ preventScroll: true });
+    };
+    return h(
+      "article",
+      { class: "turn turn-user is-editing" },
+      h("h2", { class: "sr-only", text: t("turn.you") }),
+      inlineEditor(turn.content, {
+        keeps: files,
+        onCancel: done,
+        onSend: (text) => {
+          editingTurn = null;
+          handlers.onEditSend(i, text);
+        },
+      }),
+    );
+  }
+  if (editingTurn === turn) editingTurn = null;
+  const pager = versionPager(turns, i, (j) => handlers.onVersion(i, j), state.busy);
   return h(
     "article",
-    { class: "turn turn-user" },
+    { class: "turn turn-user cx-has-acts" },
     h("h2", { class: "sr-only", text: t("turn.you") }),
     h(
       "div",
       { class: "bubble-wrap" },
-      isLastUser &&
-        !state.busy &&
-        button(
-          "btn-quiet btn-icon btn-small bubble-edit",
-          "edit",
-          t("act.edit"),
-          () => handlers.onEdit(),
-          { "data-act": "edit" },
-        ),
       h(
         "div",
         { class: "bubble" },
@@ -1726,13 +1750,13 @@ function renderUser(turn, isLastUser) {
           h(
             "div",
             { class: "bubble-gallery", role: "list", "aria-label": t("att.gallery") },
-            turn.images.map((img, i) =>
+            turn.images.map((img, k) =>
               h(
                 "div",
                 { role: "listitem", "data-att": img.name },
                 imageCard(img, {
                   compact: true,
-                  onOpen: () => handlers.onLightbox(turn.images, i),
+                  onOpen: () => handlers.onLightbox(turn.images, k),
                 }),
               ),
             ),
@@ -1751,6 +1775,17 @@ function renderUser(turn, isLastUser) {
           ),
       ),
     ),
+    // every question can be copied, edited in place (a new version from there) and shows its versions
+    h(
+      "div",
+      { class: "cx-user-acts", role: "group", "aria-label": t("turn.you") },
+      pager,
+      button("btn-quiet btn-icon btn-small", "copy", t("cx.copy.user"), () => copyText(turn.content, t("cx.copied.user")), {
+        "data-act": "copy-user",
+      }),
+      !state.busy &&
+        button("btn-quiet btn-icon btn-small", "edit", t("cx.edit"), () => editUser(turn), { "data-act": "edit" }),
+    ),
   );
 }
 
@@ -1761,11 +1796,10 @@ export function renderConversation() {
     turns.filter((x) => x.role === "assistant").map((x) => x.id),
   );
   for (const id of cache.keys()) if (!keep.has(id)) cache.delete(id);
-  const lastUser = turns.map((x) => x.role).lastIndexOf("user");
   root.replaceChildren(
     ...turns.map((turn, i) => {
       if (turn.role === "user")
-        return renderUser(turn, i === lastUser && i >= turns.length - 2);
+        return turn.hidden ? h("div", { class: "turn turn-hidden", hidden: true }) : renderUser(turn, i);
       turn.ui = turn.ui || {};
       const el = h("article", {
         class: "turn turn-bird",

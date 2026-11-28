@@ -128,6 +128,40 @@ part("versions", async (page, name, fail, shot) => {
     fail("R3: the versions did not survive a reload");
 });
 
+// ---------------------------------------------------------------- R6: edit any question in place, copy it
+part("edit", async (page, name, fail, shot, ctx) => {
+  await newChat(page);
+  await page.setInputFiles("#file-input", { name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from(DOC) });
+  await page.waitForSelector(".att-tray .att-card");
+  await send(page, "Résume ce document.");
+  await send(page, "Quelle heure est-il à Tokyo ?");
+  const firstUser = page.locator(".turn-user").first();
+  await firstUser.hover().catch(() => {});
+  await firstUser.locator('[data-act="copy-user"]').click();
+  await page.waitForSelector('.toast:has-text("Message copié")', { timeout: 3000 }).catch(() => fail("R6: no copy toast"));
+  await firstUser.locator('[data-act="edit"]').click();
+  await page.waitForSelector(".cx-edit textarea");
+  if ((await page.locator(".cx-edit textarea").inputValue()) !== "Résume ce document.") fail("R6: the editor lost the text");
+  if (!(await page.locator(".cx-edit-note").count())) fail("R6: no note that the files are kept");
+  await shot("r6-editing");
+  await page.keyboard.press("Escape");
+  if (await page.locator(".cx-edit").count()) fail("R6: Escape did not cancel");
+  await page.locator(".turn-user").first().locator('[data-act="edit"]').click();
+  await page.fill(".cx-edit textarea", "Fais la liste des présents.");
+  await page.click('[data-act="edit-send"]');
+  await page.waitForTimeout(500);
+  await idle(page);
+  if ((await page.locator(".turn-user").count()) !== 1) fail("R6: the edit did not branch from the first question");
+  const u = page.locator(".turn-user").first();
+  if (!(await u.locator(".bubble-files .att-card").count())) fail("R6: the edited question lost its file");
+  if ((await u.locator(".cx-pager").getAttribute("data-versions").catch(() => "")) !== "2/2") fail("R6: no 2/2 on the question");
+  await shot("r6-edited");
+  await u.locator('[data-act="ver-prev"]').click();
+  await page.waitForTimeout(300);
+  if ((await page.locator(".turn-user").count()) !== 2) fail("R6: version 1/2 did not bring the old tail back");
+  if (!(await page.locator(".turn-user").last().innerText()).includes("Tokyo")) fail("R6: the old follow-up is missing");
+});
+
 (async () => {
   const browser = await chromium.launch();
   const problems = [];

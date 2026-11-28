@@ -24,6 +24,7 @@ import {
 } from "./core.js";
 import { wire as wireRich } from "./richcode.js";
 import {
+  editUser,
   exportMarkdown,
   forgetRendered,
   renderConversation,
@@ -1870,17 +1871,37 @@ async function exportAnswer(turn, format) {
   }
 }
 
+/** « Modifier » on the last question (shortcut): it opens in place, like any other. */
 function editLast() {
   if (state.busy) return;
-  const lastUser = [...state.conv.turns]
-    .reverse()
-    .find((x) => x.role === "user");
-  if (!lastUser) return;
-  state.editing = true;
-  input().value = lastUser.content;
-  autosize();
-  updateComposer();
-  input().focus();
+  editUser([...state.conv.turns].reverse().find((x) => x.role === "user" && !x.hidden));
+}
+
+/** A question edited in place: a new version of the conversation from there, its files and images kept. */
+function editSend(i, text) {
+  const conv = state.conv;
+  const turns = conv.turns;
+  const old = turns[i];
+  if (state.busy || old?.role !== "user" || !state.online) return renderChat();
+  // the text the model got for it, with the new words in front: image transcriptions and file notes stay
+  const sent = old.sent && old.sent.startsWith(old.content) ? text + old.sent.slice(old.content.length) : undefined;
+  const user = {
+    role: "user",
+    content: text,
+    attachments: (old.attachments || []).map((a) => ({ ...a })),
+    images: (old.images || []).map((img) => ({ ...img })),
+    ...(sent ? { sent } : {}),
+  };
+  const imgs = sentImages.get(old);
+  if (imgs) sentImages.set(user, imgs);
+  const turn = newAssistantTurn();
+  fork(turns, i, [user, turn]);
+  if (i === 0) conv.title = autoTitle(text);
+  saveConv(conv);
+  renderChat();
+  scrollToEnd(true);
+  announce(t("live.sent"));
+  runTurn(turn, againFor(user));
 }
 
 function answerConfirm(turn, allow, { refine = false } = {}) {
@@ -2455,6 +2476,7 @@ async function init() {
     onRetry: (turn) => regenerate(state.conv.turns.indexOf(turn)),
     onVersion: showVersion,
     onEdit: editLast,
+    onEditSend: editSend,
     onChange: (turn) => (updateTurn(turn), saveConv()),
     onOpenFootprint: () => showView("footprint"),
     onOpenSettings: () => showView("settings"),
