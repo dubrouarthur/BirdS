@@ -86,8 +86,12 @@ test("routing: the hosted page in Bird local mode sends /api/* to the machine, w
     assert.equal(h.input, "/api/chat");
     assert.deepEqual(h.init.headers, { a: "1" });
   }
-  // no code: nothing changes
-  assert.equal(L.routeRequest("/api/chat", {}, { ...ctx, code: null }).input, "/api/chat");
+  // no code in this tab (a new tab, « Se souvenir » not ticked): still the machine, never the host, no pair header
+  const bare = L.routeRequest("/api/chat", { headers: { "X-Bird-Pair": "old" } }, { ...ctx, code: null });
+  assert.equal(bare.input, "http://127.0.0.1:8765/api/chat");
+  assert.equal(bare.init.headers["x-bird-pair"], undefined);
+  // the page served by Bird local without a code yet: unchanged
+  assert.equal(L.routeRequest("/api/chat", {}, { ...ctx, code: null, onLocal: true }).input, "/api/chat");
 });
 
 test("routing: the page served by Bird local adds the code to its own calls, same URL", () => {
@@ -149,7 +153,8 @@ test("mode switching: Bird local only when chosen and paired, back to hosted on 
   state.health = { modes: { server: true, user: true }, default_mode: "server", local_bird: { port: 8765 }, model: "adubrou/Bird-S-4B" };
   state.prefs.mode = "local";
   localPair.forget();
-  assert.equal(activeMode(), "server"); // chosen, not paired: the hosted model
+  // chosen, but no code in this tab (new tab, not remembered): still Bird local, never a silent hop to the host
+  assert.equal(activeMode(), "local");
   localPair.set("ABCD-EFGH");
   assert.equal(activeMode(), "local");
   assert.equal(modelLabel(), "Bird local");
@@ -158,6 +163,12 @@ test("mode switching: Bird local only when chosen and paired, back to hosted on 
   assert.equal(localBase(), "http://127.0.0.1:8765");
   state.prefs.localBase = "http://localhost:8765";
   assert.equal(localBase(), "http://localhost:8765");
+  // a stored base that is not one of the two loopback origins of the port is never used
+  for (const bad of ["https://evil.example", "http://127.0.0.1:9999", "http://127.0.0.1:8765/x"]) {
+    state.prefs.localBase = bad;
+    assert.equal(localBase(), "http://127.0.0.1:8765", bad);
+  }
+  state.prefs.localBase = "http://localhost:8765";
   // health not loaded yet: a paired Bird local still holds (never a silent hop to the hosted model)
   state.health = null;
   assert.equal(activeMode(), "local");

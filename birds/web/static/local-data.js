@@ -79,21 +79,25 @@ const plainHeaders = (headers) => {
 /**
  * Where a request of the page goes. ctx: {mode, base, code, onLocal}.
  * - the page served by Bird local itself (onLocal): same URL, plus the pairing code;
- * - the hosted page in « local » mode: /api/* (health excepted) to the local Bird, with the code, without cookies,
+ * - the hosted page in « local » mode: /api/* (health excepted) to the local Bird, with the code (even without one:
+ *   never to the host), without cookies,
  *   with the hosted-only headers removed and the server mode of the local Bird;
  * - anything else: unchanged.
  */
 export function routeRequest(input, init = {}, ctx = {}) {
   const url = typeof input === "string" ? input : null;
-  if (!url || !url.startsWith("/api/") || !ctx.code) return { input, init };
+  if (!url || !url.startsWith("/api/")) return { input, init };
   if (ctx.onLocal) {
+    if (!ctx.code) return { input, init };
     const headers = { ...plainHeaders(init.headers), "x-bird-pair": ctx.code };
     return { input, init: { ...init, headers } };
   }
   if (ctx.mode !== "local" || !ctx.base || url.startsWith("/api/health")) return { input, init };
   const headers = plainHeaders(init.headers);
   for (const k of HOSTED_ONLY) delete headers[k];
-  headers["x-bird-pair"] = ctx.code;
+  // no code in this tab yet: still the machine, never the host; Bird local answers pair_required
+  if (ctx.code) headers["x-bird-pair"] = ctx.code;
+  else delete headers["x-bird-pair"];
   if (headers["x-bird-mode"]) headers["x-bird-mode"] = "server";
   return {
     input: ctx.base + url,

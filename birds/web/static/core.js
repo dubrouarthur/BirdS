@@ -117,15 +117,18 @@ export const localPair = pairStore(webStorage("sessionStorage"), webStorage("loc
  * its health only (a hosted copy may also run on 127.0.0.1 while developing): the code never goes elsewhere. */
 export const onLocalOrigin = () =>
   !!state.health?.bird_local && typeof location !== "undefined" && isLoopback(location.hostname);
-export const localBase = () =>
-  state.prefs.localBase || localBases(state.health?.local_bird?.port || DEFAULT_PORT)[0];
+export const localBase = () => {
+  // only one of the two exact loopback origins of the port (a stored or imported value is never trusted as a host)
+  const bases = localBases(state.health?.local_bird?.port || DEFAULT_PORT);
+  return bases.includes(state.prefs.localBase) ? state.prefs.localBase : bases[0];
+};
 
 /** The mode actually used for requests: the saved choice if this server offers it, else the server default. */
 export function activeMode() {
-  // Bird local, paired: chosen by the user, it holds even before health answers (never a silent fall back to the
-  // hosted model, which would send a conversation meant for the user's machine to the host)
-  if (state.prefs.mode === "local" && !onLocalOrigin() && localPair.get() && state.health?.local_bird !== null)
-    return "local";
+  // Bird local, chosen by the user: it holds even before health answers and even when this tab has no code yet (a
+  // new tab, the code kept for one tab only): never a silent fall back to the hosted model, which would send a
+  // conversation meant for the user's machine to the host. Without the code, Bird local asks for it (pair_required).
+  if (state.prefs.mode === "local" && !onLocalOrigin() && state.health?.local_bird !== null) return "local";
   // no health yet (cold start, slow network): the real model, never the demo; a failed send then says so plainly
   if (!state.health) return "server";
   const modes = state.health.modes || {};

@@ -259,7 +259,7 @@ export function localPanel({ onPrefs }) {
     } else box.replaceChildren(unreachableCard({ onRetry: search }));
   };
 
-  if (activeMode() === "local") connected();
+  if (activeMode() === "local" && localPair.get()) connected();
   else queueMicrotask(search);
   return box;
 }
