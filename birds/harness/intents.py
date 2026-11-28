@@ -1259,6 +1259,15 @@ def images(text: str, lang: str = "fr") -> Intent | None:
 
 def detect(text: str, attached: bool = False, lang: str = "fr") -> list[Intent]:
     """At most two intents, the prefilled one first. ``text`` = the user's own words (never attachment text)."""
+    from birds.harness.router import own_words
+
+    # « réponds à ce message : « tu viens à Nantes vendredi ? il va pleuvoir » »: the handed-over text is content to
+    # work on or to send, never a request; only the user's own instruction starts a widget
+    own = own_words(text)
+    return _detect(text if own is None else own, attached, lang)
+
+
+def _detect(text: str, attached: bool, lang: str) -> list[Intent]:
     out: list[Intent] = []
     c = company(text, lang)
     p = places(text, lang)

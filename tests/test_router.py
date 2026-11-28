@@ -324,9 +324,11 @@ def test_model_mode_lets_the_model_say_no_and_hybrid_keeps_a_confident_parser_ca
     ],
 )  # fmt: skip
 def test_hybrid_never_overrules_the_model_with_a_call_read_in_pasted_text(text, parser):
-    assert parser in R.regex_decision(text).tools()  # the parsers' known false trigger
+    # the widget parsers read only the user's own instruction now (intents.detect); the clock parser still reads it
     d = R.decide(FakeClient([j([])]), TOK, text, mode="hybrid")
-    assert d.source == "hybrid" and parser not in d.tools() and parser in d.meta["not_merged"]
+    assert d.source == "hybrid" and parser not in d.tools()
+    if parser in R.regex_decision(text).tools():
+        assert parser in d.meta["not_merged"]
 
 
 @pytest.mark.parametrize(
@@ -593,3 +595,22 @@ def test_three_addresses_are_never_folded_into_a_query_and_a_near(mode):
         "query": "10 rue de Rivoli 75001 Paris ; 5 place Bellecour 69002 Lyon ; 1 quai de la Fosse 44000 Nantes"
     }
     assert R.log_meta(d)["agree"] is False
+
+
+# ---------------------------------------------------------------- a reply or a message to write: its text is content
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Réponds à ce message : « Salut, tu viens à Nantes vendredi ? Il paraît qu'il va pleuvoir. »",
+        "Écris un SMS à ma femme : je rentre tard, il neige à Grenoble",
+        "Relis ce message : il va pleuvoir à Lyon demain, prends ton parapluie",
+    ],
+)
+@pytest.mark.parametrize("mode", ["regex", "hybrid", "model"])
+def test_a_reply_to_write_never_starts_the_weather(text, mode):
+    model = j([{"tool": "get_weather", "args": {"place": "Nantes" if "Nantes" in text else
+                                                 "Grenoble" if "Grenoble" in text else "Lyon"}}])  # fmt: skip
+    d = R.decide(FakeClient([model]), TOK, text, mode=mode)
+    assert "get_weather" not in d.tools()

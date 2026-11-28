@@ -101,6 +101,10 @@ WEATHER_YES = [  # (phrase, the place the harness must pre-call get_weather with
     ("météo à la gare de Lyon ce soir", "gare de Lyon"),
 ]
 WEATHER_NO = [
+    # a reply or a message to write: the weather words are in the text handed over, not asked of Bird
+    "Réponds à ce message : « Salut, tu viens à Nantes vendredi ? Il paraît qu'il va pleuvoir. »",
+    "Écris un SMS à ma femme : je rentre tard, il neige à Grenoble",
+    "Relis ce message : il va pleuvoir à Lyon demain, prends ton parapluie",
     "le climat social est tendu, que faire ?",
     "fais-moi la météo des marchés",
     "comment réduire le temps de réponse du serveur ?",

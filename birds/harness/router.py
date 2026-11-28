@@ -675,7 +675,13 @@ def _fallback(base: Decision, why: str, meta: dict) -> Decision:
 # A task on text the user hands over (« résume ce mail : « … » », « analyse ce verbatim : … »): what the parsers
 # read inside that text is content to work on, not a request.
 _TEXT_TASK = re.compile(
-    r"\b(?:r[ée]sum\w*|synth[ée]tis\w*|corrig\w*|tradui\w*|reformul\w*|r[ée][ée]cri\w*|relis|relire|relecture|"
+    # a reply or a message to write from what the user hands over (« réponds à ce message : … », « écris un SMS à
+    # ma femme : … »): the text after « : » is content to send, not a request
+    r"\b(?:r[ée]ponds|r[ée]pondre|r[ée]pondez|reply|answer\s+(?:this|the)|"
+    r"(?:[ée]cri[st]|[ée]crire|[ée]crivez|r[ée]dige[sz]?|r[ée]diger|envoie[sz]?|envoyer|pr[ée]pare[sz]?|write|draft|"
+    r"send|compose)\s+(?:moi\s+|-moi\s+)?(?:un|une|le|la|ma|mon|a|an|the|my)\s+(?:petit\s+|court\s+|short\s+)?"
+    r"(?:sms|textos?|messages?|mails?|e-mails?|courriels?|r[ée]ponses?|mots?|text|email|note)|"
+    r"r[ée]sum\w*|synth[ée]tis\w*|corrig\w*|tradui\w*|reformul\w*|r[ée][ée]cri\w*|relis|relire|relecture|"
     r"analys\w*|am[ée]lior\w*|simplifi\w*|raccourci\w*|summari[sz]\w*|translat\w*|proofread\w*|rewrit\w*|"
     r"rephras\w*|correct\b|fix the (?:typos|grammar)|analy[sz]e|improve|shorten|simplify|tl;?dr)\b",
     re.I,
@@ -718,7 +724,8 @@ def own_words(text: str) -> str | None:
     rest = t[len(head) :]
     if not head or len(rest.strip()) < 12 or not _TEXT_TASK.search(head):
         return None
-    return (head + " " + (_QUOTED.sub(" ", rest) if m else "")).strip()
+    # without the « : » that introduced the text: own_words(own_words(x)) is own_words(x) (intents.detect reads it)
+    return " ".join((head.rstrip(" :") + " " + (_QUOTED.sub(" ", rest) if m else "")).split())
 
 
 def merge(model: Decision, base: Decision, own: Decision | None = None) -> Decision:
