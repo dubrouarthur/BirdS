@@ -162,6 +162,30 @@ part("edit", async (page, name, fail, shot, ctx) => {
   if (!(await page.locator(".turn-user").last().innerText()).includes("Tokyo")) fail("R6: the old follow-up is missing");
 });
 
+// ---------------------------------------------------------------- R23: « Continuer » after Stop
+part("continue", async (page, name, fail, shot) => {
+  await newChat(page);
+  await send(page, "Explique-moi le compostage en détail", false);
+  await page.waitForFunction(() => (document.querySelector(".turn-bird .md")?.innerText || "").length > 20, null, { timeout: 15000 });
+  await page.click("#btn-stop");
+  await idle(page);
+  const partial = (await page.locator(".turn-bird").last().locator(".md").innerText()).trim();
+  if (await page.locator('[data-act="restart"]').count()) fail("R23: « Relancer » still shown beside « Régénérer »");
+  if (!(await page.locator('[data-act="continue"]').count())) fail("R23: no « Continuer »");
+  await shot("r23-stopped");
+  await page.click('[data-act="continue"]');
+  await page.waitForTimeout(400);
+  await idle(page);
+  if ((await page.locator(".turn-bird").count()) !== 1 || (await page.locator(".turn-user").count()) !== 1)
+    fail("R23: « Continuer » added a turn");
+  const full = (await page.locator(".turn-bird").last().locator(".md").innerText()).trim();
+  if (!full.startsWith(partial.slice(0, Math.min(40, partial.length))) || full.length <= partial.length)
+    fail("R23: the answer did not continue from where it stopped");
+  if (full.indexOf(partial.slice(0, 20), 1) > 0) fail("R23: the continued answer repeats its beginning");
+  if (await page.locator(".turn-bird .stopped").count()) fail("R23: still marked as stopped");
+  await shot("r23-continued");
+});
+
 (async () => {
   const browser = await chromium.launch();
   const problems = [];

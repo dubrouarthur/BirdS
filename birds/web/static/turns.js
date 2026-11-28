@@ -1635,9 +1635,12 @@ function fillAssistant(el, turn, isLast) {
         { class: "stopped" },
         icon("pause"),
         h("span", { text: turn.stoppedAt ? t("turn.stopped.at", { step: toolLabel(turn.stoppedAt) }) : t("turn.stopped") }),
+        // words already written: « Continuer » picks up from there (Régénérer stays in the actions row); none: Relancer
         isLast &&
           !state.busy &&
-          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(turn), { "data-act": "restart" }),
+          (turn.answer?.content
+            ? button("btn-outline btn-small", "send", t("cx.continue"), () => handlers.onContinue(turn), { "data-act": "continue" })
+            : button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(turn), { "data-act": "restart" })),
       ),
     renderActions(turn, isLast),
     // a failed or stopped turn without text still shows its versions (it was a retry)

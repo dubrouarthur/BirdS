@@ -16,7 +16,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
@@ -521,6 +521,21 @@ def pick_scenario(text: str, has_attachment: bool = False) -> str:
     return "plain"
 
 
+# what the app sends for « Continuer » after Stop (conversation-i18n.js « cx.continue.prompt »)
+CONTINUE_PROMPTS = (
+    "Continue ta réponse précédente exactement là où elle s'est arrêtée, sans la répéter ni la réintroduire.",
+    "Continue your previous answer exactly where it stopped, without repeating or reintroducing it.",
+)
+
+
+def demo_continuation(messages: list[dict]) -> str | None:
+    """The words already written when the last message is the app's « Continuer » after an interrupted answer."""
+    if len(messages) < 3 or messages[-1].get("role") != "user" or messages[-1].get("content") not in CONTINUE_PROMPTS:
+        return None
+    prev = messages[-2]
+    return str(prev.get("content") or "") if prev.get("role") == "assistant" and prev.get("interrupted") else None
+
+
 def demo_plan(text: str, lang: str) -> bool:
     """The demo's task-plan scenario: one ask that names a deck AND a mail (« prépare une présentation … et un mail
     … »), read by the harness's own plan extraction."""
@@ -600,6 +615,11 @@ class DemoBackend:
                 raise ValueError("this confirmation does not belong to the demo")
             run.resume_email(request.resume, bool(request.decision))
             return
+        cut = demo_continuation(request.messages)
+        if cut is not None:  # « Continuer » after Stop: the same scripted answer, from where it stopped
+            request = replace(request, messages=request.messages[:-2])
+            run = _DemoRun(self, request, ctx, lang)
+            run.cut = cut
         last = next((m["content"] for m in reversed(request.messages) if m["role"] == "user"), "")
         if request.images:
             run.scenario_image()
@@ -761,6 +781,9 @@ class _DemoRun:
     ) -> None:
         from .widgets import enrich_sources
 
+        cut = getattr(self, "cut", "")
+        if cut and content.startswith(cut.rstrip()):  # « Continuer »: only what was not written yet
+            content = content[len(cut.rstrip()) :]
         self.pause(0.3)
         self.stream(content)
         self.ctx.emit(

@@ -1288,11 +1288,13 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
   if (turn.wakeStart && event.type !== "status") endWake(turn);
   switch (event.type) {
     case "delta":
+      if (turn.cont && turn.text === turn.cont) turn.text += joinCont(turn.cont, String(event.content ?? ""));
       turn.text += String(event.content ?? "");
       if (turn.live) endWake(turn);
       turn.live = null;
       return paintSoon(turn);
     case "user": {
+      if (turn.cont) return; // « Continuer »: the question stays as it was
       // the exact user text the model got: stored on the user turn and sent back as history from now on
       const turns = conv.turns;
       const userTurn = turns[turns.indexOf(turn) - 1];
@@ -1301,7 +1303,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
       return;
     }
     case "delta_reset":
-      turn.text = "";
+      turn.text = turn.cont || "";
       break;
     case "attachment_text": {
       // what the server read on the scanned pages of a PDF: kept with the attachment and sent back, so the
@@ -1323,6 +1325,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
       syncTitle();
       break;
     case "step": {
+      if (turn.stepBase) event = { ...event, index: event.index + turn.stepBase }; // « Continuer »: after the first steps
       const i = turn.steps.findIndex((s) => s.index === event.index);
       if (i >= 0) turn.steps[i] = event;
       else turn.steps.push(event);
@@ -1360,7 +1363,9 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
       break;
     case "answer":
       turn.answer = {
-        content: String(event.content ?? ""),
+        content: turn.cont
+          ? turn.cont + joinCont(turn.cont, String(event.content ?? "")) + String(event.content ?? "")
+          : String(event.content ?? ""),
         sources: event.sources || [],
         draft_email: event.draft_email || null,
         stop_reason: event.stop_reason || "answer",
@@ -1618,6 +1623,10 @@ async function runTurn(turn, extra = {}) {
         draft_email: null,
         stop_reason: "stopped",
       };
+    if (turn.cont) {
+      delete turn.cont; // « Continuer » is over: the answer is one text again
+      delete turn.stepBase;
+    }
     if (turn.usage && turn.status === "done" && !turn.counted) {
       turn.counted = true;
       ledgerAdd(turn.usage, conv.id);
@@ -1741,6 +1750,31 @@ function regenerate(at) {
   scrollToEnd(true);
   announce(t(failed ? "cx.retry.note" : "toast.regenerated"));
   runTurn(turn, againFor(turns[i - 1]));
+}
+
+/** What goes between the words written before Stop and the ones « Continuer » adds. */
+function joinCont(before, next) {
+  return !before || /\s$/.test(before) || /^[\s.,;:!?)\]»]/.test(next) ? "" : " ";
+}
+
+/** « Continuer »: the stopped answer is picked up where it stopped, in the same turn (no new question shown). */
+function continueAnswer(turn) {
+  const conv = state.conv;
+  const turns = conv.turns;
+  if (state.busy || turns[turns.length - 1] !== turn || !turn.answer?.content || !state.online) return;
+  const partial = turn.answer.content;
+  const messages = [
+    ...apiMessages(true), // up to the question (its exact text)
+    { role: "assistant", content: partial, interrupted: true },
+    { role: "user", content: t("cx.continue.prompt") },
+  ];
+  turn.cont = partial;
+  turn.text = partial;
+  turn.answer = null;
+  turn.stepBase = turn.steps.length;
+  turn.counted = false;
+  keepFocus();
+  runTurn(turn, { messages });
 }
 
 /** Show version j of the group headed by turns[i] (an answer regenerated, a question edited). */
@@ -2477,6 +2511,7 @@ async function init() {
     onVersion: showVersion,
     onEdit: editLast,
     onEditSend: editSend,
+    onContinue: continueAnswer,
     onChange: (turn) => (updateTurn(turn), saveConv()),
     onOpenFootprint: () => showView("footprint"),
     onOpenSettings: () => showView("settings"),

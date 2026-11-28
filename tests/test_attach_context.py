@@ -50,3 +50,29 @@ def test_earlier_file_whose_note_was_cut_is_named_as_optional():
     assert sent.endswith("[Document de la conversation, à lire seulement si la demande porte dessus : a.txt]")
     _, _, en, _ = prepare_turn(msgs, "en", "en", [], [], 6000, 3168, earlier_names=["a.txt"])
     assert en.endswith("[Document from this conversation, to read only if the request is about it : a.txt]")
+
+
+def test_r23_demo_continue_prompt_matches_the_app_and_resumes():
+    import re
+
+    from fastapi.testclient import TestClient
+
+    from birds.web.backends import CONTINUE_PROMPTS, DemoBackend, demo_continuation
+    from birds.web.server import create_app
+    from birds.web.settings import Settings
+
+    js = (ROOT / "birds" / "web" / "static" / "conversation-i18n.js").read_text(encoding="utf-8")
+    sent = re.findall(r'"cx\.continue\.prompt": "([^"]+)"', js)
+    assert tuple(sent) == CONTINUE_PROMPTS  # French, then English
+    q = {"role": "user", "content": "Bonjour"}
+    assert demo_continuation([q, {"role": "assistant", "content": "x"}, {"role": "user", "content": sent[0]}]) is None
+    app = create_app(Settings(rate_limit=0), demo=DemoBackend(delay=0))
+    with TestClient(app) as c:
+        def answer(messages):
+            r = c.post("/api/chat", headers={"X-Bird-Mode": "demo"}, json={"messages": messages})
+            return next(json.loads(ln[5:]) for ln in r.text.splitlines() if '"type": "answer"' in ln)["content"]
+
+        whole = answer([q])
+        part = whole[:30]
+        rest = answer([q, {"role": "assistant", "content": part, "interrupted": True}, {"role": "user", "content": sent[0]}])
+    assert part + rest == whole
