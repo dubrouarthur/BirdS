@@ -61,11 +61,20 @@ import { cleanPlan, planNews } from "./plan.js"; // task plan checklist (w1-harn
 import * as canvas from "./canvas.js"; // the canvas beside the chat (decks, documents, code, sheets)
 import { setModuleHooks } from "./modules.js";
 import { applyResearchEvent } from "./research.js";
+import { mountPicker, updatePicker } from "./reflexion.js"; // Mode Réflexion: the bird picker
+import { normalizeChoice, thinks } from "./reflexion-data.js";
 
 // Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
 const AGENT_MODES = ["auto", "on", "off"];
 let planTimer = 0; // the plan card's countdown (Auto, high confidence)
 let teamDone = false; // a team finished while the tab was hidden: « ✓ » in the tab title
+// Mode Réflexion and the Settings reasoning switch say the same thing: the bird picked is the more precise choice,
+// so the switch follows it; onPrefs applies the switch only when the switch itself changed
+if (!!state.prefs.thinking !== state.thinking) {
+  state.prefs.thinking = state.thinking;
+  savePrefs();
+}
+let prefsThinking = !!state.prefs.thinking;
 // No byte (data or heartbeat) for this long: the stream is dead. Just over 3x the server's heartbeat (10 s).
 const STALL_MS = 35000;
 state.agent = AGENT_MODES.includes(store.get("bird.agent")) ? store.get("bird.agent") : "auto";
@@ -841,7 +850,7 @@ function updateComposer() {
     count.classList.toggle("is-long", text.length > 6000);
   } else count.hidden = true;
   $("editing").hidden = !state.editing;
-  $("btn-thinking").setAttribute("aria-checked", String(state.thinking));
+  updatePicker();
   $("agent-mode").value = state.agent;
   $("agent-pill-value").textContent = t(`composer.agent.${state.agent}.short`); // phones: the select is see-through
   $("agent-pill").dataset.state = state.agent;
@@ -1100,7 +1109,8 @@ function newAssistantTurn() {
     confirm: null,
     status: "running",
     started: Date.now(),
-    thinking: state.thinking,
+    thinking: thinks(state.reflexion),
+    reflexion: state.reflexion, // Mode Réflexion: « auto » or the bird chosen when the turn was sent
     mode: activeMode(),
     ts: Date.now(),
     feedback: null,
@@ -1286,6 +1296,9 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
       turn.status = "confirm";
       announce(t("live.confirm"));
       break;
+    case "reflexion": // the bird the server chose or was given, before the first word (birds/harness/reflexion.py)
+      turn.flight = { level: String(event.level || ""), auto: !!event.auto };
+      break;
     case "reasoning":
       turn.reasoning +=
         (turn.reasoning ? "\n\n" : "") + String(event.content ?? "");
@@ -1304,6 +1317,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         widgets: Array.isArray(event.widgets) ? event.widgets : [],
         fallback: event.fallback ? String(event.fallback) : "", // written from the results, not by the model
         canvas: event.canvas?.aid ? { aid: event.canvas.aid, version: event.canvas.version, doc: !!event.canvas.doc } : null,
+        reflexion: event.reflexion && typeof event.reflexion === "object" ? event.reflexion : null, // checked when drawn
       };
       if (event.plan !== undefined) turn.plan = cleanPlan(event.plan); // the final checklist, or none
       canvas.onAnswer(conv, turn, event.canvas);
@@ -1411,6 +1425,7 @@ async function runTurn(turn, extra = {}) {
       conversation_id: conv.cid,
       tz: browserTz(),
       thinking: !!turn.thinking,
+      reflexion: normalizeChoice(turn.reflexion || state.reflexion),
       agent: turn.agent || state.agent, // "off" for the resend of « Revenir au mode simple »
       // a decided team shows its plan card first (agents.js renderPlan); « Lancer » sends agent_plan
       ...((turn.agent || state.agent) !== "off" ? { agent_flow: "plan" } : {}),
@@ -2172,8 +2187,17 @@ function bind() {
   });
   bindLightbox();
   $("btn-stop").addEventListener("click", stop);
-  $("btn-thinking").addEventListener("click", () => {
-    state.thinking = !state.thinking;
+  mountPicker($("rf-slot"), (choice) => {
+    state.reflexion = choice;
+    state.thinking = thinks(choice);
+    store.set("bird.reflexion", choice);
+    // the Settings switch follows the bird picked, so a later Settings change never undoes this choice
+    if (!!state.prefs.thinking !== state.thinking) {
+      state.prefs.thinking = state.thinking;
+      savePrefs();
+    }
+    prefsThinking = state.thinking;
+    announce(t("rf.changed", { name: t(`rf.level.${choice}`) }));
     updateComposer();
   });
   $("agent-mode").addEventListener("change", (e) => {
@@ -2430,12 +2454,24 @@ async function init() {
   setModuleHooks({ onChange: () => saveConv(), onSuggest: (text) => send(text), headers: requestHeaders });
   setViewHooks({
     onPrefs: () => {
-      state.thinking = !!state.prefs.thinking;
+      // the Settings switch, only when it is the switch that changed (a theme or language change keeps the bird):
+      // off is the hummingbird (no reasoning); on again gives the choice back to Bird
+      const now = !!state.prefs.thinking;
+      if (now !== prefsThinking) {
+        if (!now) state.reflexion = "colibri";
+        else if (state.reflexion === "colibri") state.reflexion = "auto";
+        store.set("bird.reflexion", state.reflexion);
+        state.thinking = thinks(state.reflexion);
+      }
+      prefsThinking = now;
       refreshAll();
     },
     onReset: () => {
       state.convs = [];
-      state.thinking = !!state.prefs.thinking;
+      state.reflexion = "auto";
+      store.set("bird.reflexion", "auto");
+      state.thinking = thinks(state.reflexion);
+      prefsThinking = !!state.prefs.thinking;
       state.conv = newConv();
       refreshAll();
     },

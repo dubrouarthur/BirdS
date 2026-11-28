@@ -1302,7 +1302,101 @@ def build(n: int = 6000, seed: int = 0, heldout_share: float = 0.12) -> dict:
                 r["task"] == "router" and "Tour précédent" in r["messages"][-2]["content"] for r in rows
             ),  # fmt: skip
         }
+    rx = reflexion_records(seed)  # Mode Réflexion: the level decision (task « reflexion »)
+    for split in ("train", "eval"):
+        out[split] += rx[split]
+        st[split]["reflexion"] = len(rx[split])
+        st[split]["records"] += len(rx[split])
+        st[split]["fr"] += sum(r["lang"] == "fr" for r in rx[split])
+    st["held_out_templates"] = sorted(set(st["held_out_templates"]) | set(rx["held"]))
     out["stats"] = st
+    return out
+
+
+# ---------------------------------------------------------------- Mode Réflexion: the level decision of « Auto »
+# (birds/harness/reflexion.py). The exact prompt (reflexion.messages) and {"level": …} as the one assistant turn.
+# The eval phrasings of router_data.REFLEXION_LEVELS never reach train.
+
+RX_TEMPLATES = [  # (template id, lang, level, phrasings with {slots})
+    ("rx_hello", "fr", "colibri", ["bonjour", "salut !", "coucou Bird", "merci !", "super, merci", "d'accord, parfait",
+                                   "bonne soirée", "qui es-tu ?", "ok merci, ça ira"]),
+    ("rx_fact", "fr", "colibri", ["quelle est la capitale du {pays} ?", "traduis « {mot} » en anglais",
+                                  "comment dit-on « {mot} » en espagnol ?", "en quelle année a eu lieu la prise de la "
+                                  "Bastille ?"]),
+    ("rx_hello_en", "en", "colibri", ["hello", "hi Bird", "thank you!", "great, thanks", "good night",
+                                      "what is the capital of {country}?", "translate « {mot} » into French"]),
+    ("rx_write", "fr", "hirondelle", ["rédige un mail à {qui} pour {objet}", "écris un message à {qui} pour {objet}",
+                                      "prépare une réponse polie à {qui} pour {objet}",
+                                      "résume ce compte rendu en {n} points", "donne-moi {n} idées pour {sujet}",
+                                      "explique simplement ce qu'est {notion}", "propose un plan pour {sujet}"]),
+    ("rx_write_en", "en", "hirondelle", ["draft an email to {who} to {task}", "write a short note to {who} to {task}",
+                                         "summarize these notes in {n} bullet points",
+                                         "give me {n} ideas for {topic_en}", "explain {notion_en} in plain words"]),
+    ("rx_calc", "fr", "faucon", ["combien font {a} € HT avec une TVA à 20 % ?", "une remise de {p} % sur {a} €, "
+                                 "ça fait combien ?", "{a} € par mois pendant {n} ans, ça fait combien au total ?",
+                                 "compare {a} € par mois et {b} € par an : lequel est le moins cher ?",
+                                 "quel est le taux de marge si j'achète {b} € et je vends {a} € ?",
+                                 "écris une fonction Python qui {code}", "corrige ce code : {snippet}",
+                                 "combien de jours ouvrés entre le {d1} et le {d2} ?"]),
+    ("rx_calc_en", "en", "faucon", ["what is {p}% of {a} dollars?", "compare {a} a month with {b} a year: which is "
+                                    "cheaper?", "write a Python function that {code_en}",
+                                    "how many working days are there between {d1_en} and {d2_en}?"]),
+    ("rx_deep", "fr", "chouette", ["analyse les risques et les opportunités de {projet}",
+                                   "quelle stratégie adopter pour {projet} ? pèse les arguments",
+                                   "fais un diagnostic complet de {projet} avec les scénarios possibles",
+                                   "évalue les avantages et les inconvénients de {projet} pour une PME de {n} personnes"]),
+    ("rx_deep_en", "en", "chouette", ["analyze the risks and opportunities of {projet_en}",
+                                      "what strategy should we adopt for {projet_en}? weigh the arguments",
+                                      "evaluate the trade-offs of {projet_en} for a company of {n} people"]),
+]
+RX_SLOTS = {
+    "pays": ["Portugal", "Canada", "Japon", "Pérou", "Kenya"], "country": ["Peru", "Norway", "Japan", "Chile"],
+    "mot": ["bonjour", "merci", "à bientôt", "réunion", "facture"],
+    "qui": ["Paul", "l'équipe", "le client", "Mme Durand", "le comptable"], "who": ["John", "the team", "a client"],
+    "objet": ["décaler la réunion à jeudi", "relancer la facture de mars", "remercier pour le rendez-vous",
+              "annoncer le nouveau planning"],
+    "task": ["move the meeting to Friday", "follow up on the March invoice", "thank them for the visit"],
+    "n": ["3", "5", "4", "10"], "sujet": ["le séminaire d'équipe", "la newsletter de juin", "un atelier client"],
+    "topic_en": ["a team offsite", "our June newsletter"], "notion": ["l'inflation", "un tableau croisé dynamique",
+                                                                     "la TVA intracommunautaire"],
+    "notion_en": ["inflation", "a pivot table"], "a": ["1 250", "89", "2 400", "14,90", "560"],
+    "b": ["149", "980", "1 800", "1 200"], "p": ["12", "15", "7,5", "30"],
+    "code": ["calcule la moyenne pondérée d'une liste", "trie des factures par date", "compte les mots d'un texte"],
+    "code_en": ["computes a weighted average", "sorts invoices by date"], "snippet": ["for i in range(10) print(i)",
+                                                                                      "SELECT * FROM t WHERE"],
+    "d1": ["3 mars", "12 avril"], "d2": ["28 mars", "5 mai"], "d1_en": ["March 3"], "d2_en": ["March 28"],
+    "projet": ["passer à la semaine de quatre jours", "ouvrir une deuxième agence à Lyon",
+               "remplacer notre ERP", "lancer une offre d'abonnement"],
+    "projet_en": ["a four-day week", "opening a second office", "replacing our ERP"],
+}  # fmt: skip
+
+
+def reflexion_records(seed: int = 0, heldout_share: float = 0.12) -> dict:
+    """{"train": […], "eval": […], "held": [template ids]}: one record per filled phrasing (and its accentless,
+    lowercase variant), templates held out whole like the router's."""
+    import router_data as D
+
+    from birds.harness import reflexion as RX
+
+    rng = random.Random(f"{seed}-reflexion")
+    banned = {R.fold(t) for t, _ in D.REFLEXION_LEVELS}
+    held = {t for t, *_ in RX_TEMPLATES if int(hashlib.sha1(f"{seed}{t}".encode()).hexdigest(), 16) % 1000
+            < heldout_share * 1000 * 2}  # fmt: skip
+    out, seen = {"train": [], "eval": [], "held": sorted(held)}, set()
+    for tid, lang, level, phrasings in RX_TEMPLATES:
+        for ph in phrasings:
+            for _ in range(3):
+                text = re.sub(r"\{(\w+)\}", lambda m: rng.choice(RX_SLOTS[m.group(1)]), ph)
+                for v in (text, _no_accents(text).lower()):
+                    k = R.fold(v)
+                    if k in seen or k in banned:
+                        continue
+                    seen.add(k)
+                    split = "eval" if tid in held else "train"
+                    msgs = RX.messages(v, lang) + [{"role": "assistant", "content": RX.decision_json(level)}]
+                    out[split].append({"id": f"{SOURCE}-{split}-x{len(out[split]):06d}", "source": SOURCE,
+                                       "license": LICENSE, "lang": lang, "task": "reflexion", "thinking": False,
+                                       "messages": msgs, "template": tid})  # fmt: skip
     return out
 
 

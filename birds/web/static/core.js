@@ -1,4 +1,5 @@
 // Shared pieces: state, storage, i18n, DOM helpers, icons, formatting, toasts.
+import { normalizeChoice, thinks } from "./reflexion-data.js";
 import { makeT } from "./i18n.js";
 
 export const $ = (id) => document.getElementById(id);
@@ -90,6 +91,9 @@ if (storedPrefs && storedPrefs.thinkingV !== 2) {
   state.prefs.thinkingV = 2;
 }
 state.thinking = !!state.prefs.thinking;
+// Mode Réflexion: « auto » or a bird (reflexion-data.js); an older « no reasoning » preference reads as Colibri
+state.reflexion = normalizeChoice(store.get("bird.reflexion") || (state.prefs.thinking ? "auto" : "colibri"));
+state.thinking = thinks(state.reflexion);
 
 export const t = makeT(() => state.prefs.lang);
 export const savePrefs = () =>

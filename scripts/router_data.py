@@ -382,3 +382,61 @@ def data_judge(plan: dict | None, gold: dict | None, charts: set[str]) -> dict:
         else:
             ok &= q.get(k) == v
     return {"ok": bool(ok), "chart_ok": (plan.get("chart") or "auto") in charts}
+
+
+# ---------------------------------------------------------------- Mode Réflexion (birds/harness/reflexion.py)
+# The level decision of « Auto »: (message, levels accepted). Held out of the training templates of
+# build_tools_mix.py (checked by tests/test_tools_mix.py), measured by scripts/reflexion_eval.py --levels.
+REFLEXION_LEVELS = [
+    ("salut, ça va ?", {"colibri"}),
+    ("merci beaucoup, c'est parfait", {"colibri"}),
+    ("quelle est la capitale de l'Australie ?", {"colibri", "hirondelle"}),
+    ("écris un mail à mon équipe pour annoncer la fermeture du bureau vendredi", {"hirondelle"}),
+    ("résume ce texte en trois points : le télétravail progresse dans les PME françaises depuis 2020", {"hirondelle"}),
+    ("donne-moi cinq idées de titres pour un article sur la sobriété numérique", {"hirondelle"}),
+    ("une remise de 12 % sur 1 450 € HT puis la TVA à 20 %, ça donne combien TTC ?", {"faucon", "chouette"}),
+    ("écris une requête SQL qui compte les commandes par client en 2025", {"faucon"}),
+    ("analyse les forces et faiblesses d'une stratégie d'abonnement pour un logiciel de paie", {"chouette"}),
+    ("thanks, that's all", {"colibri"}),
+    ("draft a short reply to accept the invitation for Tuesday", {"hirondelle"}),
+    ("if a team of 7 bills 520 dollars a day each, what is the cost of a 3-week project?", {"faucon", "chouette"}),
+]
+
+# The fixed set of calculations and comparisons (before / after, scripts/reflexion_eval.py --calc): the figures a
+# right answer must contain (spaces and the decimal mark ignored; any one of the forms listed per figure), and, for a
+# comparison, the wrong winner it must not name ({"not": pattern}: « Février a le meilleur taux » fails).
+REFLEXION_CALC = [
+    ("calc_sub", "Un abonnement coûte 14,90 € par mois, ou 149 € par an. Sur deux ans, lequel est le moins cher et "
+     "de combien ?", [["59,60", "59,6"], ["annuel", "an"],
+     {"not": r"mensuel\w*\s+(?:est|revient)\s+(?:donc\s+)?(?:le\s+)?moins cher"}]),
+    ("calc_vat", "Un produit coûte 80 € HT. On applique une remise de 15 %, puis la TVA à 20 %. Quel est le prix "
+     "TTC ?", [["81,60", "81,6"]]),
+    ("cmp_quotes", "Trois devis HT : 1 250 €, 980 € et 1 410 €. Lequel est le moins cher, et quel est l'écart avec "
+     "le plus cher ?", [["980"], ["430"]]),
+    ("calc_fuel", "Une voiture consomme 6,5 L aux 100 km et l'essence coûte 1,85 € le litre. Combien coûte un trajet "
+     "de 420 km ?", [["50,51", "50,50", "50,5"]]),
+    ("calc_salary", "Salaire brut de 2 800 € par mois, cotisations salariales de 22 %. Donne :\n1. le net mensuel\n"
+     "2. le net annuel sur 12 mois", [["2184", "2 184"], ["26208", "26 208"]]),
+    ("cmp_offers", "Offre A : 1 200 € par an plus 15 € par utilisateur et par mois. Offre B : 40 € par utilisateur "
+     "et par mois. Pour 5 utilisateurs sur un an, laquelle est la moins chère et de combien ?",
+     [["2100", "2 100"], ["2400", "2 400"], ["300"], {"not": r"offre b\W{0,3}(?:est|revient)\s+(?:la\s+)?moins ch"}]),
+    ("calc_compound", "10 000 € placés à 3 % par an, intérêts composés : combien après 3 ans ?",
+     [["10927,27", "10 927,27", "10927,3", "10 927,3"]]),
+    ("cmp_rates", "Janvier : 2 300 visites et 69 ventes. Février : 3 100 visites et 81 ventes. Quel mois a le "
+     "meilleur taux de conversion, et quels sont les deux taux ?", [["janvier"], ["3 %", "3%", "3,0", "3,00"],
+                                                                   ["2,61", "2,6 "],
+     {"not": r"f[ée]vrier\W{0,3}(?:a|affiche|pr[ée]sente)\s+(?:donc\s+)?le\s+meilleur|meilleur taux.{0,25}f[ée]vrier"}]),
+]  # fmt: skip
+
+
+def calc_ok(answer: str, wants: list[list[str]]) -> tuple[bool, int]:
+    """(every figure present, how many). Thin spaces and non-breaking spaces read as spaces; « 2 184 » = « 2184 »."""
+    a = " ".join((answer or "").replace(" ", " ").replace("\xa0", " ").lower().split())
+    squeezed = a.replace(" ", "")
+    hit = 0
+    for forms in wants:
+        if isinstance(forms, dict):
+            hit += not re.search(forms["not"], a, re.I)
+        else:
+            hit += any(w.lower() in a or w.lower().replace(" ", "") in squeezed for w in forms)
+    return hit == len(wants), hit

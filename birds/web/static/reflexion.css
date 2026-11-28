@@ -1,0 +1,383 @@
+/* Mode Réflexion: the composer's bird picker and the answer's flight header (reflexion.js). Colours come from the
+   app.css tokens, plus one tint per bird defined here for light and dark. Motion only with no-preference. */
+
+:root {
+  --rf-colibri: #12764a;
+  --rf-hirondelle: #1e5bd8;
+  --rf-faucon: #b2541c;
+  --rf-chouette: #6250d6;
+  --rf-albatros: #0e6f86;
+  --rf-auto: #0b1b3f;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --rf-colibri: #5fd3a0;
+    --rf-hirondelle: #8fb3ff;
+    --rf-faucon: #f2a46e;
+    --rf-chouette: #b8adff;
+    --rf-albatros: #6fd0e6;
+    --rf-auto: #e9edf5;
+  }
+}
+:root[data-theme="dark"] {
+  --rf-colibri: #5fd3a0;
+  --rf-hirondelle: #8fb3ff;
+  --rf-faucon: #f2a46e;
+  --rf-chouette: #b8adff;
+  --rf-albatros: #6fd0e6;
+  --rf-auto: #e9edf5;
+}
+
+/* the drawings: one silhouette, a stroked beak for the hummingbird, the eye in the page colour */
+.rf-bird {
+  inline-size: 18px;
+  block-size: 18px;
+  flex: none;
+  overflow: visible;
+}
+.rf-bird path:not(.rf-fill) {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.rf-bird .rf-fill {
+  fill: currentColor;
+}
+.rf-bird .rf-eye {
+  fill: var(--surface);
+}
+[data-level="colibri"] { --rf-tint: var(--rf-colibri); }
+[data-level="hirondelle"] { --rf-tint: var(--rf-hirondelle); }
+[data-level="faucon"] { --rf-tint: var(--rf-faucon); }
+[data-level="chouette"] { --rf-tint: var(--rf-chouette); }
+[data-level="albatros"] { --rf-tint: var(--rf-albatros); }
+[data-level="auto"] { --rf-tint: var(--rf-auto); }
+
+/* ---- the picker: a pill like the model menu of a chat app */
+.rf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 34px;
+  padding: 0 6px 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: none;
+  color: var(--ink-2);
+  font: 550 0.85rem var(--sans);
+  flex: none;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+.rf-pill .rf-bird {
+  color: var(--rf-tint);
+}
+.rf-pill:hover {
+  background: var(--surface-2);
+}
+.rf-pill[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.rf-pill-caret .icon {
+  inline-size: 12px;
+  block-size: 12px;
+  transform: rotate(90deg);
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.rf-pill[aria-expanded="true"] .rf-pill-caret .icon {
+  transform: rotate(-90deg);
+}
+#agent-pill {
+  margin-inline-end: auto; /* the free space of the row sits before the send button */
+}
+@media (max-width: 400px) {
+  .rf-pill {
+    gap: 3px;
+    padding-inline: 7px 4px;
+  }
+  .composer-row:has(#composer-count:not([hidden])) .rf-pill-caret {
+    display: none; /* a long message shows its count: the bird alone keeps the row inside the box */
+  }
+  .rf-pill .rf-pill-name {
+    /* a phone keeps the bird and its caret; the name is in the button's label and the menu */
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+.rf-menu {
+  position: fixed; /* placed above the pill by reflexion.js */
+  z-index: 60;
+  display: grid;
+  gap: 2px;
+  inline-size: min(22rem, calc(100vw - 32px));
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: rf-rise 0.14s ease-out;
+}
+.rf-menu[hidden] {
+  display: none;
+}
+.rf-menu-title {
+  padding: 6px 10px 4px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.rf-opt {
+  display: grid;
+  grid-template-columns: 32px 1fr 18px;
+  align-items: center;
+  gap: 10px;
+  min-block-size: 48px;
+  padding: 6px 10px 6px 6px;
+  border: 0;
+  border-radius: 12px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.rf-opt:hover,
+.rf-opt:focus-visible {
+  background: var(--surface-2);
+}
+.rf-opt:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.rf-opt-icon {
+  display: grid;
+  place-items: center;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--rf-tint) 14%, transparent);
+  color: var(--rf-tint);
+}
+.rf-opt-icon .rf-bird {
+  inline-size: 20px;
+  block-size: 20px;
+}
+.rf-opt-text {
+  display: grid;
+  gap: 1px;
+  min-inline-size: 0;
+}
+.rf-opt-name {
+  font-size: 0.92rem;
+}
+.rf-opt-name b {
+  font-weight: 650;
+}
+.rf-opt-label {
+  color: var(--ink-2);
+}
+.rf-opt-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.rf-opt-check {
+  visibility: hidden;
+  color: var(--accent);
+}
+.rf-opt[aria-checked="true"] .rf-opt-check {
+  visibility: visible;
+}
+.rf-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+  background: var(--backdrop);
+}
+@media (max-width: 640px) {
+  .rf-menu {
+    /* a bottom sheet in the thumb zone, as the photo menu: the dock scrolls and would clip a popover */
+    position: fixed;
+    inset-inline: max(12px, var(--safe-l, 0px));
+    inset-block-end: calc(12px + var(--safe-b, 0px));
+    inline-size: auto;
+    max-inline-size: 26rem;
+    margin-inline: auto;
+    border-radius: 20px;
+  }
+}
+
+/* ---- the answer: « Bird a pris son vol en Faucon » */
+.rf-flight > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-inline-size: 100%;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.rf-flight > summary:hover {
+  background: var(--surface-2);
+}
+.rf-badge {
+  display: grid;
+  place-items: center;
+  inline-size: 30px;
+  block-size: 30px;
+  flex: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--rf-tint) 14%, transparent);
+  color: var(--rf-tint);
+}
+.rf-badge .rf-bird {
+  inline-size: 19px;
+  block-size: 19px;
+}
+.rf-sumtext {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+  min-inline-size: 0;
+}
+.rf-line {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.rf-meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.rf-body {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 4px 18px;
+  padding: 4px 0 4px 22px;
+  border-inline-start: 2px solid color-mix(in srgb, var(--rf-tint, var(--line-strong)) 35%, var(--line));
+}
+.rf-h {
+  font-size: 0.76rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.rf-sum,
+.rf-facts {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+  font-size: 0.88rem;
+  color: var(--ink-2);
+}
+.rf-sum li {
+  position: relative;
+  padding-inline-start: 14px;
+  overflow-wrap: anywhere;
+}
+.rf-sum li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 2px;
+  inset-block-start: 0.6em;
+  inline-size: 5px;
+  block-size: 5px;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+.rf-facts li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.rf-facts .icon {
+  inline-size: 16px;
+  block-size: 16px;
+  flex: none;
+  margin-block-start: 1px;
+}
+.rf-facts [data-kind="ok"] .icon,
+.rf-facts [data-kind="fixed"] .icon {
+  color: var(--eco);
+}
+.rf-facts [data-kind="warn"] {
+  color: var(--warn-ink);
+}
+.rf-facts [data-kind="info"] .icon {
+  color: var(--muted);
+}
+.rf-full > summary {
+  padding-inline-start: 0;
+}
+
+/* ---- motion: the bird glides in when the answer lands, and flaps while Bird reasons */
+@keyframes rf-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rf-arrive .rf-badge .rf-bird {
+    animation: rf-glide 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .rf-arrive .rf-badge .rf-wing {
+    transform-box: fill-box;
+    transform-origin: 50% 40%;
+    animation: rf-beat 0.3s ease-in-out 2 alternate;
+  }
+  .rf-flap .rf-wing {
+    transform-box: fill-box;
+    transform-origin: 50% 40%;
+    animation: rf-beat 0.45s ease-in-out infinite alternate;
+  }
+  .rf-flap {
+    animation: rf-hover 1.8s ease-in-out infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rf-menu {
+    animation: none;
+  }
+}
+@keyframes rf-glide {
+  from {
+    opacity: 0;
+    transform: translate(-14px, 6px) rotate(-12deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(2px, -2px) rotate(4deg);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes rf-beat {
+  to {
+    transform: scaleY(0.55);
+  }
+}
+@keyframes rf-hover {
+  50% {
+    transform: translateY(-2px);
+  }
+}
+.rf-bird.rf-flap {
+  inline-size: 18px;
+  block-size: 18px;
+  color: var(--accent);
+}

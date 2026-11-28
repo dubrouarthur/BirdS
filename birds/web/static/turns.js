@@ -35,6 +35,7 @@ import { renderPlan } from "./plan.js"; // task plan checklist (w1-harness)
 import { canvasCard } from "./canvas.js";
 import { enhanceAnswer } from "./modules.js";
 import { renderChips, transforms } from "./followups.js";
+import { flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -96,7 +97,9 @@ function liveLine(turn) {
     text = what ? `${label} : ${what}…` : `${label}…`;
   } else if (turn.text) text = t("live.writing");
   else if (turn.steps.some((s) => s.status === "done")) text = t("live.reading"); // a tool finished: Bird reads it, then writes
-  else text = t(turn.thinking ? "live.thinking" : "live.starting");
+  else text = flyingText(turn) || t(turn.thinking ? "live.thinking" : "live.starting");
+  // while Bird reasons, the bird the server announced flaps in place of the spinner
+  const bird = !running && !turn.text && turn.live?.state !== "waking" ? flyingBird(turn) : null;
   if (running?.tool === "web_search" && state.health?.tools_info?.search?.label)
     sub = t("live.search.via", { label: state.health.tools_info.search.label });
   if (running?.tool === "read_image") sub = t("live.read_image.sub");
@@ -112,7 +115,7 @@ function liveLine(turn) {
   return h(
     "div",
     { class: `live${calm ? " live-calm" : ""}` },
-    h("span", { class: calm ? "pulse" : "spinner", "aria-hidden": "true" }),
+    bird || h("span", { class: calm ? "pulse" : "spinner", "aria-hidden": "true" }),
     h(
       "div",
       null,
@@ -1563,14 +1566,27 @@ function fillAssistant(el, turn, isLast) {
     renderAgents(turn, handlers),
     renderPlan(turn),
     renderSteps(turn.crew ? { ...turn, steps: turn.steps.filter((s) => !s.agent) } : turn), // crew steps sit in their lane
-    turn.reasoning &&
-      details(
-        "reasoning",
-        turn.ui.reasoning ?? false,
-        (value) => (turn.ui.reasoning = value),
-        [icon("chevron", "chev"), icon("spark"), t("reasoning.title")],
-        h("div", { class: "reasoning-body", text: turn.reasoning }),
-      ),
+    // Mode Réflexion: « Bird a pris son vol en Faucon », the reasoning summary, the checks, the full reasoning
+    renderFlight(
+      turn,
+      details,
+      turn.reasoning &&
+        details(
+          "reasoning rf-full",
+          turn.ui.reasoning ?? false,
+          (value) => (turn.ui.reasoning = value),
+          [icon("chevron", "chev"), t("rf.full")],
+          h("div", { class: "reasoning-body", text: turn.reasoning }),
+        ),
+    ) ||
+      (turn.reasoning &&
+        details(
+          "reasoning",
+          turn.ui.reasoning ?? false,
+          (value) => (turn.ui.reasoning = value),
+          [icon("chevron", "chev"), icon("spark"), t("reasoning.title")],
+          h("div", { class: "reasoning-body", text: turn.reasoning }),
+        )),
     hasText && entry.md,
     turn.answer?.fallback && h("p", { class: "answer-note", "data-notice": "fallback", text: turn.answer.fallback }),
     renderCharts(turn),

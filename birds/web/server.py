@@ -121,6 +121,8 @@ class AgentNoteBody(AgentNoteIn):
 class ChatBody(BaseModel):
     messages: list[Message] = Field(min_length=1)
     thinking: bool = False
+    # Mode Réflexion (birds.harness.reflexion): « auto » or a bird; omitted, ``thinking`` alone decides (older clients)
+    reflexion: Literal["auto", "colibri", "hirondelle", "faucon", "chouette", "albatros"] | None = None
     agent: Literal["auto", "on", "off"] = "auto"  # Mode Agent (birds.harness.crew): Auto, Activé, Désactivé
     # Mode Agent, wave 2: "plan" asks for the plan card first (the app); omitted, a decided team starts at once (API)
     agent_flow: Literal["plan"] | None = None
@@ -595,6 +597,7 @@ def create_app(
                 "reference": s.reference,
             },
             "thinking_default": True,
+            "reflexion_default": "auto",
             "default_mode": default_mode(),
             "modes": {"demo": True, "server": server is not None, "user": bool(s.allow_user_endpoint)},
             "demo_model": demo.model,
@@ -896,9 +899,15 @@ def create_app(
                 from birds.harness import crew_plan
 
                 crew_plan.ONCE.release(once, ticket, finished)
+        from birds.harness import reflexion as reflexion_mod
+
+        # a chosen bird sets the reasoning switch the rest of the app reads; « auto » reasons unless Bird picks
+        # Colibri (decided in the run, reflexion.decide)
+        thinking = body.thinking if body.reflexion is None else body.reflexion == "auto" or (
+            reflexion_mod.level(body.reflexion).thinking)  # fmt: skip
         chat_request = ChatRequest(
             messages,
-            body.thinking,
+            thinking,
             body.lang,
             attachments,
             resume,
@@ -912,6 +921,7 @@ def create_app(
             agent_plan=agent_plan,
             agent_slice=agent_slice,
             agent_notes=[n.model_dump() for n in body.agent_notes],
+            reflexion=body.reflexion,
             canvas=canvas_in,
         )
 
