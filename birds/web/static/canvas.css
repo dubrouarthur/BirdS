@@ -279,6 +279,21 @@
   font-size: 0.8rem;
   color: var(--muted);
 }
+.cv-card-open {
+  flex: none;
+}
+/* a phone: the long « Ouvrir dans le canevas » drops under the title instead of crushing it letter by letter */
+@media (max-width: 480px) {
+  .cv-card {
+    flex-wrap: wrap;
+  }
+  .cv-card-text {
+    flex-basis: calc(100% - 52px);
+  }
+  .cv-card-open {
+    margin-inline-start: 52px;
+  }
+}
 
 /* ------------------------------------------------------------ editable text */
 .cv-ed {
