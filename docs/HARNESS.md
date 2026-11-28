@@ -1267,3 +1267,75 @@ franche) : « Traduis en anglais » sous un résumé ou un compte rendu, malgré
 redondante avec la réponse (« Calcule les jours ouvrés de 2027 » quand la réponse donne 254) ; sous un mail, une
 suite du modèle et la puce fixe « Shorter » peuvent dire la même chose. Ces cas sont à porter dans les exemples
 d'entraînement de la tâche `nextsteps`.
+
+## 19. Bird se sert de ses outils au lieu de refuser (28/11/2026)
+
+Retours réels de production : « fais un graphe de l'évolution de la natalité » → « Je ne peux pas générer de
+graphique ici […] utilisez Excel » ; « Traduis ce mail en anglais » avec mail.txt → « Lecture du document : échec »
+puis « je n'ai pas accès à votre bureau local » ; « qui est georges pompidoo » → recherche web et mandat faux ;
+« une image » après un sujet → « pas accès à Internet ». Causes trouvées et corrections, à la racine :
+
+- **Pas de garde contre le refus.** Le contrôle final (`refusal.py`) repère une réponse qui dit ne pas pouvoir faire
+  ce qu'un outil du tour fait (graphique, fichier joint, Internet, image). Les mots ne sont qu'un indice : le modèle
+  est renvoyé **une fois** avec les outils capables, réofferts même si le routage les avait écartés, et il décide
+  de l'appel. Un second refus est livré tel quel. La relance a ses propres générations quand les recherches ont
+  épuisé les étapes du tour (reproduit en réel : quatre recherches, puis « je ne peux pas générer le graphique »).
+- **Pas de série officielle pour la natalité.** `get_statistics` connaît maintenant le taux de natalité (‰) et
+  l'indicateur de fécondité (enfants par femme), séries Banque mondiale, avec leur source sur la courbe.
+- **Le fichier joint introuvable.** Le modèle écrivait un chemin inventé (`Bureau/mail.txt`). `read_file` lit le
+  fichier joint qui porte ce nom, quel que soit le dossier écrit, et ne sort jamais de l'espace de travail. Un nom
+  faux renvoie la liste des fichiers présents.
+- **La traduction rendue en français.** Une traduction demandée vers l'anglais (ou le français) et laissée dans
+  l'autre langue est renvoyée une fois (`facts.translation_target`).
+- **Les noms mal écrits.** Le catalogue du routeur couvre les personnes et demande le nom corrigé. Un mot à une ou
+  deux lettres de celui de l'utilisateur compte comme le sien (`opendata_route.near_grounded`, jamais un autre
+  nom). `lookup_entity` suit la suggestion d'orthographe de Wikipédia quand Wikidata ne trouve pas le nom demandé
+  (jumeaux proches seulement).
+- **« une image » après un sujet.** Le routeur peut ancrer le sujet dans la demande précédente (les mots de
+  l'utilisateur et le mémo du serveur, jamais le texte du modèle). Les images sont filtrées sur le sujet que le
+  harnais a cherché (`Run.picture_subject`). Vérifié en réel sur l'endpoint : le routeur répond `images`
+  « cheval tigré » et « Mont-Saint-Michel ».
+- Exemples du routeur (exemples guidés et cas d'évaluation/entraînement `router_data` : `typo_entity`,
+  `picture_followup`). Le wip régex des suites d'images est retiré.
+
+Mesure en réel sur la production (`scripts/refusal_eval.py`, 20 demandes fixes, un tour chacune, Réflexion Auto,
+Mode Agent Auto). « Avant » = 9c10592, « après » = 996fcec. Détail : `docs/measures/refusal-eval-2026-11-28-*.json`.
+
+| cas | avant | après | outils avant → après |
+| --- | --- | --- | --- |
+| `chart_natalite` (« fais un graphe de l'évolution de la natalité ») | oui | oui | make_chart, read_page, web_search → make_chart, web_search |
+| `chart_pib` | oui | oui | get_statistics → get_statistics |
+| `chart_poll` (« … graphe des sondages au 2nd tour ») | oui | non | make_chart, read_page, web_search → read_page, web_search |
+| `chart_user` (chiffres de l'utilisateur) | oui | oui | make_chart → make_chart |
+| `analyse_ventes` | oui | oui | make_chart → make_chart |
+| `analyse_chomage` | oui | oui | get_statistics → get_statistics |
+| `analyse_abonnes` | oui | oui | make_chart → make_chart |
+| `analyse_en` | oui | oui | make_chart → make_chart |
+| `typo_pompidou` (« qui est georges pompidoo ») | non | **oui** | web_search → lookup_entity |
+| `typo_macron` (« emanuel macron ») | non | **oui** | lookup_entity (rien trouvé) → lookup_entity |
+| `typo_hugo` (« victor hugot ») | non | non | lookup_entity → lookup_entity |
+| `attach_translate` (mail.txt, vers l'anglais) | non (rendu en français) | **oui** | read_file → read_file |
+| `attach_translate_en` (email.txt, vers le français) | oui | oui | read_file → read_file |
+| `img_horse` (« une image » après le cheval tigré) | non | non | web_search → web_search |
+| `img_msm` (« tu as une photo ? ») | non · **refus** | non, sans refus | — → web_search |
+| 5 négatifs (haïku, salutation, définition, « comment faire un graphique dans Excel ? », traduction courte) | 5/5 | 5/5 | aucun outil, aucun graphique |
+| **total** | **14/20, 1 refus** | **16/20, 0 refus** | p50 4,9 s → 5,2 s |
+
+Pendant la mesure, entre les deux versions poussées (a0ba246), `chart_natalite` a refusé en réel (« je ne peux
+pas générer le graphique ») : il a été reproduit sur l'endpoint, puis corrigé dans 996fcec (relance avec ses
+propres générations et série de natalité).
+
+Ce qui reste, constaté franchement :
+
+- **Images.** En production, aucune image n'apparaît en ce moment, même pour une demande directe (« montre-moi
+  une photo du Mont-Saint-Michel » : recherche faite, 0 image). Les résultats de recherche ne portent plus de
+  vignettes depuis la nouvelle chaîne SearXNG → Brave. Le routeur choisit bien `images` sur les suites ; il faut
+  une source d'images sous licence libre (Wikimedia Commons via `canvas/images.search_commons`) avec auteur et
+  licence affichés. C'est le prochain chantier.
+- `chart_poll` : une réponse sourcée (56 % / 44 %), sans refus, mais sans courbe cette fois (« avant », elle avait
+  tracé ; tour de recherche de 30 s, variance du modèle). Le rappel de graphique n'a pas de générations propres.
+- `typo_hugo` : non expliqué. Wikipédia limite les appels depuis cet environnement (HTTP 429), donc non vérifiable
+  d'ici. Hypothèse : un homonyme Wikidata exact « Victor Hugot » sans article.
+- Les réponses « je n'ai pas accès à Internet » viennent aussi des exemples d'identité (`T["web"]` dans
+  `birds/sources/identity.py` : « Pas par moi-même »). Ils sont à revoir au prochain réentraînement, pour un
+  modèle qui a ses outils.

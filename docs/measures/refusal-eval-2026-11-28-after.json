@@ -1,0 +1,264 @@
+{
+ "summary": {
+  "cases": 20,
+  "answered": 20,
+  "ok": 16,
+  "false_refusals": 0,
+  "negatives_ok": 5,
+  "seconds_p50": 5.18
+ },
+ "cases": [
+  {
+   "id": "chart_natalite",
+   "seconds": 24.85,
+   "ok": true,
+   "tools": [
+    "make_chart",
+    "web_search"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Le graphique montre une baisse continue du taux de natalité en France depuis 1980, passant de 14,1 ‰ à 9,4 ‰ en 2025. La pente s'applanit après 2010, indiquant un ralentissement de la baisse. Ces chiffres sont issus de l'Insee et ne sont pas vérifiés par l'assistant."
+  },
+  {
+   "id": "chart_pib",
+   "seconds": 5.76,
+   "ok": true,
+   "tools": [
+    "get_statistics"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Le PIB de la France est en hausse : 2 723 milliards de dollars en 2019, 3 366 milliards en 2025. La tendance est donc à la croissance sur la période."
+  },
+  {
+   "id": "chart_poll",
+   "seconds": 30.35,
+   "ok": false,
+   "tools": [
+    "read_page",
+    "web_search"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 2,
+   "answer": "Les sondages de second tour du 26 novembre 2026 donnent l'avantage à **Marine Le Pen** (56 %) face à **Édouard Philippe** (44 %). Les autres candidats comme Jean-Luc Mélenchon (33 %) ou Raphaël Glucksmann (43 %) sont en retrait. Les hypothèses restent incertaines, mais la tendance actuelle pointe ve"
+  },
+  {
+   "id": "chart_user",
+   "seconds": 4.31,
+   "ok": true,
+   "tools": [
+    "make_chart"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Le graphique montre une légère hausse en 2021, suivie d'une baisse régulière depuis 2022."
+  },
+  {
+   "id": "analyse_ventes",
+   "seconds": 5.18,
+   "ok": true,
+   "tools": [
+    "make_chart"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Le volume monte de janvier à mars, puis recule en avril. C'est une hausse temporaire, pas une tendance claire. Vérifiez si le recul s'explique par un facteur ponctuel."
+  },
+  {
+   "id": "analyse_chomage",
+   "seconds": 7.17,
+   "ok": true,
+   "tools": [
+    "get_statistics"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Le taux de chômage en France est passé de 10,4 % en 2015 à 7,7 % en 2025. La tendance est donc à la baisse sur cette période. Source : Eurostat."
+  },
+  {
+   "id": "analyse_abonnes",
+   "seconds": 4.84,
+   "ok": true,
+   "tools": [
+    "make_chart"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "Les abonnés sont en hausse constante : +658 en 2022, +750 en 2023, puis +500 en 2024. La croissance ralentit en 2024, mais le total reste en forte progression sur quatre ans."
+  },
+  {
+   "id": "analyse_en",
+   "seconds": 3.6,
+   "ok": true,
+   "tools": [
+    "make_chart"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 1,
+   "images": 0,
+   "answer": "La tendance monte globalement : +30 % de Q1 à Q4, avec une petite baisse en Q3."
+  },
+  {
+   "id": "typo_pompidou",
+   "seconds": 4.99,
+   "ok": true,
+   "tools": [
+    "lookup_entity"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Georges Pompidou est un homme d'État français, Premier ministre de 1962 à 1968 et président de la République de 1969 jusqu'à sa mort en 1974 [1]."
+  },
+  {
+   "id": "typo_macron",
+   "seconds": 5.16,
+   "ok": true,
+   "tools": [
+    "lookup_entity"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Emmanuel Macron est président de la République française depuis 2017 ; il est né en 1977 et a d'abord exercé comme banquier d'affaires avant de s'engager dans la vie politique."
+  },
+  {
+   "id": "typo_hugo",
+   "seconds": 5.62,
+   "ok": false,
+   "tools": [
+    "lookup_entity"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Je n'ai pas d'information fiable sur Victor Hugot : je ne peux pas vous donner de nom, de fonction ou d'entreprise. Si vous me donnez un contexte (poste, secteur, lieu), je pourrai peut-être vous aider autrement."
+  },
+  {
+   "id": "attach_translate",
+   "seconds": 5.45,
+   "ok": true,
+   "tools": [
+    "read_file"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Subject: Meeting confirmation\n\nHi Claire,\n\nThanks for your quick reply. I confirm our meeting on Thursday at 2 p.m. in our Lyon offices. Could you send me the signed quote before Wednesday?\n\nBest regards,\nJulien"
+  },
+  {
+   "id": "attach_translate_en",
+   "seconds": 3.47,
+   "ok": true,
+   "tools": [
+    "read_file"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Objet : Confirmation de la réunion\n\nBonjour Tom,\n\nMerci pour ta réponse rapide. Je confirme notre réunion jeudi à 14 h à notre bureau de Lyon. Pourrais-tu m'envoyer la facture signée avant mercredi ?\n\nCordialement,\nJulia"
+  },
+  {
+   "id": "img_horse",
+   "seconds": 7.97,
+   "ok": false,
+   "tools": [
+    "web_search"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Le cheval tigré, ou tiger horse, est un registre généalogique créé en 1932 par Claude Thompson en Oregon, pour préserver des chevaux tachetés. Son nom vient de l'espagnol Tigre, à cause de sa robe marquée. Il est souvent associé aux Appaloosa et aux Knabstrup."
+  },
+  {
+   "id": "img_msm",
+   "seconds": 7.64,
+   "ok": false,
+   "tools": [
+    "web_search"
+   ],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Le Mont-Saint-Michel est une commune normande autour d'un îlot rocheux sur lequel s'élève l'abbaye du même nom, fondée au VIIIe siècle ; le site est l'un des plus grands monuments médiévaux de France."
+  },
+  {
+   "id": "neg_haiku",
+   "seconds": 4.73,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Le vent souffle,\nLes feuilles dorées dansent,\nL'automne arrive."
+  },
+  {
+   "id": "neg_hello",
+   "seconds": 1.54,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Merci, tout va bien. Et vous ?"
+  },
+  {
+   "id": "neg_photosynthese",
+   "seconds": 4.99,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "La photosynthèse, c'est le processus par lequel les plantes transforment la lumière du soleil, l'eau et le dioxyde de carbone en glucose et en oxygène. Elles utilisent l'énergie solaire pour convertir les molécules simples en sucre, qui sert d'énergie, tout en libérant de l'oxygène comme sous-produi"
+  },
+  {
+   "id": "neg_excel",
+   "seconds": 5.99,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "En Excel, vous sélectionnez vos données, puis vous cliquez sur l'onglet « Insertion » et vous choisissez le type de graphique qui vous convient (courbe, histogramme, etc.). Si vous avez besoin d'un modèle ou d'un exemple, je peux vous aider à structurer les données."
+  },
+  {
+   "id": "neg_translate",
+   "seconds": 2.45,
+   "ok": true,
+   "tools": [],
+   "errors": [],
+   "refusal": false,
+   "charts": 0,
+   "images": 0,
+   "answer": "Here you go:\n\n« Merci pour votre aide » means « Thank you for your help » in English."
+  }
+ ]
+}

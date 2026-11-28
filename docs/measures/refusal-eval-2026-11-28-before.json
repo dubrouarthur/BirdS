@@ -2,7 +2,7 @@
  "summary": {
   "cases": 20,
   "answered": 20,
-  "ok": 15,
+  "ok": 14,
   "false_refusals": 1,
   "negatives_ok": 5,
   "seconds_p50": 4.86
@@ -158,7 +158,7 @@
   {
    "id": "attach_translate",
    "seconds": 4.62,
-   "ok": true,
+   "ok": false,
    "tools": [
     "read_file"
    ],
