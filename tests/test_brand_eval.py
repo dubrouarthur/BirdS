@@ -71,3 +71,21 @@ def test_the_generation_budget_is_counted_from_the_first_run_and_never_exceeded(
     with pytest.raises(brand_eval.BudgetExhausted):
         llm.generate("p", 10, [])
     assert inner.calls == 3 and llm.used == 5
+
+
+def test_every_saved_row_records_its_exact_system_prompt():
+    """Each arm can be re-run: its system prompt is stored with its hash, or the row says why it is missing."""
+    import hashlib
+
+    for f in sorted((ROOT / "docs" / "measures").glob("brand-eval-*.json")):
+        for r in json.loads(f.read_text(encoding="utf-8")):
+            assert r["label"], (f.name, r["ask"])
+            if r["system"] is None:
+                assert r["system_note"].startswith("not recorded"), (f.name, r["ask"])
+            else:
+                assert r["system_sha256"] == hashlib.sha256(r["system"].encode("utf-8")).hexdigest()
+
+
+def test_rows_written_by_the_bench_carry_the_prompt():
+    row = brand_eval.system_fields("Tu es Bird.")
+    assert row["system"] == "Tu es Bird." and len(row["system_sha256"]) == 64

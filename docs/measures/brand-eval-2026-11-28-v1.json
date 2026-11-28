@@ -1,6 +1,9 @@
 [
  {
   "arm": "before",
+  "label": "before",
+  "system": "Tu es Bird, l'assistant de travail conçu par Bird Models. Tu es sobre, franc et pragmatique : tu vas droit au but, tu dis quand tu ne sais pas, et tu réponds dans la langue de l'utilisateur.",
+  "system_sha256": "56782d748defa9c73c6da09c84ceb70a49e0f244d159381b097a64bb9533e2f9",
   "kind": "identity",
   "lang": "fr",
   "ask": "Qui es-tu ?",
@@ -17,6 +20,9 @@
  },
  {
   "arm": "before",
+  "label": "before",
+  "system": "Tu es Bird, l'assistant de travail conçu par Bird Models. Tu es sobre, franc et pragmatique : tu vas droit au but, tu dis quand tu ne sais pas, et tu réponds dans la langue de l'utilisateur.",
+  "system_sha256": "56782d748defa9c73c6da09c84ceb70a49e0f244d159381b097a64bb9533e2f9",
   "kind": "identity",
   "lang": "fr",
   "ask": "Présente Bird en deux phrases.",
@@ -33,6 +39,9 @@
  },
  {
   "arm": "before",
+  "label": "before",
+  "system": "Tu es Bird, l'assistant de travail conçu par Bird Models. Tu es sobre, franc et pragmatique : tu vas droit au but, tu dis quand tu ne sais pas, et tu réponds dans la langue de l'utilisateur.",
+  "system_sha256": "56782d748defa9c73c6da09c84ceb70a49e0f244d159381b097a64bb9533e2f9",
   "kind": "identity",
   "lang": "fr",
   "ask": "Où peut-on installer Bird ?",
@@ -49,6 +58,9 @@
  },
  {
   "arm": "before",
+  "label": "before",
+  "system": "Tu es Bird, l'assistant de travail conçu par Bird Models. Tu es sobre, franc et pragmatique : tu vas droit au but, tu dis quand tu ne sais pas, et tu réponds dans la langue de l'utilisateur.",
+  "system_sha256": "56782d748defa9c73c6da09c84ceb70a49e0f244d159381b097a64bb9533e2f9",
   "kind": "identity",
   "lang": "fr",
   "ask": "Pourquoi choisir un petit modèle comme toi ?",
@@ -65,6 +77,9 @@
  },
  {
   "arm": "before",
+  "label": "before",
+  "system": "You are Bird, the work assistant built by Bird Models. You are concise, candid and pragmatic: you get to the point, you say when you don't know, and you answer in the user's language.",
+  "system_sha256": "0a8ad695e075621da97119d6aabba9fa985eaf9d714b1c86d135e0947f56a70c",
   "kind": "identity",
   "lang": "en",
   "ask": "Who are you?",
@@ -81,6 +96,9 @@
  },
  {
   "arm": "before",
+  "label": "before",
+  "system": "Tu es Bird, l'assistant de travail conçu par Bird Models. Tu es sobre, franc et pragmatique : tu vas droit au but, tu dis quand tu ne sais pas, et tu réponds dans la langue de l'utilisateur.",
+  "system_sha256": "56782d748defa9c73c6da09c84ceb70a49e0f244d159381b097a64bb9533e2f9",
   "kind": "ordinary",
   "lang": "fr",
   "ask": "Rédige un mail court à Claire : on décale la réunion de jeudi à vendredi 10 h.",
@@ -95,6 +113,9 @@
  },
  {
   "arm": "before",
+  "label": "before",
+  "system": "Tu es Bird, l'assistant de travail conçu par Bird Models. Tu es sobre, franc et pragmatique : tu vas droit au but, tu dis quand tu ne sais pas, et tu réponds dans la langue de l'utilisateur.",
+  "system_sha256": "56782d748defa9c73c6da09c84ceb70a49e0f244d159381b097a64bb9533e2f9",
   "kind": "ordinary",
   "lang": "fr",
   "ask": "Résume en une phrase : le télétravail concerne 26 % des salariés du privé en 2023 selon la Dares.",
@@ -109,6 +130,9 @@
  },
  {
   "arm": "before",
+  "label": "before",
+  "system": "You are Bird, the work assistant built by Bird Models. You are concise, candid and pragmatic: you get to the point, you say when you don't know, and you answer in the user's language.",
+  "system_sha256": "0a8ad695e075621da97119d6aabba9fa985eaf9d714b1c86d135e0947f56a70c",
   "kind": "ordinary",
   "lang": "en",
   "ask": "Write a two-line thank-you note to a colleague who covered my shift.",
@@ -123,6 +147,10 @@
  },
  {
   "arm": "after",
+  "label": "v1",
+  "system": null,
+  "system_sha256": null,
+  "system_note": "not recorded: the v1 sentence (« Bird Models conçoit en France des modèles légers, à installer où l'on veut… ») was tried before the bench stored its prompt and is not in the repository; this arm cannot be re-run",
   "kind": "identity",
   "lang": "fr",
   "ask": "Qui es-tu ?",
@@ -139,6 +167,10 @@
  },
  {
   "arm": "after",
+  "label": "v1",
+  "system": null,
+  "system_sha256": null,
+  "system_note": "not recorded: the v1 sentence (« Bird Models conçoit en France des modèles légers, à installer où l'on veut… ») was tried before the bench stored its prompt and is not in the repository; this arm cannot be re-run",
   "kind": "identity",
   "lang": "fr",
   "ask": "Présente Bird en deux phrases.",
@@ -155,6 +187,10 @@
  },
  {
   "arm": "after",
+  "label": "v1",
+  "system": null,
+  "system_sha256": null,
+  "system_note": "not recorded: the v1 sentence (« Bird Models conçoit en France des modèles légers, à installer où l'on veut… ») was tried before the bench stored its prompt and is not in the repository; this arm cannot be re-run",
   "kind": "identity",
   "lang": "fr",
   "ask": "Où peut-on installer Bird ?",
@@ -171,6 +207,10 @@
  },
  {
   "arm": "after",
+  "label": "v1",
+  "system": null,
+  "system_sha256": null,
+  "system_note": "not recorded: the v1 sentence (« Bird Models conçoit en France des modèles légers, à installer où l'on veut… ») was tried before the bench stored its prompt and is not in the repository; this arm cannot be re-run",
   "kind": "identity",
   "lang": "fr",
   "ask": "Pourquoi choisir un petit modèle comme toi ?",
@@ -187,6 +227,10 @@
  },
  {
   "arm": "after",
+  "label": "v1",
+  "system": null,
+  "system_sha256": null,
+  "system_note": "not recorded: the v1 sentence (« Bird Models conçoit en France des modèles légers, à installer où l'on veut… ») was tried before the bench stored its prompt and is not in the repository; this arm cannot be re-run",
   "kind": "identity",
   "lang": "en",
   "ask": "Who are you?",
@@ -203,6 +247,10 @@
  },
  {
   "arm": "after",
+  "label": "v1",
+  "system": null,
+  "system_sha256": null,
+  "system_note": "not recorded: the v1 sentence (« Bird Models conçoit en France des modèles légers, à installer où l'on veut… ») was tried before the bench stored its prompt and is not in the repository; this arm cannot be re-run",
   "kind": "ordinary",
   "lang": "fr",
   "ask": "Rédige un mail court à Claire : on décale la réunion de jeudi à vendredi 10 h.",
@@ -217,6 +265,10 @@
  },
  {
   "arm": "after",
+  "label": "v1",
+  "system": null,
+  "system_sha256": null,
+  "system_note": "not recorded: the v1 sentence (« Bird Models conçoit en France des modèles légers, à installer où l'on veut… ») was tried before the bench stored its prompt and is not in the repository; this arm cannot be re-run",
   "kind": "ordinary",
   "lang": "fr",
   "ask": "Résume en une phrase : le télétravail concerne 26 % des salariés du privé en 2023 selon la Dares.",
@@ -231,6 +283,10 @@
  },
  {
   "arm": "after",
+  "label": "v1",
+  "system": null,
+  "system_sha256": null,
+  "system_note": "not recorded: the v1 sentence (« Bird Models conçoit en France des modèles légers, à installer où l'on veut… ») was tried before the bench stored its prompt and is not in the repository; this arm cannot be re-run",
   "kind": "ordinary",
   "lang": "en",
   "ask": "Write a two-line thank-you note to a colleague who covered my shift.",

@@ -112,6 +112,15 @@ class GenBudget:
         return getattr(self.llm, name)
 
 
+def system_fields(text: str | None, note: str = "") -> dict:
+    """The exact system prompt of a row, and its hash, so every arm of a measurement can be re-run."""
+    import hashlib
+
+    if text is None:
+        return {"system": None, "system_sha256": None, "system_note": note}
+    return {"system": text, "system_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()}
+
+
 def table(rows: list[dict], arms: list[str]) -> None:
     print("\n| arm | identity: light | place | France | clean | ordinary: clean | quiet | all checks |")
     print("|---|---|---|---|---|---|---|---|")
@@ -139,6 +148,7 @@ def main(argv=None) -> int:
     ap.add_argument("--max-gens", type=int, default=25,
                     help="live budget: model generations allowed for the whole bench, counted from the first run "
                     "(default 25); the bench stops rather than exceed it")  # fmt: skip
+    ap.add_argument("--label", default="", help="name of this variant in the measurement doc (e.g. v2)")
     ap.add_argument("--spent", type=int, default=0, help="generations already spent today on this budget")
     ap.add_argument("--rescore", nargs="+", metavar="JSON",
                     help="re-score saved answers with the current rubric (no generation), rewrite their checks")  # fmt: skip
@@ -195,7 +205,8 @@ def main(argv=None) -> int:
                     except Exception as e:  # noqa: BLE001 - an endpoint error is a failed case, reported
                         text, err = "", f"{type(e).__name__}: {e}"
                     checks = score(kind, lang, text) if text.strip() else {"answered": False}
-                    rows.append({"arm": arm, "kind": kind, "lang": lang, "ask": ask, "answer": text.strip(),
+                    rows.append({"arm": arm, "label": a.label, **system_fields(prompts[arm][lang]),
+                                 "kind": kind, "lang": lang, "ask": ask, "answer": text.strip(),
                                  "checks": checks, "seconds": round(time.monotonic() - t0, 1), "error": err,
                                  "gens": llm.used - before})  # fmt: skip
                     bad = [k for k, v in checks.items() if not v]
