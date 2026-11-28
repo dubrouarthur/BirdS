@@ -27,6 +27,8 @@ import { wrapPref } from "./richcode.js";
 import { docCard, imageCard, kindOf, middle } from "./attach.js";
 import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 import { openEditor } from "./editor.js";
+import { modelDownCard, unreachableCard } from "./local.js";
+import { MODEL_DOWN } from "./local-data.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { moveFull, renderWidgets, widgetsText } from "./widgets.js";
 import { renderAgents, renderChecks } from "./agents.js";
@@ -35,7 +37,9 @@ import { renderPlan } from "./plan.js"; // task plan checklist (w1-harness)
 import { canvasCard } from "./canvas.js";
 import { enhanceAnswer } from "./modules.js";
 import { renderChips, transforms } from "./followups.js";
-import { flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
+import { inlineEditor, versionPager } from "./conversation.js"; // « ‹ 1/2 › », editing a question in place
+import { birdIcon, flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
+import { REWRITE_GLYPHS, copyAnswer, feedbackPanel, feedbackThanks, glyph, serialize, setSourcesOpen, treeOf, typeset } from "./answers.js"; // math, citations, rich copy, feedback (chat audit C2)
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -80,16 +84,12 @@ function liveLine(turn) {
   let text;
   let sub = "";
   let calm = false;
-  let retry = null;
   if (turn.live?.state === "waking") {
+    // the model was asleep (scaled to zero): one calm line, no attempt counter nor retry countdown; Bird retries
+    // on its own and the thin bar below fills slowly while the wait lasts
     text = t("live.waking");
-    sub = t("live.waking.sub", { n: turn.live.attempt || 1 });
+    sub = t("live.waking.sub");
     calm = true;
-    const wait = Number(turn.live.retry_in);
-    if (wait >= 0) {
-      const at = String((turn.live.at || Date.now()) + wait * 1000);
-      retry = h("span", { class: "num", "data-retry-at": at, text: retryText(Number(at)) });
-    }
   } else if (running) {
     const key = `live.${running.tool}`;
     const label = t(key) === key ? t("live.tool") : t(key);
@@ -115,38 +115,52 @@ function liveLine(turn) {
   return h(
     "div",
     { class: `live${calm ? " live-calm" : ""}` },
-    bird || h("span", { class: calm ? "pulse" : "spinner", "aria-hidden": "true" }),
+    bird || (calm ? birdIcon("hirondelle", "rf-flap live-wake-bird") : h("span", { class: "spinner", "aria-hidden": "true" })),
     h(
       "div",
-      null,
+      { class: "live-body" },
       h(
         "p",
         { class: "live-text" },
         h("span", { text }),
         h("span", { class: "live-time num", "data-since": String(since), "aria-hidden": "true", text: elapsed(since) }),
       ),
-      sub ? h("p", { class: "live-sub" }, retry && [retry, " · "], sub) : auto,
+      sub ? h("p", { class: "live-sub", text: sub }) : auto,
+      calm && wakeBar(since),
     ),
   );
 }
 
-function retryText(at) {
-  const left = Math.max(0, Math.ceil((at - Date.now()) / 1000));
-  return left > 0 ? t("live.retry.in", { n: left }) : t("live.retry.now");
+function wakeBar(since) {
+  const fill = h("span", { "data-wake-since": String(since) });
+  fill.style.inlineSize = `${wakeShare(since)}%`; // CSSOM, not a style attribute: the CSP allows no inline styles
+  return h("div", { class: "wake-bar", "aria-hidden": "true" }, fill);
 }
+
+// A wake-up lasts from a few tens of seconds to a few minutes: the bar fills fast at first, then ever more slowly
+// (time constant 60 s), and never reaches the end before the first word does.
+function wakeShare(since) {
+  const s = Math.max(0, (Date.now() - Number(since)) / 1000);
+  return Math.round(6 + 86 * (1 - Math.exp(-s / 60)));
+}
+
+// Nothing to say in the first seconds of a normal answer (Bird may be reasoning): a quiet line from 25 s,
+// the Stop hint from 60 s only.
+const SLOW_AFTER_S = 25;
+const SLOWER_AFTER_S = 60;
 
 function autoSub(started, first) {
   const s = (Date.now() - started) / 1000;
   if (s < 3) return first ? t("live.first") : "";
-  if (s < 8) return "";
-  return t(s < 20 ? "live.slow" : "live.slower");
+  if (s < SLOW_AFTER_S) return "";
+  return t(s < SLOWER_AFTER_S ? "live.slow" : "live.slower");
 }
 
 
 /** Called every second while a request runs: only the small timers change, nothing else is redrawn. */
 export function tick() {
   for (const el of document.querySelectorAll("[data-since]")) el.textContent = elapsed(el.dataset.since);
-  for (const el of document.querySelectorAll("[data-retry-at]")) el.textContent = retryText(Number(el.dataset.retryAt));
+  for (const el of document.querySelectorAll("[data-wake-since]")) el.style.inlineSize = `${wakeShare(el.dataset.wakeSince)}%`;
   for (const el of document.querySelectorAll("[data-auto-sub]")) {
     const line = autoSub(Number(el.dataset.started), el.dataset.autoSub);
     if (el.textContent !== line) el.textContent = line;
@@ -239,7 +253,7 @@ function renderSteps(turn) {
           ),
           step.info?.label &&
             h("span", {
-              class: `badge badge-src${step.info.fallback_from ? " badge-warn" : ""}`,
+              class: "badge badge-src", // a fallback is a calm line in the step, never a warning
               title: step.info.fallback_from
                 ? t("steps.fallback", { from: step.info.fallback_from, label: step.info.label })
                 : t("steps.via", { label: step.info.label }),
@@ -250,9 +264,9 @@ function renderSteps(turn) {
           injection &&
             h(
               "span",
-              { class: "badge badge-warn" },
+              { class: "badge badge-warn badge-flag", title: t("steps.flagged") },
               icon("alert"),
-              t("steps.flagged"),
+              h("span", { class: "badge-flag-text", text: t("steps.flagged") }),
             ),
           h(
             "span",
@@ -453,13 +467,40 @@ function renderSources(turn) {
   if (!sources.length) return null;
   // « donne-moi tes sources »: the source cards module shows them (modules.js), with the same anchors
   if ((turn.answer?.widgets || []).some((w) => w?.type === "sourcecards")) return null;
+  // « 3 sources »: a pill with the sites' marks; the list opens under it (and from a citation's bubble, answers.js)
+  const panelId = `srcp-${turn.id}`;
+  turn.ui = turn.ui || {};
+  const open = Boolean(turn.ui.sourcesOpen);
+  const marks = sources.slice(0, 3).map((source) => {
+    const url = safeUrl(source.url);
+    const domain = String(source.domain || (url ? hostOf(url) : ""));
+    return h("span", { class: `src-pill-mark source-mono mono-${monoHue(domain)}`, "aria-hidden": "true", text: (domain[0] || "?").toUpperCase() });
+  });
+  const pill = h(
+    "button",
+    {
+      type: "button",
+      class: "src-pill",
+      "aria-expanded": String(open),
+      "aria-controls": panelId,
+      "data-act": "sources",
+      onclick: () => {
+        const now = pill.getAttribute("aria-expanded") !== "true";
+        setSourcesOpen(pill, now);
+        turn.ui.sourcesOpen = now;
+      },
+    },
+    h("span", { class: "src-pill-marks" }, marks),
+    h("span", { class: "src-pill-text", text: sources.length === 1 ? t("src.pill.one") : t("src.pill.many", { n: sources.length }) }),
+    icon("chevron", "src-pill-chev"),
+  );
   return h(
     "section",
-    { class: "sources", "aria-label": t("sources.title") },
-    h("h3", { class: "eyebrow", text: t("sources.title") }),
+    { class: `sources${open ? " is-open" : ""}`, "aria-label": t("sources.title") },
+    pill,
     h(
       "ol",
-      { class: "source-list" },
+      { class: "source-list src-panel", id: panelId, hidden: !open },
       sources.map((source) => {
         const url = safeUrl(source.url);
         const title = String(source.title || source.url || "");
@@ -626,8 +667,9 @@ function filePreview(preview, onDownload, onEdit = null) {
 }
 
 function renderFiles(turn) {
+  const inCanvas = turn.answer?.canvas?.files || []; // a Word document is one card: the canvas card
   const files = (turn.files || []).filter(
-    (f) => f && typeof f.name === "string",
+    (f) => f && typeof f.name === "string" && !inCanvas.includes(f.name),
   );
   if (!files.length) return null;
   turn.ui.fileOpen = turn.ui.fileOpen || {};
@@ -718,6 +760,16 @@ function renderFiles(turn) {
   );
 }
 
+// « [Prénom] », « [date] »: the blanks the draft leaves to the user, marked so they are not sent as they are
+function fillMarks(text) {
+  return text
+    .split(/(\[[^[\]\n]{1,40}\])/)
+    .map((part, i) => (i % 2 ? h("mark", { class: "email-fill", title: t("email.fill"), text: part }) : part));
+}
+
+// a quiet dashed pill: what is still to add before the mail can leave
+const missingPill = (key) => h("span", { class: "email-missing" }, icon("plus"), h("span", { text: t(key) }));
+
 function renderEmail(turn) {
   const draft = turn.answer?.draft_email;
   if (!draft || typeof draft !== "object") return null;
@@ -734,9 +786,14 @@ function renderEmail(turn) {
     .map((s) => s.trim())
     .map((s) => (s.match(/<([^<>\s]+@[^<>\s]+)>$/) || [null, s])[1])
     .filter(Boolean);
-  const hint = [String(draft.to_hint ?? "").trim(), ...parts.filter((s) => !isAddress(s))]
-    .filter(Boolean)
-    .join(", ");
+  // a placeholder the model wrote in place of a recipient (« [destinataires] », « <nom> », « à compléter ») is not
+  // a name: the card says plainly that a recipient is to add
+  const isPlaceholder = (s) =>
+    /^[[<{(].*[\]>})]$/.test(s) || /^(destinataires?|recipients?|à compléter|to complete|tbd|\?+|…|\.\.\.)$/i.test(s);
+  const names = [String(draft.to_hint ?? ""), ...parts.filter((s) => !isAddress(s))]
+    .flatMap((s) => s.split(","))
+    .map((s) => s.trim())
+    .filter((s) => s && !isPlaceholder(s));
   const addresses = parts.filter(isAddress);
   // A mailto: link the user chooses to click. It only opens their own mail app with the draft: nothing is sent.
   const mailto = `mailto:${addresses
@@ -755,18 +812,28 @@ function renderEmail(turn) {
         "div",
         { class: "card-title" },
         h("p", { class: "card-name", text: subject || t("email.title") }),
-        h("p", {
-          class: "card-meta",
-          text: [
-            addresses.length || !hint ? `${t("email.to")} ${addresses.join(", ") || "—"}` : "",
-            hint ? `${t("email.tohint")} ${hint}` : "",
-          ]
-            .filter(Boolean)
-            .join(" · "),
-        }),
+        h(
+          "p",
+          { class: "card-meta email-to", "data-email-to": addresses.length ? "set" : "missing" },
+          h("span", { text: `${t("email.to")} ` }),
+          // the addresses, then each name with its own « adresse à ajouter »: a name never reads as a real recipient
+          // (it is not in the mailto: link); nobody at all reads « destinataire à ajouter »
+          addresses.length || names.length
+            ? [...addresses, ...names].flatMap((who, i, all) => {
+                // the comma stays with the recipient before it: a line never starts with « , »
+                const sep = i < all.length - 1 ? "," : "";
+                return [
+                  i ? " " : null,
+                  i < addresses.length
+                    ? h("span", { class: "email-addr" }, who + sep)
+                    : h("span", { class: "email-name" }, who, " ", missingPill("email.to.noaddr"), sep),
+                ];
+              })
+            : missingPill("email.to.missing"),
+        ),
       ),
     ),
-    h("div", { class: "email-body", text: body }),
+    h("div", { class: "email-body" }, fillMarks(body)),
     h(
       "div",
       { class: "card-actions" },
@@ -1104,6 +1171,7 @@ function paintMarkdown(turn, entry) {
     md.insertAdjacentHTML("beforeend", blocks.slice(first).join(""));
   entry.blocks = blocks;
   md.classList.toggle("streaming", streaming);
+  if (md.querySelector(".md-math")) typeset(md); // self-hosted KaTeX, loaded the first time a formula shows
   if (turn.answer) enhanceAnswer(md, turn); // task boxes, sortable tables, glossary (modules.js)
 }
 
@@ -1121,45 +1189,56 @@ function mdLabels() {
     checkErr: t("code.check.err"),
     checkExcerpt: t("code.check.excerpt"),
     copyFormula: t("code.copy.formula"),
+    copyTex: t("md.math.copy"),
     copied: t("code.copied.formula"),
     listMore: t("md.more"),
     callout: { note: t("md.callout.note"), tip: t("md.callout.tip"), important: t("md.callout.important"), warn: t("md.callout.warn") },
   };
 }
 
-export function plainText(turn) {
+/** The answer as the clipboard takes it: HTML (real headings, lists, tables) and plain text (answers.js). */
+export function richCopy(turn) {
   const md = cache.get(turn.id)?.md;
-  if (!md) return String(turn.answer?.content || "");
-  // the code heads (language, Copy…), the fold buttons and the formula copy icons are not part of the answer
-  const heads = [...md.querySelectorAll(".code-head, .code-more, .md-more, .md-chip-copy")];
-  const folded = [...md.querySelectorAll(".md-fold li[hidden]")]; // folded items are copied too
-  for (const el of heads) el.hidden = true;
-  for (const el of folded) el.hidden = false;
-  md.classList.add("md-copying"); // code lines back inline, so innerText keeps one newline per line
-  const text = md.innerText.trim();
-  md.classList.remove("md-copying");
-  for (const el of heads) el.hidden = false;
-  for (const el of folded) el.hidden = true;
+  const out = md
+    ? serialize(treeOf(md))
+    : { text: String(turn.answer?.content || ""), html: `<meta charset="utf-8"><p>${escapeText(turn.answer?.content || "")}</p>` };
   const extra = widgetsText(turn);
-  return extra ? `${text}\n\n${extra}` : text;
+  if (extra) {
+    out.text = `${out.text}\n\n${extra}`;
+    out.html += extra.split("\n").filter(Boolean).map((line) => `<p>${escapeText(line)}</p>`).join("");
+  }
+  return out;
 }
+
+const escapeText = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 function renderActions(turn, isLast) {
   if (turn.status === "running" || turn.status === "confirm" || !turn.answer)
     return null;
   const vote = (value) => () => {
     turn.feedback = turn.feedback === value ? null : value;
+    // a thumbs down opens the reasons panel (answers.js); taking it back drops what was said
+    turn.ui.fbOpen = turn.feedback === "down";
+    turn.ui.fbThanks = false;
+    if (turn.feedback !== "down") delete turn.feedbackDetail;
     handlers.onChange(turn);
-    if (turn.feedback) toast(t("toast.feedback"), "ok");
+    if (turn.feedback === "up") toast(t("toast.feedback"), "ok");
+    if (turn.ui.fbOpen) requestAnimationFrame(() => document.querySelector(`#fb-${CSS.escape(turn.id)}-t`)?.closest(".fb-panel")?.querySelector(".fb-chip")?.focus());
   };
+  const turns = state.conv?.turns || [];
+  const at = turns.indexOf(turn);
+  // the answers to this question (regenerated): « ‹ 1/2 › »
+  const pager = at >= 0 && versionPager(turns, at, (j) => handlers.onVersion(at, j), state.busy);
   return h(
     "div",
     { class: "actions-row", role: "group", "aria-label": t("turn.bird") },
+    pager,
+    pager && h("span", { class: "actions-sep", "aria-hidden": "true" }),
     button(
       "btn-quiet btn-icon btn-small",
       "copy",
       t("act.copy"),
-      () => copyText(plainText(turn)),
+      (e) => copyAnswer(e.currentTarget, richCopy(turn)), // text/html + text/plain; the icon says « Copié »
       { "data-act": "copy" },
     ),
     isLast &&
@@ -1168,7 +1247,7 @@ function renderActions(turn, isLast) {
         "btn-quiet btn-icon btn-small",
         "retry",
         t("act.regenerate"),
-        () => handlers.onRegenerate(),
+        () => handlers.onRegenerate(turn),
         { "data-act": "regenerate" },
       ),
     h("span", { class: "actions-sep", "aria-hidden": "true" }),
@@ -1198,12 +1277,27 @@ function renderActions(turn, isLast) {
       ["markdown", t("act.copy.md"), "copy-md", () => copyText(turn.answer.content, t("toast.copied.md"))],
       ["word", t("act.export.docx.item"), "export-docx", () => handlers.onExport(turn, "docx")],
       ["download", t("act.export.md.item"), "export-md", () => handlers.onExport(turn, "md")],
-      // one-click transforms of the last answer (followups.js): a new request, as if typed
+      // one-click transforms of the last answer (followups.js): a new request, as if typed, grouped behind
+      // « Réécrire » with a drawing each (shorter, longer, formal, translate, table, list)
       ...(isLast && !state.busy && handlers.onSuggest
-        ? transforms().map(([label, prompt], i) => ["edit", label, `tf-${i}`, () => handlers.onSuggest(prompt)])
+        ? [[
+            "edit",
+            t("act.rewrite"),
+            "rewrite",
+            null,
+            transforms().map(([label, prompt], i) => [glyph(REWRITE_GLYPHS[i] || "edit"), label, `tf-${i}`, () => handlers.onSuggest(prompt)]),
+          ]]
         : []),
     ]),
   );
+}
+
+/** The versions of a turn that has no actions row (failed, stopped before any word), or null. */
+function pagerRow(turn) {
+  const turns = state.conv?.turns || [];
+  const at = turns.indexOf(turn);
+  const pager = at >= 0 && versionPager(turns, at, (j) => handlers.onVersion(at, j), state.busy);
+  return pager ? h("div", { class: "actions-row" }, pager) : null;
 }
 
 /** "Plus": a menu button (arrow keys, Home/End, Escape back to the button, closes on outside click). */
@@ -1214,16 +1308,47 @@ function moreMenu(items) {
     "aria-expanded": "false",
     "data-act": "more",
   });
-  const entries = items.map(([ico, label, act, run]) =>
-    h(
-      "button",
-      { class: "menu-item", type: "button", role: "menuitem", tabindex: "-1", "data-act": act, onclick: () => (closeMenu(true), run()) },
-      icon(ico),
-      h("span", { text: label }),
-    ),
-  );
+  // [icon, label, act, run, sub?]: an entry with sub opens its list in place (« Réécrire » and its rewrites), with
+  // « Retour » first: the menu stays short and every rewrite has its own drawing (answers.js glyph)
+  const make = (list, back) => {
+    const out = list.map(([ico, label, act, run, sub]) =>
+      h(
+        "button",
+        {
+          class: `menu-item${sub ? " menu-parent" : ""}`,
+          type: "button",
+          role: "menuitem",
+          tabindex: "-1",
+          "data-act": act,
+          ...(sub ? { "aria-haspopup": "menu" } : {}),
+          onclick: () => (sub ? show(make(sub, act), 0) : (closeMenu(true), run())),
+        },
+        typeof ico === "string" ? icon(ico) : ico,
+        h("span", { text: label }),
+        sub && icon("chevron", "menu-sub-chev"),
+      ),
+    );
+    if (back)
+      out.unshift(
+        h(
+          "button",
+          { class: "menu-item menu-back", type: "button", role: "menuitem", tabindex: "-1", "data-act": "menu-back", onclick: () => show(top, top.findIndex((e) => e.dataset.act === back)) },
+          icon("back"),
+          h("span", { text: t("act.back") }),
+        ),
+      );
+    return out;
+  };
+  const top = make(items);
+  let entries = top;
+  const show = (list, index) => {
+    entries = list;
+    menu.replaceChildren(...list);
+    list.at(index)?.focus();
+  };
   const onOutside = (e) => !wrap.contains(e.target) && closeMenu(false);
   function openMenu(index) {
+    if (entries !== top) show(top, 0);
     menu.hidden = false;
     trigger.setAttribute("aria-expanded", "true");
     // opens upward when the conversation area has no room below the button (the composer sits there)
@@ -1253,6 +1378,13 @@ function moreMenu(items) {
         if (go !== undefined) {
           e.preventDefault();
           entries[(go + entries.length) % entries.length].focus();
+        } else if (e.key === "ArrowRight" && document.activeElement?.classList.contains("menu-parent")) {
+          e.preventDefault();
+          document.activeElement.click();
+        } else if ((e.key === "ArrowLeft" || e.key === "Escape") && entries !== top) {
+          e.preventDefault();
+          e.stopPropagation();
+          entries[0].click(); // « Retour »
         } else if (e.key === "Escape") {
           e.preventDefault();
           e.stopPropagation();
@@ -1281,21 +1413,43 @@ const FRIENDLY_ERRORS = new Set(
     "unknown_model blocked disabled not_configured host_not_allowed https_only invalid_url address bad_request " +
     "demo invalid_model invalid_token port server timeout unreachable attachment_invalid attachment_too_long " +
     "attachment_type cross_origin image_invalid image_too_large image_too_small image_type invalid_mode " +
-    "invalid_request message_too_long request_too_large too_large too_many_attachments too_many_messages"
+    "invalid_request message_too_long request_too_large too_large too_many_attachments too_many_messages " +
+    "pair_required pair_invalid pair_locked"
   ).split(" "),
 );
 
 function renderError(turn, isLast) {
   if (!turn.error) return null;
   const code = turn.error.code;
-  const calm = code === "waking";
+  if (code === "local_unreachable")
+    // Bird local did not answer: the three steps to start it, never a raw network error
+    return unreachableCard({
+      compact: true,
+      onRetry: isLast && !state.busy ? () => handlers.onRetry() : null,
+      onOff: isLast && handlers.onLocalOff ? () => handlers.onLocalOff() : null,
+    });
+  if (turn.mode === "local" && MODEL_DOWN.has(code))
+    // Bird local answered, its model server (vLLM) did not: the command to start it, not a hosted-endpoint sentence
+    return modelDownCard({
+      onRetry: isLast && !state.busy ? () => handlers.onRetry() : null,
+      onOff: isLast && handlers.onLocalOff ? () => handlers.onLocalOff() : null,
+    });
+  // the model asleep or paused is not the user's doing: a calm card (moon, no red), in words for people. The
+  // server's sentence for a paused endpoint speaks to its administrator: folded away, and only for someone who
+  // set their own endpoint in Settings.
+  const down = code === "endpoint_down";
+  const calm = code === "waking" || down;
   const friendly = FRIENDLY_ERRORS.has(code) || /^http_\d+$/.test(code);
   // an HTTP status without a sentence (a gateway page) gets a plain message; its number stays in the details
-  const raw = friendly
-    ? /^http_\d+$/.test(code)
-      ? turn.error.detail || ""
+  const raw = down
+    ? state.prefs.endpoint
+      ? turn.error.message || ""
       : ""
-    : turn.error.detail || turn.error.message;
+    : friendly
+      ? /^http_\d+$/.test(code)
+        ? turn.error.detail || ""
+        : ""
+      : turn.error.detail || turn.error.message;
   const done = turn.steps.filter((s) => s.status === "done").length;
   const before =
     !calm && done
@@ -1312,6 +1466,8 @@ function renderError(turn, isLast) {
     "host_not_allowed",
     "https_only",
     "invalid_url",
+    "pair_required",
+    "pair_invalid",
   ].includes(code);
   return h(
     "div",
@@ -1323,8 +1479,10 @@ function renderError(turn, isLast) {
     h(
       "div",
       { class: "notice-text" },
-      h("strong", { text: calm ? t("error.waking.title") : t("turn.error") }),
-      h("p", { text: calm ? t("error.waking") : friendly ? turn.error.message : t("error.internal") }),
+      h("strong", { text: down ? t("error.down.title") : calm ? t("error.waking.title") : t("turn.error") }),
+      h("p", {
+        text: down ? t("error.down") : calm ? t("error.waking") : friendly ? turn.error.message : t("error.internal"),
+      }),
       before,
       raw &&
         h(
@@ -1341,13 +1499,13 @@ function renderError(turn, isLast) {
         button("btn-outline btn-small", "gear", t("error.settings"), () =>
           handlers.onOpenSettings(),
         ),
-      isLast &&
-        !state.busy &&
+      // any failed turn can be tried again, even after later messages: a new version from there (« ‹ 1/2 › »)
+      !state.busy &&
         button(
           "btn-outline btn-small",
           "retry",
           t("turn.retry"),
-          () => handlers.onRetry(),
+          () => handlers.onRetry(turn),
           { "data-act": "retry" },
         ),
     ),
@@ -1502,6 +1660,11 @@ function basedOn(turn) {
   );
 }
 
+function quoteFirst(turn) {
+  const list = turn.answer?.widgets?.length ? turn.answer.widgets : turn.widgets || [];
+  return list.some((w) => w && w.type === "quote");
+}
+
 function widgetsFor(turn, entry) {
   // the answer's cards, or the ones sent as each pre-called tool returned (`widget` event): shown while the model
   // writes, and kept when it fails
@@ -1549,6 +1712,51 @@ function restoreFocus(el, key) {
   next?.focus({ preventScroll: true });
 }
 
+/**
+ * The plan, the steps and the flight of a finished answer as ONE folded line (« 2 étapes · Fiche encyclopédique ·
+ * Recherche web · Hirondelle · 1,3 s »); open, it shows the plan's items, the steps' timeline and the flight's
+ * summary and checks, unchanged. Not merged: while it runs, when something needs the reader (a plan done in part,
+ * a suspicious page, an approval) or when there is only one of them.
+ */
+function workLine(turn, plan, steps, flight) {
+  const parts = [plan, steps, flight].filter(Boolean);
+  if (parts.length < 2 || turn.status !== "done" || turn.crew) return null;
+  if (plan?.querySelector(".tplan-partial") || steps?.querySelector(".badge-warn, .badge-await")) return null;
+  const level = flight?.dataset.level;
+  const own = turn.steps.filter((s) => !s.agent);
+  const n = own.length;
+  const total = own.reduce((sum, s) => sum + (s.seconds || 0), 0);
+  const names = [...new Set(own.map((s) => toolLabel(s.tool)))].join(" · ");
+  const badge = flight?.querySelector(".rf-badge")?.cloneNode(true);
+  const planCount = plan?.querySelector(".tplan-count")?.textContent || "";
+  const flightHead = [flight?.querySelector(".rf-line")?.textContent, flight?.querySelector(".rf-meta")?.textContent]
+    .filter(Boolean)
+    .join(" · ");
+  return details(
+    "steps worklog",
+    turn.ui.work ?? false,
+    (value) => (turn.ui.work = value),
+    [
+      icon("chevron", "chev"),
+      badge,
+      h("span", { class: "steps-count", text: n ? (n === 1 ? t("steps.count.one") : t("steps.count.many", { n })) : planCount }),
+      h("span", {
+        class: "steps-names",
+        text: [names, level && t(`rf.level.${level}`)].filter(Boolean).join(" · "),
+      }),
+      total > 0 && h("span", { class: "num steps-time", text: fmtSeconds(total) }),
+    ],
+    h(
+      "div",
+      { class: "work-body" },
+      plan && [h("p", { class: "work-h", text: [t("plan.title"), planCount].join(" · ") }), plan.querySelector(".tplan-list")],
+      steps && [h("p", { class: "work-h", text: t("steps.title") }), steps.querySelector("ol.timeline")],
+      // Mode Réflexion's flight gives its summary and checks; a plain reasoning keeps its own fold
+      flight && (level ? [h("p", { class: "work-h", text: flightHead }), flight.querySelector(".rf-body")] : flight),
+    ),
+  );
+}
+
 function fillAssistant(el, turn, isLast) {
   // the turn is redrawn on every event (each agent_step of a team): the focused control keeps the focus, or a
   // keyboard user is sent back to the top of the page and Escape on <body> would stop the answer
@@ -1561,12 +1769,10 @@ function fillAssistant(el, turn, isLast) {
   const hasText = !!(turn.answer || turn.text);
   if (hasText) paintMarkdown(turn, entry);
   const mode = turn.mode || activeMode();
-  const children = [
-    byline(entry, turn, mode),
-    renderAgents(turn, handlers),
-    renderPlan(turn),
-    renderSteps(turn.crew ? { ...turn, steps: turn.steps.filter((s) => !s.agent) } : turn), // crew steps sit in their lane
-    // Mode Réflexion: « Bird a pris son vol en Faucon », the reasoning summary, the checks, the full reasoning
+  const planEl = renderPlan(turn);
+  const stepsEl = renderSteps(turn.crew ? { ...turn, steps: turn.steps.filter((s) => !s.agent) } : turn); // crew steps sit in their lane
+  // Mode Réflexion: « Bird a pris son vol en Faucon », the reasoning summary, the checks, the full reasoning
+  const flightEl =
     renderFlight(
       turn,
       details,
@@ -1586,12 +1792,20 @@ function fillAssistant(el, turn, isLast) {
           (value) => (turn.ui.reasoning = value),
           [icon("chevron", "chev"), icon("spark"), t("reasoning.title")],
           h("div", { class: "reasoning-body", text: turn.reasoning }),
-        )),
+        ));
+  // a finished answer opens on one folded line at most: the plan, the steps and the flight together (R25)
+  const work = workLine(turn, planEl, stepsEl, flightEl);
+  const children = [
+    byline(entry, turn, mode),
+    renderAgents(turn, handlers),
+    ...(work ? [work] : [planEl, stepsEl, flightEl]),
     hasText && entry.md,
     turn.answer?.fallback && h("p", { class: "answer-note", "data-notice": "fallback", text: turn.answer.fallback }),
+    // markets: the quote card (its period chips) comes before the chart it drives (finance.js)
+    quoteFirst(turn) && widgetsFor(turn, entry),
     renderCharts(turn),
     renderWebImages(turn),
-    widgetsFor(turn, entry),
+    !quoteFirst(turn) && widgetsFor(turn, entry),
     turn.crew?.done && renderChecks(turn), // « Vérifications faites »: the team's checks, figure by figure
     canvasCard(turn), // the deck, document, page or sheet of this turn, in the canvas
     basedOn(turn),
@@ -1611,7 +1825,7 @@ function fillAssistant(el, turn, isLast) {
         h("span", { text: t("turn.looped") }),
         isLast &&
           !state.busy &&
-          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(), { "data-act": "restart" }),
+          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(turn), { "data-act": "restart" }),
       ),
     turn.status === "stopped" &&
       h(
@@ -1619,11 +1833,36 @@ function fillAssistant(el, turn, isLast) {
         { class: "stopped" },
         icon("pause"),
         h("span", { text: turn.stoppedAt ? t("turn.stopped.at", { step: toolLabel(turn.stoppedAt) }) : t("turn.stopped") }),
+        // words already written: « Continuer » picks up from there (Régénérer stays in the actions row); none: Relancer
         isLast &&
           !state.busy &&
-          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(), { "data-act": "restart" }),
+          (turn.answer?.content
+            ? button("btn-outline btn-small", "send", t("cx.continue"), () => handlers.onContinue(turn), { "data-act": "continue" })
+            : button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(turn), { "data-act": "restart" })),
       ),
     renderActions(turn, isLast),
+    turn.ui?.fbOpen &&
+      turn.answer &&
+      feedbackPanel(turn, {
+        onSave: (detail) => {
+          turn.feedbackDetail = detail; // kept with the conversation, in this browser only
+          turn.ui.fbOpen = false;
+          turn.ui.fbThanks = true;
+          handlers.onChange(turn);
+          setTimeout(() => {
+            turn.ui.fbThanks = false; // the thank-you is a moment, not a fixture under the answer
+            handlers.onChange(turn);
+          }, 6000);
+        },
+        onClose: () => {
+          turn.ui.fbOpen = false;
+          handlers.onChange(turn);
+          document.querySelector(`[data-turn="${CSS.escape(turn.id)}"] [data-act="down"]`)?.focus();
+        },
+      }),
+    turn.ui?.fbThanks && turn.feedback === "down" && feedbackThanks(),
+    // a failed or stopped turn without text still shows its versions (it was a retry)
+    !turn.answer && turn.status !== "running" && pagerRow(turn),
     isLast && handlers.onSuggest && renderChips(turn, handlers.onSuggest, state.busy),
     renderReceipt(turn, isLast),
   ];
@@ -1684,23 +1923,47 @@ function birdMark() {
   return svg;
 }
 
-function renderUser(turn, isLastUser) {
+let editingTurn = null; // the question being edited in place, if any
+
+/** Edit the question turns[i] in place (the last one by default): the bubble becomes an editor. */
+export function editUser(turn) {
+  if (state.busy || !turn || turn.role !== "user") return;
+  editingTurn = turn;
+  renderConversation();
+}
+
+function renderUser(turn, i) {
+  const turns = state.conv?.turns || [];
+  const files = (turn.attachments || []).length > 0 || (turn.images || []).length > 0;
+  if (editingTurn === turn && !state.busy) {
+    const done = () => {
+      editingTurn = null;
+      renderConversation();
+      document.querySelectorAll("#conversation > .turn")[i]?.querySelector('[data-act="edit"]')?.focus({ preventScroll: true });
+    };
+    return h(
+      "article",
+      { class: "turn turn-user is-editing" },
+      h("h2", { class: "sr-only", text: t("turn.you") }),
+      inlineEditor(turn.content, {
+        keeps: files,
+        onCancel: done,
+        onSend: (text) => {
+          editingTurn = null;
+          handlers.onEditSend(i, text);
+        },
+      }),
+    );
+  }
+  if (editingTurn === turn) editingTurn = null;
+  const pager = versionPager(turns, i, (j) => handlers.onVersion(i, j), state.busy);
   return h(
     "article",
-    { class: "turn turn-user" },
+    { class: "turn turn-user cx-has-acts" },
     h("h2", { class: "sr-only", text: t("turn.you") }),
     h(
       "div",
       { class: "bubble-wrap" },
-      isLastUser &&
-        !state.busy &&
-        button(
-          "btn-quiet btn-icon btn-small bubble-edit",
-          "edit",
-          t("act.edit"),
-          () => handlers.onEdit(),
-          { "data-act": "edit" },
-        ),
       h(
         "div",
         { class: "bubble" },
@@ -1708,13 +1971,13 @@ function renderUser(turn, isLastUser) {
           h(
             "div",
             { class: "bubble-gallery", role: "list", "aria-label": t("att.gallery") },
-            turn.images.map((img, i) =>
+            turn.images.map((img, k) =>
               h(
                 "div",
                 { role: "listitem", "data-att": img.name },
                 imageCard(img, {
                   compact: true,
-                  onOpen: () => handlers.onLightbox(turn.images, i),
+                  onOpen: () => handlers.onLightbox(turn.images, k),
                 }),
               ),
             ),
@@ -1733,6 +1996,17 @@ function renderUser(turn, isLastUser) {
           ),
       ),
     ),
+    // every question can be copied, edited in place (a new version from there) and shows its versions
+    h(
+      "div",
+      { class: "cx-user-acts", role: "group", "aria-label": t("turn.you") },
+      pager,
+      button("btn-quiet btn-icon btn-small", "copy", t("cx.copy.user"), () => copyText(turn.content, t("cx.copied.user")), {
+        "data-act": "copy-user",
+      }),
+      !state.busy &&
+        button("btn-quiet btn-icon btn-small", "edit", t("cx.edit"), () => editUser(turn), { "data-act": "edit" }),
+    ),
   );
 }
 
@@ -1743,11 +2017,10 @@ export function renderConversation() {
     turns.filter((x) => x.role === "assistant").map((x) => x.id),
   );
   for (const id of cache.keys()) if (!keep.has(id)) cache.delete(id);
-  const lastUser = turns.map((x) => x.role).lastIndexOf("user");
   root.replaceChildren(
     ...turns.map((turn, i) => {
       if (turn.role === "user")
-        return renderUser(turn, i === lastUser && i >= turns.length - 2);
+        return turn.hidden ? h("div", { class: "turn turn-hidden", hidden: true }) : renderUser(turn, i);
       turn.ui = turn.ui || {};
       const el = h("article", {
         class: "turn turn-bird",

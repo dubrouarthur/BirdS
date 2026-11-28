@@ -29,7 +29,7 @@ from urllib.parse import urlencode
 from birds.harness import guard
 from birds.harness.guard import ToolError
 
-MAX_LOOKUPS_PER_RUN = 4
+MAX_LOOKUPS_PER_RUN = 6
 TTL_HIT = 7 * 86400
 TTL_MISS = 86400
 MAX_WAIT = 3.0
@@ -160,6 +160,7 @@ class Place:
     source_url: str = ""
     provider: str = ""
     importance: float = 0.0
+    category: str = ""  # OSM class (Nominatim « category », Photon « osm_key »): tourism, amenity, place…
     distance_m: int | None = None
     region: str = ""  # state / région (weather card subtitle)
     country: str = ""
@@ -228,6 +229,9 @@ def _clean(text, n: int) -> str:
     return " ".join(str(text or "").split())[:n]
 
 
+UNNAMED_OK = {"parking", "atm", "charging_station", "fuel", "post_box", "parking_entrance"}
+
+
 def from_nominatim(item: dict) -> Place | None:
     try:
         lat, lon = float(item["lat"]), float(item["lon"])
@@ -239,6 +243,8 @@ def from_nominatim(item: dict) -> Place | None:
     kind = str(item.get("type") or item.get("category") or "")
     if not name and kind in ("house", "building", "yes") and addr:
         name = short_address(addr)
+    if not name and kind in UNNAMED_OK:  # car parks and cash machines rarely carry a name: their address does
+        name = short_address(addr) or ""
     if not name:
         return None
     detail = tags.get("cuisine") or ""
@@ -259,6 +265,7 @@ def from_nominatim(item: dict) -> Place | None:
         source_url=_osm_url(item.get("osm_type", ""), item.get("osm_id", "")),
         provider="nominatim",
         importance=float(item.get("importance") or 0.0),
+        category=str(item.get("category") or item.get("class") or ""),
         region=_clean(addr.get("state") or addr.get("region"), 80),
         country=_clean(addr.get("country"), 80),
         country_code=_clean(addr.get("country_code"), 2).upper(),
@@ -285,6 +292,7 @@ def from_photon(feature: dict) -> Place | None:
         address=", ".join(x for x in (street, tail) if x),
         source_url=_osm_url(p.get("osm_type", ""), p.get("osm_id", "")),
         provider="photon",
+        category=str(p.get("osm_key") or ""),
         region=_clean(p.get("state"), 80),
         country=_clean(p.get("country"), 80),
         country_code=_clean(p.get("countrycode"), 2).upper(),
@@ -341,6 +349,22 @@ def disambiguate(q: str, request: str = "") -> str:
     return got[0]
 
 
+WEAK_IMPORTANCE = 0.05
+_WEAK_CLASSES = {"tourism"}
+_WEAK_TYPES = {"attraction", "theme_park"}
+
+
+def low_importance(p: Place) -> bool:
+    return p.provider == "nominatim" and (p.importance or 0.0) < WEAK_IMPORTANCE
+
+
+def weak_hit(p: Place) -> bool:
+    """A top hit not to trust alone: a Nominatim place of very low importance, or a tourist attraction (the scale
+    model of a square in a theme park is a « tourism/attraction » node named like the square). Photon gives no
+    importance, so only its class can make it weak."""
+    return low_importance(p) or (p.category in _WEAK_CLASSES and p.kind in _WEAK_TYPES) or p.kind == "theme_park"
+
+
 class Geocoder:
     """Search places for one run (``ctx``: http client, config, per-run counter, bytes meter)."""
 
@@ -385,9 +409,11 @@ class Geocoder:
         feats = data.get("features", []) if isinstance(data, dict) else []
         return [p for p in (from_ban(f) for f in feats) if p]
 
-    def search(self, q: str, *, near: Place | None = None, limit: int = 3, lang: str = "fr") -> list[Place]:
+    def search(self, q: str, *, near: Place | None = None, limit: int = 3, lang: str = "fr",
+               radii: tuple[int, ...] = (500, 1500), keep=None) -> list[Place]:  # fmt: skip
         """Places for ``q``: BAN for a postal address (score >= 0.6), Nominatim otherwise, Photon as fallback.
-        With ``near``: a bounded box of about 500 m around it (x3 when fewer than 3 results), nearest first."""
+        With ``near``: a bounded box of ``radii[0]`` metres around it (the next radius when fewer than 3 results),
+        nearest first: never a match across the world. ``keep``: the results kept (the OSM types of a category)."""
         q = disambiguate(" ".join(str(q or "").split())[:160], str(getattr(self.ctx, "request", "") or ""))
         if not q:
             return []
@@ -406,16 +432,18 @@ class Geocoder:
                 return found[:1]
         if near is not None:
             out: list[Place] = []
-            for factor in (1, 3):
-                d = 0.0045 * factor
+            for radius in radii:
+                d = radius / 111_000
                 dl = d / max(0.2, math.cos(math.radians(near.lat)))
                 box = (near.lon - dl, near.lat + d, near.lon + dl, near.lat - d)
                 try:
-                    out = self.nominatim(q, limit=max(limit, 8), viewbox=box, lang=lang)
+                    got = self.nominatim(q, limit=max(limit, 8), viewbox=box, lang=lang)
+                    got = [p for p in got if keep(p)] if keep is not None else got  # the category asked only
                     answered = True
                 except ToolError as e:
                     errors.append(e)
-                    out = []
+                    break  # a wider box that fails (busy, cap reached) keeps what the smaller one found
+                out = got if len(got) >= len(out) else out
                 if len(out) >= 3:
                     break
             if errors and not answered:
@@ -437,9 +465,43 @@ class Geocoder:
             except ToolError as e:
                 errors.append(e)
                 found = []
+        elif weak_hit(found[0]):
+            found = self._second_opinion(q, found, limit, lang)
         if not found and errors and not answered:
             raise _unavailable(errors)
         return found[:limit]
+
+    def _second_opinion(self, q: str, found: list[Place], limit: int, lang: str) -> list[Place]:
+        """A weak top hit (« place Bellecour à Lyon » gives only the France Miniature replica, importance 6e-05):
+        Nominatim again with « à » read as a comma (« place Bellecour, Lyon »), then Photon while still weak. The
+        strong hits, best importance first, replace the weak ones; a failed extra lookup keeps what was found.
+        An attraction of real importance (« Disneyland Paris ») is only replaced by a more important place, so
+        Photon, which gives no importance, is not asked then."""
+        top = found[0]
+        bar = 0.0 if low_importance(top) else top.importance or 0.0
+        pool: list[Place] = []
+        alt = q if looks_like_address(q) else re.sub(r"\s+(?:à|a|in|at)\s+(?=\S)", ", ", q, count=1, flags=re.I)
+        asks = [lambda: self.nominatim(alt, limit=limit, lang=lang)] if alt != q else []
+        if not bar:
+            asks.append(lambda: self.photon(alt, limit=limit, lang=lang))
+        for ask in asks:
+            try:
+                pool += ask()
+            except (ToolError, guard.Blocked):
+                continue
+            if any(not weak_hit(p) and (p.importance or 0.0) >= bar for p in pool):
+                break
+        strong = [p for p in pool if not weak_hit(p) and (not bar or (p.importance or 0.0) > bar)]
+        if not strong:
+            return found
+        strong.sort(key=lambda p: -(p.importance or 0.0))  # stable: Photon (no importance) keeps its own rank
+        seen, out = set(), []
+        for p in strong:
+            key = (round(p.lat, 4), round(p.lon, 4))
+            if key not in seen:
+                seen.add(key)
+                out.append(p)
+        return out
 
 
 def _unavailable(errors: list[Exception]) -> ToolError:

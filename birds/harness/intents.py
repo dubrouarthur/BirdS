@@ -646,6 +646,11 @@ def places(text: str, lang: str = "fr") -> Intent | None:
                 keep_web=False,
                 mode="near",
             )
+        ranked = _RX_OF.match(q)  # « où sont les 3 meilleures pizzerias de Paris »: the kind, ranked, in a town
+        if ranked and ranked.group("rank") and _kind_of(ranked.group("kind")) and _ok(ranked.group("near")):
+            near = _clean_name(ranked.group("near"))
+            return Intent("find_places", {"query": _kind_of(ranked.group("kind")), "near": near}, keep_web=True,
+                          mode="near")  # fmt: skip
         if _APPS.fullmatch(q):
             return None  # « où est Excel ? », « ou est outlook »: software, never a place
         # a bare town typed in lowercase (« ou est nantes », « where is lyon »): no article and a known town
@@ -681,11 +686,26 @@ def ask_kind(text: str) -> str:
     return _kind_of(m.group("kind")) if m else ""
 
 
+# « les 3 meilleures pizzerias de Paris », « best bakeries of Lyon »: a ranked or plural kind « de » a place. Never a
+# singular kind alone (« gare de Lyon », « école des Mines » are names).
+RANKED = re.compile(r"\b(?:meilleur|mieux\s+not|best\b|top\b|top[- ]rated|most\s+popular|populaires?\b)", re.I)
+_RX_OF = re.compile(
+    r"^(?:(?:les|des|the)\s+)?(?:\d+\s+)?(?P<rank>(?:meilleur(?:e?s)?|mieux\s+not[ée]e?s|best|top(?:[- ]rated)?|"
+    r"most\s+popular)\s+)?(?:\d+\s+)?" + _KIND + r"\s+(?:de\s+(?:la\s+|l')?|du\s+|des\s+|d'|of\s+(?:the\s+)?)"
+    + _NAME.format("near") + r"$",
+    re.I,
+)
+
+
 def split_near(query: str) -> tuple[str, str] | None:
-    """'restaurants près de la gare de Lyon' -> ('restaurant', 'gare de Lyon'), for a model's call without near."""
-    m = _RX_NEAR.search(normalise(query))
+    """'restaurants près de la gare de Lyon' -> ('restaurant', 'gare de Lyon'), for a model's call without near;
+    '3 meilleures pizzerias de Paris' -> ('pizza', 'Paris')."""
+    q = normalise(query)
+    m = _RX_NEAR.search(q)
     if not m:
-        return None
+        m = _RX_OF.match(q.strip(" ?!."))
+        if not m or not (m.group("rank") or re.search(r"(?:s|x)$", m.group("kind"), re.I)):
+            return None
     kind, near = _kind_of(m.group("kind")), _clean_name(m.group("near"))
     return (kind, near) if kind and near else None
 

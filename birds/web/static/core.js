@@ -1,6 +1,11 @@
 // Shared pieces: state, storage, i18n, DOM helpers, icons, formatting, toasts.
 import { normalizeChoice, thinks } from "./reflexion-data.js";
-import { makeT } from "./i18n.js";
+import { STRINGS, makeT } from "./i18n.js";
+import { DEFAULT_PORT, isLoopback, localBases, pairStore } from "./local-data.js";
+import { ANSWER_STRINGS } from "./answers-i18n.js";
+
+// the answer-content strings (tool labels, math, citations, copy, feedback) join the dictionary at load
+for (const [lang, strings] of Object.entries(ANSWER_STRINGS)) Object.assign(STRINGS[lang], strings);
 
 export const $ = (id) => document.getElementById(id);
 
@@ -50,6 +55,7 @@ const DEFAULT_PREFS = {
   token: "",
   model: "",
   access: "",
+  localBase: "", // Bird local: the loopback origin that answered (127.0.0.1 or localhost)
   welcomed: false,
 };
 
@@ -102,8 +108,31 @@ if (storedPrefs && storedPrefs.thinkingV !== 2) savePrefs();
 export const resetPrefs = () =>
   (state.prefs = { ...DEFAULT_PREFS, lang: state.prefs.lang, welcomed: true });
 
+const webStorage = (name) => {
+  try {
+    return globalThis[name] || null;
+  } catch {
+    return null;
+  }
+};
+/** Bird local's pairing code (sessionStorage; localStorage only with « Se souvenir »). */
+export const localPair = pairStore(webStorage("sessionStorage"), webStorage("localStorage"));
+/** This page is served by Bird local itself (http://127.0.0.1:8765): it is the local machine already. Known from
+ * its health only (a hosted copy may also run on 127.0.0.1 while developing): the code never goes elsewhere. */
+export const onLocalOrigin = () =>
+  !!state.health?.bird_local && typeof location !== "undefined" && isLoopback(location.hostname);
+export const localBase = () => {
+  // only one of the two exact loopback origins of the port (a stored or imported value is never trusted as a host)
+  const bases = localBases(state.health?.local_bird?.port || DEFAULT_PORT);
+  return bases.includes(state.prefs.localBase) ? state.prefs.localBase : bases[0];
+};
+
 /** The mode actually used for requests: the saved choice if this server offers it, else the server default. */
 export function activeMode() {
+  // Bird local, chosen by the user: it holds even before health answers and even when this tab has no code yet (a
+  // new tab, the code kept for one tab only): never a silent fall back to the hosted model, which would send a
+  // conversation meant for the user's machine to the host. Without the code, Bird local asks for it (pair_required).
+  if (state.prefs.mode === "local" && !onLocalOrigin() && state.health?.local_bird !== null) return "local";
   // no health yet (cold start, slow network): the real model, never the demo; a failed send then says so plainly
   if (!state.health) return "server";
   const modes = state.health.modes || {};
@@ -115,9 +144,11 @@ export function activeMode() {
 }
 export const isDemo = () => activeMode() === "demo";
 /** The product name shown to people (the technical name served by the endpoint stays in the details). */
-export const modelLabel = () => state.health?.model_label || "Bird S 4B";
+export const modelLabel = () =>
+  activeMode() === "local" ? "Bird local" : state.health?.model_label || "Bird S 4B";
 export function activeModel() {
   const mode = activeMode();
+  if (mode === "local") return state.localHealth?.model || "Bird local";
   if (mode === "demo") return state.health?.demo_model || "bird-demo";
   if (mode === "user") return state.prefs.model || "adubrou/Bird-S-4B";
   return state.health?.model || "adubrou/Bird-S-4B";
@@ -218,6 +249,9 @@ const ICONS = {
   camera:
     '<path d="M3 7.2c0-.9.7-1.6 1.6-1.6h2l1.2-1.800h4.400l1.200 1.800h2c.900 0 1.600.700 1.600 1.600v7.200c0 .900-.700 1.600-1.600 1.600H4.600c-.900 0-1.600-.700-1.600-1.600z"/><circle cx="10" cy="10.600" r="3"/>',
   word: '<path d="M5.500 3h6l3.500 3.500V17h-9.500z"/><path d="M11.500 3v3.500H15M7.500 9.500l1 4 1.500-3 1.500 3 1-4"/>',
+  phone: '<rect x="6" y="2.500" width="8" height="15" rx="1.600"/><path d="M9 15h2"/>',
+  tablet: '<rect x="3.500" y="3" width="13" height="14" rx="1.600"/><path d="M9 14.500h2"/>',
+  monitor: '<rect x="2.500" y="3.500" width="15" height="10" rx="1.400"/><path d="M7 17h6M10 13.500V17"/>',
   moon: '<path d="M16 11.600A6.600 6.600 0 0 1 8.400 4a6.600 6.600 0 1 0 7.600 7.600z"/>',
 };
 
@@ -278,10 +312,11 @@ export function fmtEnergy(wh, kind) {
   return `< ${nf({ maximumFractionDigits: 2 }).format(0.01)} mWh`;
 }
 export const fmtCo2 = (g) => `≈ ${fmtSig(g)} g CO₂e`;
+// a tool id never reaches the screen: an unknown one (a tool added without its label) reads « Outil »
 export const toolLabel = (tool) => {
   const key = `tool.${tool}`;
   const label = t(key);
-  return label === key ? String(tool) : label;
+  return label === key ? t("tool.unknown") : label;
 };
 export function fmtDate(ts) {
   try {
@@ -354,9 +389,12 @@ export function toast(text, kind = "info", { action, ms } = {}) {
   return el;
 }
 
+/** Copy plain text; « Copié » only when the copy worked, else a way to do it by hand. Returns whether it worked. */
 export async function copyText(text, message) {
+  let ok = false;
   try {
     await navigator.clipboard.writeText(text);
+    ok = true;
   } catch {
     const area = h("textarea", {
       class: "sr-only",
@@ -367,13 +405,15 @@ export async function copyText(text, message) {
     document.body.append(area);
     area.select();
     try {
-      document.execCommand("copy");
+      ok = document.execCommand("copy") === true;
     } catch {
-      /* nothing else to try */
+      ok = false;
     }
     area.remove();
   }
-  toast(message || t("toast.copied"), "ok");
+  if (ok) toast(message || t("toast.copied"), "ok");
+  else toast(t("toast.copy.failed"), "error");
+  return ok;
 }
 
 /** Offer bytes as a download through a Blob URL (no server round trip, nothing leaves the browser). */

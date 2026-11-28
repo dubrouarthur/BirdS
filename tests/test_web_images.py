@@ -23,8 +23,10 @@ from birds.web.server import CSP, STATIC_DIR, create_app, tools_info
 from birds.web.settings import Settings
 
 SECRET = b"img-test-secret"
+LOCAL_BIRD = "http://127.0.0.1:8765 http://localhost:8765"  # Bird local, the user's own loopback (docs/LOCAL.md)
 CSP_TODAY = (
-    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; connect-src 'self'; "
+    f"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: {LOCAL_BIRD}; font-src 'self'; "
+    f"connect-src 'self' {LOCAL_BIRD}; "
     "frame-src 'self'; "  # the canvas preview frame only (sandboxed, no network: canvas_web.FRAME_CSP)
     "manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 )

@@ -205,6 +205,9 @@
 [dir="rtl"] .rf-switch:checked::after {
   transform: translateX(-16px);
 }
+.rf-menu:focus {
+  outline: none; /* focused on open by a tap: the sheet, not a control */
+}
 .rf-switch:focus-visible,
 .rf-range:focus-visible {
   outline: 2px solid var(--accent);
@@ -521,6 +524,18 @@
 @keyframes rf-hover {
   50% {
     transform: translateY(-2px);
+  }
+}
+/* the model waking up (turns.js liveLine): a resting bird, slower wings than the one that reasons */
+.live-wake-bird {
+  margin-block-start: 2px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rf-flap.live-wake-bird {
+    animation-duration: 3.2s;
+  }
+  .live-wake-bird .rf-wing {
+    animation-duration: 1.1s;
   }
 }
 .rf-bird.rf-flap {

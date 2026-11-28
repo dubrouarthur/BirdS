@@ -145,7 +145,7 @@ def test_health(client):
 @pytest.mark.parametrize("lang", ["fr", "en"])
 def test_plain_answer_streams_then_gives_the_full_answer(client, lang):
     events = chat(client, "Bonjour" if lang == "fr" else "Hello", lang=lang)
-    assert types(events) == ["answer", "usage", "done"]
+    assert types(events) == ["answer", "usage", "final", "done"]
     answer, usage = one(events, "answer"), one(events, "usage")
     assert set(answer) == {"type", "content", "sources", "files", "draft_email", "stop_reason", "charts", "web_images", "code_checks", "widgets"}
     assert answer["charts"] == [] and answer["web_images"] == []
@@ -186,14 +186,14 @@ def test_demo_is_deterministic(client):
 
 def test_thinking_emits_reasoning_only_when_on(client):
     on = chat(client, "Bonjour", thinking=True)
-    assert types(on) == ["reasoning", "answer", "usage", "done"]
+    assert types(on) == ["reasoning", "answer", "usage", "final", "done"]
     assert one(on, "usage")["thinking"] is True
     assert "reasoning" not in types(chat(client, "Bonjour", thinking=False))
 
 
 def test_search_scenario_steps_sources_citations(client):
     events = chat(client, "Cherche pourquoi les petits modèles consomment moins, cite tes sources")
-    assert types(events) == ["step", "step", "step", "step", "answer", "usage", "done"]
+    assert types(events) == ["step", "step", "step", "step", "answer", "usage", "final", "done"]
     steps = [e for e in events if e["type"] == "step"]
     assert all(set(s) == STEP_KEYS for s in steps)
     assert [(s["index"], s["tool"], s["status"]) for s in steps] == [
@@ -212,7 +212,8 @@ def test_search_scenario_steps_sources_citations(client):
     ("prompt", "tool", "suffix", "kind"),
     [
         ("Prépare une présentation pptx de 5 diapositives", "make_slides", ".pptx", "slides"),
-        ("Rédige un document Word de synthèse", "make_document", ".docx", "document"),
+        # « un document Word » opens the canvas (docs/CANVAS.md § 10); a file asked by its format is the trained tool's
+        ("Génère un fichier docx de synthèse", "make_document", ".docx", "document"),
         ("Fais un tableur de budget", "make_sheet", ".xlsx", "sheet"),
     ],
 )
@@ -647,9 +648,13 @@ def test_csp_and_security_headers_everywhere(client):
         assert response.headers["x-content-type-options"] == "nosniff"
         assert response.headers["referrer-policy"] == "no-referrer"
     assert "default-src 'none'" in CSP and "script-src 'self'" in CSP and "style-src 'self'" in CSP
-    assert "unsafe" not in CSP and "http" not in CSP and "*" not in CSP and "data:" not in CSP
+    # the one origin exception: Bird local on the user's own loopback, its two exact origins, nothing wider
+    local = "http://127.0.0.1:8765 http://localhost:8765"
+    assert CSP.count(local) == 2 and f"connect-src 'self' {local};" in CSP and f"img-src 'self' blob: {local};" in CSP
+    rest = CSP.replace(local, "")
+    assert "unsafe" not in rest and "http" not in rest and "*" not in CSP and "data:" not in CSP
     # blob: only for images: thumbnails of attached images are object URLs made by the page itself
-    assert CSP.count("blob:") == 1 and "img-src 'self' blob:;" in CSP
+    assert CSP.count("blob:") == 1 and "img-src 'self' blob:;" in rest.replace("blob: ;", "blob:;")
     assert client.get("/api/health").headers["cache-control"] == "no-store"
     assert client.get("/files/anything").status_code == 404  # no file is served from a server-side workspace any more
 
@@ -693,7 +698,11 @@ def test_static_payload_budget():
     # the pre-rendered maps of the scripted demo (static/demo/) are only loaded by demo answers: not app payload
     files = [p for p in STATIC_DIR.rglob("*") if p.is_file() and "demo" not in p.relative_to(STATIC_DIR).parts]
     fonts = STATIC_DIR / "fonts"
-    total = sum(p.stat().st_size for p in files if fonts not in p.parents)
+    vendor = STATIC_DIR / "vendor"
+    total = sum(p.stat().st_size for p in files if fonts not in p.parents and vendor not in p.parents)
+    # the self-hosted KaTeX (vendor/katex: script, stylesheet, woff2 fonts, licence) loads only when an answer holds a
+    # formula, then stays cached: its own budget, outside the page's
+    assert sum(p.stat().st_size for p in vendor.rglob("*") if p.is_file()) < 600_000
     # Carlito (regular + bold, unmodified woff2) is fetched only when a file preview is drawn, then cached: its own
     # budget, outside the page's
     assert sum(p.stat().st_size for p in fonts.iterdir()) < 400_000
@@ -708,7 +717,19 @@ def test_static_payload_budget():
     # the data card and the richer charts (datakit.js, charts2.js, their app.css section: ~110 kB raw, ~31 kB gzipped)
     # the open-data cards (holidays, entity, tenders, papers, communes, chart source line: +44 kB raw, ~9 kB gzipped)
     # and Mode Réflexion (bird picker, drawings, flight header: +20 kB raw, +6 kB gzipped)
-    assert total < 1_390_000, f"static payload is {total} bytes"  # measured 1 380 866 with the reasoning slider
+    # and the deck layouts (21 layouts, four themes, layout menu, drag, cover tools, chat thumbnail: +44 kB raw, +10 kB gz)
+    # and Word-like documents in the canvas (canvas-doc.js, A4 pages, variants: +47 kB raw, +12 kB gzipped)
+    # then the canvas code mode (several files, preview by device, console with file:line, per-file versions, zip:
+    # +37 kB raw, +11 kB gzipped)
+    # and the quote card (finance.js/.css: +17 kB raw, ~4 kB gzipped)
+    # then the answer content of the chat audit (math placeholders and the KaTeX loader, citation bubbles, rich copy,
+    # thumbs-down reasons, the work line: answers.js/.css/-i18n.js; KaTeX itself has its own budget below)
+    # then the conversation engine (versions, inline edit, documents in context, dialogs, back button: conversation*.js
+    # and conversation.css)
+    # and the UX pass (calm wake-up line and bar, mail card recipient hints and blanks, lighter phone top bar)
+    # and Bird local (settings choice, connect flow, « ne répond pas » card, request routing: +34 kB raw, +9 kB gz)
+    # and the late events of a turn (Bird's next steps after « final », readLate: +2 kB raw)
+    assert total < 1_710_000, f"static payload is {total} bytes"  # measured 1 690 691 (+ late next steps)
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"
@@ -723,8 +744,18 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     # Mode Réflexion keeps its strings apart (reflexion-i18n.js, merged at load; parity in tests/js/reflexion.test.mjs)
     rf = (STATIC_DIR / "reflexion-i18n.js").read_text().split("\n  en: {", 1)[0]
     fr |= set(re.findall(r'^\s+"(rf\.[\w.]+)":', rf, re.M))
+    # the answer-content strings (answers-i18n.js, merged at load in core.js; parity in tests/test_answers.py)
+    ans = (STATIC_DIR / "answers-i18n.js").read_text().split("\n  en: {", 1)[0]
+    fr |= set(re.findall(r'^\s+"([a-z][\w.]*)":', ans, re.M))
+    # the conversation engine too (conversation-i18n.js, cx.* keys; parity in tests/js/conversation.test.mjs)
+    cxs = (STATIC_DIR / "conversation-i18n.js").read_text().split("\n  en: {", 1)[0]
+    fr |= set(re.findall(r'^\s+"(cx\.[\w.]+)":', cxs, re.M))
+    # Bird local too (local-i18n.js, merged at load; parity in tests/js/local.test.mjs)
+    lc = (STATIC_DIR / "local-i18n.js").read_text().split("\n  en: {", 1)[0]
+    fr |= set(re.findall(r'^\s+"(local\.[\w.]+)":', lc, re.M))
     used = set()
-    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js"]:
+    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js",
+                 "conversation.js", "answers.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))
     used |= set(re.findall(r'data-i18n(?:-aria|-placeholder)?="([\w.]+)"', (STATIC_DIR / "index.html").read_text()))
     assert not used - fr, sorted(used - fr)
@@ -904,7 +935,7 @@ def test_rich_renderer_is_inert_on_hostile_input_and_live_answers(rich_rendered)
     out = rich_rendered["out"]
     assert "&lt;img src=x onerror=alert(1)&gt;" in out["callout_xss"] and "md-callout--warn" in out["callout_xss"]
     assert "&lt;script&gt;" in out["code_xss"] and "<script" not in out["code_xss"]
-    assert 'title="Vérification de la syntaxe uniquement' in out["py_err"] and "&lt;img" in out["py_err"]
+    assert 'title="Syntaxe analysée sans exécuter le code' in out["py_err"] and "&lt;img" in out["py_err"]
     assert "md-chip" in out["chip_xss"] and "&lt;b&gt;" in out["chip_xss"]
 
 
@@ -994,7 +1025,7 @@ def test_harness_streams_the_answer_and_keeps_history():
             ]
         }
         events = post_chat(client, body)
-    assert types(events) == ["answer", "usage", "done"]
+    assert types(events) == ["answer", "usage", "final", "done"]
     assert streamed(events) == one(events, "answer")["content"] == "Bonjour, voici la réponse complète."
     usage = one(events, "usage")
     assert set(usage) == USAGE_KEYS and usage["tokens_kind"] == "counted" and usage["energy_wh"] is None
@@ -1033,8 +1064,8 @@ def test_harness_steps_files_and_draft_from_a_temporary_workspace(tmp_path, monk
     ]
     app, _ = harness_app(outputs)
     with TestClient(app) as client:
-        events = chat(client, "Prépare le plan et un mail")
-    assert types(events) == ["step", "step", "step", "step", "answer", "usage", "done"]
+        events = chat(client, "Prépare le plan et un mail pour camille@example.org")  # an address the user gave
+    assert types(events) == ["step", "step", "step", "step", "answer", "usage", "final", "done"]
     assert [(s["index"], s["tool"], s["status"]) for s in events if s["type"] == "step"] == [
         (0, "make_slides", "running"),
         (0, "make_slides", "done"),
@@ -1297,6 +1328,7 @@ def test_draft_email_result_says_bird_cannot_send_and_keeps_names_apart():
     r = draft_email({"to": ["Marc Petit"], "subject": "Point", "body": "Bonjour Marc"}, c)
     assert "cannot send" in r and "Draft saved" in r and "Marc Petit" in r
     assert c.drafts[0]["to"] == [] and c.drafts[0]["to_hint"] == "Marc Petit"
+    c.request = "Écris à Marc (marc@example.org) et à a@example.org"  # addresses the user gave are kept
     draft_email({"to": ["Marc <marc@example.org>", "a@example.org"], "subject": "s", "body": "b"}, c)
     assert c.drafts[1]["to"] == ["marc@example.org", "a@example.org"] and "to_hint" not in c.drafts[1]
 
@@ -1433,3 +1465,26 @@ def test_a_flagged_page_asks_only_for_a_draft_to_someone_the_user_never_named():
     )
     assert guard.needs_approval("draft_email", {"to": ["a@b.fr"], "body": "écrivez à x@evil.test"}, said)
     assert guard.needs_approval("make_slides", {"title": "T"}, None)  # the stricter rule when asked
+
+
+def test_install_script_is_served_as_plain_text_and_binds_locally():
+    """« curl -fsSL …/install.sh | sh »: served as text, Bird listens on 127.0.0.1 only, no secret written."""
+    with TestClient(create_app(settings())) as client:
+        r = client.get("/install.sh")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    body = r.text
+    assert body.startswith("#!/bin/sh") and "set -eu" in body
+    assert "--host 127.0.0.1" in body and "0.0.0.0" not in body
+    # the logs hold the pairing code printed by scripts/bird_local.py: other users of the machine cannot read them
+    assert 'chmod 700 "$LOGS"' in body
+    assert "HF_TOKEN=" not in body.replace("HF_TOKEN        jeton", "")
+
+
+def test_windows_installer_is_served_and_keeps_secrets_off_command_lines():
+    """« irm …/install.ps1 | iex »: served as text; HF_TOKEN reaches WSL through WSLENV only; Bird on 127.0.0.1."""
+    with TestClient(create_app(settings())) as client:
+        r = client.get("/install.ps1")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    body = r.text
+    assert "WSLENV" in body and "HF_TOKEN/u" in body and "HF_TOKEN='" not in body
+    assert "127.0.0.1" in body and "0.0.0.0" not in body and "--no-browser" in body

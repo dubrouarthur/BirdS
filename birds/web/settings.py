@@ -95,6 +95,8 @@ class Settings:
     searxng_url: str | None = None
     brave_api_key: str | None = field(default=None, repr=False)
     tavily_api_key: str | None = field(default=None, repr=False)
+    twelvedata_api_key: str | None = field(default=None, repr=False)  # share and index prices (finance.py)
+    coingecko_api_key: str | None = field(default=None, repr=False)  # optional: raises the crypto quota
     search_default: str = "wikipedia"  # "wikipedia" (no key) or "none"
     search_contact: str | None = None  # contact in the User-Agent sent to Wikipedia
     # the canvas (birds.canvas): a creation ask is written in the content format beside the chat. Off
@@ -171,6 +173,9 @@ class Settings:
     map_rate_limit: int = 30
     tile_fetch_per_min: int = 120  # uncached tile downloads per minute for the whole process
     trusted_proxies: int = 0  # proxies of the operator in front (X-Forwarded-For is ignored when 0)
+    # « Se connecter au Bird local »: the loopback port where the page may reach the user's own Bird (CSP exception,
+    # docs/LOCAL.md). BIRD_LOCAL_BIRD_PORT=off removes the choice and the exception
+    local_bird_port: int | None = 8765
 
     @property
     def energy_config(self) -> dict:
@@ -250,6 +255,8 @@ class Settings:
         return cls(
             brave_api_key=get("BIRD_BRAVE_API_KEY"),
             tavily_api_key=get("BIRD_TAVILY_API_KEY"),
+            twelvedata_api_key=get("BIRD_TWELVEDATA_API_KEY"),
+            coingecko_api_key=get("BIRD_COINGECKO_API_KEY"),
             search_default="none"
             if (get("BIRD_SEARCH_DEFAULT") or "").lower() in ("none", "off", "0")
             else "wikipedia",
@@ -303,6 +310,7 @@ class Settings:
             tile_cache_dir=get("BIRD_TILE_CACHE_DIR"),
             geo_cache_dir=get("BIRD_GEO_CACHE_DIR"),
             trusted_proxies=_proxies(get("BIRD_TRUSTED_PROXIES"), bool(get("VERCEL"))),
+            local_bird_port=_local_port(get("BIRD_LOCAL_BIRD_PORT")),
         )
 
 
@@ -312,3 +320,13 @@ def _proxies(value: str | None, vercel: bool) -> int:
         return max(0, min(5, int(value))) if value is not None else (1 if vercel else 0)
     except ValueError:
         return 1 if vercel else 0
+
+
+def _local_port(value: str | None) -> int | None:
+    """BIRD_LOCAL_BIRD_PORT: 8765 by default, « off » removes Bird local from the page; an unusable value keeps 8765."""
+    if value is None:
+        return 8765
+    if value.lower() in ("off", "0", "none", "non", "false"):
+        return None
+    n = _num(value, 8765, int, 1024)
+    return n if n <= 65535 else 8765

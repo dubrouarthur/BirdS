@@ -26,6 +26,7 @@ from birds.harness.agent import (  # noqa: E402
 from birds.web.widgets import event_widget  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import bench_finance  # noqa: E402  (markets: shares, indices, crypto, currency pairs)
 import bench_maps  # noqa: E402  (maps: 200 realistic asks + 60 office prompts, 30 + 15 held out)
 import bench_opendata  # noqa: E402  (open data: holidays, entity cards, statistics, tenders, papers, communes)
 
@@ -1235,6 +1236,8 @@ if __name__ == "__main__":
         ("agent_study", STUDY_YES, STUDY_NO, study_routed, study_touched),
         ("maps_real", bench_maps.MAPS_REAL, bench_maps.MAPS_OFFICE_NO, bench_maps.correct, bench_maps.detected),
         ("maps_heldout", bench_maps.MAPS_HELDOUT, bench_maps.MAPS_HELDOUT_NO, bench_maps.correct, bench_maps.detected),
+        ("maps_category", [(q, k, n, m) for q, k, n, m in bench_maps.MAPS_CATEGORY], bench_maps.MAPS_CATEGORY_NO,
+         bench_maps.category_ok, bench_maps.category_touched),
         ("canvas", CANVAS_YES + CANVAS_CODE_FROM_OFFICE, CANVAS_NO + CANVAS_OFFICE_NO, canvas_opened, canvas_touched),
         ("canvas_edit", CANVAS_EDIT_YES, CANVAS_EDIT_NO, canvas_edited),
         ("cards", CARD_YES, CARD_NO, card_kind),
@@ -1245,6 +1248,10 @@ if __name__ == "__main__":
          bench_opendata.touched),
         # every "no" of the other families, office prompts first: none may start an open-data card
         ("opendata_cross", [], opendata_cross_no(), bench_opendata.touched),
+        ("finance", bench_finance.FINANCE_YES, bench_finance.FINANCE_NO, bench_finance.started, bench_finance.touched),
+        # every "no" of the other families (office prompts, charts, maps, company and currency…): no market card
+        ("finance_cross", [], [q for q in opendata_cross_no() + bench_opendata.OPENDATA_NO
+                               if q not in bench_finance.OTHER_FAMILIES_YES], bench_finance.touched),
     ):
         ok, n = bench(*args)
         total[0] += ok

@@ -631,7 +631,8 @@ function renderEntity(w) {
     img &&
     h(
       "span",
-      null,
+      { class: "od-credit" },
+      " · ",
       `${tt("ent.image")} : `.replace(" :", lang() === "en" ? ":" : " :"),
       ext(
         img.page,
@@ -639,22 +640,31 @@ function renderEntity(w) {
           "Wikimedia Commons",
       ),
     );
+  const box = h(
+    "div",
+    { class: `od-ent${pic ? " has-pic" : ""}` },
+    pic,
+    h(
+      "div",
+      { class: "od-ent-text" },
+      h("p", { class: "od-main", text: w.title || "" }),
+      w.description && h("p", { class: "muted od-sub", text: w.description }),
+      w.extract && h("p", { class: "od-extract", text: w.extract }),
+      w.url && h("p", { class: "od-more" }, ext(w.url, tt("ent.more"))),
+    ),
+  );
+  // a picture the server could not fetch (502, 429 upstream) never shows its alt text or a broken glyph: its slot
+  // and its credit go, the text takes the whole width
+  pic?.querySelector("img").addEventListener("error", () => {
+    pic.remove();
+    box.classList.remove("has-pic");
+    box.dataset.img = "failed";
+    credit?.remove();
+  });
   return section(
     "entity",
     tt("ent.title"),
-    h(
-      "div",
-      { class: `od-ent${pic ? " has-pic" : ""}` },
-      pic,
-      h(
-        "div",
-        { class: "od-ent-text" },
-        h("p", { class: "od-main", text: w.title || "" }),
-        w.description && h("p", { class: "muted od-sub", text: w.description }),
-        w.extract && h("p", { class: "od-extract", text: w.extract }),
-        w.url && h("p", { class: "od-more" }, ext(w.url, tt("ent.more"))),
-      ),
-    ),
+    box,
     kv,
     entityAsks(w).length > 0 && nextSteps(entityAsks(w)),
     h(
@@ -670,7 +680,7 @@ function renderEntity(w) {
         ext(w.data_license?.url, w.data_license?.label || "CC0"),
         ")",
       ],
-      credit && [" · ", credit],
+      credit,
     ),
   );
 }

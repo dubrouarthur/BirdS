@@ -979,3 +979,291 @@ correction), la relecture de Chouette en réel, l'échantillonnage (plusieurs pa
 **Entraînement.** `build_tools_mix.py` ajoute la tâche `reflexion` : l'invite exacte de `reflexion.messages` et
 `{"level": …}` comme seul tour à apprendre, 9 gabarits FR/EN (≈ 95 enregistrements en train, gabarits retenus
 entiers pour l'évaluation ; les phrases de `REFLEXION_LEVELS` n'entrent jamais en train).
+
+## 17. Questions pratiques locales et panne de la recherche web (28/11/2026)
+
+Signalement de production : « comment aller faire ses courses a saint cloud quels sont les supermarchés », niveau
+Albatros. Chaîne observée, reproduite à l'identique en local sur l'endpoint réel (`scripts/local_live.py`) :
+
+1. **Mode Agent forcé** : `bird.agent = "on"` enregistré par l'ancien sélecteur du compositeur forçait l'équipe à
+   chaque demande ; et Albatros prenait `crew.decide(mode="on")`, qui envoie toute question informative en recherche
+   approfondie. Correctif : `agent-mode.js` migre une fois `on` → `auto` ; « Activé » choisi dans Réglages ne vaut
+   que pour la session (sessionStorage) ; Albatros ne lance l'équipe que pour une tâche d'équipe confirmée par le
+   routeur (le modèle : aucun module demandé, `agent` différent de « off » ; appel mémorisé, `Agent.run` le
+   réutilise). Routeur indisponible ou repli des analyseurs : seulement une recette à livrable ou une demande
+   explicite de recherche approfondie. La décision d'Albatros n'est jamais « forcée ».
+2. **Recherche en panne** : l'instance SearXNG répondait HTTP 200, 0 résultat, `unresponsive_engines` = duckduckgo
+   « CAPTCHA », google cse « Suspended ». `SearxngBackend` traite ce cas comme une panne : il redemande aux moteurs
+   sans clé de la même instance, nommés (`engines=bing,brave,yahoo`, qui répondent même désactivés ;
+   `BIRD_SEARXNG_FALLBACK` remplace la liste), en priorité pendant 5 min ; sinon `search_unavailable` et
+   `FallbackSearch` répond depuis Wikipédia. L'étape le dit d'une ligne calme (« Recherche web (SearXNG) indisponible
+   pour le moment : réponse à partir de Wikipédia »). Les pages d'accueil et liens cassés de ces moteurs sont écartés.
+   `/api/health` porte `search` : requête témoin, moteurs vivants, moteurs muets et pourquoi, moteurs de secours
+   (sonde dans un fil, cache 5 min, 1,5 s d'attente au plus).
+3. **Lieux** : le modèle écrivait `query: "supermarché"`, qui n'était pas une clé de catégorie : `find_places`
+   passait en mode itinéraire et cherchait le mot dans le monde entier, d'où une boutique de vêtements nommée
+   « supermarché » à Berlin, 887 km. `places.category()` lit la catégorie dans les mots du modèle (intents.KINDS :
+   supermarché, boulangerie, pharmacie, restaurant, hôpital, gare, parking, station-service, banque, DAB, poste,
+   école…) ; le reste est un qualificatif qu'OSM ne vérifie pas (« de garde » : le 3237 ; « végétarien » : non
+   affirmé). Recherche bornée : 2,5 puis 5 km autour d'une ville ou d'un quartier, 500 m puis 1,5 km autour d'un
+   point ; rien au-delà ; seuls les types OSM de la catégorie (« bank » trouvait des bancs). Phrases Nominatim
+   mesurées : « railway station » (« train station » : 0), « banks », « cash machine », « gym », « pizzeria ». Une
+   ancre en France pour une conversation française (« Défense » était le ministère à Londres). Un nom trouvé à plus
+   de 50 km sans importance n'est pas celui qu'on cherche.
+4. **Carte en double** : deux `find_places` (« Saint-Cloud », « Saint-Cloud, France ») trouvaient les mêmes lieux ;
+   les cartes sont dédoublonnées par contenu (mode et lieux) dans la réponse et dans les cartes envoyées en direct.
+5. **Réponse** : l'outil demande les 3 à 5 lieux les plus proches (nom, adresse, distance, horaires), jamais « je n'ai
+   rien trouvé » ; sans résultat, dire ce qui a été cherché et proposer une suite. Contrôle final
+   (`rescue.check_places_answer`) : une réponse qui abandonne, ou ne nomme aucun lieu d'une carte « autour de », est
+   réécrite depuis les résultats de l'outil ; sans résultat, une réponse qui renvoie vers « un voisin » dit ce que Bird
+   a cherché et propose d'élargir la zone.
+
+**Mesure réelle** (28/11/2026, endpoint vLLM Bird S 4B, `serve.py` en local, routeur `hybrid`, Mode Agent Auto,
+Réflexion Auto, 12 demandes fixes de `scripts/local_live.py`, un passage ; détails :
+`docs/measures/local-practical-2026-11-28.json`) :
+
+| critère | avant | après |
+| --- | --- | --- |
+| `find_places` choisi | 12/12 | 12/12 |
+| une carte de lieux affichée | 9/12 | **12/12** |
+| catégorie cherchée autour de l'ancre (mode « autour de ») | 7/12 | **12/12** |
+| lieux à plus de 6 km de l'ancre | 3 (Berlin ×2, Bordeaux) | **0** |
+| ancre fausse | 1 (« Défense » → Londres) | 0 (Montreuil → Montreuil-sur-Mer, homonyme plus « important » pour Nominatim) |
+| réponse qui s'appuie sur les lieux trouvés, sans abandon | 5/12 | **12/12** |
+| « je n'ai pas trouvé » / « demandez à un voisin / à l'accueil » | 2/12 (+1 « vérifiez le site ») | **0/12** |
+| carte en double (même contenu) | 1 (Saint-Cloud) | 0 |
+| temps médian / moyen | 7,5 s / 8,3 s | 9,2 s / 9,6 s |
+
+Le temps monte de 1,3 s en moyenne : les réponses listent maintenant 3 à 5 lieux avec adresse et horaires (plus de
+jetons) au lieu d'une phrase d'abandon. Cas Albatros du signalement : avant, Mode Agent (forcé), 4 recherches à 0
+résultat, deux cartes Saint-Cloud → Berlin, réponse « demandez à un voisin » ; après, pas d'équipe, une carte de
+8 supermarchés (Lidl 161 m, Monoprix 539 m, Monop' 814 m…, horaires), réponse qui les liste. « Recherche approfondie
+sur l'AI Act… » au niveau Albatros lance toujours l'équipe (carte de plan, non forcée). Reste vu : « pharmacie de garde
+à Lyon 3e » liste bien les pharmacies mais le modèle a ajouté un hôpital qui n'est pas dans les résultats ; Montreuil
+seul est pris pour Montreuil-sur-Mer.
+
+Banc des déclenchements : famille `maps_category` (20 demandes « catégorie près d'une ville » dans 14 villes, avec la
+formulation du modèle, + 10 noms qui commencent par un mot de catégorie) : **13/30 avant, 30/30 après** ; total
+2 124/2 124, aucune régression. `router_data.py` porte les mêmes cas (`maps_category`) pour l'évaluation du routeur.
+
+**Instance SearXNG : ce que le propriétaire doit changer.** Sonde de l'instance de production (28/11/2026,
+`/config` lisible, requêtes `engines=` nommées) : moteurs généraux activés = duckduckgo (CAPTCHA) et google cse
+(suspendu) seulement ; **bing 10 résultats, brave 20, yahoo 7** (désactivés mais fonctionnels) ; qwant « access
+denied » ; mojeek, startpage, wikipedia, wikidata absents de l'instance. Dans `settings.yml` : activer `bing`,
+`brave` et `yahoo` (catégorie general), ajouter `mojeek`, `startpage`, `wikipedia` et `wikidata` (moteurs sans clé),
+laisser duckduckgo mais pas seul, retirer `google cse` (quota épuisé) ; garder `formats: [html, json]` ; envisager
+`limiter: false` si l'instance n'est appelée que par Bird. Option sûre en plus : une clé **Brave Search API**
+(offre gratuite) enregistrée comme secret réseau de l'environnement (`BIRD_BRAVE_API_KEY`) : avec SearXNG configuré,
+la chaîne devient SearXNG → Brave Search → Wikipédia (`make_search`). `/api/health` → `search.degraded` dit quand
+l'instance retombe sur ses moteurs de secours.
+
+**Vérification adverse avant fusion** (28/11/2026, même endpoint, `serve.py` local, 10 demandes hors du jeu fixe :
+homonymes, classement, anglais, nom de boutique ; détails : `adversarial_before` / `adversarial_after` et `verify12`
+dans `docs/measures/local-practical-2026-11-28.json`). Trouvé puis corrigé :
+
+| demande | avant correctif | après |
+| --- | --- | --- |
+| « Où se situent les 3 meilleures pizzerias de Paris » (signalement Chouette) | `query` « 3 meilleures pizzerias de Paris », mode « où est » → « Meilleurtaux Paris 16 », réponse « Je n'ai pas de données fiables » | `pizza les meilleures` autour de Paris (réparation des arguments + `category`), 8 pizzerias à 1 – 1,4 km, plus une recherche web ; note « OpenStreetMap ne contient ni notes ni avis » |
+| « restaurants à Saint-Cloud » | Boulogne-Billancourt à 1,2 km (Nominatim rend les plus pertinents d'une boîte de 2,5 km, pas les plus proches ; 40 restaurants à moins de 300 m) | rayons 1 km → 2,5 km → 5 km : Les Frères Dufour 116 m, Nino 155 m, Venise 176 m |
+| « quels supermarchés à Montreuil ? » | Montreuil-sur-Mer (Campigneulles, Attin) | Montreuil (93) : Naturalia 103 m, Biocoop 111 m — l'ancre préfère le nom exact demandé, s'il est presque aussi important |
+| « bakeries near Valence » (anglais) | Valencia (Espagne) | Valence (26000) |
+| « pharmacie de garde à Lyon 3e » (le modèle écrit `pharmacy`) | pas de 3237 ; une fois « le reste est fermé ce soir » | le « de garde » de l'utilisateur tient ; la ligne 3237 est ajoutée par le harnais quand la réponse ne l'a pas |
+| deux points OSM d'un même lieu (« A Tavola » ×2 à 9 m) | deux fiches | une fiche (même nom à moins de 80 m) |
+
+Contrôle final élargi (`check_places_answer`) : un élément de liste qui nomme un lieu absent des résultats (le cas
+« hôpital à Marseille » sous les pharmacies de Lyon) est retiré, la numérotation refaite ; un conseil sans lieu
+(« appelez le 3237 ») reste. Une boîte plus large qui échoue (« busy », plafond) garde ce que la plus petite a
+trouvé, au lieu de tout perdre ; plafond de requêtes de géocodage par réponse : 4 → 6 (ancre + 3 rayons).
+Jeu fixe de 12 rejoué après correctifs : 12/12 cartes, 0 lieu à plus de 6 km, 12/12 réponses qui s'appuient sur les
+lieux, 0 abandon ; médiane 11,3 s (9,2 s avant ces correctifs : réponses plus complètes, un rayon de plus quand la
+première boîte compte moins de 3 lieux). Recherche coupée (`--searxng` injoignable) : repli Wikipédia vérifié ; si
+Wikipédia limite aussi (HTTP 429), l'étape le dit et la réponse reste calme. Pas corrigé ici : « Saint-Germain »
+seul reste un village homonyme (Bayon, 54) — la réponse affiche le code postal ; « le magasin Supermarché à Berlin »
+est lu comme la catégorie (choix du modèle). Banc : `maps_category` 37/37 (+4 classements, +3 noms), total
+2 131/2 131.
+
+## 18. Suites proposées : Bird écrit ses suggestions, dans la voix de l'utilisateur
+
+Code : `birds/harness/nextsteps.py` (appel, invite, validation, démo), `birds/web/backends.py`
+(`HarnessBackend._suggest`, `demo_suggest_kind`), `birds/web/static/followups.js` (`cleanSuggestions`,
+`chipItems`, `renderChips`) · tests : `tests/test_nextsteps.py`, `tests/js/modules.test.mjs`,
+`tests/e2e/nextsteps.spec.js` · mesure : `scripts/followups_eval.py` · cas : `scripts/router_data.py`
+(`NEXTSTEPS_CASES`) · exemples d'entraînement : `scripts/build_tools_mix.py` (tâche `nextsteps`).
+
+**Le défaut.** Les puces sous une réponse venaient de deux sources fixes : les puces des widgets (météo, carte,
+brouillon, tableau) et `clarifyOptions`, une expression régulière qui découpait la dernière question de Bird. Sur
+« Souhaitez-vous que je vous aide à intégrer des images spécifiques ou à structurer la diapositive visuellement ? »,
+elle donnait « Vous aide à intégrer des images spécifiques » et « À structurer la diapositive visuellement » : des
+morceaux de la phrase de Bird, dans sa voix, pas des demandes de l'utilisateur.
+
+**Ce qui change.** Après la réponse et son reçu, **un** appel court (≤ 200 jetons, température 0, schéma
+`{"suggestions":[{needs, label ≤ 42 (borne 60), prompt}] ≤ 3}` imposé quand l'endpoint le permet, même détection que le routeur ;
+invite statique en préfixe avec les capacités du déploiement, réutilisée par le cache) renvoie 0 à 3 suites :
+une demande que l'utilisateur taperait (« Ajoute une diapositive sur les outils numériques… »), propre à la
+réponse, les choix d'une question de Bird réécrits comme ses réponses, rien après une salutation. L'appel ne lit
+que la demande de l'utilisateur et la réponse, jamais une page ni un résultat d'outil. Tout est validé dans le code
+(`nextsteps.validate`) : schéma, longueurs (une étiquette coupée par le schéma finit sur un mot entier), langue,
+doublons, voix de Bird (« Vous aide… », « Souhaitez-vous… », « Oui »), liens, adresses et consignes (« ignore… »),
+actions impossibles (« envoie », « réserve », ce que l'utilisateur fait lui-même : « Valide le mail », « Provide
+the client's email address »), et un module éteint sur le déploiement (météo, carte, recherche web…). Les
+expressions régulières ne décident pas : elles filtrent la sortie du modèle. Le tour se termine pour
+l'utilisateur à l'événement `final` (après `answer` et `usage`) ; `suggestions` arrive ensuite sur le même flux, puis
+un second `usage` qui compte l'appel en plus (voir la revue ci-dessous). L'interface met les suites de Bird en premier, puis les
+puces des widgets jusqu'à trois, sans doublon ; `clarifyOptions` est supprimée. Rien d'envoyé si l'appel échoue
+(les puces des widgets restent). `BIRD_NEXTSTEPS=off` coupe l'appel. Démo : suites scriptées selon ce qu'est la
+réponse (brouillon, présentation, document, question à choix), passées par la même validation.
+
+**Mesure réelle (28/11/2026, endpoint vLLM, Bird S 4B, température 0, un passage).** 20 vraies réponses
+enregistrées par l'application elle-même (`HarnessBackend`, `--record`), demandes de bureau variées : mails (4),
+présentations (3), documents (3), recherche (3), météo (2), carte (2), données et calcul (2), question posée en
+retour (1). Réglages : `BIRD_ROUTER=regex` et Colibri pour tenir le budget d'appels (le routeur et le choix
+d'oiseau auraient coûté deux générations par tour). Fichier : `docs/measures/followups-2026-11-28.json` (réponses,
+sortie brute du modèle, sortie validée, temps, jugements). « Avant » = `followups.js` du commit de base (941cfc9),
+exécuté dans node sur ces mêmes réponses. « Après (brut) » = ce que le modèle a écrit ; « après » = après la
+validation finale.
+
+Grille (un point par critère et par puce) : **voix** (une demande de l'utilisateur, pas une question ou un morceau
+de phrase de Bird ; vérifié par le code) ; **grammaire** (phrase entière et correcte : jugée à la main, puce par
+puce, 125 puces lues) ; **précis** (reprend un sujet, un nom ou un chiffre de la demande ou de la réponse) ;
+**faisable** (Bird sait le faire ici : ni « envoie », ni un module éteint, ni une capacité absente, jugé à la main
+pour « carte de la météo » et « comparer avec la semaine dernière ») ; **existe** (le module nommé est allumé).
+
+| bras | puces | tours avec puces | voix | grammaire | précis | faisable | existe |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| avant (puces fixes + `clarifyOptions`) | 17 | 8/20 | 0,94 | 0,88 | 0,35 | 1,00 | 1,00 |
+| après (brut, modèle) | 56 | 20/20 | 1,00 | 0,95 | 0,93 | 0,89 | 1,00 |
+| **après (validé)** | 52 | 19/20 | 1,00 | 0,96 | 0,92 | 0,96 | 1,00 |
+
+Latence de l'appel en plus (20 appels) : **p50 2,0 s, p95 2,9 s**, après la réponse (la réponse et son reçu
+arrivent avant ; le bouton Envoyer revient ≈ 2 s plus tard). Budget : 60 générations sur 60 (2 pour un essai de l'invite, 3 pour un premier
+enregistrement perdu, la météo bloquée par l'épinglage DNS derrière le mandataire du bac à sable, 55 pour le jeu).
+
+Lecture franche. Avant, 12 tours sur 20 n'avaient aucune puce (présentations, documents, recherche), et les puces
+présentes étaient génériques (« Plus court », « En anglais », « Restaurants autour » après une météo) : 0,35 de
+précision. La seule question posée en retour du jeu (`ask_review`) donnait « Préfères-tu d'abord lister tes
+accomplissements » (la question de Bird) ; après : « Fais un plan détaillé », « Liste mes accomplissements ». Ce
+que la validation retire sur ce jeu (4 puces) : « Valide le mail… et confirme l'envoi », deux « Provide the
+client's… » (Bird venait de demander ces informations : tour sans puce, voulu), « Fournis un document sur le
+marché ». Trois étiquettes coupées à 42 caractères par le schéma (« Ajoute une diapositive sur les modalités d »)
+finissent désormais sur un mot. Restent après validation : deux suites impossibles non détectées par le code
+(« Fais une carte de la météo », « Compare avec la semaine dernière » : pas d'historique météo), deux étiquettes
+maladroites (« Raccourcis la diapo de 2 slides », « Prévois mai »). La validation a été réglée après lecture de ce
+jeu (verbes de l'utilisateur, étiquettes coupées) : les chiffres « après (validé) » sont donc optimistes ; la sortie
+brute du modèle, elle, n'a pas été retouchée (invite et schéma inchangés depuis l'enregistrement).
+
+**Non mesuré en réel** : la salutation et le remerciement (« aucune suite » ; budget épuisé), le cas de la capture
+(il sert d'exemple dans l'invite, il ne peut pas servir de test), et les 8 cas fixes `NEXTSTEPS_CASES`
+(`scripts/followups_eval.py --cases --live`, 8 générations) : hors ligne, l'ancien code en rate 1 sur 8, le cas de
+la capture (« Vous aide à intégrer… »). Jeu de 20 réponses et non 25 : le plafond de 60 générations a été atteint
+(certaines réponses coûtent 3 à 6 générations : brouillon de mail, recherche web).
+
+**Interface.** Puces discrètes comme chez ChatGPT : contour fin, fond transparent, flèche « ↳ », texte qui passe à
+la ligne dans la puce à 360 px, anneau de focus visible, Entrée envoie la demande ; mêmes jetons de couleur en clair
+et en sombre. Vu à 360 px et 1 280 px, clair et sombre (`tests/e2e/nextsteps.spec.js`) : aucune requête vers un
+tiers, aucune erreur CSP, pas de défilement horizontal.
+
+**Entraînement.** `build_tools_mix.py` ajoute la tâche `nextsteps` : l'invite exacte de `nextsteps.messages` (avec
+toutes les capacités) et le JSON des suites comme seul tour à apprendre, 10 gabarits FR/EN (questions à choix,
+mail, présentation, information manquante, salutations sans suite) ; chaque cible passe la validation ; les
+demandes de `NEXTSTEPS_CASES` n'entrent jamais en train.
+
+### 18.1 Revue du 28/11 : suites faisables, tour libéré, consommation complète
+
+**Le tour n'attend plus les suites.** L'appel en plus tournait avant `done` : pendant 2 à 6 s la réponse finie
+restait « occupée » (ni actions, ni reçu, ni puces, bouton Stop), et un Stop à ce moment marquait « Réponse
+interrompue » une réponse livrée. Le serveur envoie maintenant `{"type":"final","pending":["suggestions"]}` juste
+après la réponse et son reçu ; le client y termine le tour (Envoyer revient, actions, registre) et lit les
+événements tardifs du même flux (`readLate`) ; un nouveau message coupe l'attente. Reproduction (suites lentes de
+5 s) : Envoyer revient à 0,96 s au lieu de 5,9 s, puces à 5,8 s, plus de Stop sur une réponse livrée. Démo : pause
+de 1,2 s avant les suites scriptées, pour voir le même ordre qu'en réel (`tests/e2e/nextsteps.spec.js` le vérifie).
+
+**La consommation compte l'appel.** Un second `usage` suit les suites avec leurs jetons et l'énergie réestimée
+(jetons ou puissance × temps) ; le client garde le dernier et compte le tour une fois. Reproduction : 93 + 19
+jetons affichés avant, 993 + 99 après (l'appel en plus : 900 + 80).
+
+**Le modèle dit ce que la suite demande.** Chaque suggestion porte `needs` (énumération du schéma, en premier) :
+`write`, `office`, `calc`, les modules du catalogue allumés, `web`, ou `user` / `none`. La validation retire
+`user`, `none` et tout module éteint ; les filets sous ce champ ne visent que l'acteur et les cas sans doute
+possible : l'utilisateur qui donne ses propres faits (« Provide the client's email address », « Liste mes
+accomplissements »), les actions que le guide déclare impossibles (transmets, publie, imprime, commande, télécharge,
+mets un rappel, mon solde bancaire, itinéraire et temps de trajet), un module nommé sans ambiguïté (météo, 100 € en
+dollars, restaurants près de…). Ne sont plus rejetés : « Indique les étapes clés », « Provide three examples »,
+« Convertis le tableau en liste », « Ajoute les sources de chaque chiffre », l'exemple de l'invite sans recherche
+web. Aussi : la langue se lit sur deux mots (« Shorten it » sous une réponse française est retiré), un domaine nu
+ou un lien court (« bit.ly/… », « exemple-promo.fr ») rend la puce dangereuse, une étiquette coupée (borne du
+schéma, article final, guillemet ouvert) fait retirer la puce au lieu de la raccourcir.
+
+**Invite.** Règles ajoutées : faisable avec ce que la conversation contient (ni départ, ni hypothèse, ni fait
+inventé sur l'utilisateur ; rien qui se serve d'une information ou d'un document que Bird vient de demander) ; pas
+de suite passe-partout (traduire, raccourcir, résumer seulement un texte que l'utilisateur va diffuser) ; météo et
+lieux : ce que les modules font vraiment ; une étiquette avec son complément, en français correct. Exemples
+ajoutés : une météo, une liste de lieux, une demande d'informations sans suite (FR), une météo et un mail en
+attente d'informations (EN). Invite : ≈ 1 700 jetons (préfixe statique), sortie ≈ 90 jetons.
+
+**Mesure, notée sévèrement.** La note « faisable 0,96 » du § 18 surestimait : elle venait des motifs du code. Ici
+chaque puce est relue à la main contre ce que les outils de Bird font avec ce que la conversation contient
+(`docs/measures/followups-2026-11-28-strict.json` ; F = infaisable, G = passe-partout, redondante ou quasi doublon,
+W = mal formulée). Trois bras sur les **mêmes 20 réponses** enregistrées : « livré » (ce que le premier passage
+affichait), « avant » (sortie brute de l'ancienne invite, validation d'aujourd'hui), « après » (nouvelle invite
+rejouée en réel sur l'endpoint, un appel par réponse, température 0 :
+`scripts/followups_eval.py --replay docs/measures/followups-2026-11-28.json --out
+docs/measures/followups-2026-11-28-replay.json`, puis `--strict … …-replay.json …-strict.json`).
+
+| bras | puces | faisable | utile | bien formulée | irréprochables | tours avec une puce infaisable |
+| --- | --- | --- | --- | --- | --- | --- |
+| livré (28/11, premier passage) | 56 | 0,73 | 0,91 | 0,93 | 0,62 | 9/20 |
+| avant (ancienne invite, validation actuelle) | 46 | 0,87 | 0,93 | 0,96 | 0,78 | 6/20 |
+| **après (nouvelle invite)** | 44 | **0,91** | **0,95** | **1,00** | **0,86** | **2/20** |
+
+Latence de l'appel (20 appels) : p50 1,9 s, p95 2,7 s, désormais hors du tour. Ce qui a disparu : les trois
+« Fais un itinéraire vers… », l'itinéraire de métro depuis une gare jamais citée, le parking « avec son tarif »,
+« Prévois mai » avec une baisse supposée, la carte météo, la comparaison avec la semaine dernière, « Traduis en
+anglais » sous une météo ou une recherche, « Raccourcis la diapo de 2 slides » ; « Liste mes accomplissements »
+est encore écrit par le modèle et retiré par le filet. Ce qui reste (lecture franche) : `mail_reply` — Bird dit ne
+pas avoir le catalogue et propose de le reformater si on le colle, le modèle propose quand même trois actions sur
+ce catalogue (`needs: write`, non vu par le code) ; « Ajoute une diapositive sur les tarifs » suppose des prix que
+l'utilisateur n'a pas donnés ; deux puces peu utiles (l'adresse déjà donnée, un second graphique). Le modèle ne
+choisit jamais `user` ni `none` sur ce jeu : le champ sert surtout à vérifier un module éteint ; les actions de
+l'utilisateur restent tenues par l'invite et le filet. La règle « une information demandée n'est pas utilisée » a
+été ajoutée après un premier rejeu (faisable 0,89, 3/20) : le second rejeu (tableau) est donc réglé sur ce jeu.
+
+Cas fixes `NEXTSTEPS_CASES` (12, dont 4 nouveaux : faits demandés à l'utilisateur, musée sur la carte, météo,
+tendance de ventes), en réel : 11/12 avec l'attente d'origine du cas `map_museum`, qui interdisait « horaires » ;
+les horaires d'ouverture viennent d'OpenStreetMap dans la fiche lieux, l'attente a été corrigée après lecture
+(12/12 sur la même sortie). L'ancien code passe 11/12 hors ligne, mais seulement parce qu'il ne propose aucune puce
+sur les 4 nouveaux cas. Entraînement : `build_tools_mix.py` apprend le champ `needs` et 3 gabarits de plus
+(météo, lieux, informations demandées sans suite).
+
+
+### 18.2 Vérification avant fusion (28/11/2026, 20 demandes nouvelles)
+
+Pour ne pas noter sur le jeu qui a servi à régler l'invite, **20 demandes jamais vues** (mail, annonce, présentation,
+compte rendu, plan de formation, définitions, météo, lieux, conversion, jours ouvrés et fériés, tableau, graphique,
+traduction, CV, salutation ; 2 en anglais), passées par l'application réelle (`HarnessBackend`, endpoint vLLM,
+Colibri, routeur par défaut ; 69 générations). « Aujourd'hui » = `followups.js` de la branche de déploiement (puces
+des widgets + `clarifyOptions`) sur les **mêmes réponses** ; « après » = ce que l'interface affiche (suites de Bird
+validées, puis puces des widgets jusqu'à trois). Grille stricte, chaque puce relue à la main : **irréprochable** =
+dans la voix de l'utilisateur, faisable par Bird ici avec ce que contient la conversation (ni fait inventé, ni action
+de l'utilisateur), propre à la réponse et non redondante (ni avec la réponse, ni avec une autre puce), bien formulée
+dans la langue de la conversation ; sinon F (infaisable), G (passe-partout, redondante, quasi-jumelle) ou W (mal
+formulée, ou visant le mauvais objet). Détail : `docs/measures/followups-2026-11-28-verify.json`.
+
+| bras | puces | irréprochables | infaisables | tours avec au moins une bonne puce |
+| --- | --- | --- | --- | --- |
+| aujourd'hui | 21 | 6 (0,29) | 1 (« Ajouter « Participants » » sans participants connus) | 5/20 |
+| **après** | 40 | **28 (0,70)** | **0** | **16/20** |
+
+Revendications de la revue 18.1 vérifiées en réel : le tour se termine à `final` (Envoyer revient à 2,5 s, les puces
+arrivent à 4,5 s ; mesuré dans le navigateur sur l'endpoint), aucune réponse livrée marquée « interrompue », le reçu
+compte l'appel en plus (2 574 → 4 376 jetons d'entrée sur le même tour, puis 4 844 jetons affichés dans la ligne de
+consommation), aucune puce dans la mauvaise langue, aucune action de l'utilisateur (« Envoie tes expériences »
+écrit pour le CV est retiré par `needs: user`), rien après « Salut, ça va ? ». Appel : p50 2,5 s, p95 3,1 s.
+
+Corrigé pendant la vérification : deux suites qui ne diffèrent que d'un chiffre ou d'un mot (« Convertis 1000 € » /
+« 500 € », « janvier » / « février 2027 », « en barres » / « en courbe ») ne font qu'une puce (`_near_twin`,
+Jaccard ≥ 0,7 sur les mots) ; « Fais une version courte » n'est jamais proposé sous une réponse de moins de
+600 caractères sans livrable (mail, fichier, présentation : là, raccourcir reste une vraie suite). Reste (lecture
+franche) : « Traduis en anglais » sous un résumé ou un compte rendu, malgré la règle de l'invite ; une puce
+redondante avec la réponse (« Calcule les jours ouvrés de 2027 » quand la réponse donne 254) ; sous un mail, une
+suite du modèle et la puce fixe « Shorter » peuvent dire la même chose. Ces cas sont à porter dans les exemples
+d'entraînement de la tâche `nextsteps`.

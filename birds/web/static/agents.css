@@ -234,7 +234,7 @@
   min-block-size: 36px;
   padding: 6px 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-s);
+  border-radius: var(--radius); /* as the steps fold just above other answers */
   background: var(--surface);
   font-size: 0.84rem;
   color: var(--ink-2);
@@ -262,7 +262,13 @@
 .crew-fold[open] > summary {
   margin-block-end: 8px;
 }
+/* the long team line wraps beside its chevron (a phone showed the chevron alone on a line above it) */
+.crew-fold > summary::before {
+  flex: none;
+}
 .crew-sum-text {
+  flex: 1 1 12rem;
+  min-inline-size: 0;
   font-weight: 600;
   color: var(--ink);
 }

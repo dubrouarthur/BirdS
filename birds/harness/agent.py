@@ -11,7 +11,6 @@ import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from typing import Any
-from urllib.parse import urlsplit
 
 import httpx
 
@@ -601,19 +600,13 @@ def _made_file(run, ctx: Context) -> bool:
     )  # a chart is shown in the chat, it is not a file
 
 
-_URL_IN_TEXT = re.compile(r"https?://[^\s<>\"')\]]+", re.I)
-
-
 def _check_untrusted_url(url: object, ctx: Context) -> None:
     """After a page or a file held an injection, read_page may only open a URL the user gave, a search result or a
-    page already read: a GET to an address the untrusted text chose is how data would leave (``?d=<secret>``)."""
-    url = str(url or "").strip()
-    if len(urlsplit(url).query) > 64:
-        raise guard.Blocked("page suggested by untrusted content (long query string)")
-    own = {u.rstrip(".,;:") for u in _URL_IN_TEXT.findall(ctx.request or "")}
-    known = set(ctx.sources) | set(ctx.found) | own
-    if url not in known and url.rstrip("/") not in {k.rstrip("/") for k in known}:
-        raise guard.Blocked("page suggested by untrusted content")
+    page already read. read_page itself applies the same rule as soon as the run holds any external content
+    (birds.harness.tools.web.tainted); this call also covers an injection flagged in another tool's result."""
+    from birds.harness.tools.web import check_untrusted_url
+
+    check_untrusted_url(url, ctx)
 
 
 PAUSE = guard.PAUSE  # a confirm callback returns this to end the run with a pending action (see Agent.run)
@@ -1124,6 +1117,9 @@ class Agent:
             # ---- end of the model router hook ------------------------------------------------------------------
             routed |= set(EXTRA_TOOL_NAMES) - {"make_chart"} - {i.tool for i in found}
             prefill = next((i for i in found if i.args), None)
+            if not opendata_intents.usable(prefill, cfg):  # markets: shares need the licensed feed's key
+                routed.add(prefill.tool)
+                prefill = None
             # « météo aujourd'hui », « taux du jour »: words that usually call for the web, but the tool has the answer
             own_answer = prefill and prefill.tool in ("convert_currency", "get_weather")
             # --- open data: the card answers by itself; a statistics chart is drawn once (no second make_chart)
@@ -1233,6 +1229,8 @@ class Agent:
                 )
                 seen.add(repair.canonical(call["name"], call["arguments"]))
                 queue, gen, auto_calls = [call], 1, 1
+        # every word the user wrote in this conversation: draft_email keeps an address only if it is in there
+        ctx.said = "\n".join(str(m.get("content")) for m in messages if m.get("role") == "user" and m.get("content"))
         lvl = reflex.LEVELS.get(choice.level) if choice is not None else None
         rinfo: dict = dict((resume or {}).get("rx") or {}) if resume is not None else {}
         if lvl is not None:

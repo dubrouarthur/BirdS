@@ -1,0 +1,1717 @@
+[
+ {
+  "id": "mail_move",
+  "family": "mail",
+  "lang": "fr",
+  "prompt": "Rédige un mail à mon équipe pour annoncer le déménagement du bureau le 15 janvier",
+  "answer": {
+   "content": "Le mail est prêt à votre review. À vous de le valider ou de le modifier avant envoi.",
+   "draft_email": {
+    "to": "équipe@entreprise.com",
+    "subject": "Déménagement du bureau le 15 janvier",
+    "body": "Bonjour à toutes et à tous,\n\nNous vous informons que le déménagement de notre bureau aura lieu le samedi 15 janvier. Merci de préparer vos affaires et de ne pas laisser d'objets personnels dans votre espace de travail.\n\nCordialement,"
+   },
+   "widgets": [],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Valide le mail",
+    "prompt": "Valide le mail de déménagement du 15 janvier et confirme l'envoi."
+   },
+   {
+    "label": "Modifie le ton",
+    "prompt": "Modifie le ton du mail pour le rendre plus chaleureux."
+   },
+   {
+    "label": "Ajoute des détails",
+    "prompt": "Ajoute des détails pratiques sur le déménagement au mail."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Valide le mail",
+     "prompt": "Valide le mail de déménagement du 15 janvier et confirme l'envoi."
+    },
+    {
+     "label": "Modifie le ton",
+     "prompt": "Modifie le ton du mail pour le rendre plus chaleureux."
+    },
+    {
+     "label": "Ajoute des détails",
+     "prompt": "Ajoute des détails pratiques sur le déménagement au mail."
+    }
+   ]
+  },
+  "next_seconds": 2.39,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 4,
+  "wall": 5.86,
+  "manual": {
+   "avant|mail_move|Plus court": {
+    "grammaire": true
+   },
+   "avant|mail_move|Plus formel": {
+    "grammaire": true
+   },
+   "avant|mail_move|En anglais": {
+    "grammaire": true
+   },
+   "après (brut)|mail_move|Valide le mail": {
+    "grammaire": true,
+    "faisable": false
+   },
+   "après (brut)|mail_move|Modifie le ton": {
+    "grammaire": true
+   },
+   "après (brut)|mail_move|Ajoute des détails": {
+    "grammaire": true
+   },
+   "après|mail_move|Modifie le ton": {
+    "grammaire": true
+   },
+   "après|mail_move|Ajoute des détails": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "mail_quote",
+  "family": "mail",
+  "lang": "fr",
+  "prompt": "Écris un mail de relance pour un devis envoyé il y a deux semaines à la société Martin",
+  "answer": {
+   "content": "Le mail est prêt : à马丁@exemple.com, objet « Relance : devis envoyé le 14 novembre ». Je peux l'adapter si vous le souhaitez.",
+   "draft_email": {
+    "to": "martin@exemple.com",
+    "subject": "Relance : devis envoyé le 14 novembre",
+    "body": "Bonjour,\n\nJe me permets de revenir vers vous concernant le devis que nous vous avons transmis le 14 novembre. Pourriez-vous nous indiquer si vous souhaitez en faire la demande de facturation ou si vous avez des questions à nous poser ?\n\nCordialement,"
+   },
+   "widgets": [],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Rends le ton plus ferme",
+    "prompt": "Rends ce mail de relance à Martin plus ferme, en rappelant la date limite de paiement."
+   },
+   {
+    "label": "Ajoute une proposition de paiement",
+    "prompt": "Ajoute au mail une proposition de paiement par virement ou chèque."
+   },
+   {
+    "label": "Traduis-le en anglais",
+    "prompt": "Traduis ce mail de relance en anglais."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Rends le ton plus ferme",
+     "prompt": "Rends ce mail de relance à Martin plus ferme, en rappelant la date limite de paiement."
+    },
+    {
+     "label": "Ajoute une proposition de paiement",
+     "prompt": "Ajoute au mail une proposition de paiement par virement ou chèque."
+    },
+    {
+     "label": "Traduis-le en anglais",
+     "prompt": "Traduis ce mail de relance en anglais."
+    }
+   ]
+  },
+  "next_seconds": 1.985,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 3,
+  "wall": 5.58,
+  "manual": {
+   "avant|mail_quote|Plus court": {
+    "grammaire": true
+   },
+   "avant|mail_quote|Plus formel": {
+    "grammaire": true
+   },
+   "avant|mail_quote|En anglais": {
+    "grammaire": true
+   },
+   "après (brut)|mail_quote|Rends le ton plus ferme": {
+    "grammaire": true
+   },
+   "après (brut)|mail_quote|Ajoute une proposition de paiement": {
+    "grammaire": true
+   },
+   "après (brut)|mail_quote|Traduis-le en anglais": {
+    "grammaire": true
+   },
+   "après|mail_quote|Rends le ton plus ferme": {
+    "grammaire": true
+   },
+   "après|mail_quote|Ajoute une proposition de paiement": {
+    "grammaire": true
+   },
+   "après|mail_quote|Traduis-le en anglais": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "mail_en",
+  "family": "mail",
+  "lang": "en",
+  "prompt": "Draft an email to a client to postpone our Thursday meeting to next week",
+  "answer": {
+   "content": "I don't have the client's email address or the meeting details, so I can't draft the message yet. Please share those, and I'll write it for you.",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Provide the client's email address",
+    "prompt": "Provide the client's email address and the original meeting time."
+   },
+   {
+    "label": "Provide the proposed new date",
+    "prompt": "Provide the proposed new date for the meeting."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Provide the client's email address",
+     "prompt": "Provide the client's email address and the original meeting time."
+    },
+    {
+     "label": "Provide the proposed new date",
+     "prompt": "Provide the proposed new date for the meeting."
+    }
+   ]
+  },
+  "next_seconds": 1.241,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 2,
+  "wall": 2.27,
+  "manual": {
+   "après (brut)|mail_en|Provide the client's email address": {
+    "grammaire": true,
+    "faisable": false
+   },
+   "après (brut)|mail_en|Provide the proposed new date": {
+    "grammaire": true,
+    "faisable": false
+   }
+  }
+ },
+ {
+  "id": "mail_reply",
+  "family": "mail",
+  "lang": "fr",
+  "prompt": "Réponds à ce mail : « Bonjour, pouvez-vous nous envoyer votre catalogue 2027 ? Merci, Julie »",
+  "answer": {
+   "content": "Je n'ai pas accès à votre catalogue 2027 ni à votre messagerie ; je ne peux donc pas envoyer de mail. Si vous me collez le contenu du catalogue ici, je peux le reformater pour qu'il soit prêt à être envoyé.",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Rédige un brouillon de réponse",
+    "prompt": "Rédige un brouillon de réponse à Julie en lui disant que tu n'as pas accès au catalogue 2027 et que tu peux le reformater si elle le colle ici."
+   },
+   {
+    "label": "Propose un plan de réponse",
+    "prompt": "Propose un plan de réponse courte et professionnelle à Julie."
+   },
+   {
+    "label": "Traduis la réponse en anglais",
+    "prompt": "Traduis la réponse en anglais pour Julie."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Rédige un brouillon de réponse",
+     "prompt": "Rédige un brouillon de réponse à Julie en lui disant que tu n'as pas accès au catalogue 2027 et que tu peux le reformater si elle le colle ici."
+    },
+    {
+     "label": "Propose un plan de réponse",
+     "prompt": "Propose un plan de réponse courte et professionnelle à Julie."
+    },
+    {
+     "label": "Traduis la réponse en anglais",
+     "prompt": "Traduis la réponse en anglais pour Julie."
+    }
+   ]
+  },
+  "next_seconds": 2.468,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 3,
+  "wall": 5.34,
+  "manual": {
+   "après (brut)|mail_reply|Rédige un brouillon de réponse": {
+    "grammaire": true
+   },
+   "après (brut)|mail_reply|Propose un plan de réponse": {
+    "grammaire": true
+   },
+   "après (brut)|mail_reply|Traduis la réponse en anglais": {
+    "grammaire": true
+   },
+   "après|mail_reply|Rédige un brouillon de réponse": {
+    "grammaire": true
+   },
+   "après|mail_reply|Propose un plan de réponse": {
+    "grammaire": true
+   },
+   "après|mail_reply|Traduis la réponse en anglais": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "deck_remote",
+  "family": "deck",
+  "lang": "fr",
+  "prompt": "Fais une présentation de 4 diapositives sur le télétravail dans les PME",
+  "answer": {
+   "content": "La présentation « Le télétravail dans les PME » est dans le canevas : 5 diapositives. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », « plus court »).",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [],
+   "canvas": {
+    "aid": "ab70c15318726",
+    "version": 1
+   },
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Raccourcis la présentation",
+    "prompt": "Raccourcis cette présentation de 4 diapositives sur le télétravail dans les PME."
+   },
+   {
+    "label": "Ajoute une diapositive sur les outils",
+    "prompt": "Ajoute une diapositive sur les outils numériques utilisés pour le télétravail."
+   },
+   {
+    "label": "Change le titre",
+    "prompt": "Change le titre de la première diapositive en « Le télétravail : avantages et défis pour les PME »."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Raccourcis la présentation",
+     "prompt": "Raccourcis cette présentation de 4 diapositives sur le télétravail dans les PME."
+    },
+    {
+     "label": "Ajoute une diapositive sur les outils",
+     "prompt": "Ajoute une diapositive sur les outils numériques utilisés pour le télétravail."
+    },
+    {
+     "label": "Change le titre",
+     "prompt": "Change le titre de la première diapositive en « Le télétravail : avantages et défis pour les PME »."
+    }
+   ]
+  },
+  "next_seconds": 2.373,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 2,
+  "wall": 16.72,
+  "manual": {
+   "après (brut)|deck_remote|Raccourcis la présentation": {
+    "grammaire": true
+   },
+   "après (brut)|deck_remote|Ajoute une diapositive sur les outils": {
+    "grammaire": true
+   },
+   "après (brut)|deck_remote|Change le titre": {
+    "grammaire": true
+   },
+   "après|deck_remote|Raccourcis la présentation": {
+    "grammaire": true
+   },
+   "après|deck_remote|Ajoute une diapositive sur les outils": {
+    "grammaire": true
+   },
+   "après|deck_remote|Change le titre": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "deck_training",
+  "family": "deck",
+  "lang": "fr",
+  "prompt": "Prépare une diapo sur notre offre de formation continue",
+  "answer": {
+   "content": "La présentation « Formation continue : l'offre » est dans le canevas : 6 diapositives. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », « plus court »).",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [],
+   "canvas": {
+    "aid": "abbb6059dd0e3",
+    "version": 1
+   },
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Ajoute une diapositive sur les modalités d",
+    "prompt": "Ajoute une diapositive sur les modalités d'inscription et de paiement."
+   },
+   {
+    "label": "Raccourcis la diapo de 2 slides",
+    "prompt": "Raccourcis la présentation de deux diapositives en conservant l'essentiel."
+   },
+   {
+    "label": "Change le titre en « Formation continue",
+    "prompt": "Change le titre de la présentation en « Formation continue »."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Ajoute une diapositive sur les modalités d",
+     "prompt": "Ajoute une diapositive sur les modalités d'inscription et de paiement."
+    },
+    {
+     "label": "Raccourcis la diapo de 2 slides",
+     "prompt": "Raccourcis la présentation de deux diapositives en conservant l'essentiel."
+    },
+    {
+     "label": "Change le titre en « Formation continue »",
+     "prompt": "Change le titre de la présentation en « Formation continue »."
+    }
+   ]
+  },
+  "next_seconds": 2.245,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 2,
+  "wall": 9.38,
+  "manual": {
+   "après (brut)|deck_training|Ajoute une diapositive sur les modalités d": {
+    "grammaire": false
+   },
+   "après (brut)|deck_training|Raccourcis la diapo de 2 slides": {
+    "grammaire": false
+   },
+   "après (brut)|deck_training|Change le titre en « Formation continue »": {
+    "grammaire": true
+   },
+   "après|deck_training|Ajoute une diapositive sur les modalités": {
+    "grammaire": true
+   },
+   "après|deck_training|Raccourcis la diapo de 2 slides": {
+    "grammaire": false
+   },
+   "après|deck_training|Change le titre": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "deck_en",
+  "family": "deck",
+  "lang": "en",
+  "prompt": "Make a 3-slide deck introducing our new expense policy",
+  "answer": {
+   "content": "One detail is missing: what should the title of the deck be?",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Propose three title options",
+    "prompt": "Propose three concise title options for the expense policy deck."
+   },
+   {
+    "label": "Draft the first slide",
+    "prompt": "Draft the first slide of the deck, including the title and a brief introduction to the new expense policy."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Propose three title options",
+     "prompt": "Propose three concise title options for the expense policy deck."
+    },
+    {
+     "label": "Draft the first slide",
+     "prompt": "Draft the first slide of the deck, including the title and a brief introduction to the new expense policy."
+    }
+   ]
+  },
+  "next_seconds": 1.459,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 2,
+  "wall": 2.04,
+  "manual": {
+   "après (brut)|deck_en|Propose three title options": {
+    "grammaire": true
+   },
+   "après (brut)|deck_en|Draft the first slide": {
+    "grammaire": true
+   },
+   "après|deck_en|Propose three title options": {
+    "grammaire": true
+   },
+   "après|deck_en|Draft the first slide": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "doc_4days",
+  "family": "doc",
+  "lang": "fr",
+  "prompt": "Rédige une note de synthèse sur la semaine de quatre jours",
+  "answer": {
+   "content": "Le document « Synthèse de la semaine de quatre jours » est dans le canevas : 5 sections. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une section sur… », « plus court »).",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [],
+   "canvas": {
+    "aid": "a0874cbadd2ec",
+    "version": 1
+   },
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Ajoute une section sur les absences",
+    "prompt": "Ajoute une section sur les absences dans la note de synthèse."
+   },
+   {
+    "label": "Raccourcis le texte",
+    "prompt": "Raccourcis la note de synthèse pour la rendre plus concise."
+   },
+   {
+    "label": "Traduis-la en anglais",
+    "prompt": "Traduis la note de synthèse en anglais."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Ajoute une section sur les absences",
+     "prompt": "Ajoute une section sur les absences dans la note de synthèse."
+    },
+    {
+     "label": "Raccourcis le texte",
+     "prompt": "Raccourcis la note de synthèse pour la rendre plus concise."
+    },
+    {
+     "label": "Traduis-la en anglais",
+     "prompt": "Traduis la note de synthèse en anglais."
+    }
+   ]
+  },
+  "next_seconds": 1.855,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 2,
+  "wall": 6.59,
+  "manual": {
+   "après (brut)|doc_4days|Ajoute une section sur les absences": {
+    "grammaire": true
+   },
+   "après (brut)|doc_4days|Raccourcis le texte": {
+    "grammaire": true
+   },
+   "après (brut)|doc_4days|Traduis-la en anglais": {
+    "grammaire": true
+   },
+   "après|doc_4days|Ajoute une section sur les absences": {
+    "grammaire": true
+   },
+   "après|doc_4days|Raccourcis le texte": {
+    "grammaire": true
+   },
+   "après|doc_4days|Traduis-la en anglais": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "doc_job",
+  "family": "doc",
+  "lang": "fr",
+  "prompt": "Écris une fiche de poste pour un chargé de communication",
+  "answer": {
+   "content": "Le document « Chargé de communication » est dans le canevas : 3 sections. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une section sur… », « plus court »).",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [],
+   "canvas": {
+    "aid": "ac7c00b7ae5f1",
+    "version": 1
+   },
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Ajoute une section sur les KPI",
+    "prompt": "Ajoute une section sur les indicateurs de performance (KPI) à la fiche de poste."
+   },
+   {
+    "label": "Raccourcis le texte",
+    "prompt": "Raccourcis la fiche de poste en gardant les points essentiels."
+   },
+   {
+    "label": "Traduis-la en anglais",
+    "prompt": "Traduis la fiche de poste en anglais."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Ajoute une section sur les KPI",
+     "prompt": "Ajoute une section sur les indicateurs de performance (KPI) à la fiche de poste."
+    },
+    {
+     "label": "Raccourcis le texte",
+     "prompt": "Raccourcis la fiche de poste en gardant les points essentiels."
+    },
+    {
+     "label": "Traduis-la en anglais",
+     "prompt": "Traduis la fiche de poste en anglais."
+    }
+   ]
+  },
+  "next_seconds": 2.004,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 3,
+  "wall": 7.7,
+  "manual": {
+   "après (brut)|doc_job|Ajoute une section sur les KPI": {
+    "grammaire": true
+   },
+   "après (brut)|doc_job|Raccourcis le texte": {
+    "grammaire": true
+   },
+   "après (brut)|doc_job|Traduis-la en anglais": {
+    "grammaire": true
+   },
+   "après|doc_job|Ajoute une section sur les KPI": {
+    "grammaire": true
+   },
+   "après|doc_job|Raccourcis le texte": {
+    "grammaire": true
+   },
+   "après|doc_job|Traduis-la en anglais": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "doc_minutes",
+  "family": "doc",
+  "lang": "fr",
+  "prompt": "Fais un compte rendu de réunion : budget validé, recrutement reporté, prochain point le 12",
+  "answer": {
+   "content": "Le document « Compte rendu réunion » est dans le canevas : 3 sections. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une section sur… », « plus court »).",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [],
+   "canvas": {
+    "aid": "a93780c39fe5a",
+    "version": 1
+   },
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Ajoute une section sur le recrutement",
+    "prompt": "Ajoute une section au compte rendu sur le recrutement reporté."
+   },
+   {
+    "label": "Rends le compte rendu plus court",
+    "prompt": "Rends ce compte rendu de réunion plus court, en gardant les décisions."
+   },
+   {
+    "label": "Traduis le compte rendu en anglais",
+    "prompt": "Traduis ce compte rendu de réunion en anglais."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Ajoute une section sur le recrutement",
+     "prompt": "Ajoute une section au compte rendu sur le recrutement reporté."
+    },
+    {
+     "label": "Rends le compte rendu plus court",
+     "prompt": "Rends ce compte rendu de réunion plus court, en gardant les décisions."
+    },
+    {
+     "label": "Traduis le compte rendu en anglais",
+     "prompt": "Traduis ce compte rendu de réunion en anglais."
+    }
+   ]
+  },
+  "next_seconds": 1.966,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 2,
+  "wall": 4.33,
+  "manual": {
+   "après (brut)|doc_minutes|Ajoute une section sur le recrutement": {
+    "grammaire": true
+   },
+   "après (brut)|doc_minutes|Rends le compte rendu plus court": {
+    "grammaire": true
+   },
+   "après (brut)|doc_minutes|Traduis le compte rendu en anglais": {
+    "grammaire": true
+   },
+   "après|doc_minutes|Ajoute une section sur le recrutement": {
+    "grammaire": true
+   },
+   "après|doc_minutes|Rends le compte rendu plus court": {
+    "grammaire": true
+   },
+   "après|doc_minutes|Traduis le compte rendu en anglais": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "res_aiact",
+  "family": "research",
+  "lang": "fr",
+  "prompt": "Quelles sont les obligations de l'AI Act pour une PME ?",
+  "answer": {
+   "content": "Je ne trouve pas d'information fiable sur le web à ce sujet. Je peux cependant résumer ce que je sais de mémoire : l'AI Act distingue les systèmes par niveau de risque ; une PME utilisatrice n'est pas directement soumise aux obligations des fournisseurs, mais doit documenter les usages à haut risque, évaluer les impacts et mettre en place des mesures de sécurité. Je vous recommande de consulter le site officiel de l'UE ou un conseiller juridique pour être certain.",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Fais un résumé plus court",
+    "prompt": "Fais un résumé plus court des obligations de l'AI Act pour une PME."
+   },
+   {
+    "label": "Traduis en anglais",
+    "prompt": "Traduis cette réponse en anglais."
+   },
+   {
+    "label": "Ajoute des exemples concrets",
+    "prompt": "Ajoute des exemples concrets d'usages à haut risque pour une PME."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Fais un résumé plus court",
+     "prompt": "Fais un résumé plus court des obligations de l'AI Act pour une PME."
+    },
+    {
+     "label": "Traduis en anglais",
+     "prompt": "Traduis cette réponse en anglais."
+    },
+    {
+     "label": "Ajoute des exemples concrets",
+     "prompt": "Ajoute des exemples concrets d'usages à haut risque pour une PME."
+    }
+   ]
+  },
+  "next_seconds": 1.886,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 4,
+  "wall": 6.59,
+  "manual": {
+   "après (brut)|res_aiact|Fais un résumé plus court": {
+    "grammaire": true
+   },
+   "après (brut)|res_aiact|Traduis en anglais": {
+    "grammaire": true
+   },
+   "après (brut)|res_aiact|Ajoute des exemples concrets": {
+    "grammaire": true
+   },
+   "après|res_aiact|Fais un résumé plus court": {
+    "grammaire": true
+   },
+   "après|res_aiact|Traduis en anglais": {
+    "grammaire": true
+   },
+   "après|res_aiact|Ajoute des exemples concrets": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "res_heatpump",
+  "family": "research",
+  "lang": "fr",
+  "prompt": "Fais le point sur le marché des pompes à chaleur en France",
+  "answer": {
+   "content": "Je ne trouve rien dans les indices actuels. Je peux chercher autrement ou lire un document si vous en avez un ; sinon, je vous dirai ce que je sais de ce marché.",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Fournis un document sur le marché",
+    "prompt": "Fournis un document ou un lien sur le marché des pompes à chaleur en France."
+   },
+   {
+    "label": "Donne ce que tu sais du marché",
+    "prompt": "Donne-moi ce que tu sais du marché des pompes à chaleur en France."
+   },
+   {
+    "label": "Cherche des données récentes",
+    "prompt": "Cherche des données récentes sur le marché des pompes à chaleur en France."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Fournis un document sur le marché",
+     "prompt": "Fournis un document ou un lien sur le marché des pompes à chaleur en France."
+    },
+    {
+     "label": "Donne ce que tu sais du marché",
+     "prompt": "Donne-moi ce que tu sais du marché des pompes à chaleur en France."
+    },
+    {
+     "label": "Cherche des données récentes",
+     "prompt": "Cherche des données récentes sur le marché des pompes à chaleur en France."
+    }
+   ]
+  },
+  "next_seconds": 2.259,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 4,
+  "wall": 5.76,
+  "manual": {
+   "après (brut)|res_heatpump|Fournis un document sur le marché": {
+    "grammaire": true,
+    "faisable": false
+   },
+   "après (brut)|res_heatpump|Donne ce que tu sais du marché": {
+    "grammaire": true
+   },
+   "après (brut)|res_heatpump|Cherche des données récentes": {
+    "grammaire": true
+   },
+   "après|res_heatpump|Donne ce que tu sais du marché": {
+    "grammaire": true
+   },
+   "après|res_heatpump|Cherche des données récentes": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "res_en",
+  "family": "research",
+  "lang": "en",
+  "prompt": "What are the main benefits of a four-day week?",
+  "answer": {
+   "content": "A four-day week typically boosts employee well-being and productivity, reduces absenteeism, and lowers operational costs. It also helps companies attract talent and improve work-life balance. I don't have the exact figures or a specific study to back this up, so I'm speaking from general knowledge.",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Find a study on the four-day week",
+    "prompt": "Search for a recent study or report on the benefits of a four-day work week."
+   },
+   {
+    "label": "Compare four-day vs five-day week",
+    "prompt": "Compare the main pros and cons of a four-day work week versus a traditional five-day week."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Find a study on the four-day week",
+     "prompt": "Search for a recent study or report on the benefits of a four-day work week."
+    },
+    {
+     "label": "Compare four-day vs five-day week",
+     "prompt": "Compare the main pros and cons of a four-day work week versus a traditional five-day week."
+    }
+   ]
+  },
+  "next_seconds": 1.642,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 6,
+  "wall": 7.66,
+  "manual": {
+   "après (brut)|res_en|Find a study on the four-day week": {
+    "grammaire": true
+   },
+   "après (brut)|res_en|Compare four-day vs five-day week": {
+    "grammaire": true
+   },
+   "après|res_en|Find a study on the four-day week": {
+    "grammaire": true
+   },
+   "après|res_en|Compare four-day vs five-day week": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "wx_lyon",
+  "family": "weather",
+  "lang": "fr",
+  "prompt": "Quel temps fera-t-il à Lyon demain ?",
+  "answer": {
+   "content": "Demain à Lyon, il fera nuageux avec 0 à 9 °C, une pluie de 1,4 mm et un vent de 12 km/h.\n\nUne carte détaillée est disponible si vous le souhaitez.",
+   "draft_email": null,
+   "widgets": [
+    {
+     "type": "weather",
+     "day": "2026-11-29"
+    }
+   ],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Fais une carte de la météo",
+    "prompt": "Fais une carte montrant la météo à Lyon demain."
+   },
+   {
+    "label": "Donne la météo de Paris",
+    "prompt": "Donne la météo prévue à Paris pour demain."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Fais une carte de la météo",
+     "prompt": "Fais une carte montrant la météo à Lyon demain."
+    },
+    {
+     "label": "Donne la météo de Paris",
+     "prompt": "Donne la météo prévue à Paris pour demain."
+    }
+   ]
+  },
+  "next_seconds": 1.319,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 2,
+  "wall": 4.26,
+  "manual": {
+   "avant|wx_lyon|Et demain ?": {
+    "grammaire": true
+   },
+   "avant|wx_lyon|Restaurants autour": {
+    "grammaire": true
+   },
+   "après (brut)|wx_lyon|Fais une carte de la météo": {
+    "grammaire": true,
+    "faisable": false
+   },
+   "après (brut)|wx_lyon|Donne la météo de Paris": {
+    "grammaire": true
+   },
+   "après|wx_lyon|Fais une carte de la météo": {
+    "grammaire": true,
+    "faisable": false
+   },
+   "après|wx_lyon|Donne la météo de Paris": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "wx_bdx",
+  "family": "weather",
+  "lang": "fr",
+  "prompt": "météo à Bordeaux ce week-end",
+  "answer": {
+   "content": "Ce samedi à Bordeaux, ciel dégagé, 4,5 °C, vent de 10 km/h et pas de pluie. Dimanche, pluie forte de 7 mm ; lundi, nuageux à 9 °C.",
+   "draft_email": null,
+   "widgets": [
+    {
+     "type": "weather",
+     "day": "2026-11-28"
+    }
+   ],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Fais la prévision pour lundi matin",
+    "prompt": "Fais la prévision pour lundi matin à Bordeaux, avec température et chance de pluie."
+   },
+   {
+    "label": "Compare avec la semaine dernière",
+    "prompt": "Compare la météo de ce week-end à Bordeaux avec celle de la semaine dernière."
+   },
+   {
+    "label": "Traduis en anglais",
+    "prompt": "Traduis cette prévision météo en anglais."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Fais la prévision pour lundi matin",
+     "prompt": "Fais la prévision pour lundi matin à Bordeaux, avec température et chance de pluie."
+    },
+    {
+     "label": "Compare avec la semaine dernière",
+     "prompt": "Compare la météo de ce week-end à Bordeaux avec celle de la semaine dernière."
+    },
+    {
+     "label": "Traduis en anglais",
+     "prompt": "Traduis cette prévision météo en anglais."
+    }
+   ]
+  },
+  "next_seconds": 1.923,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 2,
+  "wall": 4.15,
+  "manual": {
+   "avant|wx_bdx|Et demain ?": {
+    "grammaire": true
+   },
+   "avant|wx_bdx|Restaurants autour": {
+    "grammaire": true
+   },
+   "après (brut)|wx_bdx|Fais la prévision pour lundi matin": {
+    "grammaire": true
+   },
+   "après (brut)|wx_bdx|Compare avec la semaine dernière": {
+    "grammaire": true,
+    "faisable": false
+   },
+   "après (brut)|wx_bdx|Traduis en anglais": {
+    "grammaire": true
+   },
+   "après|wx_bdx|Fais la prévision pour lundi matin": {
+    "grammaire": true
+   },
+   "après|wx_bdx|Compare avec la semaine dernière": {
+    "grammaire": true,
+    "faisable": false
+   },
+   "après|wx_bdx|Traduis en anglais": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "map_resto",
+  "family": "map",
+  "lang": "fr",
+  "prompt": "Trouve des restaurants près de la gare Montparnasse",
+  "answer": {
+   "content": "Voici quelques restaurants près de la gare Montparnasse :\n\n1. **Yoru** — japonais — Avenue du Maine, 75015 Paris — 164 m — ouvert le samedi de 19h à 24h.\n2. **Café Jeannette** — 6 Place Bienvenüe, 75014 Paris — 256 m.\n3. **PNY Burger** — burger — Rue de la Gaîté, 75014 Paris — 364 m — ouvert le samedi de 12h à 23h30.\n4. **Le 46** — Rue Dalou, 75015 Paris — 387 m — ouvert le samedi de 12h à 15h et de 19h à 21h.\n5. **Chez Farhat** — lebanese — 8 Rue Raymond Losserand, 75014 Paris — 473 m.\n6. **Mosuke** — japonais/africain — Rue Raymond Losserand, 75014 Paris — 490 m — ouvert le samedi de 12h à 14h et de 19h à 21h45.\n7. **Mille Grazie** — italien/pizza — 36 Boulevard Pasteur, 75015 Paris — 513 m — ouvert le samedi de 10h à 23h.\n8. **La Cantine du Troquet** — Rue Daguerre, 75014 Paris — 594 m.\n\nPour l'accès, utilisez le lien « Itinéraire » sur la carte.",
+   "draft_email": null,
+   "widgets": [
+    {
+     "type": "places",
+     "places": [
+      {
+       "n": 1,
+       "name": "Yoru",
+       "kind": "restaurant",
+       "detail": "japanese",
+       "address": "Avenue du Maine, 75015 Paris",
+       "lat": 48.840295,
+       "lon": 2.32132,
+       "distance_m": 164,
+       "hours": "12:00-15:00,19:00-23:00, Fr,Sa 19:00-24:00",
+       "website": "https://www.yorumontparnasse.com/",
+       "phone": "",
+       "wiki": "",
+       "source": {
+        "label": "OpenStreetMap",
+        "url": "https://www.openstreetmap.org/relation/21742209"
+       },
+       "osm": "https://www.openstreetmap.org/?mlat=48.840295&mlon=2.321320#map=18/48.840295/2.321320",
+       "directions": "https://www.openstreetmap.org/directions?route=%3B48.840295%2C2.321320"
+      },
+      {
+       "n": 2,
+       "name": "Café Jeannette",
+       "kind": "restaurant",
+       "detail": "",
+       "address": "6 Place Bienvenüe, 75014 Paris",
+       "lat": 48.842238,
+       "lon": 2.320256,
+       "distance_m": 256,
+       "hours": "",
+       "website": "",
+       "phone": "",
+       "wiki": "",
+       "source": {
+        "label": "OpenStreetMap",
+        "url": "https://www.openstreetmap.org/node/727733990"
+       },
+       "osm": "https://www.openstreetmap.org/?mlat=48.842238&mlon=2.320256#map=18/48.842238/2.320256",
+       "directions": "https://www.openstreetmap.org/directions?route=%3B48.842238%2C2.320256"
+      },
+      {
+       "n": 3,
+       "name": "PNY Burger",
+       "kind": "restaurant",
+       "detail": "burger",
+       "address": "Rue de la Gaîté, 75014 Paris",
+       "lat": 48.840145,
+       "lon": 2.324076,
+       "distance_m": 364,
+       "hours": "Mo-Th 12:00-23:00, Fr-Su 12:00-23:30; Mo-Fr 15:00-18:00 closed",
+       "website": "https://www.pnyburger.com/",
+       "phone": "+33 1 43 20 93 58",
+       "wiki": "",
+       "source": {
+        "label": "OpenStreetMap",
+        "url": "https://www.openstreetmap.org/node/9845425594"
+       },
+       "osm": "https://www.openstreetmap.org/?mlat=48.840145&mlon=2.324076#map=18/48.840145/2.324076",
+       "directions": "https://www.openstreetmap.org/directions?route=%3B48.840145%2C2.324076"
+      },
+      {
+       "n": 4,
+       "name": "Le 46",
+       "kind": "restaurant",
+       "detail": "",
+       "address": "Rue Dalou, 75015 Paris",
+       "lat": 48.842041,
+       "lon": 2.31476,
+       "distance_m": 387,
+       "hours": "Mo-Fr 12:00-15:00, Th-Sa 19:00-21:00",
+       "website": "",
+       "phone": "",
+       "wiki": "",
+       "source": {
+        "label": "OpenStreetMap",
+        "url": "https://www.openstreetmap.org/node/12039508294"
+       },
+       "osm": "https://www.openstreetmap.org/?mlat=48.842041&mlon=2.314760#map=18/48.842041/2.314760",
+       "directions": "https://www.openstreetmap.org/directions?route=%3B48.842041%2C2.314760"
+      },
+      {
+       "n": 5,
+       "name": "Chez Farhat",
+       "kind": "restaurant",
+       "detail": "lebanese",
+       "address": "8 Rue Raymond Losserand, 75014 Paris",
+       "lat": 48.836366,
+       "lon": 2.322302,
+       "distance_m": 473,
+       "hours": "",
+       "website": "",
+       "phone": "+33 1 43 22 91 63",
+       "wiki": "",
+       "source": {
+        "label": "OpenStreetMap",
+        "url": "https://www.openstreetmap.org/node/495637361"
+       },
+       "osm": "https://www.openstreetmap.org/?mlat=48.836366&mlon=2.322302#map=18/48.836366/2.322302",
+       "directions": "https://www.openstreetmap.org/directions?route=%3B48.836366%2C2.322302"
+      },
+      {
+       "n": 6,
+       "name": "Mosuke",
+       "kind": "restaurant",
+       "detail": "japanese;african",
+       "address": "Rue Raymond Losserand, 75014 Paris",
+       "lat": 48.836224,
+       "lon": 2.322397,
+       "distance_m": 490,
+       "hours": "12:00-14:00,19:00-21:45",
+       "website": "https://www.mosuke-restaurant.fr",
+       "phone": "+33 1 43 20 21 39",
+       "wiki": "",
+       "source": {
+        "label": "OpenStreetMap",
+        "url": "https://www.openstreetmap.org/node/495633106"
+       },
+       "osm": "https://www.openstreetmap.org/?mlat=48.836224&mlon=2.322397#map=18/48.836224/2.322397",
+       "directions": "https://www.openstreetmap.org/directions?route=%3B48.836224%2C2.322397"
+      },
+      {
+       "n": 7,
+       "name": "Mille Grazie",
+       "kind": "restaurant",
+       "detail": "italian;pizza",
+       "address": "36 Boulevard Pasteur, 75015 Paris",
+       "lat": 48.842031,
+       "lon": 2.312768,
+       "distance_m": 513,
+       "hours": "Tu-Su 10:00-23:00",
+       "website": "https://www.hotel-madrigal.com/millesime-2/",
+       "phone": "+33 1 43 48 92 70",
+       "wiki": "",
+       "source": {
+        "label": "OpenStreetMap",
+        "url": "https://www.openstreetmap.org/node/1113739044"
+       },
+       "osm": "https://www.openstreetmap.org/?mlat=48.842031&mlon=2.312768#map=18/48.842031/2.312768",
+       "directions": "https://www.openstreetmap.org/directions?route=%3B48.842031%2C2.312768"
+      },
+      {
+       "n": 8,
+       "name": "La Cantine du Troquet",
+       "kind": "restaurant",
+       "detail": "",
+       "address": "Rue Daguerre, 75014 Paris",
+       "lat": 48.835877,
+       "lon": 2.324163,
+       "distance_m": 594,
+       "hours": "",
+       "website": "https://www.lacantinedutroquet.com/",
+       "phone": "",
+       "wiki": "",
+       "source": {
+        "label": "OpenStreetMap",
+        "url": "https://www.openstreetmap.org/node/1049450321"
+       },
+       "osm": "https://www.openstreetmap.org/?mlat=48.835877&mlon=2.324163#map=18/48.835877/2.324163",
+       "directions": "https://www.openstreetmap.org/directions?route=%3B48.835877%2C2.324163"
+      }
+     ]
+    }
+   ],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Fais un itinéraire vers Yoru",
+    "prompt": "Fais un itinéraire de marche depuis la gare Montparnasse vers Yoru, Avenue du Maine."
+   },
+   {
+    "label": "Fais un itinéraire vers Café Jeannette",
+    "prompt": "Fais un itinéraire de marche depuis la gare Montparnasse vers Café Jeannette, 6 Place Bienvenüe."
+   },
+   {
+    "label": "Fais un itinéraire vers PNY Burger",
+    "prompt": "Fais un itinéraire de marche depuis la gare Montparnasse vers PNY Burger, Rue de la Gaîté."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Fais un itinéraire vers Yoru",
+     "prompt": "Fais un itinéraire de marche depuis la gare Montparnasse vers Yoru, Avenue du Maine."
+    },
+    {
+     "label": "Fais un itinéraire vers Café Jeannette",
+     "prompt": "Fais un itinéraire de marche depuis la gare Montparnasse vers Café Jeannette, 6 Place Bienvenüe."
+    },
+    {
+     "label": "Fais un itinéraire vers PNY Burger",
+     "prompt": "Fais un itinéraire de marche depuis la gare Montparnasse vers PNY Burger, Rue de la Gaîté."
+    }
+   ]
+  },
+  "next_seconds": 2.904,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 2,
+  "wall": 12.42,
+  "manual": {
+   "avant|map_resto|Itinéraire": {
+    "grammaire": true
+   },
+   "avant|map_resto|La météo là-bas": {
+    "grammaire": true
+   },
+   "après (brut)|map_resto|Fais un itinéraire vers Yoru": {
+    "grammaire": true
+   },
+   "après (brut)|map_resto|Fais un itinéraire vers Café Jeannette": {
+    "grammaire": true
+   },
+   "après (brut)|map_resto|Fais un itinéraire vers PNY Burger": {
+    "grammaire": true
+   },
+   "après|map_resto|Fais un itinéraire vers Yoru": {
+    "grammaire": true
+   },
+   "après|map_resto|Fais un itinéraire vers Café Jeannette": {
+    "grammaire": true
+   },
+   "après|map_resto|Fais un itinéraire vers PNY Burger": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "map_orsay",
+  "family": "map",
+  "lang": "fr",
+  "prompt": "Où est le musée d'Orsay ?",
+  "answer": {
+   "content": "Le musée d'Orsay est à 1 Rue de la Légion d'Honneur, 75007 Paris. Une station de métro porte son nom à 62 Rue de Lille. Le lien « Itinéraire » de la carte donne l'accès. Source : [1].",
+   "draft_email": null,
+   "widgets": [
+    {
+     "type": "places",
+     "places": [
+      {
+       "n": 1,
+       "name": "Musée d'Orsay",
+       "kind": "museum",
+       "detail": "",
+       "address": "1 Rue de la Légion d'Honneur, 75007 Paris",
+       "lat": 48.859918,
+       "lon": 2.326585,
+       "distance_m": null,
+       "hours": "Tu-Su 09:30-18:00; Th 09:30-21:45",
+       "website": "https://www.musee-orsay.fr/",
+       "phone": "+33 1 40 49 48 14",
+       "wiki": "https://fr.wikipedia.org/wiki/Mus%C3%A9e_d%27Orsay",
+       "source": {
+        "label": "OpenStreetMap",
+        "url": "https://www.openstreetmap.org/way/63178753"
+       },
+       "osm": "https://www.openstreetmap.org/?mlat=48.859918&mlon=2.326585#map=18/48.859918/2.326585",
+       "directions": "https://www.openstreetmap.org/directions?route=%3B48.859918%2C2.326585"
+      },
+      {
+       "n": 2,
+       "name": "Musée d'Orsay",
+       "kind": "station",
+       "detail": "",
+       "address": "62 Rue de Lille, 75343 Paris",
+       "lat": 48.860589,
+       "lon": 2.32591,
+       "distance_m": null,
+       "hours": "",
+       "website": "",
+       "phone": "",
+       "wiki": "https://fr.wikipedia.org/wiki/Gare_du_Mus%C3%A9e_d%27Orsay",
+       "source": {
+        "label": "OpenStreetMap",
+        "url": "https://www.openstreetmap.org/node/2379542204"
+       },
+       "osm": "https://www.openstreetmap.org/?mlat=48.860589&mlon=2.325910#map=18/48.860589/2.325910",
+       "directions": "https://www.openstreetmap.org/directions?route=%3B48.860589%2C2.325910"
+      }
+     ]
+    }
+   ],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Donne l'itinéraire de métro",
+    "prompt": "Donne l'itinéraire de métro depuis la gare Montparnasse pour arriver au musée d'Orsay."
+   },
+   {
+    "label": "Trouve un parking proche",
+    "prompt": "Trouve un parking payant proche du musée d'Orsay, avec son adresse et son tarif."
+   },
+   {
+    "label": "Compare les transports",
+    "prompt": "Compare le temps de trajet en métro, en bus et en voiture jusqu'au musée d'Orsay."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Donne l'itinéraire de métro",
+     "prompt": "Donne l'itinéraire de métro depuis la gare Montparnasse pour arriver au musée d'Orsay."
+    },
+    {
+     "label": "Trouve un parking proche",
+     "prompt": "Trouve un parking payant proche du musée d'Orsay, avec son adresse et son tarif."
+    },
+    {
+     "label": "Compare les transports",
+     "prompt": "Compare le temps de trajet en métro, en bus et en voiture jusqu'au musée d'Orsay."
+    }
+   ]
+  },
+  "next_seconds": 2.441,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 2,
+  "wall": 4.75,
+  "manual": {
+   "avant|map_orsay|Itinéraire": {
+    "grammaire": false
+   },
+   "avant|map_orsay|La météo là-bas": {
+    "grammaire": true
+   },
+   "après (brut)|map_orsay|Donne l'itinéraire de métro": {
+    "grammaire": true
+   },
+   "après (brut)|map_orsay|Trouve un parking proche": {
+    "grammaire": true
+   },
+   "après (brut)|map_orsay|Compare les transports": {
+    "grammaire": true
+   },
+   "après|map_orsay|Donne l'itinéraire de métro": {
+    "grammaire": true
+   },
+   "après|map_orsay|Trouve un parking proche": {
+    "grammaire": true
+   },
+   "après|map_orsay|Compare les transports": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "data_sales",
+  "family": "data",
+  "lang": "fr",
+  "prompt": "Voici nos ventes : janvier 120, février 135, mars 160, avril 150. Analyse la tendance.",
+  "answer": {
+   "content": "La tendance est à la hausse jusqu'en mars, puis une baisse en avril.",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [
+    {
+     "id": "c1",
+     "title": "Vos chiffres",
+     "type": "line",
+     "unit": "",
+     "columns": [
+      "Libellé",
+      "Valeur"
+     ],
+     "rows": [
+      [
+       "janvier",
+       120
+      ],
+      [
+       "février",
+       135
+      ],
+      [
+       "mars",
+       160
+      ],
+      [
+       "avril",
+       150
+      ]
+     ],
+     "notes": [
+      "numbers read from text"
+     ],
+     "reshaped": [],
+     "source": "request"
+    }
+   ],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Fais un graphique des ventes",
+    "prompt": "Fais un graphique en barres des ventes mensuelles de janvier à avril."
+   },
+   {
+    "label": "Calcule la croissance",
+    "prompt": "Calcule la croissance en pourcentage de mars par rapport à janvier."
+   },
+   {
+    "label": "Prévois mai",
+    "prompt": "Prévois une évolution pour mai en supposant une baisse de 5 %."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Fais un graphique des ventes",
+     "prompt": "Fais un graphique en barres des ventes mensuelles de janvier à avril."
+    },
+    {
+     "label": "Calcule la croissance",
+     "prompt": "Calcule la croissance en pourcentage de mars par rapport à janvier."
+    },
+    {
+     "label": "Prévois mai",
+     "prompt": "Prévois une évolution pour mai en supposant une baisse de 5 %."
+    }
+   ]
+  },
+  "next_seconds": 2.003,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 2,
+  "wall": 2.77,
+  "manual": {
+   "après (brut)|data_sales|Fais un graphique des ventes": {
+    "grammaire": true
+   },
+   "après (brut)|data_sales|Calcule la croissance": {
+    "grammaire": true
+   },
+   "après (brut)|data_sales|Prévois mai": {
+    "grammaire": false
+   },
+   "après|data_sales|Fais un graphique des ventes": {
+    "grammaire": true
+   },
+   "après|data_sales|Calcule la croissance": {
+    "grammaire": true
+   },
+   "après|data_sales|Prévois mai": {
+    "grammaire": false
+   }
+  }
+ },
+ {
+  "id": "data_loan",
+  "family": "data",
+  "lang": "fr",
+  "prompt": "Calcule la mensualité d'un prêt de 200 000 € sur 20 ans à 3,5 %",
+  "answer": {
+   "content": "Mensualité : 1 159,92 €. Coût total des intérêts : 78 380,66 €. Total remboursé : 278 380,66 €.",
+   "draft_email": null,
+   "widgets": [
+    {
+     "type": "calc",
+     "kind": "loan",
+     "inputs": [
+      {
+       "key": "principal",
+       "label": "Montant emprunté",
+       "value": "200000",
+       "unit": "€"
+      },
+      {
+       "key": "years",
+       "label": "Durée (années)",
+       "value": "20",
+       "unit": ""
+      },
+      {
+       "key": "rate",
+       "label": "Taux annuel (hors assurance)",
+       "value": "3.5",
+       "unit": "%"
+      }
+     ]
+    }
+   ],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Compare avec un prêt à 3 %",
+    "prompt": "Recalcule la mensualité si le taux est 3 % au lieu de 3,5 %."
+   },
+   {
+    "label": "Fais un tableau des remboursements",
+    "prompt": "Génère un tableau montrant le capital remboursé et les intérêts à chaque année."
+   },
+   {
+    "label": "Ajoute une assurance emprunteur",
+    "prompt": "Calcule la mensualité si une assurance emprunteur de 15 € est ajoutée."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Compare avec un prêt à 3 %",
+     "prompt": "Recalcule la mensualité si le taux est 3 % au lieu de 3,5 %."
+    },
+    {
+     "label": "Fais un tableau des remboursements",
+     "prompt": "Génère un tableau montrant le capital remboursé et les intérêts à chaque année."
+    },
+    {
+     "label": "Ajoute une assurance emprunteur",
+     "prompt": "Calcule la mensualité si une assurance emprunteur de 15 € est ajoutée."
+    }
+   ]
+  },
+  "next_seconds": 2.374,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 3,
+  "wall": 5.25,
+  "manual": {
+   "avant|data_loan|Sur 25 ans": {
+    "grammaire": true
+   },
+   "après (brut)|data_loan|Compare avec un prêt à 3 %": {
+    "grammaire": true
+   },
+   "après (brut)|data_loan|Fais un tableau des remboursements": {
+    "grammaire": true
+   },
+   "après (brut)|data_loan|Ajoute une assurance emprunteur": {
+    "grammaire": true
+   },
+   "après|data_loan|Compare avec un prêt à 3 %": {
+    "grammaire": true
+   },
+   "après|data_loan|Fais un tableau des remboursements": {
+    "grammaire": true
+   },
+   "après|data_loan|Ajoute une assurance emprunteur": {
+    "grammaire": true
+   }
+  }
+ },
+ {
+  "id": "ask_review",
+  "family": "ask",
+  "lang": "fr",
+  "prompt": "Aide-moi à préparer mon entretien annuel",
+  "answer": {
+   "content": "Je peux t'aider à structurer ton entretien : objectifs, réalisations et points d'amélioration. Veux-tu que je prépare un plan détaillé ou préfères-tu d'abord lister tes accomplissements ?",
+   "draft_email": null,
+   "widgets": [],
+   "charts": [],
+   "canvas": null,
+   "files": [],
+   "stop_reason": "answer"
+  },
+  "error": null,
+  "suggestions": [
+   {
+    "label": "Fais un plan détaillé",
+    "prompt": "Fais un plan détaillé pour mon entretien annuel, avec des sections sur mes objectifs, mes réalisations et mes points d'amélioration."
+   },
+   {
+    "label": "Liste mes accomplissements",
+    "prompt": "Liste mes accomplissements professionnels pour mon entretien annuel, en me demandant les détails à inclure."
+   },
+   {
+    "label": "Fais un brouillon de mail",
+    "prompt": "Fais un brouillon de mail pour annoncer mon entretien annuel à mon manager, avec date et heure."
+   }
+  ],
+  "raw": {
+   "suggestions": [
+    {
+     "label": "Fais un plan détaillé",
+     "prompt": "Fais un plan détaillé pour mon entretien annuel, avec des sections sur mes objectifs, mes réalisations et mes points d'amélioration."
+    },
+    {
+     "label": "Liste mes accomplissements",
+     "prompt": "Liste mes accomplissements professionnels pour mon entretien annuel, en me demandant les détails à inclure."
+    },
+    {
+     "label": "Fais un brouillon de mail",
+     "prompt": "Fais un brouillon de mail pour annoncer mon entretien annuel à mon manager, avec date et heure."
+    }
+   ]
+  },
+  "next_seconds": 3.041,
+  "next_why": "",
+  "next_dropped": [],
+  "gens": 3,
+  "wall": 4.74,
+  "manual": {
+   "avant|ask_review|Prépare un plan détaillé": {
+    "grammaire": true
+   },
+   "avant|ask_review|Préfères-tu d'abord lister tes accomplissements": {
+    "grammaire": false
+   },
+   "après (brut)|ask_review|Fais un plan détaillé": {
+    "grammaire": true
+   },
+   "après (brut)|ask_review|Liste mes accomplissements": {
+    "grammaire": true
+   },
+   "après (brut)|ask_review|Fais un brouillon de mail": {
+    "grammaire": true
+   },
+   "après|ask_review|Fais un plan détaillé": {
+    "grammaire": true
+   },
+   "après|ask_review|Liste mes accomplissements": {
+    "grammaire": true
+   },
+   "après|ask_review|Fais un brouillon de mail": {
+    "grammaire": true
+   }
+  }
+ }
+]

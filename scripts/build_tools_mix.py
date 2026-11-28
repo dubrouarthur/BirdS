@@ -54,7 +54,7 @@ from birds.tools import BIRD_TOOLS, EXTRA_TOOLS  # noqa: E402
 SOURCE, LICENSE = "bird_tools", "apache-2.0"
 NOW = datetime(2026, 11, 23, 10, 0, tzinfo=ZoneInfo("Europe/Paris"))
 NATIVE = {"get_weather", "find_places", "find_company", "convert_currency", "work_calendar", "lookup_entity",
-          "get_statistics", "find_tenders", "find_papers", "find_commune"}
+          "get_statistics", "find_tenders", "find_papers", "find_commune", "get_quote"}
 
 # ---------------------------------------------------------------- slot lists
 TOWNS_FR = [
@@ -953,6 +953,91 @@ def opendata(rng):
         yield tid, "en" if tid.startswith("odne") else "fr", t, None, _lab([], web=False)
 
 
+# ---------------------------------------------------------------- markets (catalogue family "finance": get_quote)
+FI_SHARES = ["LVMH", "Hermès", "Airbus", "TotalEnergies", "Sanofi", "BNP Paribas", "Kering", "Safran", "Danone",
+             "Capgemini", "Schneider Electric", "Stellantis", "Michelin", "Société Générale"]  # fmt: skip
+FI_SHARES_EN = ["Apple", "Microsoft", "Nvidia", "Tesla", "Amazon", "Netflix", "Airbus", "LVMH"]
+FI_INDICES = ["CAC 40", "DAX", "FTSE 100", "Nikkei 225", "SBF 120"]
+FI_CRYPTO = [("le bitcoin", "Bitcoin"), ("l'ether", "Ethereum"), ("le solana", "Solana"), ("le XRP", "XRP")]
+FI_PAIRS = [("l'euro dollar", "EUR/USD"), ("l'euro face à la livre", "EUR/GBP"), ("le yen", "EUR/JPY"),
+            ("le franc suisse", "EUR/CHF")]  # fmt: skip
+FI_RANGES = [("sur 1 mois", "1m"), ("sur 6 mois", "6m"), ("sur un an", "1y"), ("sur 5 ans", "5y")]
+FI_RANGES_EN = [("over a month", "1m"), ("over 6 months", "6m"), ("over the past year", "1y"), ("over 5 years", "5y")]
+FI_NEG = [  # (template id, text): the same words as a lesson, a task, a product, accounts, writing, own holdings
+    ("fin1", "trouve-moi un cours de guitare le mercredi"), ("fin1", "cours de soutien en maths pour mon fils"),
+    ("fin1", "je prépare un cours sur les marchés financiers"),
+    ("fin2", "plan d'action pour relancer les ventes"), ("fin2", "quelles actions prioritaires pour ce trimestre ?"),
+    ("fin3", "combien coûte un iPhone 16 Pro ?"), ("fin3", "prix d'un abonnement Amazon Prime"),
+    ("fin4", "chiffre d'affaires d'Airbus en 2024"), ("fin4", "combien de salariés chez Michelin ?"),
+    ("fin5", "c'est quoi un ETF ?"), ("fin5", "comment fonctionne le bitcoin ?"), ("fin5", "explique le CAC 40"),
+    ("fin6", "rédige une note sur la chute du Nikkei"), ("fin6", "écris un post LinkedIn sur l'action Tesla"),
+    ("fin7", "mes actions Total ont perdu 10 %, je fais quoi ?"), ("fin7", "analyse mon portefeuille"),
+    ("fin8", "le total de la facture"), ("fin8", "un jus d'orange et un croissant"),
+    ("fine1", "how does the stock market work?"), ("fine1", "write a newsletter about Nvidia earnings"),
+    ("fine2", "what action items did we agree on?"), ("fine2", "how much is an Apple Watch?"),
+]  # fmt: skip
+
+
+def _fi_de(word: str) -> str:
+    """« de » + an article: « du bitcoin », « de l'ether »."""
+    return "du " + word[3:] if word.startswith("le ") else "de " + word
+
+
+def finance(rng):
+    for s in FI_SHARES:
+        m = _m("get_quote", symbols=s)
+        for tid, t in (("fi1", f"cours de l'action {s}"), ("fi2", f"combien vaut l'action {s} ?"),
+                       ("fi3", f"{s} en bourse aujourd'hui")):  # fmt: skip
+            yield tid, "fr", t, None, _lab([m], native=m)
+        for w, r in rng.sample(FI_RANGES, 2):
+            m = _m("get_quote", symbols=s, range=r)
+            yield "fi4", "fr", f"graphique du cours de {s} {w}", None, _lab([m], native=m)
+    for _ in range(10):
+        a, b = rng.sample(FI_SHARES, 2)
+        w, r = rng.choice(FI_RANGES)
+        m = _m("get_quote", symbols=f"{a}, {b}", range=r)
+        yield "fi5", "fr", f"compare {a} et {b} {w}", None, _lab([m], native=m)
+        m = _m("get_quote", symbols=f"{a}, {b}")
+        yield "fi6", "fr", f"{a} ou {b} : lequel a le plus progressé en bourse ?", None, _lab([m], native=m)
+    for s in FI_SHARES_EN:
+        m = _m("get_quote", symbols=s)
+        yield "fie1", "en", f"{s} share price", None, _lab([m], native=m)
+        w, r = rng.choice(FI_RANGES_EN)
+        m = _m("get_quote", symbols=s, range=r)
+        yield "fie2", "en", f"{s} stock {w}", None, _lab([m], native=m)
+    for ix in FI_INDICES:
+        m = _m("get_quote", symbols=ix)
+        yield "fi7", "fr", f"où en est le {ix} ?", None, _lab([m], native=m)
+        for w, r in rng.sample(FI_RANGES, 2):
+            m = _m("get_quote", symbols=ix, range=r)
+            yield "fi8", "fr", f"courbe du {ix} {w}", None, _lab([m], native=m)
+        m = _m("get_quote", symbols=ix, range="1y")
+        yield "fie3", "en", f"the {ix} over the past year", None, _lab([m], native=m)
+    for word, name in FI_CRYPTO:
+        m = _m("get_quote", symbols=name)
+        yield "fi9", "fr", f"cours de {word.split(' ', 1)[-1].lstrip(chr(39))}", None, _lab([m], native=m)
+        yield "fi10", "fr", f"combien vaut {word} en ce moment ?", None, _lab([m], native=m)
+        for w, r in FI_RANGES[:3]:
+            m = _m("get_quote", symbols=name, range=r)
+            yield "fi11", "fr", f"évolution {_fi_de(word)} {w}", None, _lab([m], native=m)
+    m = _m("get_quote", symbols="Bitcoin, Ethereum", range="6m")
+    yield "fi12", "fr", "compare bitcoin et ether sur 6 mois", None, _lab([m], native=m)
+    for word, pair in FI_PAIRS:
+        for w, r in FI_RANGES[1:]:
+            m = _m("get_quote", symbols=pair, range=r)
+            yield "fi13", "fr", f"évolution {_fi_de(word)} {w}", None, _lab([m], native=m)
+    # advice asked: the card, and a neutral line (the tool reads the words); never a recommendation
+    for s in FI_SHARES[:5]:
+        m = _m("get_quote", symbols=s)
+        yield "fi14", "fr", f"faut-il acheter l'action {s} maintenant ?", None, _lab([m], native=m)
+    for word, name in FI_CRYPTO[:2]:
+        m = _m("get_quote", symbols=name)
+        yield "fi15", "fr", f"faut-il investir dans {word} en ce moment ?", None, _lab(
+            [m], native=m)
+    for tid, t in FI_NEG:
+        yield tid, "en" if tid.startswith("fine") else "fr", t, None, _lab([], web=False)
+
+
 FAMILIES = (
     weather,
     places,
@@ -968,6 +1053,7 @@ FAMILIES = (
     false_triggers,
     followups,
     opendata,
+    finance,
 )
 
 
@@ -1013,7 +1099,8 @@ def check(text: str, history, label: dict) -> bool:
             return False
         if m["tool"] == "event" and when.event_ask(text, NOW, detect_lang(text)) is None:
             return False
-        if catalog.BY_NAME[m["tool"]].family == "opendata" and R.veto_reason(R.Call(m["tool"], args), text):
+        if catalog.BY_NAME[m["tool"]].family in ("opendata", "finance") and R.veto_reason(R.Call(m["tool"], args),
+                                                                                        text):  # fmt: skip
             return False  # a label the harness would refuse is never taught
     return True
 
@@ -1049,7 +1136,7 @@ def native_record(text, lang, history, label, rid: str) -> dict | None:
 # share of the positive router records per family (the rest of the budget goes to negatives)
 FAMILY_SHARE = {"weather": 0.09, "places": 0.10, "company": 0.05, "fx": 0.08, "clock_items": 0.07, "events": 0.05,
                 "charts": 0.04, "images": 0.04, "office": 0.06, "followups": 0.06, "cards": 0.05,
-                "opendata": 0.09}  # fmt: skip
+                "opendata": 0.09, "finance": 0.05}  # fmt: skip
 
 
 def _negative(label: dict) -> bool:
@@ -1309,6 +1396,13 @@ def build(n: int = 6000, seed: int = 0, heldout_share: float = 0.12) -> dict:
         st[split]["records"] += len(rx[split])
         st[split]["fr"] += sum(r["lang"] == "fr" for r in rx[split])
     st["held_out_templates"] = sorted(set(st["held_out_templates"]) | set(rx["held"]))
+    ns = nextsteps_records(seed)  # next steps under an answer (task « nextsteps »)
+    for split in ("train", "eval"):
+        out[split] += ns[split]
+        st[split]["nextsteps"] = len(ns[split])
+        st[split]["records"] += len(ns[split])
+        st[split]["fr"] += sum(r["lang"] == "fr" for r in ns[split])
+    st["held_out_templates"] = sorted(set(st["held_out_templates"]) | set(ns["held"]))
     out["stats"] = st
     return out
 
@@ -1397,6 +1491,113 @@ def reflexion_records(seed: int = 0, heldout_share: float = 0.12) -> dict:
                     out[split].append({"id": f"{SOURCE}-{split}-x{len(out[split]):06d}", "source": SOURCE,
                                        "license": LICENSE, "lang": lang, "task": "reflexion", "thinking": False,
                                        "messages": msgs, "template": tid})  # fmt: skip
+    return out
+
+
+# ---------------------------------------------------------------- next steps (birds/harness/nextsteps.py)
+# The exact prompt (nextsteps.messages with the full capabilities line) and the suggestions JSON as the one
+# assistant turn: in the user's voice, specific, the options of Bird's question as the user's answers, none after
+# small talk. The eval cases of router_data.NEXTSTEPS_CASES never reach train.
+
+NS_TEMPLATES = [  # (template id, lang, request, answer, [(needs, label, prompt)]) with {slots}
+    ("ns_ask_format", "fr", "j'ai besoin de présenter {sujet} à {qui}",
+     "Je peux préparer ce support sur {sujet}. Préférez-vous une présentation ou une note d'une page ?",
+     [("office", "Fais une présentation", "Fais une présentation de {sujet} pour {qui}."),
+      ("office", "Rédige une note d'une page", "Rédige une note d'une page sur {sujet} pour {qui}.")]),
+    ("ns_ask_detail", "fr", "explique-moi {notion}",
+     "{Notion} désigne… Voulez-vous un exemple chiffré ou une version plus courte ?",
+     [("write", "Donne un exemple chiffré", "Donne un exemple chiffré de {notion}."),
+      ("write", "Fais une version plus courte", "Explique {notion} en trois phrases.")]),
+    ("ns_mail", "fr", "rédige un mail à {qui} pour {objet}",
+     "Objet : {Objet}\n\nBonjour, je vous écris pour {objet}…",
+     [("office", "Rends le ton plus chaleureux", "Rends ce mail à {qui} plus chaleureux."),
+      ("office", "Ajoute une date limite", "Ajoute au mail une date limite de réponse."),
+      ("office", "Traduis-le en anglais", "Traduis ce mail en anglais.")]),
+    ("ns_deck", "fr", "fais une présentation sur {sujet}",
+     "La présentation « {Sujet} » est dans le canevas : 5 diapositives.",
+     [("office", "Ajoute une diapo de chiffres clés", "Ajoute une diapositive de chiffres clés sur {sujet}."),
+      ("office", "Ajoute une conclusion", "Ajoute une diapositive de conclusion avec trois messages clés.")]),
+    ("ns_info", "fr", "écris un mail à {qui} pour {objet}",
+     "Il me manque l'adresse et la date. Pouvez-vous me les donner ?",
+     [("office", "Rédige-le avec des champs à compléter", "Rédige le mail à {qui} avec l'adresse et la date à compléter.")]),
+    ("ns_weather", "fr", "quel temps à {ville} {jour} ?",
+     "{Jour} à {ville} : éclaircies, 4 à 12 °C, faible risque de pluie.",
+     [("get_weather", "Donne la météo du lendemain", "Donne la météo à {ville} le lendemain de {jour}."),
+      ("get_weather", "Compare avec {ville2}", "Compare la météo de {jour} à {ville} et à {ville2}.")]),
+    ("ns_places", "fr", "trouve {lieux} près de {repere}",
+     "Voici 5 adresses à moins de 600 m de {repere}, la plus proche à 150 m.",
+     [("find_places", "Garde les plus proches", "Garde seulement {lieux} à moins de 300 m de {repere}."),
+      ("find_places", "Trouve aussi des pharmacies", "Trouve des pharmacies près de {repere}.")]),
+    ("ns_facts", "fr", "aide-moi à préparer {bilan}",
+     "Volontiers. Quels sont vos principaux résultats et vos objectifs pour l'an prochain ?", []),
+    ("ns_hello", "fr", "{salut}", "Bonjour ! Comment puis-je vous aider ?", []),
+    ("ns_thanks", "fr", "{merci}", "Avec plaisir ! Bonne journée.", []),
+    ("ns_ask_en", "en", "help me prepare {topic_en}",
+     "Here is an outline for {topic_en}. Would you like a checklist or a timeline?",
+     [("write", "Make a checklist", "Make a checklist for {topic_en}."),
+      ("write", "Draw up a timeline", "Draw up a timeline for {topic_en}.")]),
+    ("ns_mail_en", "en", "draft an email to {who} to {task}",
+     "Subject: Quick update\n\nHi, I am writing to {task}…",
+     [("office", "Make it shorter", "Make this email to {who} shorter."), ("office", "Add a call to action", "Add a clear call to action.")]),
+    ("ns_thanks_en", "en", "{thanks_en}", "You're welcome! Have a great day.", []),
+]
+NS_SLOTS = {
+    "sujet": ["le budget 2027", "notre offre de formation", "le plan de recrutement", "la nouvelle politique RSE"],
+    "qui": ["le comité de direction", "l'équipe", "nos clients", "le conseil d'administration"],
+    "notion": ["la TVA intracommunautaire", "l'amortissement", "le BFR", "la marge brute"],
+    "objet": ["décaler la réunion à jeudi", "relancer le devis de mars", "remercier pour le rendez-vous"],
+    "ville": ["Rennes", "Dijon", "Grenoble", "Brest"], "ville2": ["Tours", "Metz", "Annecy"],
+    "jour": ["demain", "samedi", "dimanche"], "lieux": ["des boulangeries", "des cafés", "des librairies"],
+    "repere": ["la gare de Rennes", "la place Stanislas", "l'hôtel de ville de Tours"],
+    "bilan": ["mon bilan annuel", "mon entretien de mi-parcours", "ma revue de performance"],
+    "salut": ["bonjour", "salut !", "coucou Bird"], "merci": ["merci !", "super, merci", "parfait, merci beaucoup"],
+    "topic_en": ["a client workshop", "our quarterly review", "a product launch"],
+    "who": ["John", "the team", "a supplier"], "task": ["move the meeting to Friday", "confirm the order"],
+    "thanks_en": ["thanks!", "great, thank you", "perfect, thanks"],
+}  # fmt: skip
+
+
+def nextsteps_records(seed: int = 0, heldout_share: float = 0.12) -> dict:
+    """{"train": […], "eval": […], "held": [template ids]}, like reflexion_records."""
+    import router_data as D
+
+    from birds.harness import nextsteps as N
+
+    rng = random.Random(f"{seed}-nextsteps")
+    banned = {R.fold(c[2]) for c in D.NEXTSTEPS_CASES}
+    held = {t for t, *_ in NS_TEMPLATES if int(hashlib.sha1(f"{seed}{t}".encode()).hexdigest(), 16) % 1000
+            < heldout_share * 1000 * 2}  # fmt: skip
+    caps = {lg: N.capabilities(lg, None, None) for lg in ("fr", "en")}
+    everything = set(N.all_ids()) | {"web_search"}  # every module on, as in the prompt the records teach
+    out, seen = {"train": [], "eval": [], "held": sorted(held)}, set()
+
+    def fill(text: str, pick: dict) -> str:
+        def one(m):
+            k = m.group(1)
+            v = pick.setdefault(k.lower(), rng.choice(NS_SLOTS[k.lower()]))
+            return v[:1].upper() + v[1:] if k[:1].isupper() else v
+
+        return re.sub(r"\{(\w+)\}", one, text)
+
+    for tid, lang, req, ans, sugg in NS_TEMPLATES:
+        for _ in range(16):
+            pick: dict = {}
+            r, a = fill(req, pick), fill(ans, pick)
+            items = [(n, fill(x, pick), fill(y, pick)) for n, x, y in sugg]
+            k = R.fold(r + " " + a)
+            if k in seen or R.fold(r) in banned:
+                continue
+            seen.add(k)
+            target = [{"needs": n, "label": x, "prompt": y} for n, x, y in items]
+            kept, dropped = N.validate({"suggestions": target}, lang=lang, available=everything)
+            assert not dropped and len(kept) == len(target), (tid, dropped)  # it passes the live validation
+            split = "eval" if tid in held else "train"
+            msgs = N.messages(r, a, lang, caps[lang]) + [
+                {"role": "assistant", "content": json.dumps({"suggestions": target}, ensure_ascii=False,
+                                                            separators=(",", ":"))}]  # fmt: skip
+            out[split].append({"id": f"{SOURCE}-{split}-n{len(out[split]):06d}", "source": SOURCE,
+                               "license": LICENSE, "lang": lang, "task": "nextsteps", "thinking": False,
+                               "messages": msgs, "template": tid})  # fmt: skip
     return out
 
 

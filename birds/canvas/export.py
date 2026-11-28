@@ -31,6 +31,7 @@ def media_list(doc: dict, data: dict[str, str]) -> list[om.Media]:
     A web picture without its credit and licence is left out (never placed uncredited)."""
     out: list[om.Media] = []
     used = {p.get("media") for b in doc.get("blocks") or [] for p in b.get("parts") or [] if p.get("t") == "image"}
+    used.add((doc.get("cover") or {}).get("media"))
     for mid, meta in (doc.get("media") or {}).items():
         if mid not in used or mid not in data:
             continue
@@ -169,6 +170,12 @@ def _md_part(p: dict) -> str:
         return text if re.match(r"^\W{0,3}\w+[^:]{0,30}:", text) else f"{lead} : {text}"
     if t == "code":
         return f"```{p.get('lang', '')}\n{p.get('text', '')}\n```"
+    if t == "compare":
+        return "\n\n".join(f"**{c.get('title')}**\n" + "\n".join(f"- {x}" for x in c.get("items") or [])
+                           for c in p.get("columns") or [])  # fmt: skip
+    if t in ("steps", "cards"):
+        return "\n".join((f"{k}. " if t == "steps" else "- ") + (f"**{x.get('title')}** : {x.get('text')}"
+                          if x.get("text") else str(x.get("title") or "")) for k, x in enumerate(p.get("items") or [], 1))
     if t == "chart":  # a table of the figures under the chart picture, so the numbers stay readable and copyable
         cols = p.get("columns") or []
         rows = p.get("rows") or []
@@ -208,7 +215,7 @@ def safe_name(title: str, ext: str) -> str:
 
 def export(doc: dict, fmt: str, media_data: dict[str, str] | None = None) -> tuple[bytes, str, str]:
     """(bytes, mime type, file name). ``doc`` must have gone through ``dsl.validate``."""
-    from birds.harness import office, office_deck, office_doc
+    from birds.harness import office, office_doc
 
     kind = doc.get("kind")
     lang = doc.get("lang") or "fr"
@@ -216,20 +223,24 @@ def export(doc: dict, fmt: str, media_data: dict[str, str] | None = None) -> tup
     with tempfile.TemporaryDirectory(prefix="bird-canvas-") as tmp:
         path = Path(tmp) / f"out.{fmt}"
         if fmt == "pptx" and kind == "deck":
-            media = media_list(doc, media_data or {})
-            slides, charts = deck_args(doc, {m.id for m in media})
-            if not slides:
+            from . import deck_pptx  # the canvas's own layouts and palettes: the file looks like the preview
+
+            if not doc.get("blocks"):
                 raise ExportError("the deck has no slide")
-            office_deck.build(path, title, slides, doc.get("subtitle") or "", lang, {}, media=media + charts,
-                              theme=doc.get("theme"), sources=[], request="",
-                              options={"agenda": False, "closing": False, "cover": "none"})  # fmt: skip
-        elif fmt == "docx" and kind in ("doc", "deck"):
+            deck_pptx.build(path, {**doc, "title": title}, media_list(doc, media_data or {}))
+        elif fmt == "docx" and kind == "doc":  # the page the canvas shows: template, numbering, figures, notes
+            from . import docx_out
+
+            if not doc.get("blocks"):
+                raise ExportError("the document has no section")
+            docx_out.build(path, doc, media_list(doc, media_data or {}))
+        elif fmt == "docx" and kind == "deck":
             media = media_list(doc, media_data or {})
             sections, charts = doc_args(doc, {m.id for m in media})
             if not sections:
                 raise ExportError("the document has no section")
             office_doc.build(path, title, sections, doc.get("subtitle") or "", {}, media=media + charts,
-                             theme=doc.get("theme"), sources=[], lang=lang, request="",
+                             theme="corporate" if doc.get("theme") == "night" else doc.get("theme"), sources=[], lang=lang, request="",
                              options={"toc": len(sections) >= 6, "cover": "none"})  # fmt: skip
         elif fmt == "xlsx" and kind == "sheet":
             sh = doc.get("sheet") or {}
