@@ -442,7 +442,7 @@ def get_quote(args: dict, ctx) -> str:
         item = {"key": inst.key, "name": inst.name, "kind": inst.kind, "symbol": inst.symbol, "mic": inst.mic,
                 "currency": meta["currency"], "last": round(last, 6), "prev": round(prev, 6),
                 "asof_kind": meta["asof_kind"], "asof": meta.get("asof") or last_d,
-                "change_base": "prev_close"}  # fmt: skip
+                "change_base": "prev_ref" if inst.kind == "fx" else "prev_close"}  # fmt: skip
         if inst.kind == "crypto" and inst.symbol in now_prices:
             p, ch24, at = now_prices[inst.symbol]
             item.update(last=round(p, 6), asof=at or item["asof"], change_base="24h")
@@ -482,7 +482,7 @@ def get_quote(args: dict, ctx) -> str:
         title = (f"{' · '.join(i['name'] for i in items)} — base 100 au {day_text(table[0][0], lang)} ({rw})"
                  if lang == "fr" else
                  f"{' · '.join(i['name'] for i in items)} — rebased to 100 on {day_text(table[0][0], lang)} ({rw})")  # fmt: skip
-        unit = "base 100"
+        unit = ""  # the title says « base 100 »: the y ticks stay short on a phone
     else:
         it = items[0]
         title = f"{it['name']} — {rw}" + (f" ({it['currency']})" if it["currency"] else "")
@@ -542,8 +542,8 @@ def _result(items, compare, rng, missing, rng_note, advice, n_src, lang) -> str:
     for i in items:
         cur = f" {i['currency']}" if i["kind"] != "fx" else ""
         sign = "+" if (i["change_pct"] or 0) > 0 else ""
-        base = ("sur 24 h" if fr else "over 24 h") if i["change_base"] == "24h" else (
-            "par rapport à la clôture précédente" if fr else "from the previous close")  # fmt: skip
+        base = {"24h": ("sur 24 h", "over 24 h"), "prev_ref": ("depuis le taux précédent", "from the previous rate")}.get(
+            i["change_base"], ("par rapport à la clôture précédente", "from the previous close"))[0 if fr else 1]
         pp = f"{'+' if (i['period_pct'] or 0) > 0 else ''}{fmt(i['period_pct'], lang, 2)} %"
         facts.append(
             f"{i['name']} : {fmt(i['last'], lang)}{cur} ({asof_text(i, lang)}), {sign}{fmt(i['change_pct'], lang, 2)} % "

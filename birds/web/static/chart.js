@@ -442,7 +442,10 @@ function drawLine(spec, fmt) {
       ),
     );
   }
-  const step = Math.ceil(labels.length / Math.max(1, Math.floor(pw / 64)));
+  // one label every k points so that two never touch: the widest label decides (dates like 2026-06-02 are wider
+  // than the 64px a month name needs)
+  const widest = Math.max(52, ...labels.map((l) => textWidth(cut(l, 12))));
+  const step = Math.ceil(labels.length / Math.max(1, Math.floor(pw / (widest + 12))));
   labels.forEach((label, i) => {
     if (i % step === 0)
       g.append(

@@ -18,6 +18,7 @@ export const FINANCE_STRINGS = {
     flat: "stable",
     "base.prev": "depuis la clôture précédente",
     "base.24h": "sur 24 h",
+    "base.ref": "depuis le taux précédent",
     "asof.close": "Clôture du {date} · pas en temps réel",
     "asof.live": "Cours du {date} à {time} UTC · différé de quelques minutes",
     "asof.reference": "Taux de référence BCE du {date} · publié vers 16 h",
@@ -52,6 +53,7 @@ export const FINANCE_STRINGS = {
     flat: "unchanged",
     "base.prev": "from the previous close",
     "base.24h": "over 24 h",
+    "base.ref": "from the previous rate",
     "asof.close": "Close of {date} · not real time",
     "asof.live": "Price on {date} at {time} UTC · a few minutes delayed",
     "asof.reference": "ECB reference rate of {date} · published around 4 pm CET",
@@ -200,6 +202,9 @@ function arrow(dir) {
   });
 }
 
+const baseKey = (i) =>
+  i.change_base === "24h" ? "base.24h" : i.change_base === "prev_ref" ? "base.ref" : "base.prev";
+
 function change(item) {
   const dir = direction(item.change_pct);
   const pct = fmtPct(item.change_pct);
@@ -215,13 +220,13 @@ function change(item) {
     h("span", { class: "sr-only", text: said }),
     h("span", {
       class: "fin-base",
-      text: ft(item.change_base === "24h" ? "base.24h" : "base.prev"),
+      text: ft(baseKey(item)),
     }),
   );
 }
 
 function row(item, w) {
-  const market = [item.kind === "crypto" ? "" : item.symbol, item.mic]
+  const market = [["crypto", "fx"].includes(item.kind) ? "" : item.symbol, item.mic]
     .filter(Boolean)
     .join(" · ");
   const dirP = direction(item.period_pct);
@@ -381,7 +386,7 @@ export function renderQuote(w) {
 export function quoteText(w) {
   const lines = (w.items || []).map(
     (i) =>
-      `${i.name} : ${fmtPrice(i.last, i.currency, i.kind)} (${fmtPct(i.change_pct)} ${ft(i.change_base === "24h" ? "base.24h" : "base.prev")}) — ${asofLine(i)}`,
+      `${i.name} : ${fmtPrice(i.last, i.currency, i.kind)} (${fmtPct(i.change_pct)} ${ft(baseKey(i))}) — ${asofLine(i)}`,
   );
   if (w.advice) lines.push(ft("advice"));
   lines.push(

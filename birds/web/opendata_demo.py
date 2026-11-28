@@ -175,13 +175,19 @@ def _quote(w: dict, lang: str) -> str:
         parts.append(_t(
             lang,
             f"**{i['name']}** : {fmt(i['last'], lang)}{cur} ({asof_text(i, lang)}), {sign}{fmt(pct, lang, 2)} % "
-            f"{'sur 24 h' if i.get('change_base') == '24h' else 'depuis la clôture précédente'}, "
+            f"{_base(i, 'fr')}, "
             f"{'+' if pp > 0 else ''}{fmt(pp, lang, 2)} % sur {rw} [1].",
             f"**{i['name']}**: {fmt(i['last'], lang)}{cur} ({asof_text(i, lang)}), {sign}{fmt(pct, lang, 2)} % "
-            f"{'over 24 h' if i.get('change_base') == '24h' else 'from the previous close'}, "
+            f"{_base(i, 'en')}, "
             f"{'+' if pp > 0 else ''}{fmt(pp, lang, 2)} % over {rw} [1].",
         ))  # fmt: skip
     if w.get("compare"):
         parts.append(_t(lang, "Le graphique compare les lignes en base 100.", "The chart compares the lines rebased "
                         "to 100."))  # fmt: skip
     return " ".join(parts)
+
+
+def _base(i: dict, lang: str) -> str:
+    fr, en = {"24h": ("sur 24 h", "over 24 h"), "prev_ref": ("depuis le taux précédent", "from the previous rate")}.get(
+        i.get("change_base"), ("depuis la clôture précédente", "from the previous close"))
+    return en if lang == "en" else fr

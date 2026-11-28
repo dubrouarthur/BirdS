@@ -181,7 +181,7 @@ def test_five_years_of_a_crypto_asset_are_capped_to_one_and_said():
 def test_a_comparison_is_rebased_to_100_on_the_first_common_day():
     text, ctx = _run({"symbols": "Bitcoin, Ethereum", "range": "6m"})
     (spec,) = ctx.charts
-    assert spec["columns"] == ["Date", "Bitcoin", "Ethereum"] and spec["unit"] == "base 100"
+    assert spec["columns"] == ["Date", "Bitcoin", "Ethereum"] and not spec["unit"]
     assert spec["rows"][0][1:] == [100.0, 100.0] and "base 100" in spec["title"]
     assert ctx.step_info["widget"]["compare"] and "base 100" in text
 
