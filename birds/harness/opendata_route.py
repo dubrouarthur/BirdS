@@ -119,6 +119,8 @@ def veto_reason(call, text: str) -> str:
     from birds.harness import opendata_intents as O
 
     t = text or ""
+    if O.own_data(call.tool, t):
+        return "open data false trigger (own data)"  # even when a parser fires: the card would stand in for it
     if any(i.tool == call.tool and i.args for i in O.detect(t)):
         return ""  # the family's own parser starts it too
     if not _CUES[call.tool].search(t):

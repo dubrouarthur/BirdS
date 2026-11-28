@@ -209,6 +209,20 @@ def _since_of(t: str, today: date) -> str:
     return ""
 
 
+# the user's own figures (« inflation de mes loyers », « le chômage dans mon équipe », « exportations de notre PME »,
+# « l'inflation des salaires »): an official national series would stand in for numbers it is not
+_STATS_OWN = re.compile(r"\b(?:mes|mon|ma|notre|nos|my|our|[ée]quipes?|teams?|pme|tpe|salaires?|salari[ée]s|wages?|"
+                        r"salar(?:y|ies)|loyers?|rents?)\b", re.I)  # fmt: skip
+
+
+def own_data(tool: str, text: str) -> bool:
+    """The words are about the user's own figures, leave or project: the open-data card cannot answer them."""
+    t = _clean(text)
+    if tool == "get_statistics":
+        return bool(_STATS_OWN.search(t)) and not _CREATIONS_ASK.search(t)
+    return False
+
+
 def statistics(text: str, lang: str = "fr", today: date | None = None) -> Intent | None:
     """« évolution du chômage en France depuis 2015 », « PIB Allemagne vs France », « population de Lille sur 10
     ans », « inflation dans la zone euro sur 24 mois en graphique », « combien d'entreprises créées l'an dernier »."""
@@ -216,7 +230,7 @@ def statistics(text: str, lang: str = "fr", today: date | None = None) -> Intent
 
     today = today or date.today()
     t = _clean(text)
-    if not t or len(t) > 240 or _DELIVERABLE.search(t) or _HOWTO.search(t):
+    if not t or len(t) > 240 or _DELIVERABLE.search(t) or _HOWTO.search(t) or own_data("get_statistics", t):
         return None
     key = indicator_of(t)
     if not key or _RANKING.search(t) or figures_in(t):
@@ -248,6 +262,8 @@ def statistics(text: str, lang: str = "fr", today: date | None = None) -> Intent
         if key == "population" and re.search(r"\b(?:de|du|des|of|à|in)\s+[a-zà-ÿ]{3,}", t) and not re.search(
                 r"\b(?:fran[cç]ais|france)\b", t, re.I):  # fmt: skip
             return None  # « la population de lyon » typed in lowercase: unclear, leave it to the chart router
+        if not re.search(r"\b(?:fran[cç]ais(?:es)?|french|national\w*|hexagone)\b", t, re.I):
+            return None  # no place in the user's words: never a France chart filled in for them (grounding)
         places = ["FR"]
     names = ", ".join(countries.name(c, "fr") for c in places[:5])
     return Intent("get_statistics", {"indicator": key, "places": names, "since": since}, keep_web=False)

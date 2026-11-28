@@ -212,6 +212,23 @@ def test_the_veto_blocks_known_false_triggers(tool, args, text):
     assert opendata_route.veto_reason(R.Call(tool, args), text)
 
 
+@pytest.mark.parametrize("ask", ["inflation de mes loyers depuis 2020", "le chômage dans mon équipe depuis 2015",
+                                 "exportations de notre PME depuis 2010", "Inflation des salaires dans l'équipe depuis 2020",
+                                 "the unemployment rate in my team since 2015"])  # fmt: skip
+def test_the_user_s_own_figures_are_never_an_official_series(ask):
+    """No France chart in place of the user's rent, team or company numbers, even merged back in hybrid mode."""
+    assert not any(i.args for i in opendata_intents.detect(ask))
+    model = R.Decision([], None, False, "model", {})
+    assert R.merge(model, R.regex_decision(ask), R.own_decision(ask)).get("get_statistics") is None
+    call = R.Call("get_statistics", {"indicator": "inflation", "places": "France"})
+    assert opendata_route.veto_reason(call, ask)
+
+
+def test_no_country_is_filled_in_when_the_user_named_none():
+    assert not any(i.args for i in opendata_intents.detect("le chômage depuis 2015"))
+    assert _ask("évolution du chômage en France depuis 2015")[1]["places"] == "France"
+
+
 def test_the_veto_never_blocks_what_the_parser_itself_starts():
     for q, _tool, _args in OD.OPENDATA_YES:
         got = [i for i in opendata_intents.detect(q, False, "fr", today=OD.TODAY) if i.args]

@@ -124,6 +124,13 @@ OPENDATA_NO = [
     "draft a cover letter for a research position",
     "summarize this paper for me",
     "what's our churn rate since 2020?",
+    # the user's own figures: never an official France series in their place (no country named either)
+    "inflation de mes loyers depuis 2020",
+    "le chômage dans mon équipe depuis 2015",
+    "exportations de notre PME depuis 2010",
+    "Inflation des salaires dans l'équipe depuis 2020",
+    "the unemployment rate in my team since 2015",
+    "le chômage depuis 2015",
 ]
 
 # clear asks the parsers miss: router-only (router_data family "opendata_router"), never on the regex bench
