@@ -1118,10 +1118,10 @@ const LABELS = {
   downloadLabel: "Télécharger {file}",
   more: "Afficher les {n} lignes",
   less: "Réduire",
-  checkOk: "Syntaxe vérifiée",
+  checkOk: "Syntaxe Python valide", // parsed by the server (ast), never run: the badge never says « testé »
   checkJson: "Syntaxe JSON valide",
   checkTitle:
-    "Vérification de la syntaxe uniquement : la logique n'est pas vérifiée.",
+    "Syntaxe analysée sans exécuter le code : ni la logique ni le résultat ne sont vérifiés.",
   checkErr: "Syntaxe à vérifier, ligne {line}",
   checkExcerpt: "Extrait",
   copyFormula: "Copier la formule",

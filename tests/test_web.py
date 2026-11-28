@@ -913,7 +913,7 @@ def test_rich_renderer_is_inert_on_hostile_input_and_live_answers(rich_rendered)
     out = rich_rendered["out"]
     assert "&lt;img src=x onerror=alert(1)&gt;" in out["callout_xss"] and "md-callout--warn" in out["callout_xss"]
     assert "&lt;script&gt;" in out["code_xss"] and "<script" not in out["code_xss"]
-    assert 'title="Vérification de la syntaxe uniquement' in out["py_err"] and "&lt;img" in out["py_err"]
+    assert 'title="Syntaxe analysée sans exécuter le code' in out["py_err"] and "&lt;img" in out["py_err"]
     assert "md-chip" in out["chip_xss"] and "&lt;b&gt;" in out["chip_xss"]
 
 
