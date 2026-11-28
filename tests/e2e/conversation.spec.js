@@ -206,6 +206,42 @@ part("retry", async (page, name, fail, shot) => {
   if (!(await page.locator(".turn-user").last().innerText()).includes("Bonjour")) fail("R22: the later exchange is lost");
 });
 
+// ---------------------------------------------------------------- R12: the sidebar row menu
+part("menu", async (page, name, fail, shot) => {
+  await newChat(page);
+  await send(page, "Bonjour");
+  await openDrawer(page);
+  const row = page.locator(".conv.is-current");
+  await row.locator(".conv-more").click();
+  await page.waitForTimeout(150);
+  if ((await row.locator(".conv-menu").getAttribute("role")) !== "menu") fail("R12: the row menu is not a menu");
+  if (!(await page.evaluate(() => document.activeElement?.getAttribute("role") === "menuitem"))) fail("R12: focus is not on the first item");
+  await shot("r12-menu");
+  await page.keyboard.press("ArrowDown");
+  if (!(await page.evaluate(() => document.activeElement?.dataset.convAct === "export"))) fail("R12: arrow keys do not move");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(100);
+  if (await page.locator(".conv-menu").count()) fail("R12: Escape did not close the menu");
+  if (!(await page.evaluate(() => document.activeElement?.classList.contains("conv-more")))) fail("R12: focus did not go back to « … »");
+  await page.locator(".conv.is-current .conv-more").click();
+  await page.mouse.click(5, 5);
+  await page.waitForTimeout(150);
+  if (await page.locator(".conv-menu").count()) fail("R12: an outside click did not close the menu");
+  await page.locator(".conv.is-current .conv-more").click();
+  await page.locator('[data-conv-act="rename"]').click();
+  await page.fill(".rename", "Salutations");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(150);
+  if (!(await page.evaluate(() => document.activeElement?.classList.contains("conv-open")))) fail("R12: focus lost after rename");
+  if (!(await page.locator(".conv.is-current .conv-title").innerText()).includes("Salutations")) fail("R12: not renamed");
+  await page.locator(".conv.is-current .conv-more").click();
+  await page.locator('[data-conv-act="rename"]').click();
+  await page.waitForSelector(".rename:focus");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
+  if (!(await page.evaluate(() => document.activeElement?.classList.contains("conv-more")))) fail("R12: focus lost after a cancelled rename");
+});
+
 (async () => {
   const browser = await chromium.launch();
   const problems = [];

@@ -251,6 +251,10 @@ function loadTurns(list) {
 }
 
 function openConv(id) {
+  if (menuFor !== null) {
+    menuFor = null;
+    document.removeEventListener("pointerdown", convMenuOutside, true);
+  }
   if (id && id === state.conv?.id) {
     // the conversation already open (maybe still streaming): just come back to it
     showView("chat");
@@ -283,6 +287,33 @@ function autoTitle(text) {
 let search = "";
 let menuFor = null;
 let renaming = null;
+let sideFocus = null; // {id, what: "more" | "open" | "menu"}: where focus goes once the list is drawn again
+
+/** Close a row's menu (Escape, outside click, navigation); `refocus` puts focus back on its « … » button. */
+function closeConvMenu(refocus = false) {
+  if (menuFor === null) return;
+  const id = menuFor;
+  menuFor = null;
+  document.removeEventListener("pointerdown", convMenuOutside, true);
+  if (refocus) sideFocus = { id, what: "more" };
+  renderSidebar();
+}
+function convMenuOutside(e) {
+  if (!e.target.closest?.(`[data-conv="${CSS.escape(menuFor || "")}"]`)) closeConvMenu(false);
+}
+function convMenuKeys(e) {
+  const items = [...e.currentTarget.querySelectorAll("[role=menuitem]")];
+  const i = items.indexOf(document.activeElement);
+  const go = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: items.length - 1 }[e.key];
+  if (go !== undefined) {
+    e.preventDefault();
+    items[(go + items.length) % items.length]?.focus();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    e.stopPropagation();
+    closeConvMenu(true);
+  } else if (e.key === "Tab") closeConvMenu(false);
+}
 
 function renderSidebar() {
   const list = $("conv-list");
@@ -324,6 +355,7 @@ function renderSidebar() {
       const done = (save) => {
         if (renaming !== c.id) return;
         renaming = null;
+        sideFocus = { id: c.id, what: save ? "open" : "more" }; // back to the row, never to <body>
         const value = input.value.trim();
         if (save && value) {
           c.title = value;
@@ -387,8 +419,22 @@ function renderSidebar() {
           class: "btn btn-quiet btn-icon btn-small conv-more",
           type: "button",
           "aria-label": t("side.more", { title }),
+          "aria-haspopup": "menu",
           "aria-expanded": String(open),
-          onclick: () => ((menuFor = open ? null : c.id), renderSidebar()),
+          "data-conv-more": c.id,
+          onclick: () => {
+            if (open) return closeConvMenu(true);
+            menuFor = c.id;
+            sideFocus = { id: c.id, what: "menu" };
+            document.addEventListener("pointerdown", convMenuOutside, true);
+            renderSidebar();
+          },
+          onkeydown: (e) => {
+            if (e.key === "ArrowDown" && !open) {
+              e.preventDefault();
+              e.currentTarget.click();
+            }
+          },
         },
         icon("more"),
       ),
@@ -397,29 +443,35 @@ function renderSidebar() {
           "div",
           {
             class: "conv-menu",
-            role: "group",
+            role: "menu",
             "aria-label": t("side.more", { title }),
+            onkeydown: convMenuKeys,
           },
           button(
             "btn-quiet btn-small",
             "edit",
             t("side.rename"),
-            () => ((renaming = c.id), (menuFor = null), renderSidebar()),
-            { "data-conv-act": "rename" },
+            () => {
+              document.removeEventListener("pointerdown", convMenuOutside, true);
+              renaming = c.id;
+              menuFor = null;
+              renderSidebar();
+            },
+            { "data-conv-act": "rename", role: "menuitem", tabindex: "-1" },
           ),
           button(
             "btn-quiet btn-small",
             "download",
             t("side.export"),
             () => exportConv(c.id),
-            { "data-conv-act": "export" },
+            { "data-conv-act": "export", role: "menuitem", tabindex: "-1" },
           ),
           button(
             "btn-quiet btn-small btn-danger",
             "trash",
             t("side.delete"),
             () => deleteConv(c.id, title),
-            { "data-conv-act": "delete" },
+            { "data-conv-act": "delete", role: "menuitem", tabindex: "-1" },
           ),
         ),
     );
@@ -437,6 +489,18 @@ function renderSidebar() {
       ),
   );
   $("btn-clear").hidden = false;
+  if (sideFocus) {
+    const { id, what } = sideFocus;
+    sideFocus = null;
+    const row = list.querySelector(`[data-conv="${CSS.escape(id)}"]`);
+    const el =
+      what === "menu"
+        ? row?.querySelector("[role=menuitem]")
+        : what === "open"
+          ? row?.querySelector(".conv-open")
+          : row?.querySelector(".conv-more");
+    el?.focus({ preventScroll: true });
+  }
 }
 
 function exportConv(id) {
@@ -452,8 +516,7 @@ function exportConv(id) {
       .slice(0, 40) || "bird"
   }.md`;
   download(name, "text/markdown;charset=utf-8", exportMarkdown(conv));
-  menuFor = null;
-  renderSidebar();
+  closeConvMenu(true);
   toast(t("toast.exported"), "ok");
 }
 
