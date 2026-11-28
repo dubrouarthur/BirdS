@@ -271,9 +271,14 @@ _CANT_DO = re.compile(
     r"\b(?:ouvre|consulte|lis|v[ée]rifie|regarde|open|check|read) (?:mon|ma|mes|my)\b|"
     r"\b(?:mon|ma|mes|my) (?:solde|compte bancaire|relev[ée]s? bancaires?|bank balance|bank account|"
     r"bo[iî]te mail|messagerie|inbox|mailbox|contacts)\b|"
-    # what the user does himself, not a request to Bird (live run of 28/11: « Valide le mail… et confirme
-    # l'envoi », « Provide the client's email address » after Bird asked for it)
-    r"^(?:valide|validez|confirme|fournis|fournissez|indique|indiquez|provide|share|upload|joins|attach)\b",
+    # the USER as the actor, not the verb: giving his own facts, a file, a link (live run of 28/11: « Provide the
+    # client's email address » after Bird asked for it, « Fournis un document sur le marché »); « Indique les
+    # étapes clés », « Provide three examples », « Confirme les chiffres avec un calcul » are requests to Bird
+    r"^(?:valide|validez|confirme|fournis|fournissez|indique|indiquez|donne|pr[ée]cise|partage|transmets-moi|"
+    r"provide|share|give|tell|confirm|enter|saisis)(?:-moi| moi| me)? (?:(?:mon|ma|mes|notre|nos|my|our)\b|"
+    r"(?:l'adresse|le nom|la date|le num[ée]ro|un document|un fichier|un lien|the (?:client|customer|supplier)'s|"
+    r"the (?:name|address|date|number|email)|a (?:document|file|link))\b)|"
+    r"^(?:upload|joins|attach|t[ée]l[ée]verse)\b",
     re.I,
 )
 # a label the schema's maxLength cut short (« Ajoute une diapositive sur les modalités d »): end on a whole word
@@ -296,29 +301,27 @@ def tidy_label(label: str, limit: int = LABEL_MAX) -> str:
         s = s[: s.rfind("(")]
     s = _DANGLING.sub("", s).strip()
     return s
-# a capability that can be off on a deployment: (pattern on the suggestion, the module or tool it needs)
+# a capability that can be off on a deployment, when the model gave no ``needs`` label (an endpoint without
+# structured outputs) or a wrong one: unambiguous phrases only, never a common word (« convertis le tableau »,
+# « une carte mentale », « autour du thème », « les sources de chaque chiffre » are writing requests)
 _NEEDS = (
     (re.compile(r"\b(?:dans|à|sur|to|in|into) (?:mon |ma |my |l'|the )?(?:agenda|calendrier|calendar)\b|"
-                r"\.ics\b", re.I), "event"),  # fmt: skip
-    (re.compile(r"\bm[ée]t[ée]o\b|\bweather\b|\bforecast\b|\bpr[ée]visions?\b", re.I), "get_weather"),
-    (re.compile(r"\bcarte\b|\bitin[ée]raire\b|\bmap\b|\bdirections\b|\bautour\b|\bnearby\b", re.I), "find_places"),
+                r"\.ics\b", re.I), "event"),
+    (re.compile(r"\bm[ée]t[ée]o\b|\bweather\b", re.I), "get_weather"),
+    (re.compile(r"\b(?:sur (?:une|la) carte|on (?:a|the) map|à proximité|nearby)\b|"
+                r"\b(?:restaurants?|caf[ée]s|h[ôo]tels?|parkings?|pharmacies?|mus[ée]es) (?:pr[èe]s|proches?|autour)\b",
+                re.I), "find_places"),
     (re.compile(r"\bsiren\b|\bsiret\b|\bfiche (?:de l'|d')entreprise\b|\bcompany record\b", re.I), "find_company"),
-    (re.compile(r"\bconvertis\b|\bconvert\b|\btaux de change\b|\bexchange rate\b", re.I), "convert_currency"),
-    (
-        re.compile(
-            r"\bcherche\b|\brecherche\b|\bsearch\b|\bsur (?:le )?web\b|\bsur internet\b|\bonline\b|"
-            r"\bsources?\b|\bactualit[ée]s?\b|\bnews\b|\bphotos?\b|\bimages?\b|\bpictures?\b",
-            re.I,
-        ),
-        "web_search",
-    ),
+    (re.compile(r"\btaux de change\b|\bexchange rate\b|\bconvert\w*\b[^.]{0,40}(?:€|\$|£|\beuros?\b|\bdollars?\b|"
+                r"\blivres? sterling\b|\byens?\b|\b(?:usd|eur|gbp|chf|jpy)\b)", re.I), "convert_currency"),
+    (re.compile(r"\b(?:sur (?:le )?web|sur internet|en ligne|online|on the web|recherche web|web search)\b",
+                re.I), "web_search"),
     (re.compile(r"\bappels? d'offres\b|\btenders?\b", re.I), "find_tenders"),
-    (
-        re.compile(r"\bjours? f[ée]ri[ée]s\b|\bjours? ouvr[ée]s\b|\bpublic holidays?\b|\bworking days\b", re.I),
-        "work_calendar",
-    ),
-    (re.compile(r"\bpublications?\b|\barticles? scientifiques?\b|\bpapers?\b|\bdoi\b", re.I), "find_papers"),
-)
+    (re.compile(r"\bjours? f[ée]ri[ée]s\b|\bjours? ouvr[ée]s\b|\bpublic holidays?\b|\bworking days\b", re.I),
+     "work_calendar"),
+    (re.compile(r"\b(?:articles?|publications?) scientifiques?\b|\bscientific papers?\b|\bdoi\b", re.I),
+     "find_papers"),
+)  # fmt: skip
 _FR_W = re.compile(r"\b(?:le|la|les|des|du|un|une|et|en|au|aux|pour|avec|sur|dans|ce|cette|ces|ta|ton|tes|mon|ma|"
                    r"mes|plus|qui|que|à|de)\b", re.I)  # fmt: skip
 _EN_W = re.compile(r"\b(?:the|a|an|and|for|with|on|in|this|that|these|your|my|more|of|to|into|which)\b", re.I)
