@@ -449,6 +449,11 @@ _DEMO_MARKERS = {
 }  # fmt: skip
 
 
+# the calc scenario answers one recorded comparison (14,90 € a month or 149 € a year): only its own figures start it,
+# never any « par mois … par an » (a rent mail, a summary or a translation keeps its own scenario)
+_DEMO_CALC = ("14,90 € par mois", "14,90 par mois", "14.90 a month", "$14.90 a month", "14.90 per month")
+
+
 def widget_scenario(text: str) -> str:
     """The widget demo for a request the harness would prefill (places, company, fx, weather), a world clock ask or
     an event ask."""
@@ -479,8 +484,8 @@ def pick_scenario(text: str, has_attachment: bool = False) -> str:
     for name, keys in _DEMO_MARKERS.items():
         if any(k in low for k in keys):
             return name
-    if not has_attachment and re.search(r"par mois.{0,80}par an|a month.{0,80}a year", low):
-        return "calc"  # Mode Réflexion: a calculation and a comparison, checked
+    if not has_attachment and any(k in low for k in _DEMO_CALC):
+        return "calc"  # Mode Réflexion: the recorded subscription comparison, only for its own prompt
     if has_attachment:
         return "attachment"
     # a named format or a document topic wins over a widget: "prépare les slides pour le meeting de lundi" is a deck

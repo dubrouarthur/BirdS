@@ -262,6 +262,17 @@ def test_hostile_markdown_is_passed_as_text_not_altered(client):
     assert "<img src=x onerror=" in answer["content"] and "javascript:alert(1)" in answer["content"]
 
 
+def test_calc_scenario_answers_only_its_own_prompt():
+    calc = "Un abonnement coûte 14,90 € par mois, ou 149 € par an. Sur deux ans, lequel est le moins cher ?"
+    assert pick_scenario(calc) == "calc"
+    assert pick_scenario("A plan costs 14.90 a month, or 149 a year. Which is cheaper over two years?") == "calc"
+    rent = "Notre loyer est de 1 200 € par mois, rédige un mail au propriétaire pour signaler que nous payons par an."
+    assert pick_scenario(rent) == "email"
+    assert pick_scenario("Résume ce compte rendu : on publie 3 articles par mois et 40 par an.") == "minutes"
+    assert pick_scenario("Traduis en anglais : je cours 20 km par mois, soit 240 par an.") == "plain"
+    assert pick_scenario("Write an email: our rent is 1,200 a month and we now pay once a year.") == "email"
+
+
 def test_scenario_routing():
     assert pick_scenario("Bonjour") == "plain"
     assert pick_scenario("Draft a reply email") == "email"
