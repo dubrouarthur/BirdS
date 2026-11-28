@@ -247,7 +247,8 @@ def fetch(ctx, url: str) -> tuple[str, str, bytes]:
 
 
 IMAGE_TYPES = ("image/png", "image/jpeg", "image/webp", "image/gif")
-IMAGE_USER_AGENT = "BirdHarness/0.1 (+image)"
+# Wikimedia and Openverse throttle anonymous clients that give no contact: the public site is ours to name
+IMAGE_USER_AGENT = "BirdHarness/0.1 (+https://bird-s.vercel.app/a-propos/; free-licence images)"
 
 
 class FetchError(ToolError):

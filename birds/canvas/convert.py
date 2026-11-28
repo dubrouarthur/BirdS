@@ -82,6 +82,16 @@ def enrich(doc: dict) -> dict:
     return doc
 
 
+_CODE_NAME = re.compile(r"\.(?:html?|css|js|ts|jsx|tsx|py|svg)$", re.I)
+_CODE_BODY = re.compile(r"(?is)```\s*(?:html|css|javascript|js|python|py|svg)\b|<!doctype html|<html[\s>]|<script[\s>]")
+
+
+def _is_code(a: dict) -> bool:
+    """A make_document call that is really code: a file name for a title, or sections that are code."""
+    text = " ".join(str(s.get("content") or "") for s in (a.get("sections") or []) if isinstance(s, dict))
+    return bool(_CODE_NAME.search(str(a.get("title") or "").strip())) or bool(_CODE_BODY.search(text[:20000]))
+
+
 def from_tool(tool: str, args: dict, lang: str = "fr") -> dict | None:
     """The document a make_slides / make_document / make_sheet call describes (None for anything else)."""
     a = args if isinstance(args, dict) else {}
@@ -94,6 +104,22 @@ def from_tool(tool: str, args: dict, lang: str = "fr") -> dict | None:
             doc["blocks"].append({"id": dsl.new_id(doc), "title": dsl._cut(str(s.get("title") or ""), dsl.MAX_TITLE),
                                   "parts": slide_parts(str(s.get("title") or ""), bullets),
                                   "notes": dsl._cut(str(s.get("notes") or ""), dsl.MAX_TEXT)})  # fmt: skip
+    elif tool == "make_document" and _is_code(a):
+        # code the model put in a « document » (« code moi une mini calculatrice web » → mini-calculatrice.html):
+        # the canvas shows it as code with its live preview, never as a one-section report
+        from birds.canvas import code as codefiles
+        from birds.canvas import turn as cturn
+
+        text = "\n\n".join(str(s.get("content") or "") for s in (a.get("sections") or []) if isinstance(s, dict))
+        found = codefiles.parse_files(text)
+        name = codefiles.safe_name(str(a.get("title") or ""))
+        if found and found.get("files") and len(found["files"]) == 1 and name and "." in name:
+            found["files"][0]["name"] = name  # the title the model gave the file (« mini-calculatrice.html »)
+        title = re.sub(r"\.(?:html?|css|js|ts|py|svg)$", "", str(a.get("title") or ""), flags=re.I).replace("-", " ")
+        doc = cturn.code_doc(found, lang, dsl._cut(title.strip().capitalize(), dsl.MAX_TITLE))
+        if doc is None:
+            return None
+        return doc
     elif tool == "make_document":
         doc = dsl.empty("doc", lang)
         for s in (a.get("sections") or [])[: dsl.MAX_BLOCKS]:

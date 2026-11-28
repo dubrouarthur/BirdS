@@ -648,9 +648,13 @@ def test_csp_and_security_headers_everywhere(client):
         assert response.headers["x-content-type-options"] == "nosniff"
         assert response.headers["referrer-policy"] == "no-referrer"
     assert "default-src 'none'" in CSP and "script-src 'self'" in CSP and "style-src 'self'" in CSP
-    assert "unsafe" not in CSP and "http" not in CSP and "*" not in CSP and "data:" not in CSP
+    # the one origin exception: Bird local on the user's own loopback, its two exact origins, nothing wider
+    local = "http://127.0.0.1:8765 http://localhost:8765"
+    assert CSP.count(local) == 2 and f"connect-src 'self' {local};" in CSP and f"img-src 'self' blob: {local};" in CSP
+    rest = CSP.replace(local, "")
+    assert "unsafe" not in rest and "http" not in rest and "*" not in CSP and "data:" not in CSP
     # blob: only for images: thumbnails of attached images are object URLs made by the page itself
-    assert CSP.count("blob:") == 1 and "img-src 'self' blob:;" in CSP
+    assert CSP.count("blob:") == 1 and "img-src 'self' blob:;" in rest.replace("blob: ;", "blob:;")
     assert client.get("/api/health").headers["cache-control"] == "no-store"
     assert client.get("/files/anything").status_code == 404  # no file is served from a server-side workspace any more
 
@@ -716,7 +720,9 @@ def test_static_payload_budget():
     # and the quote card (finance.js/.css: +17 kB raw, ~4 kB gzipped)
     # then the conversation engine (versions, inline edit, documents in context, dialogs, back button: conversation*.js
     # and conversation.css)
-    assert total < 1_620_000, f"static payload is {total} bytes"  # measured 1 527 878 before the conversation engine
+    # and the UX pass (calm wake-up line and bar, mail card recipient hints and blanks, lighter phone top bar)
+    # and Bird local (settings choice, connect flow, « ne répond pas » card, request routing: +34 kB raw, +9 kB gz)
+    assert total < 1_660_000, f"static payload is {total} bytes"  # measured 1 635 093 (+ Bird local + conversation engine)
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"
@@ -734,6 +740,9 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     # the conversation engine too (conversation-i18n.js, cx.* keys; parity in tests/js/conversation.test.mjs)
     cxs = (STATIC_DIR / "conversation-i18n.js").read_text().split("\n  en: {", 1)[0]
     fr |= set(re.findall(r'^\s+"(cx\.[\w.]+)":', cxs, re.M))
+    # Bird local too (local-i18n.js, merged at load; parity in tests/js/local.test.mjs)
+    lc = (STATIC_DIR / "local-i18n.js").read_text().split("\n  en: {", 1)[0]
+    fr |= set(re.findall(r'^\s+"(local\.[\w.]+)":', lc, re.M))
     used = set()
     for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js",
                  "conversation.js"]:
@@ -1455,4 +1464,6 @@ def test_install_script_is_served_as_plain_text_and_binds_locally():
     body = r.text
     assert body.startswith("#!/bin/sh") and "set -eu" in body
     assert "--host 127.0.0.1" in body and "0.0.0.0" not in body
+    # the logs hold the pairing code printed by scripts/bird_local.py: other users of the machine cannot read them
+    assert 'chmod 700 "$LOGS"' in body
     assert "HF_TOKEN=" not in body.replace("HF_TOKEN        jeton", "")
