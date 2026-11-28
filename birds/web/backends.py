@@ -462,6 +462,8 @@ def widget_scenario(text: str) -> str:
     from birds.harness import clock, intents, opendata_intents
 
     found = [i for i in opendata_intents.merge(intents.detect(text), text) if i.args]
+    # markets: the demo has no licensed feed for shares (crypto and ECB rates are recorded): not a market card
+    found = [i for i in found if opendata_intents.usable(i, None)]
     if found:
         return {"find_places": "places", "find_company": "company", "convert_currency": "fx",
                 "get_weather": "weather"}.get(found[0].tool, "opendata")  # fmt: skip

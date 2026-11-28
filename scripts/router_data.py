@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import bench_finance as FI  # noqa: E402
 import bench_opendata as OD  # noqa: E402
 import trigger_bench as B  # noqa: E402
 
@@ -134,6 +135,10 @@ def items() -> list[dict]:
     out += [_item("opendata", q, "yes", od, {"tool": t, "args": a}) for q, t, a in OD.OPENDATA_YES]
     out += [_item("opendata", q, "no", od) for q in OD.OPENDATA_NO]
     out += [_item("opendata_router", q, "yes", od, {"tool": t, "args": a}) for q, t, a in OD.OPENDATA_ROUTER_YES]
+    fi = ["get_quote"]
+    out += [_item("finance", q, "yes", fi, {"tool": "get_quote", "args": a}) for q, a in FI.FINANCE_YES]
+    out += [_item("finance", q, "no", fi) for q in FI.FINANCE_NO]
+    out += [_item("finance_router", q, "yes", fi, {"tool": "get_quote", "args": a}) for q, a in FI.FINANCE_ROUTER_YES]
     for fam, yes, no in (("agent", B.AGENT_YES, B.AGENT_NO), ("office_agent", B.OFFICE_AGENT_YES, B.OFFICE_AGENT_NO),
                          ("agent_study", B.STUDY_YES, B.STUDY_NO)):  # fmt: skip
         out += [_item(fam, q, "yes", [], None, agent=True) for q in yes]
@@ -175,6 +180,8 @@ def args_ok(call, expect: dict) -> bool:
         if where(str(call.args.get("where", "")))[1] != where(want["where"])[1]:
             return False
         want = {k: v for k, v in want.items() if k != "where"}
+    if call.tool == "get_quote":  # the same instruments, whatever their spelling or order
+        return FI.args_match(call.args, want)
     if call.tool == "clock" and "cities" in want:
         return _cities(call) == want["cities"]
     if call.tool == "find_places" and want:
@@ -299,7 +306,8 @@ class Imitator:
                     "work_calendar": {"period": "2027"}, "lookup_entity": {"name": it["text"].split()[-1]},
                     "get_statistics": {"indicator": "gdp"}, "find_tenders": {"query": it["text"].split()[-1]},
                     "find_papers": {"query": it["text"].split()[-1]},
-                    "find_commune": {"name": it["text"].split()[-1]}}.get(tool, {})  # fmt: skip
+                    "find_commune": {"name": it["text"].split()[-1]},
+                    "get_quote": {"symbols": "CAC 40"}}.get(tool, {})  # fmt: skip
             return json.dumps({"modules": [{"tool": tool, "args": args}], "agent": "auto", "needs_web": False})
         return json.dumps({"modules": [], "agent": "auto", "needs_web": False})  # a missed module
 

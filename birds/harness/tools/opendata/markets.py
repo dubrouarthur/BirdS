@@ -170,6 +170,9 @@ def fx_pair(text: str) -> Instrument | None:
 def resolve(text: str) -> Instrument | None:
     """The instrument ONE name designates, or None (never a guess)."""
     t = fold(text)
+    exact = dict(_ALIAS).get(t)
+    if exact:  # « L'Oréal » before its article is peeled
+        return INSTRUMENTS[exact]
     t = re.sub(r"^(?:l'|le |la |les |du |de la |de l'|des |the )", "", t)
     t = re.sub(r"^(?:action|actions|titre|titres|indice|share|shares|stock|cours|cours de|cours du)\s+(?:de\s+|d'|du\s+)?",
                "", t).strip(" .")  # fmt: skip

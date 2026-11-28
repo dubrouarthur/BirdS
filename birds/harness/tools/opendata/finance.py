@@ -78,15 +78,16 @@ ADVICE = re.compile(
 def range_of(text: str) -> str | None:
     """« sur 5 ans », « depuis un an », « 6 derniers mois », « 1M », « over a year »: a range key, or None."""
     t = http.clean(text, 300).lower().replace("’", "'")
-    if re.search(r"\b(?:5|cinq|five)\s*(?:ans?|ann[ée]es|years?|y)\b|\b5a\b", t):
+    if re.search(r"\b(?:5|cinq|five)\s*(?:(?:derni[èe]res|last|past)\s+)?(?:ans?|ann[ée]es|years?|y)\b|\b5a\b", t):
         return "5y"
     if re.search(
         r"\b(?:1|un|une|one|a)\s*(?:ans?|ann[ée]e|year|y)\b|\b(?:12|douze|twelve)\s*mois\b|\b1a\b|"
+        r"\b(?:past|last)\s+(?:year|12\s+months)\b|\bann[ée]e\s+[ée]coul[ée]e\b|"
         r"\bsur\s+l'ann[ée]e\b|\bannuel|\bthis\s+year\b|\bcette\s+ann[ée]e\b|\bdepuis\s+janvier\b",
         t,
     ):
         return "1y"
-    if re.search(r"\b(?:6|six)\s*(?:mois|months?|m)\b|\bsemestre\b|\b6m\b", t):
+    if re.search(r"\b(?:6|six)\s*(?:(?:derniers|last|past)\s+)?(?:mois|months?|m)\b|\bsemestre\b|\b6m\b", t):
         return "6m"
     if re.search(
         r"\b(?:1|un|one|a)\s*(?:mois|month)\b|\b(?:30|trente)\s*(?:jours|days)\b|\b1m\b|\bce\s+mois\b|"
@@ -216,7 +217,7 @@ def _ecb_series(ctx, cur: str, start: date) -> list[tuple[str, float]]:
         if str(e) == "HTTP 404":
             raise ToolError(f"the ECB publishes no reference rate for {cur}; say so") from None
         raise
-    rows = parse_ecb_csv(text)
+    rows = parse_ecb_csv(text) if isinstance(text, str) else []
     if not rows:
         raise ToolError(f"the ECB publishes no reference rate for {cur}; say so")
     return rows
@@ -255,7 +256,8 @@ def sample(rows: list, n: int = MAX_ROWS) -> list:
 
 
 def _digits(v: float) -> int:
-    return 0 if abs(v) >= 10000 else 2 if abs(v) >= 1 else 4
+    """The card's own rule (finance.js fmtPrice): none from 10 000, 2 from 10, else 4 (« 1,0957 » for a rate)."""
+    return 0 if abs(v) >= 10000 else 2 if abs(v) >= 10 else 4
 
 
 def fmt(v: float | None, lang: str, digits: int | None = None) -> str:
@@ -289,7 +291,7 @@ def asof_text(item: dict, lang: str) -> str:
         return (f"cours du {day_text(at, lang)} à {hm} UTC, différé de quelques minutes" if lang == "fr" else
                 f"price on {day_text(at, lang)} at {hm} UTC, a few minutes delayed")  # fmt: skip
     if k == "reference":
-        return (f"taux de référence BCE du {day_text(at, lang)}, publié vers 16 h (heure de Francfort)" if lang == "fr"
+        return (f"taux de référence BCE du {day_text(at, lang)}, publié vers 16 h, heure de Francfort" if lang == "fr"
                 else f"ECB reference rate of {day_text(at, lang)}, published around 4 pm CET")  # fmt: skip
     return f"clôture du {day_text(at, lang)}, pas en temps réel" if lang == "fr" else (
         f"close of {day_text(at, lang)}, not real time")  # fmt: skip
@@ -299,6 +301,8 @@ def _asks(items: list[dict], rng: str, lang: str) -> list[str]:
     """2 or 3 next asks built from the card (continuity: each one draws the updated chart)."""
     fr = lang == "fr"
     names = " et ".join(i["name"] for i in items) if fr else " and ".join(i["name"] for i in items)
+    if any(i["kind"] == "equity" for i in items):  # « Apple » alone is a brand: the ask names the share
+        names = f"cours de {names}" if fr else f"{names} stock"
     first = items[0]
     out = []
     crypto = any(i["kind"] == "crypto" for i in items)
@@ -322,6 +326,7 @@ def _asks(items: list[dict], rng: str, lang: str) -> list[str]:
 
         if other and other not in keys:
             o = INSTRUMENTS[other].name
+            names = f"le {names}" if fr and names.startswith("cours") else names
             out.append(f"compare {names} avec {'le ' if INSTRUMENTS[other].kind == 'index' else ''}{o}" if fr else
                        f"compare {names} with {'the ' if INSTRUMENTS[other].kind == 'index' else ''}{o}")  # fmt: skip
     if first["kind"] == "fx" and len(items) == 1:
@@ -381,7 +386,11 @@ def get_quote(args: dict, ctx) -> str:
     rng = str(args.get("range") or "").lower()
     rng = rng if rng in RANGES else (range_of(rng) or DEFAULT_RANGE)
     vs = str(args.get("currency") or "").upper()
-    vs = vs if vs in ("EUR", "USD") else ("USD" if lang == "en" else "EUR")
+    if vs not in ("EUR", "USD"):  # crypto prices in: the user's own words (« en dollars »), else the language's
+        words = str(getattr(ctx, "request", "") or "")
+        vs = ("USD" if re.search(r"\b(?:en|in)\s+(?:dollars?|usd)\b|\$", words, re.I) else
+              "EUR" if re.search(r"\b(?:en|in)\s+(?:euros?|eur)\b|€", words, re.I) else
+              "USD" if lang == "en" else "EUR")  # fmt: skip
     if rng == "5y" and any(i.kind == "crypto" for i in insts):
         rng_note = "crypto"
         rng = "1y"
@@ -391,6 +400,7 @@ def get_quote(args: dict, ctx) -> str:
     series: dict[str, list[tuple[str, float]]] = {}
     metas: dict[str, dict] = {}
     missing: list[Instrument] = []
+    failed: list[tuple[Instrument, str]] = []
     cryptos = [i for i in insts if i.kind == "crypto"]
     now_prices = _gecko_now(ctx, cryptos, vs) if cryptos else {}
     for inst in insts:
@@ -404,11 +414,17 @@ def get_quote(args: dict, ctx) -> str:
         except NeedsKey:
             missing.append(inst)
             continue
+        except ToolError as e:  # one provider down or one name without data: the others are still shown
+            failed.append((inst, str(e)))
+            continue
         cut = (today - timedelta(days=min(days, CRYPTO_MAX_DAYS) if inst.kind == "crypto" else days)).isoformat()
         rows = [r for r in rows if r[0] >= cut]
         if len(rows) < 2:
-            raise ToolError(f"not enough prices for {inst.name} over this period; say so, invent none")
+            failed.append((inst, f"not enough prices for {inst.name} over this period; say so, invent none"))
+            continue
         series[inst.key], metas[inst.key] = rows, meta
+    if failed and not series and not missing:
+        raise ToolError(failed[0][1])
     if not series:
         names = ", ".join(i.name for i in missing)
         raise ToolError(
@@ -499,7 +515,12 @@ def get_quote(args: dict, ctx) -> str:
               "asks": _asks(items, rng, lang)}  # fmt: skip
     ctx.step_info = {"widget": widget, "chart": spec["id"], "label": main["label"], "values": len(table),
                      "series": len(items), "type": "line"}  # fmt: skip
-    return _result(items, compare, rng, missing, rng_note, advice, n_src, lang)
+    out = _result(items, compare, rng, missing, rng_note, advice, n_src, lang)
+    if failed:
+        out += (" Sans données ici : " if lang == "fr" else " No data here: ") + "; ".join(
+            f"{i.name} ({http.clean(why, 90)})" for i, why in failed)
+        widget["unavailable"] = [i.name for i, _ in failed]
+    return out
 
 
 def _sources(items: list[dict], lang: str) -> list[dict]:

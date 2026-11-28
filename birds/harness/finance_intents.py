@@ -106,6 +106,8 @@ def quote(text: str, lang: str = "fr") -> Intent | None:
     market = bool(_MARKET.search(t))
     for i in insts:
         named = [a for a in i.aliases if re.search(rf"(?<![\w]){re.escape(a)}(?![\w])", next(iter(words)))]
+        if i.kind == "crypto" and named and market:
+            continue  # « combien vaut l'ether ? »
         if named and all(a in AMBIGUOUS for a in named) and not strong:
             return None  # « une orange », « le total », « Apple a sorti un iPhone »: not the share
     if kinds <= {"index"}:
@@ -129,14 +131,22 @@ def quote(text: str, lang: str = "fr") -> Intent | None:
 
 
 def _fx_words(t: str) -> str:
-    """« évolution de l'euro face au dollar sur 6 mois » → « euro dollar »: only the currency words remain."""
+    """« évolution de l'euro face au dollar sur 6 mois » → « euro dollar », « du franc suisse » → « franc suisse »:
+    only the currency words remain (two-word names first)."""
     from birds.harness import intents
 
     words = re.findall(r"[A-Za-zÀ-ÿ]+(?:/[A-Za-z]{3})?", t)
-    keep = []
-    for w in words:
+    keep, i = [], 0
+    while i < len(words):
+        w = words[i]
         if "/" in w:
             return w
+        two = f"{w} {words[i + 1]}" if i + 1 < len(words) else ""
+        if two and intents.currency_code(two):
+            keep.append(two)
+            i += 2
+            continue
         if intents.currency_code(w) and w.lower() not in ("en", "de", "a", "le", "la", "sur", "mois", "an", "ans"):
             keep.append(w)
+        i += 1
     return " ".join(keep)

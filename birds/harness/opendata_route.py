@@ -147,6 +147,13 @@ _TEXT_TASK = re.compile(r"\b(?:summari[sz]\w*|translat\w*|rewrit\w*|proofread\w*
                         r"mets\s+en\s+forme)\b", re.I)  # fmt: skip
 
 
+def _names_instrument(text: str) -> bool:
+    """« Safran, ça monte ? »: a listed instrument named is the market family's own word."""
+    from birds.harness.tools.opendata.markets import find_all
+
+    return bool(find_all(text))
+
+
 def veto_reason(call, text: str) -> str:
     """'' or the false-trigger family that blocks this open-data module."""
     from birds.harness import opendata_intents as O
@@ -159,7 +166,7 @@ def veto_reason(call, text: str) -> str:
         return "open data false trigger (a task on the user's text)"  # « Translate into French: … » (not an address)
     if fires:
         return ""  # the family's own parser starts it too
-    if not _CUES[call.tool].search(t):
+    if not _CUES[call.tool].search(t) and not (call.tool == "get_quote" and _names_instrument(t)):
         return "open data: none of the family's words"
     if O._DELIVERABLE.search(t) or _TEXT_TASK.search(t) or _OWN_DATA.search(t):
         return "open data false trigger (writing or own data)"

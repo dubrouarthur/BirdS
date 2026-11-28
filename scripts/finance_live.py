@@ -43,7 +43,27 @@ DEMO = [
     ({"symbols": "EUR/USD", "range": "1y"}, "fr"),
     ({"symbols": "EUR/USD", "range": "5y"}, "fr"),
     ({"symbols": "Bitcoin", "range": "6m", "currency": "USD"}, "en"),
+    ({"symbols": "Bitcoin, Ethereum", "range": "6m"}, "en"),
+    ({"symbols": "Bitcoin", "range": "1y"}, "en"),
+    ({"symbols": "EUR/USD", "range": "6m"}, "en"),
 ]
+
+
+def _slim(body: str):
+    """What the tool reads of an answer: the ECB's CSV keeps its date and value columns, CoinGecko's chart its prices
+    (the demo file stays small; the card built from the slim answer is the same, tests/test_finance.py)."""
+    try:
+        data = json.loads(body)
+    except ValueError:
+        import csv
+        import io
+
+        rows = list(csv.DictReader(io.StringIO(body)))
+        return "TIME_PERIOD,OBS_VALUE\n" + "".join(f"{r['TIME_PERIOD']},{r['OBS_VALUE']}\n" for r in rows
+                                                   if r.get("TIME_PERIOD") and r.get("OBS_VALUE"))  # fmt: skip
+    if isinstance(data, dict) and "prices" in data:
+        return {"prices": [[int(t), round(float(v), 6)] for t, v in data["prices"]]}
+    return data
 
 
 def main(argv=None) -> int:
@@ -62,11 +82,7 @@ def main(argv=None) -> int:
     def spy(c, conf, url, **kw):
         out = real(c, conf, url, **kw)
         if "twelvedata" not in url:
-            body = out[2].decode("utf-8", errors="replace")
-            try:
-                seen[url] = json.loads(body)
-            except ValueError:
-                seen[url] = body  # the ECB's CSV
+            seen[url] = _slim(out[2].decode("utf-8", errors="replace"))
         return out
 
     guard.fetch_bytes = spy

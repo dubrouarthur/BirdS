@@ -34,8 +34,10 @@ export const FINANCE_STRINGS = {
     "range.1y.long": "1 an",
     "range.5y.long": "5 ans",
     "range.ask": "{names} sur {range}",
+    "range.share": "cours de {names}",
     "range.crypto": "Historique des cryptoactifs : 1 an au plus chez la source.",
     missing: "Actions et indices non affichés ici ({names}) : flux de marché sous licence non activé.",
+    unavailable: "Pas de données pour {names} sur cette période.",
     advice: "Information sur les cours, pas un conseil en investissement.",
     next: "Pour continuer",
     data: "Données",
@@ -66,8 +68,10 @@ export const FINANCE_STRINGS = {
     "range.1y.long": "1 year",
     "range.5y.long": "5 years",
     "range.ask": "{names} over {range}",
+    "range.share": "{names} stock",
     "range.crypto": "Crypto history: 1 year at most from the source.",
     missing: "Shares and indices not shown here ({names}): licensed market feed not enabled.",
+    unavailable: "No data for {names} over this period.",
     advice: "Price information, not investment advice.",
     next: "Next",
     data: "Data",
@@ -145,7 +149,11 @@ export function asofLine(item) {
 
 /** The ask a period chip sends: « LVMH et Hermès sur 5 ans » (the harness reads it like a typed message). */
 export function rangeAsk(w, r) {
-  const names = (w.items || []).map((i) => i.name).join(ft("and"));
+  const items = w.items || [];
+  let names = items.map((i) => i.name).join(ft("and"));
+  // « Apple » alone is a brand: the ask names the share (the same words as the tool's own asks)
+  if (items.some((i) => i.kind === "equity"))
+    names = ft("range.share", { names });
   return ft("range.ask", { names, range: ft(`range.${r}.long`) });
 }
 
@@ -357,6 +365,11 @@ export function renderQuote(w) {
       h("p", {
         class: "fin-note muted",
         text: ft("missing", { names: w.missing.join(", ") }),
+      }),
+    (w.unavailable || []).length > 0 &&
+      h("p", {
+        class: "fin-note muted",
+        text: ft("unavailable", { names: w.unavailable.join(", ") }),
       }),
     w.advice && h("p", { class: "fin-note fin-advice", text: ft("advice") }),
     sourceLine(w),
