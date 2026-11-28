@@ -1069,6 +1069,9 @@ class Agent:
             # ---- end of the model router hook ------------------------------------------------------------------
             routed |= set(EXTRA_TOOL_NAMES) - {"make_chart"} - {i.tool for i in found}
             prefill = next((i for i in found if i.args), None)
+            if not opendata_intents.usable(prefill, cfg):  # markets: shares need the licensed feed's key
+                routed.add(prefill.tool)
+                prefill = None
             # « météo aujourd'hui », « taux du jour »: words that usually call for the web, but the tool has the answer
             own_answer = prefill and prefill.tool in ("convert_currency", "get_weather")
             # --- open data: the card answers by itself; a statistics chart is drawn once (no second make_chart)
@@ -1173,6 +1176,8 @@ class Agent:
                 )
                 seen.add(repair.canonical(call["name"], call["arguments"]))
                 queue, gen, auto_calls = [call], 1, 1
+        # every word the user wrote in this conversation: draft_email keeps an address only if it is in there
+        ctx.said = "\n".join(str(m.get("content")) for m in messages if m.get("role") == "user" and m.get("content"))
         lvl = reflex.LEVELS.get(choice.level) if choice is not None else None
         rinfo: dict = dict((resume or {}).get("rx") or {}) if resume is not None else {}
         if lvl is not None:
@@ -1684,7 +1689,10 @@ class Agent:
                     step.decision = "denied_cap" if capped else forced
                 else:
                     step.decision = guard.gate(
-                        name, args, tainted=run.flagged, side_effects=side_effects, cfg=self.cfg, confirm=self.confirm
+                        name, args, tainted=run.flagged, side_effects=side_effects, cfg=self.cfg, confirm=self.confirm,
+                        user_text=None
+                        if getattr(self.cfg, "confirm_deliverables", False)
+                        else f"{ctx.message or ''}\n{ctx.request or ''}",
                     )
             if step.decision == "pause":
                 return step, ""

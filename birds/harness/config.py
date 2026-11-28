@@ -26,6 +26,9 @@ class Config:
     think_chars: int = 12000  # reasoning longer than this with no answer yet is cut; the step is redone without it
     timeout_s: float = 180.0  # wall clock for the whole run
     max_side_effects: int = 5  # draft_email / make_* / run_python calls per run
+    # after a page that looked like it gave orders: False asks only for a draft addressed to someone the user never
+    # named (guard.needs_approval); True asks before every deck, document, sheet and draft (the stricter old rule)
+    confirm_deliverables: bool = False
     # network
     # web_search backend, first configured wins: SearXNG, Brave, Tavily, then the no-key default (tools/search.py)
     searxng_url: str | None = None  # operator-configured, so not subject to the egress policy
@@ -76,6 +79,9 @@ class Config:
     # MET Norway's terms: identify the application and a contact site (never a person's name or e-mail)
     met_user_agent: str = "BirdHarness/0.1 (+https://bird-s.vercel.app)"
     geo_cache_dir: str | None = None  # optional disk cache (file names are hashes, never the query)
+    # markets (birds/harness/tools/opendata/finance.py): shares and indices need a licensed feed with display rights
+    twelvedata_api_key: str | None = field(default=None, repr=False)  # BIRD_TWELVEDATA_API_KEY
+    coingecko_api_key: str | None = field(default=None, repr=False)  # BIRD_COINGECKO_API_KEY (optional Demo key)
 
 
 @dataclass
@@ -95,6 +101,7 @@ class Context:
     lang: str = "fr"  # language of the conversation (search backends that care, e.g. Wikipedia)
     request: str = ""  # the user's own words for this run (make_slides checks that their figures made it in)
     message: str = ""  # the whole user message (own words + attachment notes + image transcriptions)
+    said: str = ""  # every user message of the conversation (draft_email: an address is kept only if written here)
     used: list[str] = field(default_factory=list)  # tools that succeeded in this run, in order (make_chart's source)
     # what web_search / read_page / read_file returned, as [kind, text] with kind "web" or "file": a chart's numbers
     # are credited to the web or a file only if they appear there (make_chart's source)

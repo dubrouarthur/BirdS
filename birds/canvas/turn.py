@@ -19,71 +19,106 @@ import secrets
 import time
 from collections.abc import Callable
 
+from . import code as codefiles
 from . import convert, dsl, intents, patch
 
 FILE_TOOLS = ("make_slides", "make_document", "make_sheet")
 STREAM_EVERY = 0.35  # seconds between two snapshots sent while the model writes
 CANVAS_MAX_TOKENS = 2200  # a 8-slide deck in the text format is about 900 tokens; a web page up to ~2000
-IMAGE_SECONDS = 15.0
-IMAGE_LIMIT = 4
+IMAGE_SECONDS = 20.0
+IMAGE_LIMIT = 8  # a deck: the cover and up to seven slides (searches are cached, the time is capped)
 
 SPEC = {
     "deck": {
         "fr": (
             "[Canevas] Écris la présentation directement dans ta réponse, dans ce format (pas d'outil, pas de JSON) :\n"
-            "---\ntitle: <titre>\nsubtitle: <sous-titre court>\n---\n# <titre de la diapositive>\n- point court\n"
-            "- autre point\n\nBlocs facultatifs, un par diapositive au plus :\n"
+            "---\ntitle: <titre>\nsubtitle: <sous-titre court>\nimage: <2 à 4 mots en anglais pour la photo de couverture>\n---\n"
+            "# <titre de la diapositive>\n- point court\n- autre point\n\n"
+            "# <titre d'une diapositive illustrée>\n- point court\n- autre point\n"
+            '::: image query="<2 à 4 mots en anglais : ce que la photo montre>"\n:::\n\n'
+            "Varie les diapositives : un bloc au plus par diapositive, choisi selon le contenu :\n"
             "::: kpi\n<chiffre> | <ce qu'il mesure>\n:::\n"
-            '::: chart type=bar unit="%"\n<libellé>: <nombre>\n:::\n'
+            '::: chart type=bar unit="<unité>"\n<libellé>: <nombre donné dans la demande>\n:::\n<message clé en une phrase>\n'
             "::: timeline\n<date> : <étape>\n:::\n"
-            '::: image query="<2 à 4 mots pour chercher une photo>"\n:::\n'
+            "::: steps\n<étape> : <ce qu'on y fait>\n:::\n"
+            "::: compare\n<option A> | <option B>\n<point A> | <point B>\n:::\n"
+            "::: cards\n<nom> : <description courte>\n:::\n"
+            '::: image query="<2 à 4 mots en anglais pour chercher une photo>"\n:::\n'
             "> « citation » — auteur\n\n"
-            "Règles : 4 à 8 diapositives, 3 à 5 points courts par diapositive. N'invente aucun chiffre : seulement ceux "
-            "de la demande ou des sources lues."
+            "Une diapositive avec un titre seul ouvre une partie. "
+            "Règles : 5 à 8 diapositives, 3 à 5 points courts par diapositive, une image sur 2 ou 3 diapositives "
+            "quand une photo aide. N'invente aucun chiffre : seulement ceux de la demande ou des sources lues ; s'il en "
+            "manque, écris quand même la présentation, avec « à compléter » à la place du chiffre."
         ),
         "en": (
             "[Canvas] Write the deck directly in your answer, in this format (no tool, no JSON):\n"
-            "---\ntitle: <title>\nsubtitle: <short subtitle>\n---\n# <slide title>\n- short point\n- another point\n\n"
-            "Optional blocks, at most one per slide:\n"
+            "---\ntitle: <title>\nsubtitle: <short subtitle>\nimage: <2 to 4 words for the cover photo>\n---\n"
+            "# <slide title>\n- short point\n- another point\n\n"
+            "# <title of an illustrated slide>\n- short point\n- another point\n"
+            '::: image query="<2 to 4 words: what the photo shows>"\n:::\n\n'
+            "Vary the slides: at most one block per slide, chosen from the content:\n"
             "::: kpi\n<figure> | <what it measures>\n:::\n"
-            '::: chart type=bar unit="%"\n<label>: <number>\n:::\n'
+            '::: chart type=bar unit="<unit>"\n<label>: <number given in the request>\n:::\n<key message in one sentence>\n'
             "::: timeline\n<date>: <step>\n:::\n"
+            "::: steps\n<step>: <what happens>\n:::\n"
+            "::: compare\n<option A> | <option B>\n<point A> | <point B>\n:::\n"
+            "::: cards\n<name>: <short description>\n:::\n"
             '::: image query="<2 to 4 words to search a photo>"\n:::\n'
             '> "quotation" — author\n\n'
-            "Rules: 4 to 8 slides, 3 to 5 short points per slide. Invent no figure: only those of the request or of "
-            "the sources read."
+            "A slide with a title only opens a part. "
+            "Rules: 5 to 8 slides, 3 to 5 short points per slide, a picture on 2 or 3 slides when a photo helps. "
+            "Invent no figure: only those of the request or of the sources read; if some are missing, still write "
+            "the deck, with \"to be completed\" in place of the figure."
         ),
     },
     "doc": {
         "fr": (
             "[Canevas] Écris le document directement dans ta réponse, dans ce format (pas d'outil, pas de JSON) :\n"
-            "---\ntitle: <titre>\nsubtitle: <sous-titre court>\n---\n# <titre de section>\nParagraphes, listes "
-            "(- point), tableaux (| a | b |).\n\nBlocs facultatifs :\n"
+            "---\ntitle: <titre>\nsubtitle: <sous-titre court>\n"
+            "template: <cadrage | compte-rendu | rapport | proposition | procedure | lettre>\n---\n"
+            "# <titre de section>\nParagraphes, listes (- point), tableaux (| a | b |), sous-titres (## …).\n\n"
+            "Blocs facultatifs :\n"
+            "::: cle\n<à retenir>\n:::\n"
             "::: attention\n<un risque ou une mise en garde>\n:::\n"
-            "::: note\n<à retenir>\n:::\n"
-            '::: image query="<2 à 4 mots pour chercher une photo>"\n:::\n\n'
-            "Règles : 3 à 7 sections. N'invente aucun chiffre ni aucun nom."
+            "::: note\n<une information utile>\n:::\n"
+            '::: image query="<2 à 4 mots pour chercher une photo>" caption="<légende>"\n:::\n'
+            "Une source : [^1] dans le texte, puis la ligne « [^1]: <la source> ».\n\n"
+            "Règles : choisis le modèle (template) qui convient ; d'abord les sections demandées, 3 à 7 sections ; "
+            "une lettre : des paragraphes sans sous-titres, puis la formule de politesse. « author: » seulement si "
+            "la demande donne un nom. N'invente aucun chiffre ni aucun nom."
         ),
         "en": (
             "[Canvas] Write the document directly in your answer, in this format (no tool, no JSON):\n"
-            "---\ntitle: <title>\nsubtitle: <short subtitle>\n---\n# <section title>\nParagraphs, lists (- point), "
-            "tables (| a | b |).\n\nOptional blocks:\n"
+            "---\ntitle: <title>\nsubtitle: <short subtitle>\n"
+            "template: <brief | minutes | report | proposal | procedure | letter>\n---\n"
+            "# <section title>\nParagraphs, lists (- point), tables (| a | b |), sub-headings (## …).\n\n"
+            "Optional blocks:\n"
+            "::: key\n<key takeaway>\n:::\n"
             "::: warning\n<a risk or a caution>\n:::\n"
-            "::: note\n<key takeaway>\n:::\n"
-            '::: image query="<2 to 4 words to search a photo>"\n:::\n\n'
-            "Rules: 3 to 7 sections. Invent no figure and no name."
+            "::: note\n<useful information>\n:::\n"
+            '::: image query="<2 to 4 words to search a photo>" caption="<caption>"\n:::\n'
+            "A source: [^1] in the text, then the line \"[^1]: <the source>\".\n\n"
+            "Rules: pick the template that fits; the sections asked for first, 3 to 7 sections; a letter: paragraphs "
+            "without sub-headings, then the closing. \"author:\" only if the request gives a name. Invent no figure "
+            "and no name."
         ),
     },
     "code": {
         "fr": (
-            "[Canevas] Écris un seul fichier complet dans un bloc de code (```html pour une page, ```svg pour une "
-            "image vectorielle, ```python pour un script). Page web : HTML, CSS et JavaScript dans le même fichier, "
-            "aucune ressource externe (pas de CDN, pas de police ni d'image en ligne). Puis une phrase d'explication."
+            "[Canevas] Écris le code dans ta réponse, chaque fichier dans son propre bloc, son nom après le "
+            "langage :\n```html index.html\n…\n```\nPage ou petite application web : index.html, et si utile "
+            "style.css et script.js (reliés par <link rel=\"stylesheet\" href=\"style.css\"> et <script "
+            "src=\"script.js\"></script> en fin de body) ; une page simple tient dans index.html. Code complet et "
+            "fonctionnel, mise en page responsive, aucune ressource externe (pas de CDN, ni police ni image en "
+            "ligne). Autre langage : un seul fichier (```python main.py). Puis une phrase d'explication."
         ),
         "en": (
-            "[Canvas] Write one complete file in one code block (```html for a page, ```svg for a vector image, "
-            "```python for a script). Web page: HTML, CSS and JavaScript in the same file, no external resource (no "
-            "CDN, no online font or image). Then one sentence of explanation."
+            "[Canvas] Write the code in your answer, each file in its own block, its name after the language:\n"
+            "```html index.html\n…\n```\nWeb page or small web app: index.html, and if useful style.css and "
+            "script.js (linked by <link rel=\"stylesheet\" href=\"style.css\"> and <script src=\"script.js\">"
+            "</script> at the end of body); a simple page fits in index.html. Complete, working code, responsive "
+            "layout, no external resource (no CDN, no online font or image). Another language: one file (```python "
+            "main.py). Then one sentence of explanation."
         ),
     },
     "diagram": {
@@ -123,17 +158,59 @@ TARGET = {
     "fr": "[Canevas] Le bloc à modifier :\n{block}\nRéécris uniquement ce bloc, complet, dans le même format.",
     "en": "[Canvas] The block to change:\n{block}\nRewrite only this block, complete, in the same format.",
 }
+VARIANTS = {
+    "fr": "[Canevas] La section à retravailler :\n{block}\nÉcris deux variantes complètes de cette section, dans le "
+          "même format, chacune précédée de sa ligne : « @variante 1 », puis « @variante 2 ». Rien d'autre.",
+    "en": "[Canvas] The section to rework:\n{block}\nWrite two complete variants of this section, in the same format, "
+          "each after its own line: \"@variant 1\", then \"@variant 2\". Nothing else.",
+}  # fmt: skip
+_VARIANT_LINE = re.compile(r"(?im)^[ \t>*_#@]*(?:variante|variant|version|option|proposition)\s*(?:n°\s*)?([12ab])\b"
+                           r"[^\n]*$")  # fmt: skip
+
+
+def parse_variants(text: str, base_block: dict, lang: str = "fr", repairs: list[str] | None = None) -> list[dict]:
+    """The rewrites of one section the model wrote (« @variante 1 » … « @variante 2 » …), as blocks with the
+    section's id: 0, 1 or 2 of them. Lenient: a missing heading takes the section's title, and a variant marker
+    written as a heading, in bold or with « Version B » is read the same."""
+    repairs = repairs if repairs is not None else []
+    src = str(text or "")
+    marks = list(_VARIANT_LINE.finditer(src))
+    chunks = [src[m.end() : (marks[i + 1].start() if i + 1 < len(marks) else len(src))] for i, m in enumerate(marks)]
+    if not chunks:
+        chunks = [src]
+    out = []
+    for chunk in chunks[:2]:
+        body = chunk.strip("\n")
+        if not re.search(r"(?m)^\s{0,3}#\s", body):
+            body = f"# {base_block.get('title') or ''}\n" + body
+        parsed = dsl.parse(body, "doc", lang, repairs)
+        parts = [p for b in parsed["blocks"] for p in b["parts"]][: dsl.MAX_PARTS]
+        if not parts:
+            continue
+        title = (parsed["blocks"][0].get("title") if parsed["blocks"] else "") or base_block.get("title") or ""
+        out.append({"id": base_block["id"], "title": title, "parts": parts, "notes": base_block.get("notes") or ""})
+    if len(marks) < 2:
+        repairs.append(f"variants: {len(marks)} marker(s), {len(out)} variant(s) read")
+    return out
+
+
 CODE_PATCH = {
-    "fr": "[Canevas] Le fichier ouvert :\n```{lang}\n{code}\n```\nRéécris le fichier complet, corrigé selon la demande, "
-          "dans un seul bloc ```{lang}. Aucune ressource externe.",
-    "en": "[Canvas] The open file:\n```{lang}\n{code}\n```\nRewrite the complete file, changed as asked, in one "
-          "```{lang} block. No external resource.",
+    "fr": "[Canevas] Les fichiers ouverts :\n{files}\nRéécris seulement le ou les fichiers à changer, chacun en "
+          "entier, dans un bloc ```<langage> <nom du fichier>. Ne réécris pas les autres. Aucune ressource externe.",
+    "en": "[Canvas] The open files:\n{files}\nRewrite only the file or files to change, each one whole, in a "
+          "```<language> <file name> block. Do not rewrite the others. No external resource.",
 }  # fmt: skip
 NAMES = {
     "deck": {"fr": "la présentation", "en": "the deck"},
     "doc": {"fr": "le document", "en": "the document"},
     "code": {"fr": "le code", "en": "the code"},
     "sheet": {"fr": "le tableau", "en": "the sheet"},
+}
+OF = {
+    "deck": {"fr": "de la présentation", "en": "of the deck"},
+    "doc": {"fr": "du document", "en": "of the document"},
+    "code": {"fr": "du code", "en": "of the code"},
+    "sheet": {"fr": "du tableau", "en": "of the sheet"},
 }
 DIRECT_SAID = {
     "theme": ("Thème appliqué : {theme}.", "Theme applied: {theme}."),
@@ -144,7 +221,13 @@ DIRECT_SAID = {
     "image": ("Je cherche une autre image.", "Looking for another picture."),
     "unimage": ("Image retirée.", "Picture removed."),
     "retitle": ("Titre modifié.", "Title changed."),
+    "chart": ("Graphique tracé avec vos chiffres, tels que vous les avez donnés.",
+              "Chart drawn from your figures, exactly as you gave them."),
+    "table": ("Tableau complété avec vos chiffres.", "Table completed with your figures."),
 }
+
+
+_CHART_WORD = re.compile(r"\b(?:graphi\w*|chart|diagramme|courbe|camembert|histogramme|barres?|bar chart|pie)\b", re.I)
 
 
 def new_aid() -> str:
@@ -155,14 +238,33 @@ def _lang2(lang: str) -> str:
     return "en" if lang == "en" else "fr"
 
 
-def code_doc(found: dict | None, lang: str, title: str = "") -> dict | None:
-    if not found:
+def code_doc(found: dict | None, lang: str, title: str = "", base: dict | None = None) -> dict | None:
+    """The code document of a parsed answer (``code.parse_files``); on a patch turn (``base``), the files written
+    replace those of the same name and the others are kept."""
+    if not found or not found.get("files"):
         return None
     doc = dsl.empty("code", lang)
     doc.pop("blocks", None)
     doc["title"] = title
-    doc["code"] = {"lang": found["lang"], "text": found["text"]}
+    files = found["files"]
+    if base is not None:
+        files, _ = codefiles.merge(codefiles.files_of(base), files, found.get("shown"))
+    doc["code"] = codefiles.make_code(files, found.get("open"))
     return doc
+
+
+def code_what(doc: dict, fr: bool) -> str:
+    """« page web en 3 fichiers (index.html, style.css, script.js) », « script Python », « schéma »."""
+    files = codefiles.files_of(doc)
+    lang_ = files[codefiles.entry_index(files)]["lang"] if files else ""
+    what = {"html": "page web" if fr else "web page", "svg": "image SVG" if fr else "SVG image",
+            "mermaid": "schéma" if fr else "diagram", "python": "script Python" if fr else "Python script",
+            "css": "feuille de style" if fr else "style sheet", "js": "script JavaScript" if fr else "JavaScript",
+            }.get(lang_, "code")  # fmt: skip
+    if len(files) > 1:
+        names = ", ".join(f["name"] for f in files[:6])
+        what += (f" en {len(files)} fichiers ({names})" if fr else f" in {len(files)} files ({names})")
+    return what
 
 
 class Stream:
@@ -198,7 +300,8 @@ class Stream:
 
 
 def chat_text(kind: str, doc: dict, lang: str, before: str = "", after: str = "", cut: bool = False,
-              verb: str = "create", repairs: list[str] | None = None) -> str:  # fmt: skip
+              verb: str = "create", repairs: list[str] | None = None, version: int = 1,
+              changes: list[dict] | None = None) -> str:  # fmt: skip
     """What the chat says about the artifact (the content itself is in the canvas, never pasted twice)."""
     fr = lang != "en"
     n = len(doc.get("blocks") or [])
@@ -208,12 +311,35 @@ def chat_text(kind: str, doc: dict, lang: str, before: str = "", after: str = ""
     elif kind == "doc":
         what = f"{n} section{'s' if n > 1 else ''}" if fr else f"{n} section{'s' if n != 1 else ''}"
     else:
-        lang_ = (doc.get("code") or {}).get("lang") or ""
-        what = {"html": "page HTML" if fr else "HTML page", "svg": "image SVG" if fr else "SVG image",
-                "mermaid": "schéma" if fr else "diagram", "python": "script Python" if fr else "Python script"}.get(
-            lang_, "code")  # fmt: skip
+        what = code_what(doc, fr)
     name = NAMES.get(kind, NAMES["doc"])["fr" if fr else "en"]
-    if verb == "create":
+    if kind == "code" and verb == "create":
+        files = codefiles.files_of(doc)
+        if files and files[codefiles.entry_index(files)]["lang"] == "html":
+            name = "la page" if fr else "the page"
+            names = ", ".join(f["name"] for f in files[:6])
+            what = (f"{len(files)} fichiers ({names})" if fr else f"{len(files)} files ({names})") if len(files) > 1 \
+                else (f"un fichier ({names})" if fr else f"one file ({names})")  # fmt: skip
+    if kind == "doc":
+        from . import templates
+
+        tpl = templates.TEMPLATES.get(doc.get("template") or "")
+        what = ", ".join(x for x in [(tpl.fr.lower() if fr else tpl.en.lower()) if tpl else "", what] if x)
+        if tpl and tpl.letter:
+            what = tpl.fr.lower() if fr else tpl.en.lower()
+        if verb == "create":
+            head = (f"Le document « {title} » est prêt dans le canevas : {what}." if fr and title
+                    else f"Le document est prêt dans le canevas : {what}." if fr
+                    else f"The document \"{title}\" is ready in the canvas: {what}." if title
+                    else f"The document is ready in the canvas: {what}.")  # fmt: skip
+            tip = ("Cliquez sur un texte pour le modifier ; ✦ sur une section la retravaille (deux variantes au "
+                   "choix). Téléchargez-le en .docx ou en PDF depuis la carte." if fr else
+                   "Click any text to edit it; ✦ on a section rewrites it (two variants to choose from). Download "
+                   "it as .docx or PDF from the card.")  # fmt: skip
+            parts = [head, tip]
+        else:
+            parts = [f"Version {version} du document ({what})." if fr else f"Version {version} of the document ({what})."]
+    elif verb == "create":
         head = (f"{name[:1].upper() + name[1:]} « {title} » est dans le canevas : {what}." if fr and title
                 else f"{name[:1].upper() + name[1:]} est dans le canevas : {what}." if fr
                 else f"{name[:1].upper() + name[1:]} \"{title}\" is in the canvas: {what}." if title
@@ -223,20 +349,28 @@ def chat_text(kind: str, doc: dict, lang: str, before: str = "", after: str = ""
                "« plus court »)." if fr else
                f"Click a block to edit it, or ask me for a change (\"add {unit} on…\", \"shorter\").")  # fmt: skip
         if kind == "code":
-            tip = ("L'onglet Aperçu l'exécute à part, sans accès au réseau." if fr
-                   else "The Preview tab runs it apart, with no network access.")  # fmt: skip
-            if (doc.get("code") or {}).get("lang") == "mermaid":
+            tip = ("L'aperçu l'exécute à part, sans réseau ; la console et « Corriger avec Bird » sont juste dessous."
+                   if fr else "The preview runs it apart, with no network; the console and \"Fix with Bird\" are "
+                   "right below.")  # fmt: skip
+            files = codefiles.files_of(doc)
+            entry_lang = files[codefiles.entry_index(files)]["lang"] if files else ""
+            if entry_lang == "mermaid":
                 tip = "L'onglet Aperçu dessine le schéma." if fr else "The Preview tab draws the diagram."
-            elif (doc.get("code") or {}).get("lang") not in ("html", "svg", "js", "css", "markdown"):
-                tip = ("Le code est affiché et vérifié, jamais exécuté." if fr
-                       else "The code is shown and checked, never run.")  # fmt: skip
+            elif entry_lang not in ("html", "svg", "js", "css", "markdown"):
+                tip = ("Le code est affiché et vérifié, jamais exécuté : Bird n'a pas de bac à sable d'exécution."
+                       if fr else "The code is shown and checked, never run: Bird has no execution sandbox.")  # fmt: skip
         parts = [head, tip]
     else:
-        parts = [("Nouvelle version de " if fr else "New version of ") + name + f" ({what})."]
+        of = OF.get(kind, OF["doc"])["fr" if fr else "en"]
+        if kind == "code" and changes is not None:
+            sep = " : " if fr else ": "
+            parts = [("Nouvelle version " if fr else "New version ") + of + sep + codefiles.diff_text(changes, fr) + "."]
+        else:
+            parts = [("Nouvelle version " if fr else "New version ") + of + f" ({what})."]
     if cut:
         parts.append("La réponse a été coupée par la limite de longueur : la fin peut manquer." if fr
                      else "The answer was cut by the length limit: the end may be missing.")  # fmt: skip
-    lead = before if before and len(before) <= 300 and not re.match(r"(?i)^\s*(voici|here is|here's|bien s[uû]r|"
+    lead = before if before and len(before) <= 300 and not re.match(r"(?i)^\s*(voici|voil[àa]|here is|here's|bien s[uû]r|"
                                                                      r"d'accord|ok)\b", before) else ""  # fmt: skip
     if _EXCUSE.search(lead):
         lead = ""  # « je n'ai pas accès à vos données… » before a deck that is right there: the content speaks
@@ -257,21 +391,45 @@ def memo_line(info: dict | None, lang: str = "fr") -> str:
         heads = "; ".join(f"{b['id']} {b.get('title') or ''}"[:50] for b in (doc.get("blocks") or [])[:14])
         return f"[canvas {doc.get('kind')} v{info.get('version', '?')} « {doc.get('title', '')[:80]} »: {heads}]"
     if doc.get("kind") == "code":
-        return f"[canvas code {(doc.get('code') or {}).get('lang', '')} « {doc.get('title', '')[:80]} »]"
+        names = ", ".join(f["name"] for f in codefiles.files_of(doc))[:160]
+        return f"[canvas code v{info.get('version', '?')} « {doc.get('title', '')[:80]} »: {names}]"
     return f"[canvas {doc.get('kind')} « {doc.get('title', '')[:80]} »]"
 
 
-def finish_doc(doc: dict, kind: str, words: str, lang: str) -> dict:
-    """Defaults the model left out: a title from the request, a theme from the subject, rich blocks from bullets."""
+def finish_doc(doc: dict, kind: str, words: str, lang: str, repairs: list[str] | None = None) -> dict:
+    """Defaults the model left out: a title from the request, a theme from the subject, rich blocks from bullets.
+    A document also gets its template (the model's choice when it is a known one, else a hint from the words), its
+    date, and keeps an author or a recipient only when the user's words name them (never an invented name)."""
     from birds.harness import office
 
+    repairs = repairs if repairs is not None else []
     if not doc.get("title"):
         doc["title"] = convert.subject(words) or ("Présentation" if kind == "deck" and lang != "en" else
                                                   "Presentation" if kind == "deck" else "Document")  # fmt: skip
     if kind in ("deck", "doc") and not doc.get("theme"):
         doc["theme"] = office.pick_theme(words + " " + doc["title"])
     if kind == "deck":
+        from . import layouts
+
         convert.enrich(doc)
+        layouts.split(doc)  # a list and a cards / steps / comparison block on one slide: two slides, nothing lost
+    if kind == "doc":
+        from . import templates
+
+        wrote = doc.get("template")
+        doc["template"], how = templates.pick(wrote, words, doc.get("title") or "")
+        doc["template_by"] = how
+        if how != "model":
+            repairs.append(f"template {'unknown' if wrote else 'missing'}: {doc['template']} ({how})")
+        said = templates.fold(words)
+        for key in ("author", "recipient"):
+            name = str(doc.get(key) or "")
+            tokens = [t for t in re.findall(r"\w{3,}", templates.fold(name))]
+            if name and not (tokens and (all(t in said for t in tokens) if key == "author"
+                                         else any(t in said for t in tokens if len(t) >= 4))):  # fmt: skip
+                doc.pop(key, None)
+                repairs.append(f"{key} not in the request dropped")
+        doc["date"] = office._long_date(lang)
     return doc
 
 
@@ -287,6 +445,7 @@ class Plan:
     target: str | None = None  # « Demander à Bird » on one block
     ops: list[dict] | None = None  # direct operations
     said: str = ""
+    variants: int = 0  # ✦ on a section: this many rewrites to choose from (2), none applied yet
 
 
 def plan(words: str, canvas: dict | None, lang: str, enabled: bool = True, attached: bool = False) -> Plan | None:
@@ -312,6 +471,21 @@ def plan(words: str, canvas: dict | None, lang: str, enabled: bool = True, attac
         # a short unnamed edit (« plus court ») counts while the panel is shown, or on the turn right after the
         # artifact was made or changed (a phone closes its full-screen sheet to type)
         shown = canvas.get("open") is not False or bool(canvas.get("fresh"))
+        if shown:
+            from . import figures
+
+            # the figures of a chart that waits for them (« nous 34 %, Alpha 28 % … »): drawn as typed, no model
+            ops = figures.fill_ops(words, doc, chart=bool(_CHART_WORD.search(words)))
+            if ops:
+                drew = any(x.get("t") == "chart" for x in ops[0]["block"].get("parts") or [])
+                said = DIRECT_SAID["chart" if drew else "table"][0 if lang != "en" else 1]
+                return Plan("direct", kind, canvas.get("aid") or new_aid(), doc, int(canvas.get("version") or 1),
+                            None, ops, said)  # fmt: skip
+            if kind in ("deck", "doc") and len(figures.pairs(words)) >= 2 and _CHART_WORD.search(words):
+                # « voici les chiffres du graphique : pain 45 %, … » with no chart waiting: an edit of the open
+                # deck (the model places the chart), not a chat answer that comments the figures
+                return Plan("patch", kind, canvas.get("aid") or new_aid(), doc, int(canvas.get("version") or 1),
+                            target)  # fmt: skip
         if intents.edit_ask(words, kind or "deck", targeted=bool(target), shown=shown):
             aid = canvas.get("aid") or new_aid()
             ver = int(canvas.get("version") or 1)
@@ -326,7 +500,8 @@ def plan(words: str, canvas: dict | None, lang: str, enabled: bool = True, attac
                         name = THEME_NAMES.get(ops[0]["theme"], {}).get(_lang2(lang), ops[0]["theme"])
                         said = said.format(theme=name)
                     return Plan("direct", kind, aid, doc, ver, None, ops, said)
-            return Plan("patch", kind, aid, doc, ver, target)
+            variants = 2 if target and canvas.get("variants") and kind == "doc" else 0
+            return Plan("patch", kind, aid, doc, ver, target, variants=variants)
     kind = intents.ask(words, attached=attached)
     if kind is None:
         return None
@@ -340,10 +515,12 @@ def turn_message(p: Plan, user_sent: str, lang: str) -> str:
         return user_sent + "\n\n" + SPEC["diagram" if p.kind == "diagram" else p.kind][lg]
     doc = p.base or {}
     if doc.get("kind") == "code":
-        c = doc.get("code") or {}
-        return user_sent + "\n\n" + CODE_PATCH[lg].format(lang=c.get("lang") or "", code=(c.get("text") or "")[:12000])
+        shown, _ = codefiles.prompt_files(codefiles.files_of(doc))
+        return user_sent + "\n\n" + CODE_PATCH[lg].format(files=shown)
     if p.target:
         b = next(x for x in doc.get("blocks") or [] if x.get("id") == p.target)
+        if p.variants:
+            return user_sent + "\n\n" + VARIANTS[lg].format(block=dsl.block_dsl(b, ids=False))
         return user_sent + "\n\n" + TARGET[lg].format(block=dsl.block_dsl(b, ids=True))
     return user_sent + "\n\n" + PATCH[lg].format(outline=dsl.outline(doc))
 
@@ -353,10 +530,15 @@ def compute_for(p: Plan, words: str, lang: str) -> Callable[[str], dict | None]:
     if p.kind in ("code", "diagram") or (p.base or {}).get("kind") == "code":
         want = "mermaid" if p.kind == "diagram" else None
 
+        base = p.base if (p.base or {}).get("kind") == "code" else None
+        shown = codefiles.prompt_files(codefiles.files_of(base))[1] if base else None
+
         def code(text: str) -> dict | None:
-            found = dsl.parse_code(text, want)
+            found = codefiles.parse_files(text, want)
+            if found is not None:
+                found["shown"] = shown
             title = (p.base or {}).get("title") or convert.subject(words)
-            return code_doc(found, lang, title)
+            return code_doc(found, lang, title, base)
 
         return code
     if p.mode == "create":

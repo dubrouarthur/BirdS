@@ -11,7 +11,7 @@ import pytest
 
 from birds.harness.config import Config, Context
 from birds.harness.tools import web
-from birds.harness.tools.search import FallbackSearch, SearchError, SearxngBackend, chain, probe
+from birds.harness.tools.search import FallbackSearch, SearchError, SearxngBackend, chain, probe_chain
 
 
 class Fixed:
@@ -70,7 +70,7 @@ def test_searxng_all_engines_unresponsive_is_an_outage_then_fallback():
 
 def test_probe_reports_an_empty_backend_as_down():
     s = FallbackSearch(Fixed("searxng"), Fixed("wikipedia", HIT))
-    rows = probe(s, "météo", clock=iter([0.0, 0.1, 0.1, 0.5]).__next__)
+    rows = probe_chain(s, "météo", clock=iter([0.0, 0.1, 0.1, 0.5]).__next__)
     assert [(r["backend"], r["ok"], r["code"], r["results"]) for r in rows] == [
         ("searxng", False, "empty", 0),
         ("wikipedia", True, "", 1),
@@ -79,7 +79,7 @@ def test_probe_reports_an_empty_backend_as_down():
 
 
 def test_probe_never_raises():
-    rows = probe(Fixed("brave", error=RuntimeError("boom")))
+    rows = probe_chain(Fixed("brave", error=RuntimeError("boom")))
     assert rows == [{"backend": "brave", "label": "Brave", "ok": False, "results": 0, "code": "search_failed",
                      "seconds": rows[0]["seconds"]}]  # fmt: skip
 

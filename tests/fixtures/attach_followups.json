@@ -1,0 +1,16 @@
+{
+  "about": "R1: 10 fixed two-turn conversations. Turn 1 brings a document and asks about it; turn 2 is either a general question (about_doc false: the document must not be read, noted or cited) or a question about that document (about_doc true: it stays readable). Used by scripts/attach_context_bench.py and tests/test_attach_context.py.",
+  "doc": {"name": "texte-colle-1.txt", "content": "Compte rendu de la réunion du 12 mars.\nPrésents : Alice, Bruno, Chloé.\nBudget 2026 validé : 48 500 euros.\nProchaine réunion le 9 avril à 14 h.\nAction : Bruno envoie le devis du traiteur avant vendredi."},
+  "conversations": [
+    {"t1": "Résume ce compte rendu en trois puces.", "t2": "Quelle est la capitale de l'Australie ?", "about_doc": false},
+    {"t1": "Qui était présent à la réunion ?", "t2": "Donne-moi une recette simple de crêpes.", "about_doc": false},
+    {"t1": "Fais une liste des actions.", "t2": "Explique la photosynthèse en deux phrases.", "about_doc": false},
+    {"t1": "Quel budget a été validé ?", "t2": "Traduis « bonne journée » en espagnol.", "about_doc": false},
+    {"t1": "Résume ce texte.", "t2": "Combien font 17 fois 23 ?", "about_doc": false},
+    {"t1": "Quand est la prochaine réunion ?", "t2": "Écris un haïku sur l'automne.", "about_doc": false},
+    {"t1": "Résume ce document.", "t2": "Dans le compte rendu, qui doit envoyer le devis ?", "about_doc": true},
+    {"t1": "Qui était présent ?", "t2": "Rappelle-moi le budget validé dans ce compte rendu.", "about_doc": true},
+    {"t1": "Fais un résumé court.", "t2": "D'après le document, à quelle heure est la prochaine réunion ?", "about_doc": true},
+    {"t1": "Liste les présents.", "t2": "Rédige un mail aux présents à partir de ce compte rendu.", "about_doc": true}
+  ]
+}

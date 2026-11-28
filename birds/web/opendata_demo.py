@@ -29,6 +29,9 @@ def _day(iso: str, lang: str) -> str:
 
 def answer(tool: str, widgets: list[dict], charts: list[dict], info: dict, lang: str) -> tuple[str, dict]:
     """(answer text with its [1] citation, {source url: title})."""
+    q = next((x for x in widgets if x.get("type") == "quote"), None)
+    if tool == "get_quote" and q is not None:  # markets (tools/opendata/finance.py)
+        return _quote(q, lang), {s["url"]: s["label"] for s in q.get("sources") or [] if s.get("url")}
     w = next((x for x in widgets if x.get("type") in ("calendar", "entity", "tenders", "papers", "commune")), None)
     if tool == "get_statistics" and charts:
         return _stats(charts[0], lang)
@@ -156,3 +159,35 @@ def _stats(spec: dict, lang: str) -> tuple[str, dict]:
               f"**{spec.get('title')}**{unit}, from {src.get('label', 'the official source')} [1]. "
               + "; ".join(parts) + ".")  # fmt: skip
     return text, ({src["url"]: src.get("label", "")} if src.get("url") else {})
+
+
+def _quote(w: dict, lang: str) -> str:
+    """One sentence per line of the quote card, its figures and its date (the live model writes its own)."""
+    from birds.harness.tools.opendata.finance import RANGE_WORDS, asof_text, fmt
+
+    parts = []
+    for i in w.get("items") or []:
+        cur = f" {i['currency']}" if i.get("kind") != "fx" else ""
+        pct = i.get("change_pct") or 0
+        sign = "+" if pct > 0 else ""
+        pp = i.get("period_pct") or 0
+        rw = RANGE_WORDS["en" if lang == "en" else "fr"].get(w.get("range"), "")
+        parts.append(_t(
+            lang,
+            f"**{i['name']}** : {fmt(i['last'], lang)}{cur} ({asof_text(i, lang)}), {sign}{fmt(pct, lang, 2)} % "
+            f"{_base(i, 'fr')}, "
+            f"{'+' if pp > 0 else ''}{fmt(pp, lang, 2)} % sur {rw} [1].",
+            f"**{i['name']}**: {fmt(i['last'], lang)}{cur} ({asof_text(i, lang)}), {sign}{fmt(pct, lang, 2)} % "
+            f"{_base(i, 'en')}, "
+            f"{'+' if pp > 0 else ''}{fmt(pp, lang, 2)} % over {rw} [1].",
+        ))  # fmt: skip
+    if w.get("compare"):
+        parts.append(_t(lang, "Le graphique compare les lignes en base 100.", "The chart compares the lines rebased "
+                        "to 100."))  # fmt: skip
+    return " ".join(parts)
+
+
+def _base(i: dict, lang: str) -> str:
+    fr, en = {"24h": ("sur 24 h", "over 24 h"), "prev_ref": ("depuis le taux précédent", "from the previous rate")}.get(
+        i.get("change_base"), ("depuis la clôture précédente", "from the previous close"))
+    return en if lang == "en" else fr

@@ -1,4 +1,5 @@
 // Secondary views: the footprint ("Empreinte"), settings, about, welcome, keyboard help.
+import { saveAgentMode } from "./agent-mode.js";
 import {
   $,
   activeMode,
@@ -19,9 +20,11 @@ import {
   store,
   t,
   toast,
+  toolLabel,
   modelLabel,
 } from "./core.js";
 import { mountFootprintPage, recordFootprint } from "./footprint.js";
+import { footprintNote, localOffered, localPanel } from "./local.js";
 
 let hooks = {};
 // replaceChildren would print null/false as text: drop them first
@@ -660,6 +663,12 @@ function savings(usages, s, scripted = false) {
 }
 
 let scope = "conv";
+/** Bird local: under the scope switch, one line on where the energy of these answers is measured or estimated. */
+function localNote(body) {
+  const note = footprintNote();
+  if (note) (body.querySelector(".segs") || body.firstChild)?.after(note);
+}
+
 export function renderFootprint() {
   const body = $("view-footprint-body");
   const usages = scope === "all" ? ledgerAll() : convUsages(state.conv);
@@ -735,6 +744,7 @@ export function renderFootprint() {
       h("p", { class: "hint", text: t("fp.note") }),
     );
     mountFootprintPage(body, { scope, usages, rerender: renderFootprint }); // ---- footprint.js hook
+  localNote(body);
     return;
   }
   const energyStat = s.energyN
@@ -846,6 +856,7 @@ export function renderFootprint() {
       }),
   );
   mountFootprintPage(body, { scope, usages, rerender: renderFootprint }); // ---- footprint.js hook
+  localNote(body);
 }
 
 // ------------------------------------------------------------------ settings
@@ -903,7 +914,7 @@ export function toolsPanel() {
           h(
             "span",
             { class: "tool-text" },
-            h("span", { class: "tool-name", text: t(`tool.${x.name}`) }),
+            h("span", { class: "tool-name", text: toolLabel(x.name) }),
             h("span", { class: "tool-why", text: x[lang] || "" }),
           ),
           h("span", {
@@ -930,6 +941,8 @@ export function renderSettings() {
   const hl = state.health || {};
   const modes = hl.modes || { demo: true };
   const mode = activeMode();
+  // the choice shown: « Bird local » opens its connect flow before it becomes the mode (once paired)
+  const shown = state.localPanel && localOffered() ? "local" : mode;
   const select = (id, value, options, onchange) =>
     h(
       "select",
@@ -943,15 +956,24 @@ export function renderSettings() {
     h(
       "label",
       {
-        class: `mode${mode === value ? " is-on" : ""}${enabled ? "" : " is-off"}`,
+        class: `mode${shown === value ? " is-on" : ""}${enabled ? "" : " is-off"}${value === "local" ? " mode-local" : ""}`,
       },
       h("input", {
         type: "radio",
         name: "mode",
         value,
-        checked: mode === value,
+        checked: shown === value,
         disabled: !enabled,
-        onchange: () => apply({ mode: value, demoChosen: value === "demo" }),
+        onchange: () => {
+          if (value === "local") {
+            state.localPanel = true; // the connect flow; the mode changes once the code is accepted
+            renderSettings();
+            document.querySelector('input[name="mode"][value="local"]')?.focus();
+            return;
+          }
+          state.localPanel = false;
+          apply({ mode: value, demoChosen: value === "demo" });
+        },
       }),
       h(
         "span",
@@ -1134,8 +1156,7 @@ export function renderSettings() {
             ["off", t("composer.agent.off")],
           ],
           (v) => {
-            state.agent = ["auto", "on", "off"].includes(v) ? v : "auto";
-            store.set("bird.agent", state.agent);
+            state.agent = saveAgentMode(v, globalThis.localStorage, globalThis.sessionStorage);
             toast(t("toast.saved"), "ok");
           },
         ),
@@ -1173,12 +1194,16 @@ export function renderSettings() {
           modes.user ? t("set.mode.user.hint") : t("set.mode.user.off"),
           !!modes.user,
         ),
+        localOffered() && modeCard("local", t("local.mode"), t("local.mode.hint"), true),
       ),
+      shown === "local" && localPanel({ onPrefs: () => hooks.onPrefs() }),
+      hl.bird_local && h("p", { class: "tradeoff" }, icon("monitor"), h("span", { text: t("local.here") })),
       modes.user &&
-        mode !== "user" &&
+        shown !== "user" &&
+        shown !== "local" &&
         h("p", { class: "hint endpoint-off", text: t("set.endpoint.choose") }),
       modes.user &&
-        mode === "user" &&
+        shown === "user" &&
         h(
           "fieldset",
           { class: "endpoint" },
@@ -1203,21 +1228,22 @@ export function renderSettings() {
           ),
         ),
       modes.user &&
-        mode === "user" &&
+        shown === "user" &&
         h(
           "p",
           { class: "tradeoff" },
           icon("info"),
           h("span", { text: t("set.endpoint.tradeoff") }),
         ),
-      (hl.access_required || p.access) &&
+      shown !== "local" &&
+        (hl.access_required || p.access) &&
         field(
           "set-access",
           t("set.access"),
           t(hl.access_required ? "set.access.needed" : "set.access.hint"),
           accessInput,
         ),
-      mode !== "demo" && h("div", { class: "test-row" }, testBtn, result),
+      shown !== "demo" && shown !== "local" && h("div", { class: "test-row" }, testBtn, result),
     ),
     toolsPanel(),
     h(
@@ -1308,6 +1334,31 @@ export function renderAbout() {
       ),
     ),
     block(t("about.meter"), h("p", { text: t("about.meter.p") })),
+    // the free software Bird serves itself, each with its licence (served from this site, never a third party)
+    block(
+      t("about.oss"),
+      h("p", { text: t("about.oss.p") }),
+      h(
+        "ul",
+        { class: "data-list oss-list" },
+        [
+          ["about.oss.katex", "/static/vendor/katex/LICENSE.txt"],
+          ["about.oss.carlito", "/static/fonts/OFL.txt"],
+        ].map(([key, href]) =>
+          h(
+            "li",
+            null,
+            icon("file"),
+            h(
+              "span",
+              null,
+              `${t(key)} · `,
+              h("a", { href, target: "_blank", rel: "noopener", text: t("about.oss.licence") }),
+            ),
+          ),
+        ),
+      ),
+    ),
     block(
       t("ex.guard.title"),
       h("p", { text: t("ex.guard.p") }),

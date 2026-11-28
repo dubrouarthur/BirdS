@@ -1,6 +1,7 @@
 // Attachments: documents (text, PDF, Office) and images, from the picker, the camera, drag-and-drop or paste.
 // Images are decoded, oriented (EXIF), downscaled and re-encoded HERE, in the browser; they are sent once with
 // the message that carries them and never stored (localStorage keeps only their name and size).
+import { blobs as keptBlobs } from "./keep.js";
 import {
   $,
   announce,
@@ -161,7 +162,11 @@ function canvasOf(source, w, h) {
 /** A blob: URL for display: the CSP allows blob: images (made by this page), never data: ones. */
 const blobUrl = (canvas, quality = 0.82) =>
   new Promise((resolve) =>
-    canvas.toBlob((blob) => resolve(blob ? URL.createObjectURL(blob) : ""), "image/jpeg", quality),
+    canvas.toBlob((blob) => {
+      const url = blob ? URL.createObjectURL(blob) : "";
+      if (url) keptBlobs.set(url, blob); // a thumbnail can be kept for a reload (keep.js)
+      resolve(url);
+    }, "image/jpeg", quality),
   );
 
 const fit = (w, h, side) => {
@@ -215,7 +220,7 @@ export async function addImage(file, onChange) {
   item.view = await blobUrl(full, 0.85); // lightbox
   item.thumb = await blobUrl(canvasOf(bitmap, ...fit(bw, bh, 240)));
   bitmap.close?.();
-  if (!/\.jpe?g$/i.test(item.name)) item.name = `${item.name.replace(/\.[^.]+$/, "")}.jpg`;
+  // the name stays the user's own (« capture.png »), even though the pixels sent are a JPEG
   Object.assign(item, { url, w, h: hgt, status: "ready", sent: Math.round((url.length * 3) / 4) });
   announce(t("att.added", { name: item.name }));
   onChange();
@@ -271,16 +276,25 @@ export const isImageFile = (file) =>
 // ------------------------------------------------------------------ cards
 
 /** A document card. `doc`: {name, size, encoding, status?, content?}. */
-export function docCard(doc, { onRemove, status, compact, excerpt } = {}) {
+export function docCard(doc, { onRemove, status, compact, excerpt, onOpen } = {}) {
   const k = kindOf(doc.name);
   const ext = extOf(doc.name) || "txt";
+  // `onOpen`: a click (or Enter) on the card shows what Bird will read in it; the remove button keeps its own job
+  const open = onOpen
+    ? {
+        onclick: (e) => !e.target.closest(".att-x, details") && onOpen(),
+        onkeydown: (e) => (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && (e.preventDefault(), onOpen()),
+        "aria-description": t("att.excerpt"),
+      }
+    : {};
   return h(
     "div",
     {
-      class: `att-card att-doc ${k.cls}${compact ? " is-compact" : ""}`,
+      class: `att-card att-doc ${k.cls}${compact ? " is-compact" : ""}${onOpen ? " cx-openable" : ""}`,
       tabindex: "0",
       title: doc.name,
       "data-att": doc.name,
+      ...open,
     },
     h("span", {
       class: "att-badge",

@@ -37,11 +37,25 @@ THEMES: dict[str, dict[str, str]] = {
         "SUB": "5A4336", "DARK_LINE": "5A3A2A", "BG": "FFFCF8", "ACCENT2": "E8A26B",
         "CHART": "C2410C,3B1F14,E8A26B,9A6B4F,F2C9A0,7C6A5E",
     },
+    "forest": {
+        "NAVY": "12301F", "BLUE": "2E7D52", "INK": "14231B", "MUTED": "5C6B61", "SOFT": "DDEED6", "TINT": "F2F7EF",
+        "POS": "8FC484", "POS_T": "EEF7EA", "ON_DARK": "D3E6D5", "ON_DARK2": "93B39C", "HAIR": "DCE5DA",
+        "SUB": "34473B", "DARK_LINE": "24503A", "BG": "FBFCF8", "ACCENT2": "C9A227",
+        "CHART": "2E7D52,12301F,8FC484,C9A227,B9D8B0,5C6B61",
+    },
+    "night": {
+        "NAVY": "0A0E1A", "BLUE": "5B8DEF", "INK": "E8ECF5", "MUTED": "9AA4BC", "SOFT": "232B42", "TINT": "161C2E",
+        "POS": "5BD69B", "POS_T": "15302A", "ON_DARK": "C9D3EA", "ON_DARK2": "8FA0C8", "HAIR": "2A3350",
+        "SUB": "C9D3EA", "DARK_LINE": "24366B", "BG": "0F1424", "ACCENT2": "A78BFA",
+        "CHART": "5B8DEF,A78BFA,5BD69B,F2B25C,7FA4EE,9AA4BC",
+    },
 }  # fmt: skip
 THEME_NAMES = {
     "corporate": {"fr": "Sobre", "en": "Corporate"},
     "modern": {"fr": "Moderne", "en": "Modern"},
     "warm": {"fr": "Chaleureux", "en": "Warm"},
+    "forest": {"fr": "Forêt", "en": "Forest"},
+    "night": {"fr": "Nuit", "en": "Night"},
 }
 _THEME_ASK = (
     ("modern", re.compile(r"\b(?:th[eè]me|style|look|design)\s+(?:moderne|modern|tech)", re.I)),

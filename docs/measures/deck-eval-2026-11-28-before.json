@@ -1,0 +1,118 @@
+[
+ {
+  "n": 1,
+  "ask": "Fais une présentation sur la mobilité douce en ville pour un conseil municipal",
+  "label": "before",
+  "seconds": 12.4,
+  "canvas": false,
+  "snapshots": 0,
+  "completion_tokens": 484,
+  "repairs": [],
+  "raw": ""
+ },
+ {
+  "n": 2,
+  "ask": "Prépare un pitch deck de 6 slides pour une startup de livraison de repas à vélo",
+  "label": "before",
+  "seconds": 12.2,
+  "canvas": true,
+  "snapshots": 27,
+  "completion_tokens": 406,
+  "repairs": [],
+  "raw": "title: VeloPlate — la livraison de repas à vélo\nsubtitle: Un service rapide, sain et zéro émission pour les bureaux et les écoles\n\n# Problème\n- Les repas de bureau sont souvent trop chers, trop tardifs et peu sains.\n- Les livraisons par voiture polluent et prennent du temps.\n- Les employés passent des heures à chercher leur déjeuner.\n\n# Solution\n- Un service de livraison de repas à vélo, local et rapide.\n- Des repas équilibrés, préparés par des cuisiniers locaux.\n- Une application simple pour commander, suivre et payer.\n\n# Marché\n- Les bureaux et les écoles sont des cibles prioritaires.\n- La demande croît avec la prise de conscience écologique.\n- Le marché de la livraison de repas est en forte croissance.\n\n::: kpi\n15 % | part de marché cible en 2026\n:::\n\n# Modèle économique\n- Abonnement mensuel par entreprise ou école.\n- Commandes individuelles via l'application.\n- Partenariats avec des cuisiniers locaux.\n\n# Équipe\n- Une équipe jeune, passionnée et opérationnelle.\n- Des experts en logistique et en nutrition.\n- Des partenaires locaux pour la cuisine et la livraison.\n\n# Demande de financement\n- Un investissement pour lancer le service.\n- Financement de la logistique et de la cuisine.\n- Développement de l'application et du marketing.",
+  "slides": 7,
+  "layouts": [
+   "cover",
+   "list",
+   "list",
+   "kpi",
+   "list",
+   "list",
+   "list"
+  ],
+  "distinct": 3,
+  "parts": [
+   "kpi",
+   "list"
+  ],
+  "images_asked": 0,
+  "images_found": 0,
+  "images_relevant": 0,
+  "image_credits": [],
+  "image_titles": [],
+  "image_queries": [],
+  "cover_query": "",
+  "title": "VeloPlate — la livraison de repas à vélo"
+ },
+ {
+  "n": 3,
+  "ask": "Fais une présentation pour former les nouveaux arrivants à la cybersécurité au bureau",
+  "label": "before",
+  "seconds": 13.6,
+  "canvas": true,
+  "snapshots": 48,
+  "completion_tokens": 655,
+  "repairs": [
+   "chart without two numeric rows kept as a table"
+  ],
+  "raw": "---\ntitle: Bienvenue à l'équipe\nsubtitle: Introduction à la sécurité informatique\n---\n# Bienvenue à l'équipe\n- Bienvenue dans l'équipe et félicitations pour votre arrivée.\n- La cybersécurité est un pilier fondamental de notre quotidien de travail.\n- L'objectif est de protéger nos données et nos systèmes contre les menaces.\n- Cette formation est conçue pour être pratique et concrète.\n- Nous allons voir ensemble les bases essentielles à maîtriser.\n\n::: kpi\n100% | des nouveaux arrivants doivent comprendre les bases de la sécurité\n:::\n\n---\n# Les menaces courantes\n- Phishing : tentatives de vol d'informations via des e-mails frauduleux.\n- Ransomware : logiciels malveillants qui bloquent l'accès aux données.\n- Mises à jour manquantes : vulnérabilités non corrigées par les systèmes.\n- Comptes partagés : accès non sécurisés aux outils de travail.\n- Comportements négligents : oubli de mots de passe ou de sauvegardes.\n\n::: chart type=bar unit=\"%\"\nMenace : Phishing\nValeur : 45\n:::\n\n---\n# Protocoles de base\n- Utilisez toujours un mot de passe unique et complexe.\n- Activez l'authentification à deux facteurs sur tous les comptes.\n- Ne cliquez jamais sur des liens suspects dans les e-mails.\n- Sauvegardez vos documents importants régulièrement.\n- Signalez toute activité suspecte à l'équipe IT.\n\n::: kpi\n24h | délai maximum pour signaler une anomalie\n:::\n\n---\n# Gestion des mots de passe\n- Évitez les mots de passe réutilisés sur d'autres sites.\n- Utilisez un gestionnaire de mots de passe sécurisé.\n- Ne partagez jamais vos identifiants avec des collègues.\n- Changez vos mots de passe si vous suspectez une fuite.\n- Notez vos mots de passe dans un endroit sécurisé.\n\n::: kpi\n12 mois | durée recommandée pour un changement de mot de passe\n:::\n\n---\n# Signaler une anomalie\n- Signalez immédiatement tout e-mail suspect.\n- Contactez l'équipe IT pour toute question.\n- Ne tentez pas de résoudre un problème seul.\n- Documentez les incidents pour l'analyse.\n- Restez vigilant et informé des dernières menaces.\n\n::: kpi\n100% | des incidents doivent être signalés\n:::\n\n---\n# Questions et échanges\n- Posez vos questions sur les points abordés.\n- Partagez vos expériences ou doutes.\n- N'hésitez pas à demander des précisions.\n- Restez ouvert à l'apprentissage continu.\n- Merci pour votre attention et votre participation.\n\n> « La cybersécurité est une responsabilité partagée. » — Auteur inconnu",
+  "slides": 7,
+  "layouts": [
+   "cover",
+   "kpi",
+   "table",
+   "kpi",
+   "kpi",
+   "kpi",
+   "quote"
+  ],
+  "distinct": 4,
+  "parts": [
+   "kpi",
+   "list",
+   "quote",
+   "table"
+  ],
+  "images_asked": 0,
+  "images_found": 0,
+  "images_relevant": 0,
+  "image_credits": [],
+  "image_titles": [],
+  "image_queries": [],
+  "cover_query": "",
+  "title": "Bienvenue à l'équipe"
+ },
+ {
+  "n": 4,
+  "ask": "Fais des slides sur le bilan 2025 de notre club de sport : 320 adhérents (+12 %), budget 85 000 €, 14 bénévoles",
+  "label": "before",
+  "seconds": 8.5,
+  "canvas": false,
+  "snapshots": 0,
+  "completion_tokens": 311,
+  "repairs": [],
+  "raw": ""
+ },
+ {
+  "n": 5,
+  "ask": "Fais une présentation qui compare le télétravail et le travail au bureau pour le comité de direction",
+  "label": "before",
+  "seconds": 16.4,
+  "canvas": false,
+  "snapshots": 0,
+  "completion_tokens": 736,
+  "repairs": [],
+  "raw": ""
+ },
+ {
+  "n": 6,
+  "ask": "Crée une présentation sur l'histoire et l'avenir du train de nuit en Europe",
+  "label": "before",
+  "seconds": 5.9,
+  "canvas": false,
+  "snapshots": 5,
+  "completion_tokens": 189,
+  "repairs": [],
+  "raw": ""
+ }
+]

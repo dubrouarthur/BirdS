@@ -1,0 +1,898 @@
+{
+ "rubric": "o = irreprochable (user's voice, doable by Bird here with what the conversation holds, specific and not redundant, well worded in the conversation's language); F = infeasible or invented facts; G = generic, redundant with the answer or another chip, near twin; W = badly worded or aimed at the wrong artifact",
+ "summary": {
+  "today": {
+   "chips": 21,
+   "irreprochables": 6,
+   "share": 0.29,
+   "F": 1,
+   "turns_with_a_good_chip": 5
+  },
+  "after": {
+   "chips": 40,
+   "irreprochables": 28,
+   "share": 0.7,
+   "F": 0,
+   "turns_with_a_good_chip": 16
+  }
+ },
+ "rows": [
+  {
+   "id": "v_mail_pot",
+   "prompt": "Écris un mail pour inviter mes collègues à un pot de départ vendredi à 18 h",
+   "answer": "Le mail est prêt à votre review. À vous de le valider ou de le modifier avant envoi.",
+   "today": [
+    {
+     "label": "Plus court",
+     "prompt": "Rends ce mail plus court.",
+     "judged": "G"
+    },
+    {
+     "label": "Plus formel",
+     "prompt": "Rends ce mail plus formel.",
+     "judged": "G"
+    },
+    {
+     "label": "En anglais",
+     "prompt": "Traduis ce mail en anglais.",
+     "judged": "G"
+    }
+   ],
+   "after": [
+    {
+     "label": "Rends le mail plus chaleureux",
+     "prompt": "Rends ce mail d'invitation au pot de départ plus chaleureux et convivial.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Ajoute une date limite de réponse",
+     "prompt": "Ajoute au mail une date limite de réponse pour confirmer la présence.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Propose une version courte",
+     "prompt": "Propose une version courte du mail, sans détails sur le lieu et l'heure.",
+     "kind": "next",
+     "judged": "W"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "office",
+      "label": "Rends le mail plus chaleureux",
+      "prompt": "Rends ce mail d'invitation au pot de départ plus chaleureux et convivial."
+     },
+     {
+      "needs": "office",
+      "label": "Ajoute une date limite de réponse",
+      "prompt": "Ajoute au mail une date limite de réponse pour confirmer la présence."
+     },
+     {
+      "needs": "office",
+      "label": "Propose une version courte",
+      "prompt": "Propose une version courte du mail, sans détails sur le lieu et l'heure."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 3.66
+  },
+  {
+   "id": "v_linkedin",
+   "prompt": "Rédige une annonce LinkedIn pour recruter un développeur Python à Nantes",
+   "answer": "L'e-mail est prêt à votre review. À noter : je n'ai pas envoyé le message.",
+   "today": [
+    {
+     "label": "Plus court",
+     "prompt": "Rends ce mail plus court.",
+     "judged": "W"
+    },
+    {
+     "label": "Plus formel",
+     "prompt": "Rends ce mail plus formel.",
+     "judged": "W"
+    },
+    {
+     "label": "En anglais",
+     "prompt": "Traduis ce mail en anglais.",
+     "judged": "W"
+    }
+   ],
+   "after": [
+    {
+     "label": "Rédige une version courte",
+     "prompt": "Rédige une version courte de l'annonce LinkedIn pour recruter un développeur Python à Nantes.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Ajoute les compétences clés",
+     "prompt": "Ajoute à l'annonce les compétences clés attendues pour le poste de développeur Python à Nantes.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Traduis en anglais",
+     "prompt": "Traduis l'annonce LinkedIn en anglais.",
+     "kind": "next",
+     "judged": "o"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "office",
+      "label": "Rédige une version courte",
+      "prompt": "Rédige une version courte de l'annonce LinkedIn pour recruter un développeur Python à Nantes."
+     },
+     {
+      "needs": "office",
+      "label": "Ajoute les compétences clés",
+      "prompt": "Ajoute à l'annonce les compétences clés attendues pour le poste de développeur Python à Nantes."
+     },
+     {
+      "needs": "office",
+      "label": "Traduis en anglais",
+      "prompt": "Traduis l'annonce LinkedIn en anglais."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 2.481
+  },
+  {
+   "id": "v_deck_cyber",
+   "prompt": "Fais une présentation de 5 diapositives sur la cybersécurité pour les employés",
+   "answer": "La présentation « Sécurité Numérique : Protéger nos Données » est dans le canevas : 9 diapositives. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », « plus court »).",
+   "today": [],
+   "after": [
+    {
+     "label": "Ajoute une diapositive sur les mots de passe",
+     "prompt": "Ajoute une diapositive sur les bonnes pratiques des mots de passe.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Raccourcis la présentation",
+     "prompt": "Raccourcis la présentation à 5 diapositives, en gardant les points clés.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Change le titre de la présentation",
+     "prompt": "Change le titre de la présentation en « Cybersécurité : Protéger nos Données ».",
+     "kind": "next",
+     "judged": "o"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "office",
+      "label": "Ajoute une diapositive sur les mots de passe",
+      "prompt": "Ajoute une diapositive sur les bonnes pratiques des mots de passe."
+     },
+     {
+      "needs": "office",
+      "label": "Raccourcis la présentation",
+      "prompt": "Raccourcis la présentation à 5 diapositives, en gardant les points clés."
+     },
+     {
+      "needs": "office",
+      "label": "Change le titre de la présentation",
+      "prompt": "Change le titre de la présentation en « Cybersécurité : Protéger nos Données »."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 3.14
+  },
+  {
+   "id": "v_cdd",
+   "prompt": "Explique la différence entre un CDD et un CDI",
+   "answer": "Un CDD est un contrat de travail temporaire, lié à une mission précise ou à une durée déterminée, tandis qu'un CDI est un contrat à durée indéterminée, offrant une stabilité plus grande. Le CDD se termine automatiquement à l'échéance, sauf prolongation, alors que le CDI ne peut être rompu que dans des conditions légales strictes.\n\nAttention : ces définitions sont générales. Les règles exactes (dur",
+   "today": [],
+   "after": [
+    {
+     "label": "Donne un exemple de CDD et de CDI",
+     "prompt": "Donne un exemple concret d'un CDD et d'un CDI dans le même poste.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Compare les indemnités de fin de contrat",
+     "prompt": "Compare les indemnités de fin de contrat pour un CDD et un CDI.",
+     "kind": "next",
+     "judged": "o"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "write",
+      "label": "Donne un exemple de CDD et de CDI",
+      "prompt": "Donne un exemple concret d'un CDD et d'un CDI dans le même poste."
+     },
+     {
+      "needs": "write",
+      "label": "Compare les indemnités de fin de contrat",
+      "prompt": "Compare les indemnités de fin de contrat pour un CDD et un CDI."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 2.047
+  },
+  {
+   "id": "v_wx_mrs",
+   "prompt": "Quel temps fera-t-il à Marseille samedi ?",
+   "answer": "Samedi, Marseille sera dégagée. La carte détaillée est disponible si vous voulez voir les températures et vents heure par heure.",
+   "today": [
+    {
+     "label": "Et demain ?",
+     "prompt": "et demain ?",
+     "judged": "o"
+    },
+    {
+     "label": "Restaurants autour",
+     "prompt": "et des restaurants autour ?",
+     "judged": "G"
+    }
+   ],
+   "after": [
+    {
+     "label": "Donne la météo de dimanche à Marseille",
+     "prompt": "Donne la météo de dimanche à Marseille, avec températures et vents.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Compare avec Nice samedi",
+     "prompt": "Compare la météo de samedi à Marseille et à Nice.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Et demain ?",
+     "prompt": "et demain ?",
+     "kind": "follow",
+     "judged": "G"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "get_weather",
+      "label": "Donne la météo de dimanche à Marseille",
+      "prompt": "Donne la météo de dimanche à Marseille, avec températures et vents."
+     },
+     {
+      "needs": "get_weather",
+      "label": "Compare avec Nice samedi",
+      "prompt": "Compare la météo de samedi à Marseille et à Nice."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 1.729
+  },
+  {
+   "id": "v_map_bak",
+   "prompt": "Trouve une boulangerie près de la place Bellecour à Lyon",
+   "answer": "Deux boulangeries à proximité de la place Bellecour à Lyon :\n\n- Boulangerie Maison MH — Avenue Paul Cézanne, 78990 Élancourt — à 868 m\n- La Panetière — Rue Danton, 78990 Élancourt — à 1,2 km, ouvert Mo-Fr 07:00-20:00, Sa-Su 07:00-19:30\n\nPour l'itinéraire, utilisez le lien « Itinéraire » sur la carte.",
+   "today": [
+    {
+     "label": "Itinéraire",
+     "prompt": "itinéraire pour aller à Boulangerie Maison MH",
+     "judged": "o"
+    },
+    {
+     "label": "La météo là-bas",
+     "prompt": "et la météo là-bas ?",
+     "judged": "G"
+    }
+   ],
+   "after": [
+    {
+     "label": "Trouve des cafés à moins de 500 m",
+     "prompt": "Trouve des cafés à moins de 500 m de la place Bellecour à Lyon.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Donne les horaires de La Panetière",
+     "prompt": "Donne les horaires d'ouverture de La Panetière à Lyon.",
+     "kind": "next",
+     "judged": "G"
+    },
+    {
+     "label": "Itinéraire",
+     "prompt": "itinéraire pour aller à Boulangerie Maison MH",
+     "kind": "follow",
+     "judged": "o"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "find_places",
+      "label": "Trouve des cafés à moins de 500 m",
+      "prompt": "Trouve des cafés à moins de 500 m de la place Bellecour à Lyon."
+     },
+     {
+      "needs": "find_places",
+      "label": "Donne les horaires de La Panetière",
+      "prompt": "Donne les horaires d'ouverture de La Panetière à Lyon."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 2.089
+  },
+  {
+   "id": "v_fx",
+   "prompt": "Convertis 250 euros en dollars",
+   "answer": "250 euros valent 273,92 dollars, au taux de référence de la Banque centrale européenne du 27 novembre 2026 (1 EUR = 1,0957 USD).",
+   "today": [
+    {
+     "label": "De USD en EUR",
+     "prompt": "convertis 250 USD en EUR",
+     "judged": "o"
+    }
+   ],
+   "after": [
+    {
+     "label": "Convertis 1000 euros en dollars",
+     "prompt": "Convertis 1000 euros en dollars au taux de la Banque centrale européenne du 27 novembre 2026.",
+     "kind": "next",
+     "judged": "G"
+    },
+    {
+     "label": "De USD en EUR",
+     "prompt": "convertis 250 USD en EUR",
+     "kind": "follow",
+     "judged": "o"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "convert_currency",
+      "label": "Convertis 1000 euros en dollars",
+      "prompt": "Convertis 1000 euros en dollars au taux de la Banque centrale européenne du 27 novembre 2026."
+     },
+     {
+      "needs": "convert_currency",
+      "label": "Convertis 500 euros en dollars",
+      "prompt": "Convertis 500 euros en dollars au taux de la Banque centrale européenne du 27 novembre 2026."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 2.574
+  },
+  {
+   "id": "v_days",
+   "prompt": "Combien de jours ouvrés en décembre 2026 ?",
+   "answer": "Il y a 22 jours ouvrés en décembre 2026, soit 26 jours ouvrables si vous comptez les weekends. Le seul jour férié est le 25 décembre.",
+   "today": [],
+   "after": [
+    {
+     "label": "Calcule les jours ouvrés en janvier 2027",
+     "prompt": "Calcule les jours ouvrés en janvier 2027, en précisant les jours fériés.",
+     "kind": "next",
+     "judged": "o"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "work_calendar",
+      "label": "Calcule les jours ouvrés en janvier 2027",
+      "prompt": "Calcule les jours ouvrés en janvier 2027, en précisant les jours fériés."
+     },
+     {
+      "needs": "work_calendar",
+      "label": "Calcule les jours ouvrés en février 2027",
+      "prompt": "Calcule les jours ouvrés en février 2027, en précisant les jours fériés."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 2.493
+  },
+  {
+   "id": "v_ev",
+   "prompt": "Résume les avantages et inconvénients des voitures électriques",
+   "answer": "Voici un résumé neutre et factuel :\n\nAvantages\n- zéro émission de gaz à effet de serre lors de l'usage (si l'électricité est décarbonée)\n- entretien simplifié : moins de pièces mécaniques, pas de vidange d'huile\n- coûts d'exploitation réduits : l'électricité coûte moins cher que l'essence et la voiture consomme peu\n- performance et silence : accélération rapide et absence de bruit de moteur\n- aide",
+   "today": [],
+   "after": [
+    {
+     "label": "Fais une version plus courte",
+     "prompt": "Fais une version plus courte de ce résumé sur les voitures électriques.",
+     "kind": "next",
+     "judged": "G"
+    },
+    {
+     "label": "Ajoute un paragraphe sur les coûts d'achat",
+     "prompt": "Ajoute un paragraphe sur les coûts d'achat et les aides disponibles pour les voitures électriques.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Traduis en anglais",
+     "prompt": "Traduis ce résumé en anglais.",
+     "kind": "next",
+     "judged": "G"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "write",
+      "label": "Fais une version plus courte",
+      "prompt": "Fais une version plus courte de ce résumé sur les voitures électriques."
+     },
+     {
+      "needs": "write",
+      "label": "Ajoute un paragraphe sur les coûts d'achat",
+      "prompt": "Ajoute un paragraphe sur les coûts d'achat et les aides disponibles pour les voitures électriques."
+     },
+     {
+      "needs": "write",
+      "label": "Traduis en anglais",
+      "prompt": "Traduis ce résumé en anglais."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 2.567
+  },
+  {
+   "id": "v_thanks_en",
+   "prompt": "Write a short thank-you note to a customer after their first order",
+   "answer": "The email is ready to review. To: customer@example.com. Subject: Thank you for your first order. Tone: friendly.",
+   "today": [
+    {
+     "label": "Shorter",
+     "prompt": "Make this e-mail shorter.",
+     "judged": "G"
+    },
+    {
+     "label": "More formal",
+     "prompt": "Make this e-mail more formal.",
+     "judged": "G"
+    },
+    {
+     "label": "In French",
+     "prompt": "Translate this e-mail into French.",
+     "judged": "G"
+    }
+   ],
+   "after": [
+    {
+     "label": "Write the short version",
+     "prompt": "Write the short thank-you note.",
+     "kind": "next",
+     "judged": "W"
+    },
+    {
+     "label": "Shorter",
+     "prompt": "Make this e-mail shorter.",
+     "kind": "mail",
+     "judged": "G"
+    },
+    {
+     "label": "More formal",
+     "prompt": "Make this e-mail more formal.",
+     "kind": "mail",
+     "judged": "G"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "write",
+      "label": "Write the short version",
+      "prompt": "Write the short thank-you note."
+     },
+     {
+      "needs": "write",
+      "label": "Write the detailed version",
+      "prompt": "Write the detailed thank-you note."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 1.45
+  },
+  {
+   "id": "v_ideas_en",
+   "prompt": "Give me 5 ideas for a team-building activity in winter",
+   "answer": "The search results do not contain what you need. I'm unable to browse the web for this request.",
+   "today": [],
+   "after": [],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "none",
+      "label": "Try a different search query",
+      "prompt": "Try a different search query."
+     }
+    ]
+   },
+   "dropped": [
+    [
+     "Try a different search query",
+     "cannot"
+    ]
+   ],
+   "next_seconds": 1.179
+  },
+  {
+   "id": "v_minutes",
+   "prompt": "Rédige un compte rendu : réunion produit, lancement repoussé au 3 février, budget marketing +10 %",
+   "answer": "Le document « Compte rendu réunion produit » est prêt dans le canevas : compte rendu, 3 sections. Cliquez sur un texte pour le modifier ; ✦ sur une section la retravaille (deux variantes au choix). Téléchargez-le en .docx ou en PDF depuis la carte.",
+   "today": [
+    {
+     "label": "Ajouter « Participants »",
+     "prompt": "Ajoute une section Participants au document",
+     "judged": "F"
+    },
+    {
+     "label": "Ajouter « Ordre du jour »",
+     "prompt": "Ajoute une section Ordre du jour au document",
+     "judged": "o"
+    },
+    {
+     "label": "Tableau des actions",
+     "prompt": "Ajoute un tableau des actions (action, responsable, échéance)",
+     "judged": "o"
+    }
+   ],
+   "after": [
+    {
+     "label": "Ajoute le budget marketing",
+     "prompt": "Ajoute au compte rendu la mention du budget marketing en hausse de 10 %.",
+     "kind": "next",
+     "judged": "G"
+    },
+    {
+     "label": "Raccourcis le compte rendu",
+     "prompt": "Raccourcis le compte rendu en gardant uniquement les décisions et le nouveau calendrier.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Traduis le compte rendu en anglais",
+     "prompt": "Traduis le compte rendu de la réunion produit en anglais.",
+     "kind": "next",
+     "judged": "G"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "office",
+      "label": "Ajoute le budget marketing",
+      "prompt": "Ajoute au compte rendu la mention du budget marketing en hausse de 10 %."
+     },
+     {
+      "needs": "office",
+      "label": "Raccourcis le compte rendu",
+      "prompt": "Raccourcis le compte rendu en gardant uniquement les décisions et le nouveau calendrier."
+     },
+     {
+      "needs": "office",
+      "label": "Traduis le compte rendu en anglais",
+      "prompt": "Traduis le compte rendu de la réunion produit en anglais."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 2.572
+  },
+  {
+   "id": "v_table",
+   "prompt": "Fais un tableau comparatif de trois forfaits mobiles : 10 € 50 Go, 15 € 100 Go, 20 € 200 Go",
+   "answer": "Les offres varient trop vite et les sites changent souvent ; je n'ai pas accès à un outil de recherche fiable en ce moment, donc je ne peux pas garantir les prix, les données ni faire la comparaison. Vérifiez sur les sites des opérateurs ou demandez à votre conseiller.\n\nVoici un tableau indicatif, à vérifier sur les sites des opérateurs :\n\n| Forfait | Prix | Données |\n|---|---|---|\n| 10 € | 10 € |",
+   "today": [
+    {
+     "label": "En graphique",
+     "prompt": "mets ça sous forme de graphique",
+     "judged": "o"
+    }
+   ],
+   "after": [
+    {
+     "label": "En graphique",
+     "prompt": "mets ça sous forme de graphique",
+     "kind": "follow",
+     "judged": "o"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "none",
+      "label": "Vérifie les prix sur les sites des opérateurs",
+      "prompt": "Vérifiez les prix actuels de ces forfaits sur les sites des opérateurs."
+     },
+     {
+      "needs": "none",
+      "label": "Demandez à votre conseiller",
+      "prompt": "Demandez à votre conseiller les conditions réelles de ces forfaits."
+     }
+    ]
+   },
+   "dropped": [
+    [
+     "Vérifie les prix sur les sites des opérateurs",
+     "cannot"
+    ],
+    [
+     "Demandez à votre conseiller",
+     "cannot"
+    ]
+   ],
+   "next_seconds": 2.051
+  },
+  {
+   "id": "v_pop",
+   "prompt": "Quelle est la population de Toulouse ?",
+   "answer": "La recherche est temporairement indisponible. D'après mes données jusqu'en 2026, Toulouse compte environ 470 000 habitants ; la commune enregistre environ 480 000.",
+   "today": [],
+   "after": [
+    {
+     "label": "Donne le code postal de Toulouse",
+     "prompt": "Donne le code postal de Toulouse et son code Insee.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Compare avec Bordeaux",
+     "prompt": "Compare la population de Toulouse et de Bordeaux.",
+     "kind": "next",
+     "judged": "o"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "find_commune",
+      "label": "Donne le code postal de Toulouse",
+      "prompt": "Donne le code postal de Toulouse et son code Insee."
+     },
+     {
+      "needs": "find_commune",
+      "label": "Compare avec Bordeaux",
+      "prompt": "Compare la population de Toulouse et de Bordeaux."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 1.628
+  },
+  {
+   "id": "v_cv",
+   "prompt": "Aide-moi à écrire mon CV",
+   "answer": "Je peux t'aider à structurer ton CV, mais je n'ai pas accès à tes données personnelles. Envoie-moi tes expériences, tes formations et tes compétences, et je te propose un premier jet.",
+   "today": [],
+   "after": [],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "user",
+      "label": "Envoie tes expériences",
+      "prompt": "Envoie-moi tes expériences professionnelles pour que je les intègre dans le CV."
+     },
+     {
+      "needs": "user",
+      "label": "Envoie tes formations",
+      "prompt": "Envoie-moi tes formations et diplômes pour que je les intègre dans le CV."
+     },
+     {
+      "needs": "user",
+      "label": "Envoie tes compétences",
+      "prompt": "Envoie-moi tes compétences techniques et linguistiques pour que je les intègre dans le CV."
+     }
+    ]
+   },
+   "dropped": [
+    [
+     "Envoie tes expériences",
+     "cannot"
+    ],
+    [
+     "Envoie tes formations",
+     "cannot"
+    ],
+    [
+     "Envoie tes compétences",
+     "cannot"
+    ]
+   ],
+   "next_seconds": 2.941
+  },
+  {
+   "id": "v_onboard",
+   "prompt": "Prépare un plan de formation pour un nouvel arrivant en comptabilité",
+   "answer": "Le plan de formation est prêt. Il couvre les objectifs, le programme sur trois semaines et l'évaluation finale.",
+   "today": [
+    {
+     "label": "Ajouter « Synthèse »",
+     "prompt": "Ajoute une section Synthèse au document",
+     "judged": "G"
+    },
+    {
+     "label": "Ajouter « Conclusion »",
+     "prompt": "Ajoute une section Conclusion au document",
+     "judged": "G"
+    },
+    {
+     "label": "Tableau de synthèse",
+     "prompt": "Ajoute un tableau de synthèse",
+     "judged": "G"
+    }
+   ],
+   "after": [
+    {
+     "label": "Ajoute une timeline détaillée",
+     "prompt": "Ajoute une timeline détaillée des trois semaines de formation.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Ajoute des ressources complémentaires",
+     "prompt": "Ajoute une liste de ressources complémentaires (livres, sites, outils) à la formation.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Rédige un mail de bienvenue",
+     "prompt": "Rédige un mail de bienvenue pour l'arrivée du nouvel arrivant en comptabilité.",
+     "kind": "next",
+     "judged": "o"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "office",
+      "label": "Ajoute une timeline détaillée",
+      "prompt": "Ajoute une timeline détaillée des trois semaines de formation."
+     },
+     {
+      "needs": "office",
+      "label": "Ajoute des ressources complémentaires",
+      "prompt": "Ajoute une liste de ressources complémentaires (livres, sites, outils) à la formation."
+     },
+     {
+      "needs": "office",
+      "label": "Rédige un mail de bienvenue",
+      "prompt": "Rédige un mail de bienvenue pour l'arrivée du nouvel arrivant en comptabilité."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 2.52
+  },
+  {
+   "id": "v_translate",
+   "prompt": "Traduis en anglais : « Merci pour votre retour rapide, nous revenons vers vous lundi. »",
+   "answer": "Here is the translation:\n\n\"Thank you for your quick reply, we will get back to you Monday.\"",
+   "today": [],
+   "after": [
+    {
+     "label": "Rends le ton plus formel",
+     "prompt": "Rends cette traduction plus formelle, adaptée à un client institutionnel.",
+     "kind": "next",
+     "judged": "o"
+    },
+    {
+     "label": "Ajoute une date précise",
+     "prompt": "Ajoute une date précise au lieu de « lundi » dans la traduction.",
+     "kind": "next",
+     "judged": "o"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "write",
+      "label": "Rends le ton plus formel",
+      "prompt": "Rends cette traduction plus formelle, adaptée à un client institutionnel."
+     },
+     {
+      "needs": "write",
+      "label": "Ajoute une date précise",
+      "prompt": "Ajoute une date précise au lieu de « lundi » dans la traduction."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 1.708
+  },
+  {
+   "id": "v_holidays",
+   "prompt": "Quels sont les jours fériés en France en 2027 ?",
+   "answer": "En 2027, la France métropolitaine fête le 1er janvier, le lundi de Pâques (29 mars), le 1er mai, l'Ascension (6 mai), le 8 mai, le lundi de Pentecôte (17 mai), le 14 juillet, l'Assomption (15 août), Toussaint (1er novembre), le 11 novembre et le 25 décembre. Il reste 254 jours ouvrés dans l'année.",
+   "today": [],
+   "after": [
+    {
+     "label": "Calcule les jours ouvrés de 2027",
+     "prompt": "Calcule le nombre de jours ouvrés en 2027 en France métropolitaine.",
+     "kind": "next",
+     "judged": "G"
+    },
+    {
+     "label": "Trouve les jours ouvrés du 1er au 15 mai 2027",
+     "prompt": "Trouve les jours ouvrés du 1er au 15 mai 2027 en France métropolitaine.",
+     "kind": "next",
+     "judged": "o"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "work_calendar",
+      "label": "Calcule les jours ouvrés de 2027",
+      "prompt": "Calcule le nombre de jours ouvrés en 2027 en France métropolitaine."
+     },
+     {
+      "needs": "work_calendar",
+      "label": "Trouve les jours ouvrés du 1er au 15 mai 2027",
+      "prompt": "Trouve les jours ouvrés du 1er au 15 mai 2027 en France métropolitaine."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 2.608
+  },
+  {
+   "id": "v_chart",
+   "prompt": "Fais un graphique des ventes : T1 40, T2 55, T3 48, T4 70",
+   "answer": "Les ventes montent de 40 à 70, mais baissent entre T2 et T3 avant de repartir en hausse.",
+   "today": [],
+   "after": [
+    {
+     "label": "Fais un graphique en barres",
+     "prompt": "Fais un graphique en barres des ventes par trimestre : T1 40, T2 55, T3 48, T4 70.",
+     "kind": "next",
+     "judged": "o"
+    }
+   ],
+   "model_raw": {
+    "suggestions": [
+     {
+      "needs": "make_chart",
+      "label": "Fais un graphique en barres",
+      "prompt": "Fais un graphique en barres des ventes par trimestre : T1 40, T2 55, T3 48, T4 70."
+     },
+     {
+      "needs": "make_chart",
+      "label": "Fais un graphique en courbe",
+      "prompt": "Fais un graphique en courbe des ventes par trimestre : T1 40, T2 55, T3 48, T4 70."
+     }
+    ]
+   },
+   "dropped": [],
+   "next_seconds": 2.729
+  },
+  {
+   "id": "v_hello",
+   "prompt": "Salut, ça va ?",
+   "answer": "Ça va, merci. Et vous ?",
+   "today": [],
+   "after": [],
+   "model_raw": {
+    "suggestions": []
+   },
+   "dropped": [],
+   "next_seconds": 0.533
+  }
+ ]
+}
