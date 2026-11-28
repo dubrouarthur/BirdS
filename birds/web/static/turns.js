@@ -29,6 +29,8 @@ import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { renderWidgets, widgetsText } from "./widgets.js";
 import { renderAgents } from "./agents.js";
+import { enhanceAnswer } from "./modules.js";
+import { renderChips, transforms } from "./followups.js";
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1089,6 +1091,7 @@ function paintMarkdown(turn, entry) {
     md.insertAdjacentHTML("beforeend", blocks.slice(first).join(""));
   entry.blocks = blocks;
   md.classList.toggle("streaming", streaming);
+  if (turn.answer) enhanceAnswer(md, turn); // task boxes, sortable tables, glossary (modules.js)
 }
 
 function mdLabels() {
@@ -1182,6 +1185,10 @@ function renderActions(turn, isLast) {
       ["markdown", t("act.copy.md"), "copy-md", () => copyText(turn.answer.content, t("toast.copied.md"))],
       ["word", t("act.export.docx.item"), "export-docx", () => handlers.onExport(turn, "docx")],
       ["download", t("act.export.md.item"), "export-md", () => handlers.onExport(turn, "md")],
+      // one-click transforms of the last answer (followups.js): a new request, as if typed
+      ...(isLast && !state.busy && handlers.onSuggest
+        ? transforms().map(([label, prompt], i) => ["edit", label, `tf-${i}`, () => handlers.onSuggest(prompt)])
+        : []),
     ]),
   );
 }
@@ -1569,6 +1576,7 @@ function fillAssistant(el, turn, isLast) {
           button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(), { "data-act": "restart" }),
       ),
     renderActions(turn, isLast),
+    isLast && handlers.onSuggest && renderChips(turn, handlers.onSuggest, state.busy),
     renderReceipt(turn, isLast),
   ];
   const kids = children.filter(Boolean);

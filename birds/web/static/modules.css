@@ -1,0 +1,670 @@
+/* Small modules (modules.js, followups.js): research card, relation graph, timeline, matrix, calculator, checklist,
+   follow-up chips and answer enhancements. Tokens of app.css only, so light and dark follow the theme. */
+
+:root {
+  --gr-organisation: var(--series-1);
+  --gr-personne: var(--series-2);
+  --gr-lieu: var(--series-3);
+  --gr-produit: var(--series-6);
+  --gr-texte: var(--series-4);
+  --gr-concept: var(--series-7);
+  --mod-best: color-mix(in srgb, var(--eco) 14%, transparent);
+  --mod-verdict: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.mod-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+}
+.mod-title .icon {
+  color: var(--link);
+  inline-size: 18px;
+  block-size: 18px;
+}
+.mod-block {
+  display: grid;
+  gap: 6px;
+}
+.mod-block > .eyebrow,
+.mod-block > h5.eyebrow {
+  margin: 0;
+}
+.mod-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mod-cite {
+  font-size: 0.78em;
+  color: var(--link);
+  text-decoration: none;
+  vertical-align: 0.1em;
+  white-space: nowrap;
+}
+.mod-cite:hover,
+.mod-cite:focus-visible {
+  text-decoration: underline;
+}
+
+/* ---------------------------------------------------------------- research card */
+.rs-topic {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.02rem;
+}
+.rs-plan {
+  margin: 0;
+  padding-inline-start: 1.3em;
+  display: grid;
+  gap: 4px;
+  color: var(--ink-2);
+}
+.rs-sources {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+}
+.rs-source {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: color-mix(in srgb, var(--surface-2) 35%, var(--surface));
+  min-inline-size: 0;
+}
+.rs-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  min-inline-size: 0;
+}
+.rs-domain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+.rs-count {
+  margin-inline-start: auto;
+  white-space: nowrap;
+}
+.rs-link {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+a.rs-link {
+  color: var(--link);
+}
+.rs-quote {
+  margin: 0;
+  padding-inline-start: 10px;
+  border-inline-start: 3px solid var(--accent-soft);
+  font-size: 0.86rem;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+/* ---------------------------------------------------------------- relation graph */
+.gr-stage {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background:
+    radial-gradient(
+        circle at 1px 1px,
+        color-mix(in srgb, var(--line-strong) 45%, transparent) 1px,
+        transparent 0
+      )
+      0 0 / 18px 18px,
+    var(--surface);
+  overflow: hidden;
+}
+.gr-svg {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  aspect-ratio: 16 / 10;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+.gr-svg:active {
+  cursor: grabbing;
+}
+.gr-tools {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-end: 6px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-s);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid var(--line);
+}
+.gr-edge {
+  stroke: var(--line-strong);
+  stroke-width: 1.4;
+}
+.gr-edge.is-on {
+  stroke: var(--accent);
+  stroke-width: 2.2;
+}
+.gr-arrowhead {
+  fill: var(--line-strong);
+}
+.gr-elabel {
+  font-size: 10px;
+  fill: var(--muted);
+  opacity: 0;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3px;
+}
+.gr-elabel.is-on {
+  opacity: 1;
+  fill: var(--ink);
+}
+.gr-svg:not(.has-pick) .gr-elabel {
+  opacity: 0.85;
+}
+.gr-node {
+  cursor: pointer;
+  outline: none;
+}
+.gr-node circle {
+  fill: var(--gr-concept);
+  stroke: var(--surface);
+  stroke-width: 2;
+  transition: r 0.15s;
+}
+.gr-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3.5px;
+  pointer-events: none;
+}
+.gr-node:focus-visible circle,
+.gr-node.is-on circle {
+  stroke: var(--accent);
+  stroke-width: 3.5;
+}
+.gr-node.is-dim,
+.gr-edge.is-hidden,
+.gr-elabel.is-hidden {
+  opacity: 0.18;
+}
+.gr-node.is-hidden {
+  display: none;
+}
+.gr-edge.is-hidden {
+  opacity: 0;
+}
+.gr-t-organisation circle,
+.gr-dot.gr-t-organisation {
+  fill: var(--gr-organisation);
+  background: var(--gr-organisation);
+}
+.gr-t-personne circle,
+.gr-dot.gr-t-personne {
+  fill: var(--gr-personne);
+  background: var(--gr-personne);
+}
+.gr-t-lieu circle,
+.gr-dot.gr-t-lieu {
+  fill: var(--gr-lieu);
+  background: var(--gr-lieu);
+}
+.gr-t-produit circle,
+.gr-dot.gr-t-produit {
+  fill: var(--gr-produit);
+  background: var(--gr-produit);
+}
+.gr-t-texte circle,
+.gr-dot.gr-t-texte {
+  fill: var(--gr-texte);
+  background: var(--gr-texte);
+}
+.gr-t-concept circle,
+.gr-dot.gr-t-concept {
+  fill: var(--gr-concept);
+  background: var(--gr-concept);
+}
+.gr-dot {
+  display: inline-block;
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: 50%;
+  flex: none;
+}
+.gr-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.gr-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-s);
+  background: color-mix(in srgb, var(--surface-2) 40%, var(--surface));
+  font-size: 0.9rem;
+}
+.gr-panel > p {
+  margin: 0;
+}
+.gr-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.98rem;
+}
+.gr-links,
+.gr-claims,
+.gr-list ul {
+  margin: 0;
+  padding-inline-start: 1.2em;
+  display: grid;
+  gap: 4px;
+}
+.gr-rel {
+  color: var(--muted);
+  font-style: italic;
+}
+.gr-list summary {
+  cursor: pointer;
+  color: var(--link);
+  font-size: 0.9rem;
+}
+.gr-list[open] summary {
+  margin-block-end: 6px;
+}
+
+/* ---------------------------------------------------------------- timeline */
+.tl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  position: relative;
+}
+.tl-item {
+  display: grid;
+  grid-template-columns: minmax(64px, max-content) 18px 1fr;
+  gap: 0 10px;
+  align-items: start;
+  padding-block: 6px;
+  position: relative;
+}
+.tl-date {
+  font-weight: 650;
+  font-size: 0.9rem;
+  color: var(--link);
+  text-align: end;
+  white-space: nowrap;
+}
+.tl-dot {
+  position: relative;
+  align-self: stretch;
+  margin-block: -6px;
+  background: linear-gradient(var(--line), var(--line)) center / 2px 100% no-repeat;
+}
+.tl-item:first-child .tl-dot {
+  background-position: center 14px;
+}
+.tl-item:last-child .tl-dot {
+  background-size: 2px 14px;
+  background-position: center top;
+}
+.tl-dot::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 11px;
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  inline-size: 11px;
+  block-size: 11px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2.5px solid var(--accent);
+  box-sizing: border-box;
+}
+.tl-label {
+  font-size: 0.93rem;
+  line-height: 1.45;
+}
+
+/* ---------------------------------------------------------------- matrix */
+.mx-table th,
+.mx-table td {
+  white-space: nowrap;
+}
+.mx-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+.mx-sort:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.mx-arrow::after {
+  content: "↕";
+  opacity: 0.4;
+  font-size: 0.85em;
+}
+[aria-sort="ascending"] .mx-arrow::after {
+  content: "↑";
+  opacity: 1;
+}
+[aria-sort="descending"] .mx-arrow::after {
+  content: "↓";
+  opacity: 1;
+}
+.mx-table .is-best {
+  background: var(--mod-best);
+  font-weight: 650;
+}
+.mx-table .is-best > span:first-child::before {
+  content: "★ ";
+  color: var(--eco);
+}
+.mx-table tr.is-verdict > * {
+  background: var(--mod-verdict);
+}
+.mx-table tr.is-verdict > .is-best {
+  background: color-mix(in srgb, var(--eco) 18%, var(--mod-verdict));
+}
+.mx-verdict {
+  margin-inline-start: 8px;
+  font-size: 0.72rem;
+}
+
+/* ---------------------------------------------------------------- calculator */
+.calc-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 8px;
+}
+.calc-field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.calc-box {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  padding-inline-end: 10px;
+}
+.calc-box:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.calc-in {
+  inline-size: 100%;
+  min-inline-size: 0;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  outline: none;
+}
+.calc-unit {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.calc-rows {
+  margin: 0;
+  display: grid;
+  gap: 2px;
+}
+.calc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-block: 6px;
+  border-block-end: 1px dashed var(--line);
+}
+.calc-row:last-child {
+  border-block-end: 0;
+}
+.calc-row dt {
+  color: var(--ink-2);
+  font-size: 0.92rem;
+}
+.calc-row dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: end;
+}
+.calc-row.is-main dd {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--brand);
+}
+.calc-formula {
+  margin: 0;
+  font-size: 0.8rem;
+}
+.calc-formula code {
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+/* ---------------------------------------------------------------- checklist */
+.ck-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ck-progress {
+  margin: 0;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.ck-bar {
+  flex: 1;
+  block-size: 6px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.ck-bar-fill {
+  display: block;
+  block-size: 100%;
+  inline-size: var(--p, 0%);
+  background: var(--eco);
+  transition: inline-size 0.2s;
+}
+.chk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+}
+.chk-item {
+  display: grid;
+  gap: 2px;
+  padding-block: 7px;
+  border-block-end: 1px solid var(--line);
+}
+.chk-item:last-child {
+  border-block-end: 0;
+}
+.chk-label {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.chk-box,
+.md-task-box {
+  inline-size: 18px;
+  block-size: 18px;
+  margin: 2px 0 0;
+  flex: none;
+  accent-color: var(--eco);
+  cursor: pointer;
+}
+.chk-item.is-done .chk-text,
+.md-task.is-done {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+.chk-meta {
+  padding-inline-start: 28px;
+  font-size: 0.8rem;
+}
+
+/* ---------------------------------------------------------------- answer enhancements */
+.md-tasks {
+  list-style: none;
+  padding-inline-start: 0.2em;
+}
+.md-task {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.md-task-box {
+  margin-block-start: 0.25em;
+}
+.md-gloss {
+  text-decoration: underline dotted var(--muted);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+.md-gloss:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ---------------------------------------------------------------- chips (follow-ups, clarify, filters) */
+.chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block: 4px 2px;
+}
+.mchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 34px;
+  padding: 6px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 99px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.mchip:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.mchip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.mchip-research::before {
+  content: "";
+  inline-size: 7px;
+  block-size: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.chips-row.is-clarify .mchip {
+  border-color: var(--accent);
+  color: var(--link);
+}
+.gr-filter[aria-pressed="false"] {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+/* ---------------------------------------------------------------- team board: research plan and domains */
+.crew-items {
+  margin: 4px 0 0;
+  padding-inline-start: 1.2em;
+  display: grid;
+  gap: 2px;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+}
+.crew-chips {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.crew-chip {
+  padding: 1px 8px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  font-size: 0.74rem;
+  color: var(--ink-2);
+}
+
+@media (max-width: 520px) {
+  .gr-svg {
+    aspect-ratio: 1 / 1;
+  }
+  .calc-row.is-main dd {
+    font-size: 1.25rem;
+  }
+  .tl-item {
+    grid-template-columns: minmax(48px, max-content) 14px 1fr;
+    gap: 0 8px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mchip,
+  .ck-bar-fill,
+  .gr-node circle {
+    transition: none;
+  }
+}

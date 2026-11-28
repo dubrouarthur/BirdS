@@ -71,6 +71,9 @@ export function applyAgentEvent(turn, ev) {
   for (const k of ["progress", "tokens", "seconds", "score"])
     if (ev[k] !== undefined) lane[k] = ev[k];
   if (ev.detail !== undefined) lane.info = String(ev.detail);
+  // deep research: the sub-questions of the plan and the domains read (chips, text only)
+  for (const k of ["items", "domains"])
+    if (Array.isArray(ev[k])) lane[k] = ev[k].slice(0, 12).map((x) => String(x).slice(0, 160));
   if (typeof ev.chosen === "boolean") lane.chosen = ev.chosen;
   // the checker completed the kept version with parts of the other one: that version is « reprise en partie »
   const lent = ev.merged && crew.lanes.find((l) => l.id === ev.merged);
@@ -157,6 +160,10 @@ function laneCard(turn, lane) {
             .map(([k, n]) => (n > 1 ? `${k} ×${n}` : k))
             .join(" · "),
         }),
+      lane.items?.length > 0 &&
+        h("ol", { class: "crew-items" }, lane.items.map((x) => h("li", { text: x }))),
+      lane.domains?.length > 0 &&
+        h("ul", { class: "crew-chips", "aria-label": t("mod.research.sources") }, lane.domains.map((d) => h("li", { class: "crew-chip", text: d }))),
       running &&
         h(
           "span",

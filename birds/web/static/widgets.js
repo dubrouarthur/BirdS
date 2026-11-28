@@ -13,6 +13,7 @@ import {
 } from "./core.js";
 import { safeUrl } from "./markdown.js";
 import { buildIcs, icsName } from "./ics.js";
+import { MODULES, moduleText } from "./modules.js";
 
 const OSM_COPYRIGHT = "https://www.openstreetmap.org/copyright";
 const MAP_SRC =
@@ -1882,6 +1883,7 @@ const RENDER = {
   weather: renderWeather,
   clock: renderClock,
   event: renderEvent,
+  ...MODULES, // research, graph, timeline, matrix, calc, checklist (modules.js)
 };
 
 export function renderWidgets(turn) {
@@ -1934,6 +1936,8 @@ export function widgetsText(turn, markdown = false) {
       );
       const sl = (w.common || [])[0] || (w.wide || [])[0];
       if (sl) out.push(slotText(w, sl, !(w.common || []).length));
+    } else if (MODULES[w.type]) {
+      out.push(moduleText(w, turn, markdown));
     } else if (w.type === "event") {
       out.push(
         `${w.title} — ${String(w.start).slice(0, 16).replace("T", " ")}${w.all_day ? "" : `–${String(w.end).slice(11, 16)}`}${w.location ? ` — ${w.location}` : ""}`,

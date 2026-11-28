@@ -57,6 +57,7 @@ import {
   totals,
 } from "./views.js";
 import { applyAgentEvent } from "./agents.js";
+import { setModuleHooks } from "./modules.js";
 
 // Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
 const AGENT_MODES = ["auto", "on", "off"];
@@ -2083,7 +2084,9 @@ async function init() {
     onExport: exportAnswer,
     onLightbox: openLightbox,
     onAgentOff: agentOff,
+    onSuggest: (text) => send(text), // follow-up chips and transforms (followups.js)
   });
+  setModuleHooks({ onChange: () => saveConv(), onSuggest: (text) => send(text) });
   setViewHooks({
     onPrefs: () => {
       state.thinking = !!state.prefs.thinking;

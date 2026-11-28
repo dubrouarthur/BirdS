@@ -529,6 +529,15 @@ class DemoBackend:
 
         if crew_web.demo_match(last, request):
             return crew_web.demo_crew(run)  # Mode Agent, scripted
+        from birds.web import demo_modules  # deep research, calculator, the user's modules: the real code
+
+        if demo_modules.research_match(last, request):
+            return demo_modules.demo_research(run)
+        if demo_modules.calc_match(last, request):
+            return demo_modules.demo_calc(run)
+        found = demo_modules.modules_match(last, request)
+        if found:
+            return demo_modules.demo_modules(run, found)
         scenario = pick_scenario(last, bool(request.attachments))
         if scenario == "plain" and not request.attachments:
             from birds.harness import followup
