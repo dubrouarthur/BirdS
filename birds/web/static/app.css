@@ -8602,6 +8602,9 @@ ol.a4-list > li::before {
     transition:
       background-color 0.2s,
       border-color 0.2s;
+  }
+}
+
 /* ---------------------------------------------------------------- maps, wave 2 (lists, groups, full screen) */
 
 /* an answer written by the harness from the results, when the model could not write one */

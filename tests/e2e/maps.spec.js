@@ -168,6 +168,10 @@ async function send(page, text) {
         await page.waitForTimeout(400);
         if (!(await card.evaluate((s) => s.classList.contains("is-full"))))
           problems.push(`${name}/${id}: full screen did not open`);
+        // the class alone is not enough: the stylesheet must lay it out over the page (fixed), not in the flow
+        const pos = await card.evaluate((s) => getComputedStyle(s).position);
+        if (pos !== "fixed")
+          problems.push(`${name}/${id}: full screen is not fixed (position ${pos})`);
         await page.screenshot({
           path: path.join(OUT, `maps-full-${name}.png`),
         });
