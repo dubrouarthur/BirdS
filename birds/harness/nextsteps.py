@@ -414,6 +414,19 @@ def _clean(v) -> str:
     return s
 
 
+SHORT_ANSWER = 600  # characters: an answer this short is not shortened
+_SHORTEN = re.compile(r"\b(?:version\s+(?:plus\s+)?courte|plus\s+court|raccourci\w*|abr[èe]ge\w*|r[ée]sume[rz]?\b|"
+                      r"shorter|shorten\w*|short\s+version|condense\w*)", re.I)
+
+
+def _near_twin(a: str, b: str) -> bool:
+    """Two next steps that differ by a figure or a word or two (« janvier 2027 » / « février 2027 », « en barres » /
+    « en courbe »): the same suggestion twice. Word sets, figures ignored, Jaccard ≥ 0.7."""
+    wa = {w for w in re.findall(r"[a-z]+", fold(a)) if len(w) > 2}
+    wb = {w for w in re.findall(r"[a-z]+", fold(b)) if len(w) > 2}
+    return bool(wa and wb) and len(wa & wb) / len(wa | wb) >= 0.7
+
+
 def validate(obj, *, lang: str = "fr", available: set[str] | None = None) -> tuple[list[dict], list[tuple[str, str]]]:
     """(kept suggestions, dropped [(label, reason)]). ``available``: the modules and tools on (None: all).
 
@@ -459,6 +472,8 @@ def validate(obj, *, lang: str = "fr", available: set[str] | None = None) -> tup
             k = fold(prompt)
             if any(k == s or fold(label) == s for s in seen):
                 why = "duplicate"
+            elif any(_near_twin(k, x.get("prompt", "")) for x in kept):
+                why = "twin"  # « Convertis 1000 euros… » after « Convertis 500 euros… »: one chip is enough
             seen += [k, fold(label)]
         if why:
             dropped.append((label, why))
@@ -486,7 +501,7 @@ def parse(raw: str, prefix: str = "") -> dict | None:
 
 def generate(llm, tok, request: str, answer: str, *, lang: str = "fr", names: set[str] | None = None,
              tools: set[str] | None = None, budget: float = BUDGET_S, cache_salt: str | None = None,
-             structured: str | None = None) -> dict:  # fmt: skip
+             structured: str | None = None, made: bool = False) -> dict:  # fmt: skip
     """One short call. Never raises: {"items": [...], "source": "model" | "none", "seconds", "dropped", "why"}."""
     from birds.harness import router
     from birds.harness.llm import EndpointError
@@ -518,6 +533,10 @@ def generate(llm, tok, request: str, answer: str, *, lang: str = "fr", names: se
     if obj is None:
         return {**out_meta, "seconds": seconds, "why": "invalid_json", "usage": usage}
     items, dropped = validate(obj, lang=lang, available=available)
+    if not made and len(str(answer).strip()) < SHORT_ANSWER:
+        # « Fais une version courte » under a five-line answer: the known passe-partout, never offered there
+        dropped += [(x["label"], "already_short") for x in items if _SHORTEN.search(x["label"] + " " + x["prompt"])]
+        items = [x for x in items if not _SHORTEN.search(x["label"] + " " + x["prompt"])]
     return {"items": items, "source": "model", "seconds": seconds, "dropped": dropped, "why": "", "usage": usage}
 
 

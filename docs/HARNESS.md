@@ -1234,3 +1234,36 @@ les horaires d'ouverture viennent d'OpenStreetMap dans la fiche lieux, l'attente
 sur les 4 nouveaux cas. Entraînement : `build_tools_mix.py` apprend le champ `needs` et 3 gabarits de plus
 (météo, lieux, informations demandées sans suite).
 
+
+### 18.2 Vérification avant fusion (28/11/2026, 20 demandes nouvelles)
+
+Pour ne pas noter sur le jeu qui a servi à régler l'invite, **20 demandes jamais vues** (mail, annonce, présentation,
+compte rendu, plan de formation, définitions, météo, lieux, conversion, jours ouvrés et fériés, tableau, graphique,
+traduction, CV, salutation ; 2 en anglais), passées par l'application réelle (`HarnessBackend`, endpoint vLLM,
+Colibri, routeur par défaut ; 69 générations). « Aujourd'hui » = `followups.js` de la branche de déploiement (puces
+des widgets + `clarifyOptions`) sur les **mêmes réponses** ; « après » = ce que l'interface affiche (suites de Bird
+validées, puis puces des widgets jusqu'à trois). Grille stricte, chaque puce relue à la main : **irréprochable** =
+dans la voix de l'utilisateur, faisable par Bird ici avec ce que contient la conversation (ni fait inventé, ni action
+de l'utilisateur), propre à la réponse et non redondante (ni avec la réponse, ni avec une autre puce), bien formulée
+dans la langue de la conversation ; sinon F (infaisable), G (passe-partout, redondante, quasi-jumelle) ou W (mal
+formulée, ou visant le mauvais objet). Détail : `docs/measures/followups-2026-11-28-verify.json`.
+
+| bras | puces | irréprochables | infaisables | tours avec au moins une bonne puce |
+| --- | --- | --- | --- | --- |
+| aujourd'hui | 21 | 6 (0,29) | 1 (« Ajouter « Participants » » sans participants connus) | 5/20 |
+| **après** | 40 | **28 (0,70)** | **0** | **16/20** |
+
+Revendications de la revue 18.1 vérifiées en réel : le tour se termine à `final` (Envoyer revient à 2,5 s, les puces
+arrivent à 4,5 s ; mesuré dans le navigateur sur l'endpoint), aucune réponse livrée marquée « interrompue », le reçu
+compte l'appel en plus (2 574 → 4 376 jetons d'entrée sur le même tour, puis 4 844 jetons affichés dans la ligne de
+consommation), aucune puce dans la mauvaise langue, aucune action de l'utilisateur (« Envoie tes expériences »
+écrit pour le CV est retiré par `needs: user`), rien après « Salut, ça va ? ». Appel : p50 2,5 s, p95 3,1 s.
+
+Corrigé pendant la vérification : deux suites qui ne diffèrent que d'un chiffre ou d'un mot (« Convertis 1000 € » /
+« 500 € », « janvier » / « février 2027 », « en barres » / « en courbe ») ne font qu'une puce (`_near_twin`,
+Jaccard ≥ 0,7 sur les mots) ; « Fais une version courte » n'est jamais proposé sous une réponse de moins de
+600 caractères sans livrable (mail, fichier, présentation : là, raccourcir reste une vraie suite). Reste (lecture
+franche) : « Traduis en anglais » sous un résumé ou un compte rendu, malgré la règle de l'invite ; une puce
+redondante avec la réponse (« Calcule les jours ouvrés de 2027 » quand la réponse donne 254) ; sous un mail, une
+suite du modèle et la puce fixe « Shorter » peuvent dire la même chose. Ces cas sont à porter dans les exemples
+d'entraînement de la tâche `nextsteps`.

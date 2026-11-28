@@ -2818,7 +2818,8 @@ class HarnessBackend:
             later = stop_reason == "answer" and bool(content.strip()) and self._suggest_on(ctx)
             ctx.emit(final_event(["suggestions"] if later else []))
             if later:
-                got = self._suggest(agent, cfg, request_words, content, run.lang or lang, ctx)
+                made = draft is not None or bool(files) or bool(canvas_web.ref(run))  # a mail, a file, a deck
+                got = self._suggest(agent, cfg, request_words, content, run.lang or lang, ctx, made=made)
                 used = (got or {}).get("usage") or {}
                 if used.get("prompt_tokens") or used.get("completion_tokens"):
                     # the receipt again, with the next-steps call in it: the Consommation panel and the ledger
@@ -2849,7 +2850,8 @@ class HarnessBackend:
         return not off and ctx.seconds_left() - 1.0 >= 2.0 and not ctx.cancel.is_set()
 
     @staticmethod
-    def _suggest(agent, cfg, request_words: str, content: str, lang: str, ctx: RunContext) -> dict | None:
+    def _suggest(agent, cfg, request_words: str, content: str, lang: str, ctx: RunContext,
+                 made: bool = False) -> dict | None:  # fmt: skip
         """The ``suggestions`` event: 0-3 next steps written by the model, validated (nextsteps.validate). Sent
         only when the model answered; nothing on a failure (the client keeps its widget chips). Never raises."""
         import logging
@@ -2864,7 +2866,7 @@ class HarnessBackend:
             tools = set(agent._allowed())
             got = nextsteps.generate(agent.llm, agent.tok, request_words, content, lang=lang, names=names,
                                      tools=tools, budget=min(nextsteps.BUDGET_S, left),
-                                     cache_salt=cfg.cache_salt)  # fmt: skip
+                                     cache_salt=cfg.cache_salt, made=made)  # fmt: skip
         except Exception:  # noqa: BLE001 - next steps are optional: never lose the turn for them
             return None
         logging.getLogger("bird.nextsteps").info(json.dumps({

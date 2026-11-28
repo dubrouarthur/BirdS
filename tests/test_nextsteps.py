@@ -429,3 +429,30 @@ def test_the_guide_asks_for_doable_specific_steps_and_its_examples_pass_the_vali
         for _, _, items in N._SHOTS[lang]:
             got = {"suggestions": [{"needs": n, "label": a, "prompt": b} for n, a, b in items]}
             assert N.validate(got, lang=lang, available=every) == ([{"label": a, "prompt": b} for _, a, b in items], [])
+
+
+def test_two_next_steps_that_differ_by_a_figure_or_a_word_make_one_chip():
+    """Live, 28/11: « Convertis 1000 euros… » then « Convertis 500 euros… », « jours ouvrés en janvier / février »."""
+    obj = {"suggestions": [
+        {"needs": "calc", "label": "Convertis 1000 euros", "prompt": "Convertis 1000 euros en dollars au taux BCE."},
+        {"needs": "calc", "label": "Convertis 500 euros", "prompt": "Convertis 500 euros en dollars au taux BCE."},
+        {"needs": "write", "label": "Compare avec Nice", "prompt": "Compare la météo de samedi à Marseille et à Nice."},
+    ]}  # fmt: skip
+    kept, dropped = N.validate(obj, lang="fr")
+    assert [k["label"] for k in kept] == ["Convertis 1000 euros", "Compare avec Nice"]
+    assert ("Convertis 500 euros", "twin") in dropped
+
+
+def test_a_short_answer_is_never_offered_a_shorter_version():
+    nexts = json.dumps(obj(("Fais une version courte", "Fais une version courte de ce résumé."),
+                           ("Ajoute un exemple", "Ajoute un exemple concret de télétravail.")))  # fmt: skip
+    got = N.generate(Probeable([], nexts=nexts), Tok(), "Résume le télétravail", "Le télétravail fait gagner du temps.")
+    assert [x["label"] for x in got["items"]] == ["Ajoute un exemple"]
+    assert ("Fais une version courte", "already_short") in got["dropped"]
+
+
+def test_a_mail_or_a_deck_behind_a_short_answer_can_still_be_shortened():
+    """« Raccourcis la présentation à 5 diapositives » under « La présentation est dans le canevas »: kept."""
+    nexts = json.dumps(obj(("Raccourcis la présentation", "Raccourcis la présentation à 5 diapositives.")))
+    got = N.generate(Probeable([], nexts=nexts), Tok(), "Fais 5 diapos", "La présentation est prête.", made=True)
+    assert [x["label"] for x in got["items"]] == ["Raccourcis la présentation"]
