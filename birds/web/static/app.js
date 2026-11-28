@@ -66,6 +66,13 @@ import { normalizeChoice, thinks } from "./reflexion-data.js";
 const AGENT_MODES = ["auto", "on", "off"];
 let planTimer = 0; // the plan card's countdown (Auto, high confidence)
 let teamDone = false; // a team finished while the tab was hidden: « ✓ » in the tab title
+// Mode Réflexion and the Settings reasoning switch say the same thing: the bird picked is the more precise choice,
+// so the switch follows it; onPrefs applies the switch only when the switch itself changed
+if (!!state.prefs.thinking !== state.thinking) {
+  state.prefs.thinking = state.thinking;
+  savePrefs();
+}
+let prefsThinking = !!state.prefs.thinking;
 // No byte (data or heartbeat) for this long: the stream is dead. Just over 3x the server's heartbeat (10 s).
 const STALL_MS = 35000;
 state.agent = AGENT_MODES.includes(store.get("bird.agent")) ? store.get("bird.agent") : "auto";
@@ -2172,6 +2179,12 @@ function bind() {
     state.reflexion = choice;
     state.thinking = thinks(choice);
     store.set("bird.reflexion", choice);
+    // the Settings switch follows the bird picked, so a later Settings change never undoes this choice
+    if (!!state.prefs.thinking !== state.thinking) {
+      state.prefs.thinking = state.thinking;
+      savePrefs();
+    }
+    prefsThinking = state.thinking;
     announce(t("rf.changed", { name: t(`rf.level.${choice}`) }));
     updateComposer();
   });
@@ -2421,11 +2434,16 @@ async function init() {
   });
   setViewHooks({
     onPrefs: () => {
-      // the Settings switch: off is the hummingbird (no reasoning); on again gives the choice back to Bird
-      if (!state.prefs.thinking) state.reflexion = "colibri";
-      else if (state.reflexion === "colibri") state.reflexion = "auto";
-      store.set("bird.reflexion", state.reflexion);
-      state.thinking = thinks(state.reflexion);
+      // the Settings switch, only when it is the switch that changed (a theme or language change keeps the bird):
+      // off is the hummingbird (no reasoning); on again gives the choice back to Bird
+      const now = !!state.prefs.thinking;
+      if (now !== prefsThinking) {
+        if (!now) state.reflexion = "colibri";
+        else if (state.reflexion === "colibri") state.reflexion = "auto";
+        store.set("bird.reflexion", state.reflexion);
+        state.thinking = thinks(state.reflexion);
+      }
+      prefsThinking = now;
       refreshAll();
     },
     onReset: () => {
@@ -2433,6 +2451,7 @@ async function init() {
       state.reflexion = "auto";
       store.set("bird.reflexion", "auto");
       state.thinking = thinks(state.reflexion);
+      prefsThinking = !!state.prefs.thinking;
       state.conv = newConv();
       refreshAll();
     },

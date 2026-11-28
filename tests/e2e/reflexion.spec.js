@@ -162,6 +162,39 @@ async function newConv(page) {
     await last.screenshot({ path: path.join(OUT, `rf-colibri-${name}-crop.png`) });
     await ctx.close();
   }
+  // ---- Settings and the picker say the same thing: a bird picked survives a theme change, the switch still works
+  if (!ONLY || "settings".includes(ONLY)) {
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "fr-FR" });
+    const page = await ctx.newPage();
+    page.on("pageerror", (e) => problems.push(`settings: pageerror ${e.message}`));
+    await page.addInitScript(() => {
+      if (sessionStorage.getItem("seeded")) return;
+      sessionStorage.setItem("seeded", "1");
+      localStorage.setItem("bird.prefs", JSON.stringify({ thinking: false, thinkingV: 2, lang: "fr", welcomed: true }));
+    });
+    await page.goto(URL, { waitUntil: "networkidle" });
+    await page.waitForTimeout(800);
+    await page.evaluate(() => document.querySelector("dialog[open]")?.close());
+    const pill = page.locator("#rf-button");
+    if ((await pill.getAttribute("data-level")) !== "colibri") problems.push(`settings: reasoning off reads ${await pill.getAttribute("data-level")}`);
+    await pill.click();
+    await page.locator('#rf-menu .rf-opt[data-level="faucon"]').click();
+    await page.waitForTimeout(200);
+    await page.click("#nav-settings");
+    await page.waitForTimeout(400);
+    if (!(await page.isChecked("#set-thinking"))) problems.push("settings: the switch did not follow Faucon");
+    await page.selectOption("#set-theme", "dark");
+    await page.waitForTimeout(300);
+    if ((await pill.getAttribute("data-level")) !== "faucon") problems.push(`settings: a theme change reset the bird to ${await pill.getAttribute("data-level")}`);
+    if ((await page.evaluate(() => localStorage.getItem("bird.reflexion"))) !== "faucon") problems.push("settings: stored bird changed");
+    await page.uncheck("#set-thinking");
+    await page.waitForTimeout(300);
+    if ((await pill.getAttribute("data-level")) !== "colibri") problems.push("settings: the switch off is not Colibri");
+    await page.check("#set-thinking");
+    await page.waitForTimeout(300);
+    if ((await pill.getAttribute("data-level")) !== "auto") problems.push("settings: the switch on again is not Auto");
+    await ctx.close();
+  }
   await browser.close();
   if (problems.length) {
     console.log("PROBLEMS:\n" + problems.join("\n"));
