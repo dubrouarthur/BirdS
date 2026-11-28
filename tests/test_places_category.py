@@ -80,6 +80,38 @@ def test_category_qualifiers_and_names():
     assert category("tour Eiffel") is None and category("Louvre ; Orsay") is None
 
 
+@pytest.mark.parametrize(
+    "q, kind",
+    [
+        ("pharmacie la plus proche", "pharmacy"),
+        ("pharmacies les plus proches", "pharmacy"),
+        ("nearest pharmacy", "pharmacy"),
+        ("the nearest supermarket", "supermarket"),
+        ("supermarchés à proximité", "supermarket"),
+        ("supermarkets near me", "supermarket"),
+        ("épicerie", "supermarket"),
+        ("grocery stores", "supermarket"),
+        ("la boulangerie la plus proche", "bakery"),
+    ],
+)
+def test_nearest_and_grocery_wordings_are_the_category(q, kind):
+    """The model writes « la plus proche » or « nearest » in the query (the search is already « near »): still the
+    category around the anchor, never a name looked up across the world."""
+    assert category(q) == (kind, "")
+
+
+def test_nearest_wording_names_stay_names():
+    assert category("gare de Lyon la plus proche") is None and category("Monoprix le plus proche") is None
+    assert category("nearest") is None
+
+
+def test_pharmacie_la_plus_proche_searches_the_category_around_the_town(tmp_path):
+    ctx = ctx_for(tmp_path, [])
+    TOOLS["find_places"]({"query": "pharmacie la plus proche", "near": "Saint-Cloud"}, ctx)
+    w = ctx.step_info["widget"]
+    assert w["mode"] == "near" and [p["name"] for p in w["places"]] == ["Pharmacie du Parc"]
+
+
 def test_supermarches_a_saint_cloud_lists_the_category_around_the_town(tmp_path):
     seen = []
     ctx = ctx_for(tmp_path, seen)

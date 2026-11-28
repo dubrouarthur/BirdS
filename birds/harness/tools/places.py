@@ -30,6 +30,14 @@ _CATEGORY = re.compile(
     + r")(?P<rest>(?:\s+[\w'’-]+){0,3})$",
     re.I,
 )
+_NEAREST_LEAD = re.compile(r"^(?P<art>(?:the|a)\s+)?(?:nearest|closest)\s+", re.I)
+_NEAREST_TAIL = re.compile(
+    r"\s+(?:(?:la|le|les)\s+plus\s+proches?|(?:à|a)\s+proximit[ée]|(?:tout\s+)?pr[èe]s\s+d'ici|"
+    r"nearest|closest|near\s+(?:me|here|by)|around\s+here)$",
+    re.I,
+)
+# what Nominatim files under « supermarket » (convenience kept by TYPES): an épicerie is asked as a supermarket
+_ALIASES = re.compile(r"^(?:[ée]piceries?|sup[ée]rettes?|grocery stores?|grocer(?:y|ies)|grocery shops?)$", re.I)
 # what OpenStreetMap cannot say about a place of the category: the model is told, so it never claims it
 _QUALIFIERS = (
     (re.compile(r"\bde garde\b|\bon duty\b|\bopen now\b|\bouverte?s? maintenant\b", re.I), "garde"),
@@ -68,6 +76,12 @@ def category(query: str) -> tuple[str, str] | None:
     « restaurant végétarien »), else None (a name: « tour Eiffel », « Carrefour Market »)."""
     q = " ".join(str(query or "").replace("’", "'").split())
     if not q or ";" in q:
+        return None
+    # « la pharmacie la plus proche », « the nearest supermarket »: « near » is already the search, not a name
+    q = _NEAREST_LEAD.sub(r"\g<art>", q)
+    q = _NEAREST_TAIL.sub("", q).strip()
+    q = _ALIASES.sub(lambda m: "supermarché" + ("s" if m.group(0).lower().endswith(("s", "ies")) else ""), q)
+    if not q:
         return None
     if q.lower() in _KIND_KEYS:
         return q.lower(), ""
