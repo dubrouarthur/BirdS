@@ -715,7 +715,10 @@ Code : `birds/harness/analysis/` (lecture `table.py`, profil `profile.py`, moteu
   phrase exacte du harnais (`verify.check_numbers`, rapport `data_check`). Le contrôle ne s'applique qu'à un tour qui
   porte sur le tableau (un résultat calculé, ou une demande qui nomme le fichier ou ses colonnes) : un mail « lundi à
   14 h 30 en salle 204 » écrit avec un tableau joint reste intact (`data_check: skipped`), et la mention « Chiffres
-  recalculés par Bird » n'est ajoutée qu'à un texte qui cite des chiffres du fichier.
+  recalculés par Bird » n'est ajoutée qu'à un texte qui cite des chiffres du fichier. Une année ou un petit nombre
+  (≤ 12) n'est accepté d'office qu'écrit nu : « 2 050 € », « 1 999 € », « 8 % » ou « 12 € » doivent être retrouvés
+  comme les autres ; un arrondi juste au dernier chiffre significatif (« environ 35 000 € » pour 34 812) est accepté
+  comme « 35 k€ » (« 34 000 € » ne l'est pas).
 - **Continuité** : sous le graphique, « Modifier le graphique » propose 2 ou 3 suites concrètes (« Par trimestre »,
   « Avec une moyenne mobile sur 3 mois », « En camembert »…) ; un clic envoie la suite comme message, le serveur écrit
   la spécification dans le mémo (`[Analyse de « ventes.csv » — {…}]`), le planificateur la modifie, et la réponse

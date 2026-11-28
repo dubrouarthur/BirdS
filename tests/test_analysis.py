@@ -302,6 +302,22 @@ def test_check_numbers_accepts_roundings_and_refuses_inventions():
     assert check_numbers("Comme vous l'avez dit, 7 500 €", allowed, request="budget de 7 500 €") == []
 
 
+@pytest.mark.parametrize("text, bad", [
+    # review 28/11/2026: a « year » or a small count with a unit is a figure like any other
+    ("Le total atteint 2 050 €", ["2 050 €"]), ("Le CA est de 1 999 €", ["1 999 €"]), ("Hausse de 8 %", ["8 %"]),
+    ("Un panier moyen de 12 €", ["12 €"]),
+    # bare years and counts stay fine
+    ("En 2024 et 2025, les 3 premiers sur 12 mois", []),
+    # a fair rounding, to the last significant digit, is accepted as « 35 k€ » is
+    ("environ 35 000 €", []), ("Environ 35 k€", []), ("près de 34 800 €", []), ("autour de 244 000 €", []),
+    ("21,5 % et 5 %", []),
+    # a rounding in the wrong direction is not one
+    ("environ 34 000 €", ["34 000 €"]), ("environ 245 000 €", ["245 000 €"]),
+])  # fmt: skip
+def test_check_numbers_units_years_and_roundings(text, bad):
+    assert check_numbers(text, [34812.4, 243706.63, 0.215, 5.03]) == bad
+
+
 # ---------------------------------------------------------------- v2 chart spec
 
 
