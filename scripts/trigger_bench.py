@@ -819,6 +819,35 @@ CANVAS_NO = [  # ordinary office prompts and questions about a document: never a
 ]
 # office prompts that ask for a script: no office file and no tool call to run (OFFICE_NO), but the code canvas is the
 # right place to write it, like « écris un script python qui renomme des fichiers » above
+# an artifact is open (a deck): (words, panel shown) the canvas must take as an edit of it
+CANVAS_EDIT_YES = [
+    ("Ajoute une diapositive sur les coûts", True),
+    ("Ajoute une diapositive sur les coûts", False),
+    ("supprime la slide 3", False),
+    ("remplace l'image de la slide 3", False),
+    ("Change le titre de la présentation", False),
+    ("plus court", True),
+    ("Change le titre", True),
+    ("raccourcis la conclusion", True),
+]
+# … and ordinary messages it must leave to the chat, the panel shown or not
+CANVAS_EDIT_NO = [
+    (q, shown)
+    for q in (
+        "Améliore le style de ce mail avant que je l'envoie : Bonjour Paul, je te relance pour la facture de mars, "
+        "peux-tu me dire où en est le paiement ?",
+        "Résume ce paragraphe en trois points : le télétravail réduit les trajets, améliore la concentration et "
+        "change l'organisation des équipes.",
+        "Change le titre de ma réunion de demain en « Point budget »",
+        "Corrige les fautes de ce texte : je vous remercie pour votre retour, je reviendrais vers vous demain.",
+        "Mets un rappel dans mon agenda lundi à 9h",
+    )
+    for shown in (True, False)
+] + [
+    ("Mets ces chiffres dans un graphique : janvier 120, février 135, mars 160", False),
+    ("Change le titre", False),
+    ("plus court", False),
+]
 CANVAS_CODE_FROM_OFFICE = [("Écris un script Python qui envoie un mail avec smtplib.", "code")]
 CANVAS_OFFICE_NO = [q for q in OFFICE_NO if q not in dict(CANVAS_CODE_FROM_OFFICE)]
 NOW = datetime(2026, 11, 23, 10, 0, tzinfo=ZoneInfo("Europe/Paris"))
@@ -977,6 +1006,11 @@ def canvas_touched(q) -> bool:
     return bool(canvas_intents.ask(q))
 
 
+def canvas_edited(item) -> bool:
+    q, shown = item
+    return canvas_intents.edit_ask(q, "deck", shown=shown)
+
+
 def bench(name: str, yes: list[str], no: list[str], fn, touched=None) -> tuple[int, int]:
     miss = [q for q in yes if not fn(q)]
     false = [q for q in no if (touched or fn)(q)]
@@ -1010,6 +1044,7 @@ if __name__ == "__main__":
         ("maps_real", bench_maps.MAPS_REAL, bench_maps.MAPS_OFFICE_NO, bench_maps.correct, bench_maps.detected),
         ("maps_heldout", bench_maps.MAPS_HELDOUT, bench_maps.MAPS_HELDOUT_NO, bench_maps.correct, bench_maps.detected),
         ("canvas", CANVAS_YES + CANVAS_CODE_FROM_OFFICE, CANVAS_NO + CANVAS_OFFICE_NO, canvas_opened, canvas_touched),
+        ("canvas_edit", CANVAS_EDIT_YES, CANVAS_EDIT_NO, canvas_edited),
     ):
         ok, n = bench(*args)
         total[0] += ok

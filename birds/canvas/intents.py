@@ -184,6 +184,32 @@ _HOLD = re.compile(r"\b(?:ne|n['’]|rien|pas|aucun|non|attends?|laisse|nothing|
                    r"c['’]est (?:bien|bon|parfait)|it['’]s (?:fine|good))\b|\?", re.I)  # fmt: skip
 
 
+# the artifact itself, or a numbered part of it: what a request must name to reopen a closed panel (« la slide 3 »,
+# « le document », « ajoute une diapositive »), never a word any message uses (titre, style, chiffres, points)
+_NAMED_PART = re.compile(
+    r"\b(?:slides?|diapos?(?:itives?)?|transparents?|sections?|chapitres?|cellules?|colonnes?|b\d{1,3})\b|"
+    r"\b(?:partie|paragraphe|ligne|[ée]tape)\s+\d+\b|"
+    r"\b(?:la|le|les|l['’]|cette|ce|cet|ma|mon|the|this|my)\s*(?:pr[ée]sentation|deck|document|rapport|note|page|"
+    r"code|script|sch[ée]ma|diagramme|tableur|feuille|landing|site|presentation|report|diagram|spreadsheet)\b",
+    re.I,
+)
+# what an artifact of any kind is made of: a demonstrative or possessive before another noun (« ce mail », « ma
+# réunion », « ce paragraphe » on a deck) points the edit at something else than the artifact
+_THIS = re.compile(r"\b(?:ce|cet|cette|ces|mon|ma|mes|ton|ta|tes|son|sa|ses|notre|nos|votre|vos|this|that|my|your)"
+                   r"\s+([\w-]+)", re.I)  # fmt: skip
+_OF_ARTIFACT = re.compile(r"(?:texte|contenu|version|fichier|text|content|version|file)$", re.I)
+
+
+def _foreign_object(w: str, kind: str) -> bool:
+    """« Améliore le style de ce mail », « Change le titre de ma réunion »: the words name another object."""
+    about = _ABOUT.get(_family(kind), _ABOUT["deck"])
+    for m in _THIS.finditer(w):
+        noun = m.group(1)
+        if not (about.fullmatch(noun) or _NAMED_PART.search("la " + noun) or _OF_ARTIFACT.match(noun)):
+            return True
+    return False
+
+
 def edit_ask(words: str, kind: str, targeted: bool = False, shown: bool = True) -> bool:
     """The words change the artifact already open: an edit verb about a part of it (a slide, a section, the picture,
     the theme, the button), or any instruction sent from a block (« Demander à Bird »). A short edit that names
@@ -197,6 +223,13 @@ def edit_ask(words: str, kind: str, targeted: bool = False, shown: bool = True) 
         return True
     if len(w) > 1200 or _HOWTO.search(w[:120]) and not re.search(r"\b(?:peux-tu|can you)\b", w[:60], re.I):
         return False
+    from birds.harness.router import own_words
+
+    w = own_words(w) or w  # « améliore ce mail : Bonjour Paul, … »: the pasted text is not the instruction
+    if _foreign_object(w, kind) and not _NAMED_PART.search(w):
+        return False  # « améliore le style de ce mail », « change le titre de ma réunion de demain »
+    if not shown and not _NAMED_PART.search(w):
+        return False  # a closed panel reopens only for the artifact or a numbered part of it, by name
     lang_only = re.search(rf"^\W*(?:et\s+)?(?:en|in)\s+{_LANGS}\b", w, re.I)
     if not _EDIT.search(w) and not lang_only:
         return False

@@ -1137,3 +1137,39 @@ def test_canvas_doc_turn_offers_draft_email_only_when_a_mail_is_asked(monkeypatc
                                "décision de reporter le projet au T2.")  # fmt: skip
     assert "draft_email" not in (json.loads(llm.prompts[0]).get("tools") or [])
     assert [e for e in events if e["type"] == "canvas"][-1]["phase"] == "final"
+
+
+@pytest.mark.parametrize("shown", [True, False])
+@pytest.mark.parametrize(
+    "words",
+    [
+        "Améliore le style de ce mail avant que je l'envoie : Bonjour Paul, je te relance pour la facture de mars.",
+        "Résume ce paragraphe en trois points : le télétravail réduit les trajets et améliore la concentration.",
+        "Change le titre de ma réunion de demain en « Point budget »",
+    ],
+)
+def test_an_ordinary_message_is_not_captured_by_an_open_deck(words, shown):
+    assert not intents.edit_ask(words, "deck", shown=shown)
+
+
+def test_a_closed_panel_reopens_only_for_the_artifact_by_name():
+    from birds.web import canvas_web
+
+    ref = canvas_web.canvas_in({"aid": "a0123456789ab", "version": 3, "kind": "deck", "open": False})
+    assert turn.plan("Mets ces chiffres dans un graphique : janvier 120, février 135, mars 160", ref, "fr") is None
+    assert turn.plan("Change le titre", ref, "fr") is None
+    assert turn.plan("Change le titre de la présentation", ref, "fr").mode == "reopen"
+    assert turn.plan("Ajoute une diapositive sur les coûts", ref, "fr").mode == "reopen"
+
+
+def test_a_mail_to_improve_with_a_deck_shown_is_answered_in_the_chat(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    _no_network(monkeypatch)
+    better = "Bonjour Paul,\n\nJe me permets de revenir vers toi au sujet de la facture de mars.\n\nBien à toi"
+    app, llm = _app([better])
+    with TestClient(app) as client:
+        events = _chat(client, "Améliore le style de ce mail avant que je l'envoie : Bonjour Paul, je te relance "
+                               "pour la facture de mars.", canvas=_canvas_body(dsl.parse(DECK, "deck")))  # fmt: skip
+    assert not [e for e in events if e["type"] == "canvas"]
+    assert "facture de mars" in next(e for e in events if e["type"] == "answer")["content"]
