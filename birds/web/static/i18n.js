@@ -427,6 +427,9 @@ export const STRINGS = {
     "webimg.open":
       "{title}, {domain} (ouvre la page source dans un nouvel onglet)",
     "webimg.note": "Images issues des pages consultées, non créées par Bird.",
+    "webimg.free_title": "Images libres de droits",
+    "webimg.free_note":
+      "Photos sous licence libre (Openverse, Wikimedia Commons), licence vérifiée par Bird ; auteur et licence indiqués.",
     "webimg.demo": "Image de démonstration",
     "webimg.export": "Image",
     "arg.query": "Recherche",
@@ -1628,6 +1631,9 @@ export const STRINGS = {
     "webimg.aria": "Images found on the web",
     "webimg.open": "{title}, {domain} (opens the source page in a new tab)",
     "webimg.note": "Images from the pages consulted, not made by Bird.",
+    "webimg.free_title": "Free-licence pictures",
+    "webimg.free_note":
+      "Openly licensed photos (Openverse, Wikimedia Commons), licence checked by Bird; author and licence shown.",
     "webimg.demo": "Demo image",
     "webimg.export": "Image",
     "arg.query": "Query",

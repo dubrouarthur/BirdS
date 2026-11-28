@@ -651,7 +651,7 @@ def make_router(settings, guard_request, check_access, resolve_mode, fetch_clien
                              search_contact=settings.search_contact)  # fmt: skip
                 with images.tracing() as log:
                     m = images.search_web(body.query, om.Fetcher(client, cfg), body.exclude, mid,
-                                          deadline=time.monotonic() + 12)  # fmt: skip
+                                          deadline=time.monotonic() + 12, lang=body.lang)  # fmt: skip
             finally:
                 if client is not None:
                     client.close()

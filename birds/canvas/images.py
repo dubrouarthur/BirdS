@@ -110,11 +110,25 @@ def public_trace(log: list[dict]) -> list[dict]:
 
 def error_status(e: Exception) -> str:
     """« 429 », « 403 », « timeout », « blocked »… of a failed request, for the trace and the cool-down."""
-    m = re.search(r"HTTP (\d{3})", str(e))
+    text = str(e)
+    m = re.search(r"HTTP (\d{3})", text)
     if m:
         return m.group(1)
-    name = type(e).__name__.lower()
-    return "timeout" if "timeout" in name or "timed out" in str(e).lower() else name[:24]
+    if "too slow" in text or "timeout" in type(e).__name__.lower() or "timed out" in text.lower():
+        return "timeout"
+    if getattr(e, "code", None):  # guard.FetchError: upstream / image_type / too_large, and why
+        return f"{e.code}:{re.sub(r'[^A-Za-z0-9 _/.-]', '', text)[:40]}"
+    return f"{type(e).__name__.lower()[:24]}:{re.sub(r'[^A-Za-z0-9 _/.-]', '', text)[:40]}"
+
+
+# a miss worth remembering is a search that ANSWERED and whose pictures were refused for what they are (licence,
+# subject, size), never one cut short by the network (a refused image fetch, a rate limit, the deadline, the look
+# cap): remembering those for an hour turned one bad minute into an hour without pictures
+TRANSIENT = ("deadline", "fetch_", "judge_cap")
+
+
+def _lasting(why: dict) -> bool:
+    return not any(k.startswith(TRANSIENT) for k in why)
 
 
 def _renamed(m: om.Media | None, mid: str) -> om.Media | None:
@@ -175,6 +189,21 @@ def openverse_licence(r: dict) -> str | None:
     return f"{name} {ver}".strip() if lic != "pdm" and re.fullmatch(r"\d(?:\.\d)?", ver or "x") else name
 
 
+def _openverse_urls(r: dict) -> list[str]:
+    """The copies of one Openverse result to try, best first: the original (or a 1280 px Commons thumbnail), then
+    Openverse's own full-size copy (``/thumb/?full_size=true``, served by api.openverse.org). Measured in production
+    on 28/11/2026: the original hosts (Flickr mostly) refused the hosting provider's addresses for 10 results out of
+    10 on « Paris skyline », while the API answered: its copy is the same picture, same licence."""
+    out = []
+    big = _big_url(r)
+    if big.startswith("https://"):
+        out.append(big)
+    thumb = str(r.get("thumbnail") or "")
+    if re.fullmatch(r"https://api\.openverse\.org/v1/images/[0-9a-f-]{36}/thumb/", thumb):
+        out.append(thumb + "?full_size=true")
+    return list(dict.fromkeys(out))
+
+
 def _big_url(r: dict) -> str:
     """The picture to fetch: a 1280 px Commons thumbnail for a Commons file, the original when small enough, else
     Openverse's own thumbnail."""
@@ -224,16 +253,41 @@ _NO_PHOTO = re.compile(r"\b(?:charts?|graphs?|diagrams?|infographics?|graphiques
                        r"statisti\w*|spreadsheets?|tableaux?)\b", re.I)
 
 
-def variants(query: str) -> list[str]:
+# French words that describe no picture a search can find (« chaton heureux »: Commons has « chaton », never
+# « chaton heureux »)
+FLUFF_FR = set("""heureux heureuse heureuses souriant souriante souriants moderne modernes beau belle beaux belles
+typique typiques divers diverses différents différentes innovant innovante dynamique concept photo image illustration
+""".split())
+
+
+def head_noun(query: str) -> str:
+    """« électricien au travail » -> « électricien », « chaton heureux » -> « chaton »: the first content word of a
+    French phrase (its head noun), for a last search. Not used for English, whose head comes last."""
+    for w in re.findall(r"[\wÀ-ÿ'-]{4,}", str(query or "")):
+        if om.words(w) and w.lower() not in FLUFF and w.lower() not in FLUFF_FR:
+            return w
+    return ""
+
+
+def variants(query: str, lang: str = "", also: list[str] | tuple[str, ...] = ()) -> list[str]:
     """The searches tried for one query, most precise first: as written, without the words that describe no
-    picture (« happy », « modern »), then its two first content words. None for a query of a chart or a table
-    (« chart showing quarterly growth »: seen live, it found a pulsar's radio plot)."""
+    picture (« happy », « modern », « heureux »), then its two first content words; then ``also`` (the same subject
+    in English when the model gave it: Openverse is mostly English) the same way; last, for French, the head noun
+    alone. None for a query of a chart or a table (« chart showing quarterly growth »: seen live, it found a
+    pulsar's radio plot)."""
     q = re.sub(r"\s+", " ", str(query or "")).strip()[:120]
     if not q or _NO_PHOTO.search(q):
         return []
-    plain = " ".join(w for w in q.split() if w.lower().strip(",.;:") not in FLUFF)
     out: list[str] = []
-    for v in (q, plain, short_query(q)):
+    for one in (q, *[re.sub(r"\s+", " ", str(a or "")).strip()[:120] for a in also]):
+        if not one or _NO_PHOTO.search(one):
+            continue
+        plain = " ".join(w for w in one.split() if w.lower().strip(",.;:") not in FLUFF | FLUFF_FR)
+        for v in (one, plain, short_query(one)):
+            if v and v.lower() not in {x.lower() for x in out}:
+                out.append(v)
+    if lang == "fr":
+        v = head_noun(q)
         if v and v.lower() not in {x.lower() for x in out}:
             out.append(v)
     return out
@@ -332,21 +386,23 @@ def _search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: 
         if not creator and not lic.startswith(("CC0", "Domaine")):
             no("no_author")
             continue  # a CC BY licence needs its author
-        big = _big_url(r)
-        if not big.startswith("https://"):
-            no("no_url")
-            continue
-        try:
-            raw = fetch.image(big)
-            m = om.prepare(raw, mid, "web", max_bytes=SHOW_BYTES, alt=q, title=title[:120], licence=lic,
-                           source=source[:300])  # fmt: skip
-        except Exception as e:  # noqa: BLE001 - this file fails, the next one may not
-            no("fetch_" + error_status(e))
+        m, err = None, ""
+        for big in _openverse_urls(r):
+            try:
+                m = om.prepare(fetch.image(big), mid, "web", max_bytes=SHOW_BYTES, alt=q, title=title[:120],
+                               licence=lic, source=source[:300])  # fmt: skip
+                m.src = big
+                break
+            except Exception as e:  # noqa: BLE001 - this copy fails, the next one may not
+                err = error_status(e)
+        if m is None:
+            no("fetch_" + (err or "no_url"))
             continue
         if m.w < 400 or m.h < 260:
             no("small")
             continue
         if tries[0] >= JUDGED:
+            no("judge_cap")
             break
         if not _looks(judge, want, m, tries):
             no("judge")
@@ -356,7 +412,8 @@ def _search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: 
         found = m
         break
     _trace("openverse", q, "found" if found else "none", len(results), why)
-    CACHE.put(key, found)
+    if found is not None or _lasting(why):
+        CACHE.put(key, found)
     return _renamed(found, mid)
 
 
@@ -420,10 +477,12 @@ def search_commons(query: str, fetch, exclude: list[str] | None = None, mid: str
             no("fetch_" + error_status(e))
             continue
         m.credit = f"{lic['author']} — {lic['licence']} — Wikimedia Commons"
+        m.src = lic["thumb"]
         if m.w < 400 or m.h < 260:
             no("small")
             continue
         if tries[0] >= JUDGED:
+            no("judge_cap")
             break
         if not _looks(judge, want, m, tries):
             no("judge")
@@ -432,31 +491,38 @@ def search_commons(query: str, fetch, exclude: list[str] | None = None, mid: str
         CACHE.put(key, m)
         return _renamed(m, mid)
     _trace("commons", q, "none", len(pages), why)
-    CACHE.put(key, None)
+    if _lasting(why):
+        CACHE.put(key, None)
     return None
 
 
 def search_web(query: str, fetch, exclude: list[str] | None = None, mid: str = "w1",
-               deadline: float | None = None, judge=None) -> om.Media | None:  # fmt: skip
-    """For each variant of the cleaned query (``variants``): Openverse (wide: Flickr, museums, Commons; measured the
-    more often available of the two), then Wikimedia Commons directly; then Pexels when the deployment has a key
-    (BIRD_PEXELS_API_KEY): the two free sources throttle shared cloud addresses, Pexels gives a keyed quota. The
-    first relevant picture wins. ``judge`` (``vision_judge``): the model looks at each candidate and says whether it
-    shows the query as asked — the words of a title are only a first sieve (« Night train at Høje Taastrup
-    Station » was a politician on a stage)."""
+               deadline: float | None = None, judge=None, lang: str = "", also: tuple[str, ...] = ()
+               ) -> om.Media | None:  # fmt: skip
+    """For each variant of the cleaned query (``variants``: as written, plainer, shorter, then ``also`` — the model's
+    English words for the same subject — and, for French, the head noun alone): Openverse (wide: Flickr, museums,
+    Commons), then Wikimedia Commons directly (its descriptions are multilingual: the French words find French
+    files); the source that refused us (429) in the last seconds is asked second. Then Pexels when the deployment
+    has a key (BIRD_PEXELS_API_KEY): a keyed quota, never shared with the hosting provider's other tenants. The first
+    relevant picture wins. ``judge`` (``vision_judge``): the model looks at each candidate and says whether it shows
+    the query as asked — the words of a title are only a first sieve (« Night train at Høje Taastrup Station » was a
+    politician on a stage)."""
     query = clean_query(query) or str(query or "")
-    tried = variants(query)
+    tried = variants(query, lang, tuple(clean_query(a) for a in also if a))
     for q in tried:
         if deadline is not None and time.monotonic() > deadline:
             break
+        order = (search_openverse, search_commons)
+        if COOL.hot("openverse") and not COOL.hot("commons"):
+            order = (search_commons, search_openverse)
         # judged against the words searched: the shorter variants keep the core of the query (« night train »)
-        m = (search_openverse(q, fetch, exclude, mid, deadline, judge, q)
-             or search_commons(q, fetch, exclude, mid, deadline, judge, q))  # fmt: skip
-        if m is not None:
-            return m
+        for source in order:
+            m = source(q, fetch, exclude, mid, deadline, judge, q)
+            if m is not None:
+                return m
     if not tried:
         return None  # a chart or a table: no photograph stands for it
-    m = search_pexels(query, fetch, exclude, mid, deadline)
+    m = search_pexels(next((a for a in also if a), query), fetch, exclude, mid, deadline)
     if m is not None and not _looks(judge, query, m, [0]):
         return None
     return m
@@ -507,6 +573,7 @@ def search_pexels(query: str, fetch, exclude: list[str] | None = None, mid: str 
         if m.w < 400 or m.h < 260:
             continue
         m.credit = f"{str(p.get('photographer') or 'Pexels')[:80]} — Licence Pexels — Pexels"
+        m.src = src
         found = m
         break
     _trace("pexels", q, "found" if found else "none", len(photos))

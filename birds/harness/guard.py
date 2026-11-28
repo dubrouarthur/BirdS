@@ -350,7 +350,12 @@ def fetch_bytes(
                 if r.status_code == 304:
                     return 304, "", b"", dict(r.headers)
                 if r.status_code >= 400:
-                    raise ToolError(f"HTTP {r.status_code}")
+                    err = ToolError(f"HTTP {r.status_code}")
+                    try:
+                        err.retry_after = float(r.headers.get("retry-after") or "")
+                    except ValueError:
+                        err.retry_after = None
+                    raise err
                 ctype = r.headers.get("content-type", "").split(";")[0].strip().lower()
                 if not ctype.startswith(types):
                     raise Blocked(f"content type not allowed: {ctype or 'missing'}")

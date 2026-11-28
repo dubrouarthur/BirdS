@@ -267,3 +267,128 @@ def test_vision_judge_reads_yes_and_no_and_needs_a_model_that_sees():
         content = llm.msgs[0][0]["content"]
         assert content[0]["image_url"]["url"].startswith("data:image/jpeg;base64,") and "forest" in content[1]["text"]
     assert images.vision_judge(object()) is None  # a model without the chat route: no look, the words decide
+
+
+# ---- 28/11/2026, docs/CANVAS.md § 12: the root causes of the missing pictures, measured in production
+
+
+def test_commons_thumbnails_on_the_new_thumb_host_are_accepted():
+    """The Commons API now answers thumb.wikimedia.org/…?utm_source=…: every picture was refused as « not a
+    Commons file » (10/10 results of « Paris skyline » dropped in production)."""
+    from birds.harness import office_media as om
+
+    page = _page("Paris skyline at dusk", 3)
+    info = page["imageinfo"][0]
+    info["thumburl"] = ("https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/3.jpg/1280px-3.jpg"
+                        "?utm_source=commons.wikimedia.org&utm_campaign=imageinfo")  # fmt: skip
+    lic = om.commons_licence(info)
+    assert lic["thumb"] == "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/3.jpg/1280px-3.jpg"
+    assert om.commons_file(info["thumburl"]) == "3.jpg"
+    assert om.wikimedia_upload("https://example.org/x.jpg?a=1") == "https://example.org/x.jpg?a=1"
+    fetched = []
+
+    class F(Fake):
+        def image(self, url):
+            fetched.append(url)
+            return super().image(url)
+
+    m = images.search_web("Paris skyline", F(commons=[page]))
+    assert m is not None and m.credit.endswith("Wikimedia Commons") and m.src == lic["thumb"]
+    assert fetched == [lic["thumb"]]  # no tracking parameter, the host the egress guard knows
+
+
+def test_openverse_falls_back_to_its_own_copy_when_the_original_host_refuses():
+    """Production, 28/11/2026: the originals (Flickr) refused the hosting provider's addresses for 10 results out of
+    10; Openverse serves the same picture itself."""
+    from birds.harness import guard
+
+    r = _ov(1, "Paris skyline from Montparnasse")
+    r["id"] = "07d309e9-fb2d-401a-97d5-551ef6145124"
+    r["thumbnail"] = f"https://api.openverse.org/v1/images/{r['id']}/thumb/"
+    tried = []
+
+    class F(Fake):
+        def image(self, url):
+            tried.append(url)
+            if "staticflickr" in url:
+                raise guard.FetchError("upstream", "ConnectError")
+            return super().image(url)
+
+    with images.tracing() as log:
+        m = images.search_web("Paris skyline", F(openverse=[r]))
+    assert m is not None and m.src == r["thumbnail"] + "?full_size=true"
+    assert tried == [r["url"], r["thumbnail"] + "?full_size=true"]
+    assert m.credit == "Ada — CC BY 2.0 — Flickr via Openverse" and log[0]["status"] == "found"
+
+
+def test_a_miss_cut_short_by_the_network_is_not_remembered():
+    from birds.harness import guard
+
+    class Down(Fake):
+        def image(self, url):
+            raise guard.FetchError("upstream", "HTTP 429")
+
+    with images.tracing() as log:
+        assert images.search_openverse("red fox", Down(openverse=[_ov(1, "Red fox")])) is None
+    assert log[0]["why"] == {"fetch_429": 1}
+    f = Fake(openverse=[_ov(1, "Red fox")])
+    assert images.search_openverse("red fox", f) is not None  # searched again: the miss was not cached
+    # a miss for what the results are (no word of the subject) is remembered
+    g = Fake(openverse=[_ov(2, "Blue car")])
+    assert images.search_openverse("red fox", g, mid="w2", exclude=["x"]) is None
+    assert images.search_openverse("red fox", g, mid="w2", exclude=["x"]) is None
+    assert len(g.calls) == 1
+
+
+def test_french_queries_end_with_their_head_noun_and_the_models_english_words():
+    assert images.head_noun("chaton heureux") == "chaton"
+    assert images.head_noun("électricien au travail") == "électricien"
+    assert images.variants("chaton heureux", "fr") == ["chaton heureux", "chaton"]
+    assert images.variants("red fox in snow", "en") == ["red fox in snow", "red fox"]  # no head noun in English
+    v = images.variants("vélo cargo en ville", "fr", ("cargo bike in a city",))
+    assert v[0] == "vélo cargo en ville" and "cargo bike in a city" in v and v[-1] == "vélo"
+    f = Fake(commons=[_page("Chaton roux dans un jardin")])
+    m = images.search_web("chaton heureux", f, lang="fr")
+    assert m is not None and m.title.startswith("Chaton")
+
+
+def test_a_rate_limited_source_is_asked_second_for_a_while():
+    images.COOL.refuse("openverse")
+    f = Fake(commons=[_page("Tramway in Lyon")], openverse=[_ov(1, "Tramway in Lyon")])
+    m = images.search_web("tramway lyon", f)
+    assert "commons.wikimedia.org" in f.calls[0] and m.credit.endswith("Wikimedia Commons")
+
+
+def test_the_fetcher_waits_what_the_api_asks_within_a_cap(monkeypatch):
+    from birds.harness import guard
+    from birds.harness import office_media as om
+
+    err = guard.ToolError("HTTP 429")
+    err.retry_after = 30.0
+    answers = [err, (200, "application/json", b'{"ok": 1}', {})]
+    slept = []
+
+    def fake(*a, **k):
+        x = answers.pop(0)
+        if isinstance(x, Exception):
+            raise x
+        return x
+
+    monkeypatch.setattr(guard, "fetch_bytes", fake)
+    monkeypatch.setattr(time, "sleep", slept.append)
+
+    class Cfg:
+        search_contact = None
+
+    assert om.Fetcher(None, Cfg()).json("https://api.openverse.org/v1/images/?q=x") == {"ok": 1}
+    assert slept == [om.MAX_RETRY_AFTER]
+
+
+def test_error_status_names_the_cause():
+    from birds.harness import guard
+
+    assert images.error_status(ValueError("HTTP 429")) == "429"
+    assert images.error_status(guard.FetchError("upstream", "too slow")) == "timeout"
+    assert images.error_status(guard.FetchError("upstream", "ConnectError")) == "upstream:ConnectError"
+    bad = guard.FetchError("image_type", "not an image type we accept: text/html")
+    assert images.error_status(bad).startswith("image_type:")

@@ -1569,10 +1569,13 @@ function webImageTile(turn, img) {
       h("span", { class: "tag web-image-badge", text: t("webimg.demo") }),
     );
   const n = Number(img.n) || 0;
+  // a free-licence picture (Openverse, Commons): its author and licence, the credit its licence asks for
+  const credit = img.free ? String(img.credit || "").slice(0, 200) : "";
   const cap = h(
     "span",
     { class: "web-image-cap" },
     h("span", { class: "web-image-title", text: title }),
+    credit ? h("span", { class: "web-image-credit", text: credit }) : null,
     h(
       "span",
       { class: "web-image-host" },
@@ -1610,16 +1613,17 @@ function renderWebImages(turn) {
 }
 
 function webImagesSection(turn, images) {
+  const free = images.every((img) => img.free);
   return h(
     "section",
     { class: "web-images", "aria-label": t("webimg.aria") },
-    h("h3", { class: "eyebrow", text: t("webimg.title") }),
+    h("h3", { class: "eyebrow", text: t(free ? "webimg.free_title" : "webimg.title") }),
     h(
       "ul",
       { class: "web-image-list" },
       images.map((img) => h("li", null, webImageTile(turn, img))),
     ),
-    h("p", { class: "web-image-note", text: t("webimg.note") }),
+    h("p", { class: "web-image-note", text: t(free ? "webimg.free_note" : "webimg.note") }),
   );
 }
 

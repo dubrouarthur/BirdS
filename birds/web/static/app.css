@@ -2190,6 +2190,13 @@ details[open] > summary > .chev {
 .web-image:hover .web-image-title {
   text-decoration: underline;
 }
+.web-image-credit {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .web-image-host {
   display: flex;
   flex-wrap: wrap;

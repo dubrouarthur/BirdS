@@ -144,6 +144,43 @@ def pick_web_images(run, answer: str, request_text: str, sources: list[dict], si
     return out
 
 
+FREE_PICTURES = 2  # free-licence pictures searched for an answer that asked for pictures and got none from the web
+FREE_PICTURE_SECONDS = 6.0
+
+
+def free_pictures(agent, subject: str, sign, lang: str = "fr", want: int = FREE_PICTURES,
+                  seconds: float = FREE_PICTURE_SECONDS) -> list[dict]:  # fmt: skip
+    """« montre-moi une photo du Mont-Saint-Michel »: pictures OF the subject from the free-licence banks (Openverse,
+    Wikimedia Commons, Pexels with a key: ``birds.canvas.images.search_web``, licence checked on every result), with
+    author, licence and source, when the web results carried none (the SearXNG → Brave chain gives no thumbnails:
+    measured 0 picture in production, docs/HARNESS.md § 19). The browser gets them through the signed /api/img
+    proxy, never from the third-party host."""
+    if not subject or sign is None or agent is None:
+        return []
+    from birds.canvas import images
+    from birds.harness import office_media as om
+
+    fetch = om.Fetcher(getattr(agent, "http", None), agent.cfg)
+    until = time.monotonic() + seconds
+    out: list[dict] = []
+    exclude: list[str] = []
+    for k in range(want):
+        if time.monotonic() > until:
+            break
+        try:
+            m = images.search_web(subject, fetch, exclude, f"w{k + 1}", deadline=until, lang=lang)
+        except Exception:  # noqa: BLE001 - no picture rather than a failed answer
+            m = None
+        if m is None or not str(m.src).startswith("https://") or not m.licence:
+            break
+        exclude.append(m.source)
+        page = m.source if m.source.startswith("https://") else ""
+        out.append({"src": sign(m.src), "page": page, "title": m.title[:120] or subject[:120],
+                    "domain": (urlsplit(page).hostname or "").removeprefix("www."), "alt": (m.title or subject)[:160],
+                    "credit": m.credit[:200], "licence": m.licence[:60], "free": True})  # fmt: skip
+    return out
+
+
 def _picture_subject(words: str) -> str:
     from birds.harness import intents
 
@@ -2786,6 +2823,11 @@ class HarnessBackend:
                 content, sources, citations.source_texts(run.messages, run.steps, sources)
             )
             widgets = self._widgets(run, request, ctx, lang, draft)
+            subject = getattr(run, "picture_subject", "") or _picture_subject(request_words)
+            web_pictures = pick_web_images(run, answer_text, request_words, sources, ctx.sign_image, subject=subject)
+            if not web_pictures and getattr(run, "picture_subject", "") and run.stop_reason == "answer":
+                # pictures were asked (the router's « images »), the web gave none: the free-licence banks
+                web_pictures = free_pictures(agent, run.picture_subject, ctx.sign_image, run.lang or lang)
             stop_reason, fallback = tidied.stop_reason, None
             if run.stop_reason in rescue.NO_ANSWER and widgets and not run.salvaged:
                 # out of time, or no usable output, after a pre-called tool returned: the results answer
@@ -2806,14 +2848,7 @@ class HarnessBackend:
                     **({"fallback": fallback} if fallback else {}),
                     "sources": enrich_sources(sources, run.steps, ctx.secret, icons=bool(ctx.secret)),
                     "charts": _plain(list(getattr(run, "charts", []) or [])),
-                    "web_images": pick_web_images(
-                        run,
-                        answer_text,
-                        request_words,
-                        sources,
-                        ctx.sign_image,
-                        subject=getattr(run, "picture_subject", "") or _picture_subject(request_words),
-                    ),
+                    "web_images": web_pictures,
                     "widgets": widgets,
                     "files": files,
                     "draft_email": None
