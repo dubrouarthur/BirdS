@@ -1380,6 +1380,9 @@ class Agent:
                         if not rinfo.get("checks"):
                             rinfo["checks"] = verdict.as_dict()
                         if not verdict.ok:
+                            # what was found, for the evaluation (scripts/reflexion_eval.py); never sent to the page
+                            rinfo.setdefault("issues", []).append(
+                                {"calc": verdict.calc_wrong[:4], "missing": [p[:80] for p in verdict.missing[:4]]})
                             rinfo["rounds"] = rinfo.get("rounds", 0) + 1
                             rinfo["corrected"] = True
                             if stream is not None and stream.streamed and hooks.on_reset:

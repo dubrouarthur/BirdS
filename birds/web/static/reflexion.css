@@ -97,7 +97,14 @@
   margin-inline-end: auto; /* the free space of the row sits before the send button */
 }
 @media (max-width: 400px) {
-  .rf-pill:not([data-level="auto"]) .rf-pill-name {
+  .rf-pill {
+    gap: 3px;
+    padding-inline: 7px 4px;
+  }
+  .composer-row:has(.composer-count:not([hidden])) .rf-pill-caret {
+    display: none; /* a long message shows its count: the bird alone keeps the row inside the box */
+  }
+  .rf-pill .rf-pill-name {
     /* a phone keeps the bird and its caret; the name is in the button's label and the menu */
     position: absolute;
     inline-size: 1px;

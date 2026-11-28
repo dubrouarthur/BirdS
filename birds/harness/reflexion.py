@@ -343,7 +343,7 @@ _NUM = r"(?:\d{1,3}(?:[   ]\d{3})+(?:,\d+)?|\d+(?:[.,]\d+)?)"
 _UNIT = r"(?:\s?(?:%|€|\$|£|k€|M€|EUR|USD|euros?|h|min|km|kg|m²|m2|ans?|mois|jours?|days?|months?|years?))?"
 _OP = r"\s*(?:[+×*/÷]|(?<=\s)[x−–-](?=\s))\s*"
 _EQ = re.compile(
-    rf"(?<![\w.,])(?P<expr>\(?{_NUM}{_UNIT}(?:{_OP}\(?{_NUM}{_UNIT}\)?){{1,6}})\s*=\s*(?P<res>-?{_NUM}){_UNIT}(?![\d])"
+    rf"(?<![\w.,])(?P<expr>\(?{_NUM}{_UNIT}(?:{_OP}\(?{_NUM}{_UNIT}\)?){{1,6}})\s*=\s*(?P<res>-?{_NUM})(?P<runit>{_UNIT})(?![\d])"
 )
 _PCT_OF = re.compile(rf"(?<![\w.,])(?P<p>{_NUM})\s?%\s+(?:de|du|des|of)\s+(?P<b>{_NUM}){_UNIT}\s*=\s*(?P<res>{_NUM})")
 _OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv}
@@ -430,10 +430,13 @@ def calc_errors(text: str, lang: str = "fr") -> tuple[int, list[dict]]:
     numbers is read; « ≈ » and words are never judged. A result off by less than its own rounding is right."""
     checked, wrong = 0, []
     plain = text.replace("−", "-").replace("–", "-")
+    plain = re.sub(r"\*\*|__|`", "", plain)  # « = **357,60 €** »: Markdown emphasis around a result
     for m in _EQ.finditer(plain):
         expr, res = m.group("expr"), m.group("res")
         if expr.count("(") != expr.count(")"):
             continue
+        if re.match(rf"{_OP}\(?\d", plain[m.end() :]):
+            continue  # « 1 200 + 15 × 60 = 1 200 + 900 = 2 100 »: an intermediate step, not a result
         py = _python(expr)
         shown = _num(res.lstrip("-"))
         if py is None or shown is None:
@@ -445,6 +448,8 @@ def calc_errors(text: str, lang: str = "fr") -> tuple[int, list[dict]]:
         except (ValueError, SyntaxError, ZeroDivisionError, TypeError, RecursionError):
             continue
         shown = -shown if res.startswith("-") else shown
+        if "%" in (m.group("runit") or "") and "%" not in expr:
+            right, flat = right * 100, flat * 100  # « 69 ÷ 2 300 = 3 % »: a ratio written as a percentage
         checked += 1
         tol = max(0.5 * 10 ** (-_decimals(res)) + 1e-9, abs(right) * 0.001)
         if abs(right - shown) > tol and abs(flat - shown) > tol:

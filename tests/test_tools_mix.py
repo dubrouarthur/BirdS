@@ -95,3 +95,15 @@ def test_typos_never_touch_an_argument():
     for _ in range(50):
         for v in M.variants("prévisions météo pour Strasbourg demain", "fr", label, rng):
             assert M.check(v, None, label)
+
+
+def test_reflexion_records_teach_the_level_decision(mix):
+    from birds.harness import reflexion as RX
+
+    rec = [x for x in mix["train"] if x["task"] == "reflexion"]
+    assert len(rec) > 60 and mix["stats"]["train"]["reflexion"] == len(rec)
+    assert {json.loads(x["messages"][-1]["content"])["level"] for x in rec} == set(RX.AUTO_LEVELS)
+    evals = {R.fold(t) for t, _ in D.REFLEXION_LEVELS}
+    for x in rec:
+        assert x["messages"][0] == RX.messages("", x["lang"])[0]  # the exact static prompt of reflexion.decide
+        assert R.fold(_user(x).split(":", 1)[-1]) not in evals
