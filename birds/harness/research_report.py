@@ -4,7 +4,9 @@ proposed, the live board and the full report widget. Pure functions on the verif
 
 * ``cross_check``: two claims of different sites that say the same thing (most long words in common, no figure in
   conflict) corroborate each other; two that talk about the same thing with different figures of the same unit
-  (« 26 % » against « 31 % » of the same year) are a contradiction, shown as such, never silently resolved.
+  (« 26 % » against « 31 % » of the same year) are a contradiction, shown as such, never silently resolved, when
+  they are about the same subject; with a word naming a narrower subject on one side only (« le chômage des
+  jeunes », « des cadres ») they are two scopes, shown as « chiffres différents » without lowering confidence.
 * Confidence of a claim: ``high`` (corroborated by another site), ``medium`` (its quote is in its page, one site),
   ``low`` (contradicted, or the report sentence citing it is weak).
 * ``key_figures``: the figures of the claims (value and unit as written in the quote), most confident first.
@@ -102,6 +104,36 @@ def _unit_key(unit: str, tail: str) -> tuple[float, str]:
     return scale, u[:5]
 
 
+# what a claim is about, beyond its figures: a word naming a narrower subject on one side only (« le chômage des
+# jeunes », « 52 % des cadres », « pompes à chaleur air-eau ») makes two different figures two true statements about
+# two scopes, not a contradiction. A qualifier is a word right after « des / du / de / d' / of / among / chez /
+# parmi », or a compound (« air-eau »); the verbs (« lancé », « consacré ») and the attribution (« selon l'Insee »)
+# do not change the subject.
+_ATTRIB = re.compile(r"\b(?:selon|d'apres|according to|source\s*:)\s+(?:l'|la |le |les |the )?[\w'-]+")
+_QUALIFIER = re.compile(r"(?:\b(?:des|du|de|of|among|chez|parmi)\s+(?:la\s+|l'|les\s+|the\s+)?|\bd')([a-z]{3,})"
+                        r"|\b([a-z]{2,}-[a-z]{2,})\b")  # fmt: skip
+_NOT_QUALIFIER = {"euros", "dollars", "millions", "milliards", "milliers", "personnes", "people", "annee", "year",
+                  "fois", "plus", "moins", "environ", "pres"}  # fmt: skip
+
+
+def qualifiers(text: str) -> set[str]:
+    """Stems (first 5 letters) of the words that narrow what a claim is about, attribution and figures out."""
+    t = cc.fold(str(text or "").replace("’", "'"))
+    t = _ATTRIB.sub(" ", cc._CITE.sub(" ", t))
+    out = set()
+    for m in _QUALIFIER.finditer(t):
+        w = m.group(1) or m.group(2)
+        if w not in _NOT_QUALIFIER:
+            out.add(w[:5])
+    return out
+
+
+def same_subject(a: str, b: str) -> bool:
+    """No word narrowing the subject on one side only (two scopes, both true, are not a contradiction)."""
+    qa, qb = qualifiers(a), qualifiers(b)
+    return not (qa - qb) and not (qb - qa)
+
+
 def _years(text: str) -> set[str]:
     return set(re.findall(r"\b(?:19|20)\d\d\b", text or ""))
 
@@ -111,7 +143,7 @@ def cross_check(claims: list[dict], pages: list[dict]) -> tuple[list[dict], list
     it) and ``conf``; return (claims, contradictions). Claims of the same site never corroborate each other."""
     domain = {p["n"]: p.get("domain") or f"#{p['n']}" for p in pages}
     for c in claims:
-        c["also"], c["against"] = [], []
+        c["also"], c["against"], c["differs"] = [], [], []
     contradictions = []
     for i, a in enumerate(claims):
         fa = figures_of(a["claim"])
@@ -132,6 +164,11 @@ def cross_check(claims: list[dict], pages: list[dict]) -> tuple[list[dict], list
                 conflict = [(x, y) for x in fa for y in fb if x[2] == y[2] and x[2]]
                 if conflict:
                     (wa, va, _), (wb, vb, _) = conflict[0]
+                    if abs(va - vb) > 0.02 * max(abs(va), abs(vb), 1e-9) and not same_subject(a["claim"], b["claim"]):
+                        # different figures for different scopes (« des jeunes », « des cadres »): both can be true
+                        a["differs"].append(b["n"])
+                        b["differs"].append(a["n"])
+                        continue
                     if abs(va - vb) > 0.02 * max(abs(va), abs(vb), 1e-9):
                         a["against"].append(b["n"])
                         b["against"].append(a["n"])
@@ -144,6 +181,7 @@ def cross_check(claims: list[dict], pages: list[dict]) -> tuple[list[dict], list
     for c in claims:
         c["also"] = sorted(set(c["also"]))
         c["against"] = sorted(set(c["against"]))
+        c["differs"] = sorted(set(c["differs"]) - set(c["against"]))
         c["conf"] = "low" if c["against"] else "high" if c["also"] else "medium"
     return claims, contradictions[:6]
 
@@ -239,7 +277,8 @@ def report_widget(*, title: str, summary: list[dict], sections: list[dict], page
                      "cited": p["n"] in cited, "claims": by_n.get(p["n"], 0)} for p in pages],
         "consulted": consulted[:12],
         "claims": [{"i": i, "t": c["claim"][:220], "n": c["n"], "q": c["quote"][:260], "date": c.get("date", ""),
-                    "conf": c.get("conf", "medium"), "also": c.get("also", [])[:4], "against": c.get("against", [])[:4]}
+                    "conf": c.get("conf", "medium"), "also": c.get("also", [])[:4], "against": c.get("against", [])[:4],
+                    "differs": c.get("differs", [])[:4]}
                    for i, c in enumerate(claims)],
         "figures": figures[:6],
         "contradictions": contradictions[:4],

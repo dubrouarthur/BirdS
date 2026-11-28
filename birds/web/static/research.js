@@ -68,6 +68,7 @@ const FR = {
   "rp.conf.help.low": "contredite par une autre source, ou phrase peu étayée",
   "rp.also": "recoupée par",
   "rp.against": "contredite par",
+  "rp.differs": "chiffres différents (autre périmètre) :",
   "rp.quote": "Citation",
   "rp.openSource": "Ouvrir la source",
   "rp.cite": "Source {n}",
@@ -142,6 +143,7 @@ const EN = {
   "rp.conf.help.low": "contradicted by another source, or weakly supported",
   "rp.also": "corroborated by",
   "rp.against": "contradicted by",
+  "rp.differs": "different figures (another scope):",
   "rp.quote": "Quote",
   "rp.openSource": "Open the source",
   "rp.cite": "Source {n}",
@@ -659,6 +661,8 @@ export function openReport(w, turn) {
               h("p", { class: "muted rp-claim-x" }, `${t("rp.also")} `, ...c.also.flatMap((n) => [citeButton(w, int(n), c.t, scroller), " "])),
             (c.against || []).length > 0 &&
               h("p", { class: "rp-claim-x is-against" }, `${t("rp.against")} `, ...c.against.flatMap((n) => [citeButton(w, int(n), c.t, scroller), " "])),
+            (c.differs || []).length > 0 &&
+              h("p", { class: "muted rp-claim-x" }, `${t("rp.differs")} `, ...c.differs.flatMap((n) => [citeButton(w, int(n), c.t, scroller), " "])),
             c.q && h("details", { class: "rp-claim-q" }, h("summary", { text: t("rp.quote") }), h("blockquote", { text: `« ${str(c.q, 260)} »` })),
           ),
         ),

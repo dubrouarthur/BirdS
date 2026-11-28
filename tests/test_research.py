@@ -383,6 +383,38 @@ def test_scale_words_are_part_of_the_value_never_compared_on_their_first_letters
     out, contra = rr.cross_check(same, pages)
     assert [c["conf"] for c in out] == ["high", "high"] and not contra
 
+
+@pytest.mark.parametrize(
+    "a, b",
+    [  # two scopes, both true: « chiffres différents », never a contradiction, confidence kept
+        ("Le taux de chômage en France atteint 7,3 % en 2023 selon l'Insee.",
+         "Le taux de chômage des jeunes en France atteint 17,3 % en 2023 selon la Dares."),
+        ("Le télétravail concerne 26 % des salariés en 2023.", "Le télétravail concerne 52 % des cadres en 2023."),
+        ("Les ventes de pompes à chaleur ont baissé de 30 % en 2024 en France.",
+         "Les ventes de pompes à chaleur air-eau ont baissé de 45 % en 2024 en France."),
+    ],
+)  # fmt: skip
+def test_different_scopes_are_different_figures_not_a_contradiction(a, b):
+    from birds.harness import research_report as rr
+
+    pages = [{"n": 1, "domain": "a.fr"}, {"n": 2, "domain": "b.fr"}]
+    out, contra = rr.cross_check([{"n": 1, "claim": a, "quote": "x"}, {"n": 2, "claim": b, "quote": "x"}], pages)
+    assert not contra and [c["conf"] for c in out] == ["medium", "medium"]
+    assert out[0]["differs"] == [2] and out[1]["differs"] == [1] and not out[0]["against"]
+    w = rr.report_widget(title="t", summary=[], sections=[], pages=[{"n": 1, "title": "a", "domain": "a.fr"}],
+                         consulted=[], claims=out, figures=[], contradictions=contra, questions=[], counts={})  # fmt: skip
+    assert w["claims"][0]["differs"] == [2]
+
+
+def test_the_same_subject_with_another_verb_stays_a_contradiction():
+    from birds.harness import research_report as rr
+
+    pages = [{"n": 1, "domain": "a.fr"}, {"n": 2, "domain": "b.fr"}]
+    a = "La Région Exemple a lancé en 2023 un plan de 40 millions d'euros pour l'hydrogène renouvelable"
+    b = "La Région Exemple a consacré en 2023 un plan de 45 millions d'euros à l'hydrogène renouvelable"
+    out, contra = rr.cross_check([{"n": 1, "claim": a, "quote": "x"}, {"n": 2, "claim": b, "quote": "x"}], pages)
+    assert len(contra) == 1 and [c["conf"] for c in out] == ["low", "low"] and not out[0]["differs"]
+
 def test_the_writers_comparison_is_kept_only_with_sourced_figures():
     from birds.harness import research_report as rr
 
