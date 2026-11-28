@@ -3,7 +3,10 @@
 Five identity questions (FR and EN) and three ordinary tasks, run through the full harness on the real endpoint,
 with the system prompt of one arm. Only the model varies: no search engine, no web page.
 
-    BIRD_BASE_URL=https://…/v1 BIRD_API_KEY=… .venv/bin/python scripts/brand_eval.py --arms before,after
+    BIRD_BASE_URL=https://…/v1 BIRD_API_KEY=… .venv/bin/python scripts/brand_eval.py --arms before,after --max-gens 25
+
+Every model generation is counted from the first run (plus --spent from earlier runs the same budget covers); the
+generation that would exceed --max-gens is never made, and the bench stops there. Each row records its ``gens``.
 
 Arms: "before" is the system prompt as trained (identity.DEFAULT_SYSTEM), "after" the runtime one
 (identity.RUNTIME_SYSTEM, the trained text plus one sentence on Bird Models). Rubric, per answer:
@@ -83,6 +86,32 @@ def score(kind: str, lang: str, text: str) -> dict:
     return c
 
 
+class BudgetExhausted(RuntimeError):
+    """The next generation would go past --max-gens: the bench stops instead of making it."""
+
+
+class GenBudget:
+    """Counts every model generation from the first run of the bench (and any ``spent`` before it) and refuses the
+    one that would exceed ``limit``: a live budget is never overrun, a case cut short is reported as such."""
+
+    def __init__(self, llm, limit: int, spent: int = 0):
+        import functools
+
+        self.llm, self.limit, self.used = llm, limit, spent
+
+        @functools.wraps(llm.generate)  # same signature: the harness passes the same keywords
+        def generate(*args, **kwargs):
+            if self.used >= self.limit:
+                raise BudgetExhausted(f"generation budget reached ({self.used}/{self.limit})")
+            self.used += 1
+            return llm.generate(*args, **kwargs)
+
+        self.generate = generate
+
+    def __getattr__(self, name):
+        return getattr(self.llm, name)
+
+
 def table(rows: list[dict], arms: list[str]) -> None:
     print("\n| arm | identity: light | place | France | clean | ordinary: clean | quiet | all checks |")
     print("|---|---|---|---|---|---|---|---|")
@@ -107,6 +136,10 @@ def main(argv=None) -> int:
     ap.add_argument("--arms", default="before,after")
     ap.add_argument("--json", help="write every answer and check to this file")
     ap.add_argument("--only", help="regex on the questions (a smaller run)")
+    ap.add_argument("--max-gens", type=int, default=25,
+                    help="live budget: model generations allowed for the whole bench, counted from the first run "
+                    "(default 25); the bench stops rather than exceed it")  # fmt: skip
+    ap.add_argument("--spent", type=int, default=0, help="generations already spent today on this budget")
     ap.add_argument("--rescore", nargs="+", metavar="JSON",
                     help="re-score saved answers with the current rubric (no generation), rewrite their checks")  # fmt: skip
     a = ap.parse_args(argv)
@@ -136,8 +169,9 @@ def main(argv=None) -> int:
 
     prompts = {"before": DEFAULT_SYSTEM, "after": RUNTIME_SYSTEM}
     tok = AutoTokenizer.from_pretrained(a.tokenizer)
-    llm = CompletionsClient(a.base_url, a.model, os.environ.get("BIRD_API_KEY"))
+    llm = GenBudget(CompletionsClient(a.base_url, a.model, os.environ.get("BIRD_API_KEY")), a.max_gens, a.spent)
     rows = []
+    stopped = False
     with tempfile.TemporaryDirectory(prefix="bird-brand-") as tmp:
         cfg = Config(workspace=Path(tmp), audit_file=None)
         for arm in a.arms.split(","):
@@ -145,24 +179,30 @@ def main(argv=None) -> int:
                 for lang, ask in cases:
                     if a.only and not re.search(a.only, ask):
                         continue
+                    if stopped or llm.used >= a.max_gens:
+                        stopped = True
+                        continue
                     agent = Agent(llm, tok, cfg, confirm=lambda t, x: True, search=NoSearch(),
                                   http=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(404))))  # fmt: skip
                     agent.audit = guard.Audit(None)
-                    t0 = time.monotonic()
+                    t0, before = time.monotonic(), llm.used
                     try:
                         run = agent.run(ask, system=prompts[arm][lang], lang=lang)
                         drafts = "\n".join(f"{d.get('subject', '')}\n{d.get('body', '')}" for d in run.drafts)
                         text, err = f"{run.answer or ''}\n{drafts}", ""
+                    except BudgetExhausted as e:  # cut short: reported, and no further case is started
+                        text, err, stopped = "", str(e), True
                     except Exception as e:  # noqa: BLE001 - an endpoint error is a failed case, reported
                         text, err = "", f"{type(e).__name__}: {e}"
                     checks = score(kind, lang, text) if text.strip() else {"answered": False}
                     rows.append({"arm": arm, "kind": kind, "lang": lang, "ask": ask, "answer": text.strip(),
                                  "checks": checks, "seconds": round(time.monotonic() - t0, 1), "error": err,
-                                 "gens": len(run.usage) if not err else 0})  # fmt: skip
+                                 "gens": llm.used - before})  # fmt: skip
                     bad = [k for k, v in checks.items() if not v]
                     print(f"[{arm}] {ask[:48]:48s} {'PASS' if not bad else 'fail'} gens={rows[-1]['gens']} {' '.join(bad)} {err}",
                           flush=True)  # fmt: skip
     table(rows, a.arms.split(","))
+    print(f"\ngenerations: {llm.used}/{a.max_gens}" + (" (budget reached: bench stopped early)" if stopped else ""))
     if a.json:
         Path(a.json).parent.mkdir(parents=True, exist_ok=True)
         Path(a.json).write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")

@@ -47,3 +47,27 @@ def test_saved_measurements_match_the_current_rubric():
         for r in json.loads(f.read_text(encoding="utf-8")):
             if r["answer"].strip():
                 assert r["checks"] == score(r["kind"], r["lang"], r["answer"]), (f.name, r["ask"])
+
+
+class _FakeLLM:
+    def __init__(self):
+        self.calls = 0
+
+    def generate(self, prompt, max_tokens, stop, *, on_token=None, think_limit=None, **_):
+        self.calls += 1
+        return {"text": "ok"}
+
+
+def test_the_generation_budget_is_counted_from_the_first_run_and_never_exceeded():
+    import inspect
+
+    import pytest
+
+    inner = _FakeLLM()
+    llm = brand_eval.GenBudget(inner, limit=5, spent=2)  # 2 already spent today: 3 left
+    assert "think_limit" in inspect.signature(llm.generate).parameters  # the harness sees the client's keywords
+    for _ in range(3):
+        llm.generate("p", 10, [])
+    with pytest.raises(brand_eval.BudgetExhausted):
+        llm.generate("p", 10, [])
+    assert inner.calls == 3 and llm.used == 5
