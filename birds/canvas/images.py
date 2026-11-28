@@ -14,11 +14,13 @@ The browser receives the picture as base64 (the app's CSP has no ``data:``; canv
 from __future__ import annotations
 
 import base64
+import contextvars
 import hashlib
 import io
 import re
 import time
-from urllib.parse import quote
+from contextlib import contextmanager
+from urllib.parse import quote, urlsplit
 
 from birds.harness import office_media as om
 
@@ -77,6 +79,56 @@ class _Cache:
 
 
 CACHE = _Cache()
+
+_TRACE: contextvars.ContextVar = contextvars.ContextVar("bird_image_trace", default=None)
+
+
+@contextmanager
+def tracing():
+    """Collect what each source answered during a search (``scripts/image_eval.py``, the diagnosis of a miss):
+    ``[{"source", "q", "status", "results", "why": {reason: count}}]``. Costs nothing when nobody listens."""
+    log: list[dict] = []
+    token = _TRACE.set(log)
+    try:
+        yield log
+    finally:
+        _TRACE.reset(token)
+
+
+def _trace(source: str, q: str, status: str, results: int | None = None, why: dict | None = None, **extra) -> None:
+    log = _TRACE.get()
+    if log is not None:
+        log.append({"source": source, "q": q, "status": status, **({"results": results} if results is not None
+                    else {}), **({"why": dict(why)} if why else {}), **extra})  # fmt: skip
+
+
+def public_trace(log: list[dict]) -> list[dict]:
+    """The trace a response may carry: which source answered what, never a URL or a key."""
+    keep = ("source", "q", "status", "results", "why", "ms")
+    return [{k: ev[k] for k in keep if k in ev} for ev in log[:16]]
+
+
+def error_status(e: Exception) -> str:
+    """« 429 », « 403 », « timeout », « blocked »… of a failed request, for the trace and the cool-down."""
+    text = str(e)
+    m = re.search(r"HTTP (\d{3})", text)
+    if m:
+        return m.group(1)
+    if "too slow" in text or "timeout" in type(e).__name__.lower() or "timed out" in text.lower():
+        return "timeout"
+    if getattr(e, "code", None):  # guard.FetchError: upstream / image_type / too_large, and why
+        return f"{e.code}:{re.sub(r'[^A-Za-z0-9 _/.-]', '', text)[:40]}"
+    return f"{type(e).__name__.lower()[:24]}:{re.sub(r'[^A-Za-z0-9 _/.-]', '', text)[:40]}"
+
+
+# a miss worth remembering is a search that ANSWERED and whose pictures were refused for what they are (licence,
+# subject, size), never one cut short by the network (a refused image fetch, a rate limit, the deadline, the look
+# cap): remembering those for an hour turned one bad minute into an hour without pictures
+TRANSIENT = ("deadline", "fetch_", "judge_cap")
+
+
+def _lasting(why: dict) -> bool:
+    return not any(k.startswith(TRANSIENT) for k in why)
 
 
 def _renamed(m: om.Media | None, mid: str) -> om.Media | None:
@@ -137,6 +189,21 @@ def openverse_licence(r: dict) -> str | None:
     return f"{name} {ver}".strip() if lic != "pdm" and re.fullmatch(r"\d(?:\.\d)?", ver or "x") else name
 
 
+def _openverse_urls(r: dict) -> list[str]:
+    """The copies of one Openverse result to try, best first: the original (or a 1280 px Commons thumbnail), then
+    Openverse's own full-size copy (``/thumb/?full_size=true``, served by api.openverse.org). Measured in production
+    on 28/11/2026: the original hosts (Flickr mostly) refused the hosting provider's addresses for 10 results out of
+    10 on « Paris skyline », while the API answered: its copy is the same picture, same licence."""
+    out = []
+    big = _big_url(r)
+    if big.startswith("https://"):
+        out.append(big)
+    thumb = str(r.get("thumbnail") or "")
+    if re.fullmatch(r"https://api\.openverse\.org/v1/images/[0-9a-f-]{36}/thumb/", thumb):
+        out.append(thumb + "?full_size=true")
+    return list(dict.fromkeys(out))
+
+
 def _big_url(r: dict) -> str:
     """The picture to fetch: a 1280 px Commons thumbnail for a Commons file, the original when small enough, else
     Openverse's own thumbnail."""
@@ -186,16 +253,41 @@ _NO_PHOTO = re.compile(r"\b(?:charts?|graphs?|diagrams?|infographics?|graphiques
                        r"statisti\w*|spreadsheets?|tableaux?)\b", re.I)
 
 
-def variants(query: str) -> list[str]:
+# French words that describe no picture a search can find (« chaton heureux »: Commons has « chaton », never
+# « chaton heureux »)
+FLUFF_FR = set("""heureux heureuse heureuses souriant souriante souriants moderne modernes beau belle beaux belles
+typique typiques divers diverses différents différentes innovant innovante dynamique concept photo image illustration
+""".split())
+
+
+def head_noun(query: str) -> str:
+    """« électricien au travail » -> « électricien », « chaton heureux » -> « chaton »: the first content word of a
+    French phrase (its head noun), for a last search. Not used for English, whose head comes last."""
+    for w in re.findall(r"[\wÀ-ÿ'-]{4,}", str(query or "")):
+        if om.words(w) and w.lower() not in FLUFF and w.lower() not in FLUFF_FR:
+            return w
+    return ""
+
+
+def variants(query: str, lang: str = "", also: list[str] | tuple[str, ...] = ()) -> list[str]:
     """The searches tried for one query, most precise first: as written, without the words that describe no
-    picture (« happy », « modern »), then its two first content words. None for a query of a chart or a table
-    (« chart showing quarterly growth »: seen live, it found a pulsar's radio plot)."""
+    picture (« happy », « modern », « heureux »), then its two first content words; then ``also`` (the same subject
+    in English when the model gave it: Openverse is mostly English) the same way; last, for French, the head noun
+    alone. None for a query of a chart or a table (« chart showing quarterly growth »: seen live, it found a
+    pulsar's radio plot)."""
     q = re.sub(r"\s+", " ", str(query or "")).strip()[:120]
     if not q or _NO_PHOTO.search(q):
         return []
-    plain = " ".join(w for w in q.split() if w.lower().strip(",.;:") not in FLUFF)
     out: list[str] = []
-    for v in (q, plain, short_query(q)):
+    for one in (q, *[re.sub(r"\s+", " ", str(a or "")).strip()[:120] for a in also]):
+        if not one or _NO_PHOTO.search(one):
+            continue
+        plain = " ".join(w for w in one.split() if w.lower().strip(",.;:") not in FLUFF | FLUFF_FR)
+        for v in (one, plain, short_query(one)):
+            if v and v.lower() not in {x.lower() for x in out}:
+                out.append(v)
+    if lang == "fr":
+        v = head_noun(q)
         if v and v.lower() not in {x.lower() for x in out}:
             out.append(v)
     return out
@@ -251,55 +343,77 @@ def _search_openverse(query: str, fetch, exclude: list[str] | None = None, mid: 
     key = ("openverse", q.lower(), tuple(sorted(exclude or [])), want.lower() if judge else None)
     hit, m = CACHE.get(key)
     if hit:
+        _trace("openverse", q, "cache_hit" if m else "cache_miss")
         return _renamed(m, mid)
     url = (f"{OPENVERSE_API}?q={quote(q)}&license={','.join(OPENVERSE_LICENCES)}&page_size={SEARCH_LIMIT}"
            "&mature=false")  # fmt: skip
     try:
         results = fetch.json(url).get("results") or []
     except Exception as e:  # noqa: BLE001 - no picture rather than a failed turn
-        if "429" in str(e):
+        status = error_status(e)
+        if status == "429":
             COOL.refuse("openverse")
+        _trace("openverse", q, status)
         return None  # not cached: the next try may get an answer
     skip = set(exclude or [])
     found = None
+    why: dict[str, int] = {}
+
+    def no(reason: str) -> None:
+        why[reason] = why.get(reason, 0) + 1
+
     for r in results:
         if deadline is not None and time.monotonic() > deadline:
+            no("deadline")
             break
         if not isinstance(r, dict) or r.get("mature") or r.get("unstable__sensitivity"):
+            no("sensitive")
             continue
         lic = openverse_licence(r)
         title = str(r.get("title") or "")
         tags = [str(t.get("name") or "") for t in r.get("tags") or [] if isinstance(t, dict)]
         source = str(r.get("foreign_landing_url") or r.get("url") or "")
         if not lic or source in skip or str(r.get("url") or "") in skip:
+            no("licence" if not lic else "excluded")
             continue
         if str(r.get("filetype") or "").lower() in ("svg", "gif", "tif", "tiff", "pdf"):
+            no("filetype")
             continue
         if not relevant(q, title, tags):
+            no("relevance")
             continue
         creator = re.sub(r"\s+", " ", str(r.get("creator") or "")).strip()[:100]
         if not creator and not lic.startswith(("CC0", "Domaine")):
+            no("no_author")
             continue  # a CC BY licence needs its author
-        big = _big_url(r)
-        if not big.startswith("https://"):
-            continue
-        try:
-            raw = fetch.image(big)
-            m = om.prepare(raw, mid, "web", max_bytes=SHOW_BYTES, alt=q, title=title[:120], licence=lic,
-                           source=source[:300])  # fmt: skip
-        except Exception:  # noqa: BLE001 - this file fails, the next one may not
+        m, errs = None, []
+        for big in _openverse_urls(r):
+            try:
+                m = om.prepare(fetch.image(big), mid, "web", max_bytes=SHOW_BYTES, alt=q, title=title[:120],
+                               licence=lic, source=source[:300])  # fmt: skip
+                m.src = big
+                break
+            except Exception as e:  # noqa: BLE001 - this copy fails, the next one may not
+                errs.append(f"{error_status(e)}@{urlsplit(big).hostname or '?'}")
+        if m is None:
+            no("fetch_" + ("+".join(errs) or "no_url"))
             continue
         if m.w < 400 or m.h < 260:
+            no("small")
             continue
         if tries[0] >= JUDGED:
+            no("judge_cap")
             break
         if not _looks(judge, want, m, tries):
+            no("judge")
             continue
         provider = str(r.get("provider") or r.get("source") or "").replace("_", " ").title()[:40]
         m.credit = f"{creator or 'Domaine public'} — {lic} — {provider + ' via ' if provider else ''}Openverse"
         found = m
         break
-    CACHE.put(key, found)
+    _trace("openverse", q, "found" if found else "none", len(results), why)
+    if found is not None or _lasting(why):
+        CACHE.put(key, found)
     return _renamed(found, mid)
 
 
@@ -314,6 +428,7 @@ def search_commons(query: str, fetch, exclude: list[str] | None = None, mid: str
     key = ("commons", q.lower(), tuple(sorted(exclude or [])), want.lower() if judge else None)
     hit, cached = CACHE.get(key)
     if hit:
+        _trace("commons", q, "cache_hit" if cached else "cache_miss")
         return _renamed(cached, mid)
     url = (f"{om.COMMONS_API}?action=query&format=json&formatversion=2&generator=search&gsrnamespace=6"
            f"&gsrlimit={SEARCH_LIMIT}&gsrsearch={quote(q + ' filetype:bitmap')}&prop=imageinfo"
@@ -321,24 +436,36 @@ def search_commons(query: str, fetch, exclude: list[str] | None = None, mid: str
     try:
         pages = (fetch.json(url).get("query") or {}).get("pages") or []
     except Exception as e:  # noqa: BLE001 - no picture rather than a failed turn
-        if "429" in str(e):
+        status = error_status(e)
+        if status == "429":
             COOL.refuse("commons")
+        _trace("commons", q, status)
         return None
     pages = sorted((p for p in pages if isinstance(p, dict)), key=lambda p: p.get("index", 99))
     skip = set(exclude or [])
+    why: dict[str, int] = {}
+
+    def no(reason: str) -> None:
+        why[reason] = why.get(reason, 0) + 1
+
     for p in pages:
         if deadline is not None and time.monotonic() > deadline:
+            no("deadline")
             break
         title = str(p.get("title") or "")
         if re.search(r"\.(svg|tiff?|pdf|djvu|gif)$", title, re.I):
+            no("filetype")
             continue
         if not relevant(q, re.sub(r"^File:|\.[a-z]{3,4}$", "", title).replace("_", " ")):
+            no("relevance")
             continue  # Commons full-text search also matches descriptions: « équipe en réunion » gave a calendar
         info = (p.get("imageinfo") or [{}])[0]
         lic = om.commons_licence(info)
         if not lic or not str(lic.get("thumb") or "").startswith("https://upload.wikimedia.org/"):
+            no("licence")
             continue
         if lic.get("url") in skip or title in skip:
+            no("excluded")
             continue
         try:
             raw = fetch.image(lic["thumb"])
@@ -346,42 +473,56 @@ def search_commons(query: str, fetch, exclude: list[str] | None = None, mid: str
             label = re.sub(r"\.[a-z]{3,4}$", "", name, flags=re.I).replace("_", " ")[:120]
             m = om.prepare(raw, mid, "web", max_bytes=SHOW_BYTES, alt=q, title=label, licence=lic["licence"],
                            source=lic["url"] or f"https://commons.wikimedia.org/wiki/{quote(title)}")  # fmt: skip
-        except Exception:  # noqa: BLE001 - this file fails, the next one may not
+        except Exception as e:  # noqa: BLE001 - this file fails, the next one may not
+            no("fetch_" + error_status(e))
             continue
         m.credit = f"{lic['author']} — {lic['licence']} — Wikimedia Commons"
+        m.src = lic["thumb"]
         if m.w < 400 or m.h < 260:
+            no("small")
             continue
         if tries[0] >= JUDGED:
+            no("judge_cap")
             break
         if not _looks(judge, want, m, tries):
+            no("judge")
             continue
+        _trace("commons", q, "found", len(pages), why)
         CACHE.put(key, m)
         return _renamed(m, mid)
-    CACHE.put(key, None)
+    _trace("commons", q, "none", len(pages), why)
+    if _lasting(why):
+        CACHE.put(key, None)
     return None
 
 
 def search_web(query: str, fetch, exclude: list[str] | None = None, mid: str = "w1",
-               deadline: float | None = None, judge=None) -> om.Media | None:  # fmt: skip
-    """For each variant of the cleaned query (``variants``): Openverse (wide: Flickr, museums, Commons; measured the
-    more often available of the two), then Wikimedia Commons directly; then Pexels when the deployment has a key
-    (BIRD_PEXELS_API_KEY): the two free sources throttle shared cloud addresses, Pexels gives a keyed quota. The
-    first relevant picture wins. ``judge`` (``vision_judge``): the model looks at each candidate and says whether it
-    shows the query as asked — the words of a title are only a first sieve (« Night train at Høje Taastrup
-    Station » was a politician on a stage)."""
+               deadline: float | None = None, judge=None, lang: str = "", also: tuple[str, ...] = ()
+               ) -> om.Media | None:  # fmt: skip
+    """For each variant of the cleaned query (``variants``: as written, plainer, shorter, then ``also`` — the model's
+    English words for the same subject — and, for French, the head noun alone): Openverse (wide: Flickr, museums,
+    Commons), then Wikimedia Commons directly (its descriptions are multilingual: the French words find French
+    files); the source that refused us (429) in the last seconds is asked second. Then Pexels when the deployment
+    has a key (BIRD_PEXELS_API_KEY): a keyed quota, never shared with the hosting provider's other tenants. The first
+    relevant picture wins. ``judge`` (``vision_judge``): the model looks at each candidate and says whether it shows
+    the query as asked — the words of a title are only a first sieve (« Night train at Høje Taastrup Station » was a
+    politician on a stage)."""
     query = clean_query(query) or str(query or "")
-    tried = variants(query)
+    tried = variants(query, lang, tuple(clean_query(a) for a in also if a))
     for q in tried:
         if deadline is not None and time.monotonic() > deadline:
             break
+        order = (search_openverse, search_commons)
+        if COOL.hot("openverse") and not COOL.hot("commons"):
+            order = (search_commons, search_openverse)
         # judged against the words searched: the shorter variants keep the core of the query (« night train »)
-        m = (search_openverse(q, fetch, exclude, mid, deadline, judge, q)
-             or search_commons(q, fetch, exclude, mid, deadline, judge, q))  # fmt: skip
-        if m is not None:
-            return m
+        for source in order:
+            m = source(q, fetch, exclude, mid, deadline, judge, q)
+            if m is not None:
+                return m
     if not tried:
         return None  # a chart or a table: no photograph stands for it
-    m = search_pexels(query, fetch, exclude, mid, deadline)
+    m = search_pexels(next((a for a in also if a), query), fetch, exclude, mid, deadline)
     if m is not None and not _looks(judge, query, m, [0]):
         return None
     return m
@@ -398,6 +539,7 @@ def search_pexels(query: str, fetch, exclude: list[str] | None = None, mid: str 
     key = os.environ.get("BIRD_PEXELS_API_KEY", "").strip()
     q = clean_query(query)
     if not key or not q or fetch is None:
+        _trace("pexels", q, "no_key" if not key else "skipped")
         return None
     ck = ("pexels", q.lower(), tuple(sorted(exclude or [])))
     hit, cached = CACHE.get(ck)
@@ -406,7 +548,8 @@ def search_pexels(query: str, fetch, exclude: list[str] | None = None, mid: str 
     try:
         photos = fetch.json(f"{PEXELS_API}?query={quote(q)}&per_page={SEARCH_LIMIT}&orientation=landscape",
                             headers={"Authorization": key}).get("photos") or []  # fmt: skip
-    except Exception:  # noqa: BLE001 - no picture rather than a failed turn
+    except Exception as e:  # noqa: BLE001 - no picture rather than a failed turn
+        _trace("pexels", q, error_status(e))
         return None
     skip = set(exclude or [])
     found = None
@@ -430,8 +573,10 @@ def search_pexels(query: str, fetch, exclude: list[str] | None = None, mid: str 
         if m.w < 400 or m.h < 260:
             continue
         m.credit = f"{str(p.get('photographer') or 'Pexels')[:80]} — Licence Pexels — Pexels"
+        m.src = src
         found = m
         break
+    _trace("pexels", q, "found" if found else "none", len(photos))
     CACHE.put(ck, found)
     return _renamed(found, mid)
 

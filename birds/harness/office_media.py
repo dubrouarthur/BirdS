@@ -51,6 +51,7 @@ class Media:
     credit: str = ""  # one line written next to the picture ('Photo : X — CC BY-SA 4.0 — Wikimedia Commons')
     licence: str = ""
     source: str = ""  # the page the picture comes from (web, map)
+    src: str = ""  # web: the image URL that was fetched (the chat shows it again through the signed /api/img proxy)
     logo: bool = False
     spec: dict = field(default_factory=dict)  # kind chart: the chart's columns/rows/type/unit/title
 
@@ -257,7 +258,7 @@ _NOT_FREE = re.compile(r"\bnc\b|\bnd\b|non[- ]?commercial|no ?deriv|fair use|non
 def commons_file(src: str) -> str | None:
     """'Name.jpg' for a Wikimedia Commons upload URL (thumbnail or original), else None. Pictures stored on a
     single Wikipedia (non-free files, fair use) are not Commons files and are refused."""
-    u = urlsplit(str(src or ""))
+    u = urlsplit(wikimedia_upload(src))
     if (u.hostname or "").lower() != "upload.wikimedia.org":
         return None
     m = re.match(r"^/wikipedia/commons/(?:thumb/)?[0-9a-f]/[0-9a-f]{2}/([^/]+)", u.path)
@@ -267,6 +268,18 @@ def commons_file(src: str) -> str | None:
 def _clean_html(value) -> str:
     text = re.sub(r"<[^>]+>", " ", str(value or ""))
     return " ".join(html.unescape(text).split())
+
+
+def wikimedia_upload(url: str) -> str:
+    """A Commons file or thumbnail URL as ``upload.wikimedia.org`` serves it, without tracking parameters.
+    Since 11/2026 the Commons API answers ``https://thumb.wikimedia.org/…/1280px-X.jpg?utm_source=…`` (a redirect
+    to upload.wikimedia.org): read as « not a Commons file », it refused every picture (measured: 10/10 results of
+    « Paris skyline » dropped, docs/CANVAS.md § 12)."""
+    url = str(url or "").strip()
+    u = urlsplit(url)
+    if u.scheme == "https" and (u.hostname or "").lower() in ("thumb.wikimedia.org", "upload.wikimedia.org"):
+        return "https://upload.wikimedia.org" + u.path
+    return url
 
 
 def commons_licence(info: dict) -> dict | None:
@@ -287,8 +300,11 @@ def commons_licence(info: dict) -> dict | None:
         "licence": lic[:60],
         "author": author[:100] or ("Domaine public" if public else ""),
         "url": info.get("descriptionurl") or "",
-        "thumb": info.get("thumburl") or info.get("url") or "",
+        "thumb": wikimedia_upload(info.get("thumburl") or info.get("url") or ""),
     }
+
+
+MAX_RETRY_AFTER = 4.0  # seconds a picture search waits once for a rate-limited API, at most
 
 
 class Fetcher:
@@ -332,7 +348,8 @@ class Fetcher:
                 )  # fmt: skip
             except guard.ToolError as e:
                 if attempt == 0 and retry > 0 and "429" in str(e):
-                    time.sleep(retry)
+                    # the host's own Retry-After (Wikimedia says 4 s; 1.2 s was always refused again), capped
+                    time.sleep(min(max(retry, getattr(e, "retry_after", None) or 0.0), MAX_RETRY_AFTER))
                     continue
                 raise ValueError(str(e)) from None
             if status == 429 and attempt == 0 and retry > 0:

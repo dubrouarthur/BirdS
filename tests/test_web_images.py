@@ -490,3 +490,35 @@ def test_chart_and_image_strings_exist_in_both_languages():
     text = (Path(STATIC_DIR) / "i18n.js").read_text(encoding="utf-8")
     for key in ("chart.png", "chart.csv", "chart.xlsx", "chart.data", "webimg.note", "webimg.demo", "tool.make_chart"):
         assert text.count(f'"{key}"') == 2, key
+
+
+def test_free_pictures_when_pictures_were_asked_and_the_web_gave_none(monkeypatch):
+    """« montre-moi une photo du Mont-Saint-Michel »: SearXNG → Brave gives no thumbnails (0 picture measured in
+    production); the free-licence banks answer, with author and licence, through the signed proxy."""
+    from birds.canvas import images
+    from birds.harness import office_media as om
+    from birds.web import backends
+
+    calls = []
+
+    def search(query, fetch, exclude, mid, deadline=None, judge=None, lang="", also=()):
+        calls.append((query, list(exclude), lang))
+        if len(calls) > 2:
+            return None
+        m = om.Media(id=mid, kind="web", title=f"Mont Saint-Michel {len(calls)}", licence="CC BY-SA 4.0",
+                     credit="Ada — CC BY-SA 4.0 — Wikimedia Commons",
+                     source=f"https://commons.wikimedia.org/wiki/File:{len(calls)}.jpg",
+                     src=f"https://upload.wikimedia.org/wikipedia/commons/a/ab/{len(calls)}.jpg")  # fmt: skip
+        return m
+
+    monkeypatch.setattr(images, "search_web", search)
+    agent = SimpleNamespace(http=None, cfg=SimpleNamespace(search_contact=None))
+    got = backends.free_pictures(agent, "Mont-Saint-Michel", lambda u: "/api/img?u=" + u, "fr")
+    assert [g["title"] for g in got] == ["Mont Saint-Michel 1", "Mont Saint-Michel 2"]
+    assert got[0]["src"].startswith("/api/img?u=https://upload.wikimedia.org/") and got[0]["free"] is True
+    assert got[0]["credit"].startswith("Ada — CC BY-SA") and got[0]["domain"] == "commons.wikimedia.org"
+    assert calls[1][1] == ["https://commons.wikimedia.org/wiki/File:1.jpg"] and calls[0][2] == "fr"  # never twice
+    assert backends.free_pictures(agent, "", lambda u: u) == [] and backends.free_pictures(agent, "x", None) == []
+    text = (Path(STATIC_DIR) / "i18n.js").read_text(encoding="utf-8")
+    for key in ("webimg.free_title", "webimg.free_note"):
+        assert text.count(f'"{key}"') == 2, key

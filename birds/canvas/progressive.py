@@ -838,9 +838,20 @@ class Pipeline:
 
     def find_image(self, query: str, mid: str, retry: bool = False) -> dict | None:
         """A free-licence picture for ``query``, never one already placed in this deck (the same file twice was
-        seen live: three slides of « uniquement » got one studio photo)."""
+        seen live: three slides of « uniquement » got one studio photo). What each source answered is sent as a
+        ``canvas_image_trace`` event (statuses only: the diagnosis of a missing picture, scripts/image_eval.py)."""
         if not query:
             return None
+        with images.tracing() as log:
+            got = self._find_image(query, mid, retry)
+        try:
+            self.env.emit({"type": "canvas_image_trace", "aid": self.env.aid, "q": query[:80], "found": bool(got),
+                           "trace": images.public_trace(log)})  # fmt: skip
+        except Exception:  # noqa: BLE001 - the trace is a diagnosis, never a failure
+            pass
+        return got
+
+    def _find_image(self, query: str, mid: str, retry: bool = False) -> dict | None:
         try:
             for _ in range(2):
                 with self.lock:
