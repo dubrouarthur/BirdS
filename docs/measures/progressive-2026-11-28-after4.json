@@ -1,0 +1,1677 @@
+[
+ {
+  "n": 1,
+  "ask": "Fais une présentation sur l'évolution du chômage en France depuis 2015 pour des lycéens",
+  "want": "deck",
+  "label": "after",
+  "reflexion": "faucon",
+  "seconds": 22.3,
+  "first_slide_s": 14.7,
+  "canvas": true,
+  "snapshots": 7,
+  "progress": [
+   "Plan en cours…",
+   "Plan : 6 diapositives",
+   "Recherche des faits et des données…",
+   "Recherche d'images libres…",
+   "Rédaction : 0/6",
+   "1 graphique à partir de Eurostat une_rt_a",
+   "0 images trouvées, 2 à ajouter",
+   "Rédaction : 1/6",
+   "Rédaction : 2/6",
+   "Recherche : 1 source retenue",
+   "Rédaction : 3/6",
+   "Rédaction : 4/6",
+   "Rédaction : 5/6",
+   "Rédaction : 6/6",
+   "Vérification…",
+   "Vérifié : 6 chiffres non sourcés retirés, 2 images à ajouter, 1 source citée"
+  ],
+  "error": null,
+  "chat": "La présentation « Le Chômage en France : Une Histoire d'Évolution » est dans le canevas : 7 diapositives. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », « plus court »).",
+  "kind": "deck",
+  "title": "Le Chômage en France : Une Histoire d'Évolution",
+  "blocks": 7,
+  "body": 6,
+  "with_visual": 3,
+  "images_asked": 2,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 2,
+  "charts": 1,
+  "charts_real": 1,
+  "chart_sources": [
+   "Eurostat une_rt_a [1]"
+  ],
+  "cited": 1,
+  "cited_valid": 1,
+  "sources_listed": 1,
+  "image_titles": [],
+  "image_queries": [],
+  "placeholder_queries": [
+   "des personnes en réunion de travail",
+   "des jeunes en réunion de travail"
+  ],
+  "query_leaks": 0,
+  "words_per_block": 43.5,
+  "units": 26,
+  "specific_share": 0.58,
+  "units_cited": 6,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "deck",
+   "title": "Le Chômage en France : Une Histoire d'Évolution",
+   "subtitle": "Analyse des tendances depuis 2015",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Le Chômage en France : Une Histoire d'Évolution",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "10,4 % en 2015 [1]",
+        "7,7 % en 2025 [1]",
+        "Crise économique de 2008 impacte les politiques publiques [1]",
+        "Politique de réduction du chômage en place depuis 2015 [1]",
+        "Impact des crises économiques sur l'emploi [1]",
+        "Politique publique de réduction du chômage [1]"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "chart",
+       "type": "line",
+       "unit": "%",
+       "title": "Taux de chômage, France (2015 – 2025)",
+       "columns": [
+        "Année",
+        "France"
+       ],
+       "rows": [
+        [
+         "2015",
+         10.4
+        ],
+        [
+         "2016",
+         10.1
+        ],
+        [
+         "2017",
+         9.4
+        ],
+        [
+         "2018",
+         9.1
+        ],
+        [
+         "2019",
+         8.5
+        ],
+        [
+         "2020",
+         8.1
+        ],
+        [
+         "2021",
+         7.9
+        ],
+        [
+         "2022",
+         7.3
+        ],
+        [
+         "2023",
+         7.4
+        ],
+        [
+         "2024",
+         7.4
+        ],
+        [
+         "2025",
+         7.7
+        ]
+       ],
+       "source": "Eurostat une_rt_a [1]"
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b2",
+     "title": "Les Causes du Chômage : Crises Économiques et Politiques",
+     "parts": [
+      {
+       "t": "timeline",
+       "items": [
+        {
+         "when": "2008",
+         "what": "Crise financière mondiale, baisse des investissements"
+        },
+        {
+         "when": "2015",
+         "what": "Récession en Europe, hausse de l'inflation"
+        },
+        {
+         "when": "2019",
+         "what": "Réforme des retraites, contestation sociale"
+        },
+        {
+         "when": "2023",
+         "what": "Plan de relance, création d'emplois"
+        }
+       ]
+      },
+      {
+       "t": "image",
+       "query": "des personnes en réunion de travail",
+       "alt": "des personnes en réunion de travail",
+       "caption": "",
+       "missing": true
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b3",
+     "title": "Les Politiques Publiques : Réponses et Mesures",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Création de l'Agence pour l'Emploi et le Développement des Compétences (APEC) en 2015",
+        "Mise en place du Plan de relance économique de 2015",
+        "Lancement du Plan de relance économique de 2015",
+        "Création de la France Travail en 2019",
+        "Mise en place du Plan de relance économique de 2020",
+        "Lancement du Plan de relance économique de 2020"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b4",
+     "title": "L'Impact sur l'Économie Française",
+     "parts": [
+      {
+       "t": "timeline",
+       "items": [
+        {
+         "when": "2017",
+         "what": "Le chômage a atteint 9,8 %, le taux le plus élevé depuis 2015."
+        },
+        {
+         "when": "2022",
+         "what": "Le chômage a diminué à 7,3 %, le taux le plus bas depuis 2015."
+        },
+        {
+         "when": "2023",
+         "what": "Le chômage est resté stable à 7,3 %."
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b5",
+     "title": "Les Perspectives d'Avenir : Opportunités et Défis",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "La formation professionnelle est un levier pour réduire le chômage, selon le gouvernement",
+        "Les politiques actives du marché du travail visent à améliorer l'emploi, selon le gouvernement",
+        "Les secteurs comme la tech et l'énergie verte offrent des opportunités, selon le gouvernement"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "image",
+       "query": "des jeunes en réunion de travail",
+       "alt": "des jeunes en réunion de travail",
+       "caption": "",
+       "missing": true
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b6",
+     "title": "Conclusion : Comprendre le Chômage pour Mieux Comprendre l'Économie",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Le chômage a fluctué entre 2015 et 2023, avec des pics et des baisses liées aux crises économiques et aux politiques publiques.",
+        "Les politiques publiques ont joué un rôle crucial dans la gestion du chômage.",
+        "Les crises économiques ont un impact significatif sur le taux de chômage.",
+        "La compréhension du chômage est essentielle pour mieux comprendre l'économie."
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b7",
+     "title": "Sources",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "[1] Eurostat une_rt_a — https://ec.europa.eu/eurostat/databrowser/view/une_rt_a/default/table"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {},
+   "_next": 8
+  }
+ },
+ {
+  "n": 2,
+  "ask": "Fais une présentation sur la mobilité douce en ville pour un conseil municipal",
+  "want": "deck",
+  "label": "after",
+  "reflexion": "faucon",
+  "seconds": 33.6,
+  "first_slide_s": 20.0,
+  "canvas": true,
+  "snapshots": 10,
+  "progress": [
+   "Plan en cours…",
+   "Plan : 8 diapositives",
+   "Recherche des faits et des données…",
+   "Recherche d'images libres…",
+   "Rédaction : 0/8",
+   "2 images trouvées",
+   "Rédaction : 1/8",
+   "Rédaction : 2/8",
+   "Rédaction : 3/8",
+   "Rédaction : 4/8",
+   "Recherche : 5 sources retenues",
+   "Rédaction : 5/8",
+   "Rédaction : 6/8",
+   "Rédaction : 7/8",
+   "Rédaction : 8/8",
+   "Vérification…",
+   "Vérifié : 3 sources citées"
+  ],
+  "error": null,
+  "chat": "La présentation « La Mobilité Douce en Ville » est dans le canevas : 11 diapositives. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », « plus court »).",
+  "kind": "deck",
+  "title": "La Mobilité Douce en Ville",
+  "blocks": 11,
+  "body": 10,
+  "with_visual": 4,
+  "images_asked": 2,
+  "images_found": 2,
+  "images_relevant": 2,
+  "placeholders": 0,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 3,
+  "cited_valid": 3,
+  "sources_listed": 3,
+  "image_titles": [
+   "BIGaBEE CMC City Mobility Center - Flickr - Joost J. Bakker IJmuiden (1)",
+   "Bois de Boulogne with People Walking by Vincent van Gogh"
+  ],
+  "image_queries": [
+   "city mobility",
+   "people walking on a city street"
+  ],
+  "placeholder_queries": [],
+  "query_leaks": 0,
+  "words_per_block": 61.5,
+  "units": 53,
+  "specific_share": 0.32,
+  "units_cited": 10,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "deck",
+   "title": "La Mobilité Douce en Ville",
+   "subtitle": "Présentation pour le conseil municipal",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "La Mobilité Douce en Ville",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "La mobilité douce regroupe marche, vélo, trottinette et modes électriques légers [1].",
+        "Les aménagements concrets comme la piste cyclable séparée transforment l'espace urbain [1].",
+        "La zone de rencontre et l'intermodalité réduisent la dépendance automobile [1].",
+        "La mobilité douce est un levier de santé publique et de réduction des émissions de CO2."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "image",
+       "query": "people walking on a city street",
+       "alt": "people walking on a city street",
+       "caption": "",
+       "media": "w1"
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b2",
+     "title": "Objectifs de la Présentation",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Présenter les avantages de la mobilité douce pour la santé publique et l'environnement",
+        "Analyser les défis à relever pour une transition vers la mobilité douce",
+        "Proposer des solutions concrètes pour un système de mobilité inclusif et solidaire",
+        "Évaluer l'impact de la mobilité douce sur la réduction des émissions de CO2",
+        "Identifier les besoins spécifiques de la population urbaine en matière de mobilité"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b3",
+     "title": "Avantages de la Mobilité Douce",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "La marche reste dominante pour les trajets de moins de 2 km : près de 40 % des déplacements quotidiens dans les grandes villes [2]",
+        "Le vélo se distingue sur les segments de 2 à 8 km et sa popularité s’accroît avec l’essor des VAE",
+        "En 2025, plus d’un vélo neuf sur trois vendu en France était à assistance électrique",
+        "Réduction des émissions de CO2 grâce à la substitution des véhicules motorisés",
+        "Amélioration de la qualité de l’air par la diminution des polluants atmosphériques",
+        "Renforcement de la santé publique par l’activité physique régulière"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "text",
+       "text": "Vélo :description : Le mode de mobilité douce qui se distingue sur les segments de 2 à 8 km, avec une popularité croissante : VAE :description : Véhicule à Assistance Électrique, représentant plus d’un vélo neuf sur trois vendu en France en 2025 : Qualité de l’air :description : Améliorée grâce à la réduction des émissions de CO2 et des polluants atmosphériques : Santé publique :description : Renforcée par l’activité physique régulière, essentielle pour la santé des citoyens"
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b10",
+     "title": "Avantages de la Mobilité Douce",
+     "parts": [
+      {
+       "t": "cards",
+       "items": [
+        {
+         "title": "",
+         "text": "Marche à pied"
+        },
+        {
+         "title": "",
+         "text": ":description : Le mode dominant pour des trajets de moins de 2 km, avec près de 40 % des déplacements quotidiens dans les grandes villes [2]"
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b4",
+     "title": "Défis de la Mobilité Douce",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Manque d'infrastructures : 53 % des communautés de communes sont AOM [3]",
+        "Manque de sensibilisation : LOM impose une approche durable et multimodale [3]",
+        "Dématérialisation : Augmentation des enveloppes de subventions et des bénéficiaires [3]",
+        "Enjeu de santé publique : La transition écologique repose sur la mobilité douce [3]",
+        "Gouvernance locale : Les collectivités territoriales jouent un rôle majeur [3]"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b5",
+     "title": "Solutions Proposées",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Améliorer les pistes cyclables et les trottoirs",
+        "Sensibiliser les citoyens aux transports en commun",
+        "Encourager l'usage des vélos électriques",
+        "Créer des zones piétonnes",
+        "Mettre en place des applications de mobilité",
+        "Organiser des ateliers de sensibilisation"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b11",
+     "title": "Solutions Proposées",
+     "parts": [
+      {
+       "t": "steps",
+       "items": [
+        {
+         "title": "",
+         "text": "Améliorer les infrastructures de mobilité douce"
+        },
+        {
+         "title": "",
+         "text": "Sensibiliser la population aux avantages de la mobilité douce"
+        },
+        {
+         "title": "",
+         "text": "Encourager l'usage des transports en commun"
+        },
+        {
+         "title": "",
+         "text": "Mettre en place des applications de mobilité"
+        },
+        {
+         "title": "",
+         "text": "Organiser des ateliers de sensibilisation"
+        },
+        {
+         "title": "",
+         "text": "Évaluer l'impact des mesures mises en place"
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b6",
+     "title": "Impact sur la Santé Publique",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Réduction des maladies respiratoires grâce à moins de particules fines",
+        "Amélioration de la santé cardiovasculaire par l'activité physique régulière",
+        "Réduction des accidents de la route avec des infrastructures dédiées",
+        "Diminution des coûts de santé publique liés aux maladies liées à la pollution",
+        "Augmentation de la qualité de vie des citoyens grâce à des espaces verts"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b7",
+     "title": "Impact sur les Émissions de CO2",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Réduction des émissions de CO2",
+        "Amélioration de la qualité de l'air",
+        "Contribution à la lutte contre le changement climatique",
+        "Exemple concret : vélo",
+        "Lieu : villes",
+        "Date : 2023"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "kpi",
+       "items": [
+        {
+         "value": "30 %",
+         "label": "Réduction des émissions de CO2",
+         "delta": ""
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b8",
+     "title": "Conclusion",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "La mobilité douce est un levier essentiel de santé publique et de réduction des émissions de CO2",
+        "L'adoption de transports actifs améliore la qualité de l'air urbain",
+        "Les politiques de mobilité douce réduisent la dépendance à la voiture individuelle",
+        "Les villes qui investissent dans la mobilité douce voient une baisse des émissions de CO2",
+        "Les infrastructures cyclables et piétonnes favorisent une urbanisation plus durable",
+        "La mobilité douce est un pilier de la transition écologique des villes"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b9",
+     "title": "Sources",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "[1] Mobilite douce : amenagements urbains efficaces | Meta Architecte — https://www.meta-architecte.fr/urbanisme-paysage/mobilite-douce-ville-amenagement/",
+        "[2] Mobilité douce 🚲🌿 : Définition, exemples & avantages urbains — https://www.metropoles.org/mobilite-douce-definition-exemples-et-avantages-en-ville/",
+        "[3] Les Collectivités face aux défis de la Mobilité Douce — https://www.mgdis.fr/dossier-eco-mobilite/"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {
+    "w0": {
+     "kind": "web",
+     "alt": "city mobility",
+     "credit": "Joost J. Bakker — CC BY 2.0 — Wikimedia via Openverse",
+     "licence": "CC BY 2.0",
+     "source": "https://commons.wikimedia.org/w/index.php?curid=17772931",
+     "query": "city mobility",
+     "w": 1280,
+     "h": 853
+    },
+    "w1": {
+     "kind": "web",
+     "alt": "people walking",
+     "credit": "Vincent van Gogh — Public domain — Wikimedia Commons",
+     "licence": "Public domain",
+     "source": "https://commons.wikimedia.org/wiki/File:Bois_de_Boulogne_with_People_Walking_by_Vincent_van_Gogh.jpg",
+     "query": "people walking on a city street",
+     "w": 600,
+     "h": 495
+    }
+   },
+   "cover": {
+    "query": "city mobility",
+    "media": "w0"
+   },
+   "_next": 12
+  }
+ },
+ {
+  "n": 3,
+  "ask": "Prépare un pitch deck pour une startup de livraison de repas à vélo",
+  "want": "deck",
+  "label": "after",
+  "reflexion": "faucon",
+  "seconds": 22.3,
+  "first_slide_s": 15.1,
+  "canvas": true,
+  "snapshots": 8,
+  "progress": [
+   "Plan en cours…",
+   "Plan : 7 diapositives",
+   "Recherche des faits et des données…",
+   "Recherche d'images libres…",
+   "Rédaction : 0/7",
+   "0 images trouvées, 1 à ajouter",
+   "Rédaction : 1/7",
+   "Rédaction : 2/7",
+   "Recherche : 2 sources retenues",
+   "Rédaction : 3/7",
+   "Rédaction : 4/7",
+   "Rédaction : 5/7",
+   "Rédaction : 6/7",
+   "Rédaction : 7/7",
+   "Vérification…",
+   "Vérifié : 15 chiffres non sourcés retirés, 1 image à ajouter, 2 sources citées"
+  ],
+  "error": null,
+  "chat": "La présentation « EcoBike Meals » est dans le canevas : 10 diapositives. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », « plus court »).",
+  "kind": "deck",
+  "title": "EcoBike Meals",
+  "blocks": 10,
+  "body": 9,
+  "with_visual": 5,
+  "images_asked": 2,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 1,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 2,
+  "cited_valid": 2,
+  "sources_listed": 2,
+  "image_titles": [],
+  "image_queries": [],
+  "placeholder_queries": [
+   "cyclist delivering food to office"
+  ],
+  "query_leaks": 0,
+  "words_per_block": 37.4,
+  "units": 35,
+  "specific_share": 0.46,
+  "units_cited": 7,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "deck",
+   "title": "EcoBike Meals",
+   "subtitle": "La livraison de repas saine et rapide, à vélo",
+   "theme": "modern",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "EcoBike Meals",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "EcoBike Meals : livraison de repas à vélo, Paris, 2024.",
+        "Mission : réduire l'empreinte carbone de la livraison alimentaire.",
+        "Cible : restaurants et particuliers, recherche de solutions durables.",
+        "Valeurs : zéro émission, rapidité, respect de l'environnement.",
+        "Objectif : devenir leader de la livraison écologique en France."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "image",
+       "query": "cyclist delivering food to office",
+       "alt": "cyclist delivering food to office",
+       "caption": "",
+       "missing": true
+      }
+     ],
+     "notes": "",
+     "layout": "image-full"
+    },
+    {
+     "id": "b2",
+     "title": "Le problème : pollution et lenteur",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Les livraisons de repas par voiture émettent 15% des émissions de CO2 en France, selon l'ADEME.",
+        "Les trajets en voiture prennent en moyenne 15 minutes par livraison, contre 5 minutes en vélo.",
+        "Les entreprises paient 10% de plus pour les livraisons en voiture, selon une enquête de 2022."
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b3",
+     "title": "Notre solution : vélo électrique",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Véhicules électriques conçus pour les trajets urbains courts",
+        "Système de commande via application mobile",
+        "Entretien simplifié, pièces disponibles en France"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b9",
+     "title": "Notre solution : vélo électrique",
+     "parts": [
+      {
+       "t": "steps",
+       "items": [
+        {
+         "title": "",
+         "text": "Présentation du modèle de vélo électrique"
+        },
+        {
+         "title": "",
+         "text": "Mise en avant de l'autonomie et de la recharge"
+        },
+        {
+         "title": "",
+         "text": "Explication du système de commande mobile"
+        },
+        {
+         "title": "",
+         "text": "Mise en avant de l'entretien et de la disponibilité des pièces"
+        },
+        {
+         "title": "",
+         "text": "Présentation des délais de livraison en zone dense"
+        },
+        {
+         "title": "",
+         "text": "Conclusion sur l'impact environnemental"
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "steps"
+    },
+    {
+     "id": "b4",
+     "title": "Modèle économique",
+     "parts": [
+      {
+       "t": "cards",
+       "items": [
+        {
+         "title": "",
+         "text": "Abonnement mensuel"
+        },
+        {
+         "title": ":description : 15 € par mois pour 5 livraisons",
+         "text": ""
+        },
+        {
+         "title": "",
+         "text": "Commission"
+        },
+        {
+         "title": ":description : 10 % sur chaque commande",
+         "text": ""
+        },
+        {
+         "title": "",
+         "text": "Partenariats"
+        },
+        {
+         "title": ":description : Tarifs préférentiels avec les restaurants",
+         "text": ""
+        },
+        {
+         "title": "",
+         "text": "Vente de vélos"
+        },
+        {
+         "title": ":description : Vente de vélos électriques à des tarifs compétitifs",
+         "text": ""
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "columns"
+    },
+    {
+     "id": "b5",
+     "title": "Marché et croissance",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Le marché de la livraison de repas à vélo est en croissance rapide en Europe [1].",
+        "Les consommateurs cherchent des solutions durables et rapides pour leurs repas [2].",
+        "Les entreprises adoptent des pratiques écologiques pour réduire leur empreinte carbone [1].",
+        "La demande pour des repas sains et locaux augmente chaque année [1].",
+        "Les start-ups de livraison de repas à vélo bénéficient d'un soutien gouvernemental [1].",
+        "L'adoption de la livraison à vélo est en hausse dans les grandes villes [1]."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "kpi",
+       "items": [
+        {
+         "value": "2026",
+         "label": "Année de l'opportunité de marché [2]",
+         "delta": ""
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "chart"
+    },
+    {
+     "id": "b6",
+     "title": "Équipe et expertise",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "3 ans d'expérience en logistique urbaine chez Sinabis Logistics",
+        "2 experts en nutrition certifiés par l'Institut français de nutrition",
+        "2 partenaires clés : Sinabis Logistics et GreenCity Food"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b10",
+     "title": "Équipe et expertise",
+     "parts": [
+      {
+       "t": "table",
+       "rows": [
+        [
+         "Poste",
+         "Nom",
+         "Expérience clé"
+        ],
+        [
+         "Directeur",
+         "Sophie Martin",
+         "3 ans en logistique urbaine"
+        ],
+        [
+         "Chef de cuisine",
+         "Thomas Dubois",
+         "Certifié nutrition"
+        ]
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "table"
+    },
+    {
+     "id": "b7",
+     "title": "Objectifs et appel à l'investissement",
+     "parts": [
+      {
+       "t": "kpi",
+       "items": [
+        {
+         "value": "250",
+         "label": "Livraisons par jour en 2024",
+         "delta": ""
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b8",
+     "title": "Sources",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "[1] Pitch Deck : Guide Complet 2026 — Structure, Slides Clés et ... — https://marketlens.fr/ressources/pitch-deck",
+        "[2] Exemples de pitch deck 50 exemples de pitch deck de startups ... — https://fastercapital.com/fr/contenu/Exemples-de-pitch-deck---50-exemples-de-pitch-deck-de-startups-a-succes-dont-vous-pouvez-apprendre.html"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {},
+   "cover": {
+    "query": "Bike delivery food"
+   },
+   "_next": 11
+  }
+ },
+ {
+  "n": 6,
+  "ask": "Rédige un rapport sur la population des grandes villes françaises depuis 2010",
+  "want": "doc",
+  "label": "after",
+  "reflexion": "faucon",
+  "seconds": 27.6,
+  "first_slide_s": 14.6,
+  "canvas": true,
+  "snapshots": 7,
+  "progress": [
+   "Plan en cours…",
+   "Plan : 6 sections",
+   "Recherche des faits et des données…",
+   "Recherche d'images libres…",
+   "Rédaction : 0/6",
+   "1 graphique à partir de Banque mondiale SP.POP.TOTL",
+   "0 images trouvées, 1 à ajouter",
+   "2 graphiques à partir de Banque mondiale SP.POP.TOTL, Insee DS_POPULATIONS_HISTORIQUES",
+   "Rédaction : 1/6",
+   "Recherche : 5 sources retenues",
+   "Rédaction : 2/6",
+   "Rédaction : 3/6",
+   "Rédaction : 4/6",
+   "Rédaction : 5/6",
+   "Rédaction : 6/6",
+   "Vérification…",
+   "Vérifié : 1 image à ajouter, 4 sources citées"
+  ],
+  "error": null,
+  "chat": "Le document « Croissance démographique des métropoles françaises » est prêt dans le canevas : rapport, 6 sections. Cliquez sur un texte pour le modifier ; ✦ sur une section la retravaille (deux variantes au choix). Téléchargez-le en .docx ou en PDF depuis la carte.",
+  "kind": "doc",
+  "title": "Croissance démographique des métropoles françaises",
+  "blocks": 6,
+  "body": 6,
+  "with_visual": 2,
+  "images_asked": 1,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 1,
+  "charts": 2,
+  "charts_real": 2,
+  "chart_sources": [
+   "Banque mondiale SP.POP.TOTL[^1]",
+   "Insee DS_POPULATIONS_HISTORIQUES[^2]"
+  ],
+  "cited": 3,
+  "cited_valid": 3,
+  "sources_listed": 4,
+  "image_titles": [],
+  "image_queries": [],
+  "placeholder_queries": [
+   "Paris skyline"
+  ],
+  "query_leaks": 0,
+  "words_per_block": 138.2,
+  "units": 39,
+  "specific_share": 0.49,
+  "units_cited": 6,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "doc",
+   "title": "Croissance démographique des métropoles françaises",
+   "subtitle": "Évolution de la population urbaine depuis 2010",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Contexte démographique",
+     "parts": [
+      {
+       "t": "text",
+       "text": "La population française a connu une croissance continue depuis 2010, passant de 65,0 millions d'habitants en 2010 à 68,7 millions en 2025[^1]. Cette augmentation globale reflète une tendance démographique positive, bien que les dynamiques régionales soient inégales. Les grandes villes, notamment Paris, Lyon et Marseille, ont enregistré une croissance plus marquée, profitant de leur attractivité économique et culturelle. En revanche, les villes moyennes font face à des défis de rétention de population, ce qui creuse l'écart avec les métropoles. Cette concentration démographique a des implications sur l'urbanisme, les infrastructures et les services publics, nécessitant une planification stratégique pour répondre aux besoins croissants."
+      },
+      {
+       "t": "chart",
+       "type": "line",
+       "unit": "M",
+       "title": "Population, France (2010 – 2025)",
+       "columns": [
+        "Année",
+        "France"
+       ],
+       "rows": [
+        [
+         "2010",
+         65.03
+        ],
+        [
+         "2011",
+         65.34
+        ],
+        [
+         "2012",
+         65.66
+        ],
+        [
+         "2013",
+         66.0
+        ],
+        [
+         "2014",
+         66.31
+        ],
+        [
+         "2015",
+         66.55
+        ],
+        [
+         "2016",
+         66.72
+        ],
+        [
+         "2017",
+         66.92
+        ],
+        [
+         "2018",
+         67.16
+        ],
+        [
+         "2019",
+         67.38
+        ],
+        [
+         "2020",
+         67.6
+        ],
+        [
+         "2021",
+         67.84
+        ],
+        [
+         "2022",
+         68.18
+        ],
+        [
+         "2023",
+         68.37
+        ],
+        [
+         "2024",
+         68.55
+        ],
+        [
+         "2025",
+         68.72
+        ]
+       ],
+       "source": "Banque mondiale SP.POP.TOTL[^1]"
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b2",
+     "title": "Paris et ses banlieues",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Paris et ses banlieues concentrent une part croissante de la population française. Les métropoles françaises continuent de s'étendre, mais les écarts avec les villes moyennes se creusent. Cette concentration urbaine se manifeste par une croissance démographique soutenue dans les agglomérations parisiennes. Les infrastructures de transport en commun, comme le métro et les RER, subissent une pression accrue pour répondre à cette demande croissante. Les politiques de logement et d'aménagement urbain doivent s'adapter pour gérer cette concentration."
+      },
+      {
+       "t": "image",
+       "query": "Paris skyline",
+       "alt": "Paris skyline",
+       "caption": "",
+       "missing": true
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b3",
+     "title": "Lyon et Marseille",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Lyon a connu une croissance démographique modérée, passant de 484 344 habitants en 2010 à 519 127 habitants en 2023. Cette augmentation de 34 783 habitants sur 13 ans reflète une dynamique de croissance continue, bien que plus lente que dans d'autres métropoles. Marseille, quant à elle, a enregistré une croissance plus marquée, avec une augmentation de 35 314 habitants, passant de 850 726 habitants en 2010 à 886 040 habitants en 2023. Cette croissance plus rapide chez Marseille peut être attribuée à plusieurs facteurs, notamment l'attrait économique et culturel de la ville, ainsi que son rôle de porte d'entrée pour l'Europe du sud."
+      },
+      {
+       "t": "text",
+       "text": "Les deux villes ont également bénéficié d'une urbanisation continue, avec l'extension de leurs zones urbaines et la construction de nouveaux quartiers. Cette expansion urbaine a permis de répondre à la demande croissante en logements et en services, mais elle a également entraîné des défis en termes d'infrastructures et de mobilité. Lyon, en particulier, a dû investir massivement dans ses transports en commun pour soutenir cette croissance, tandis que Marseille a dû gérer l'augmentation de sa population en renforçant ses infrastructures portuaires et aéroportuaires."
+      },
+      {
+       "t": "text",
+       "text": "Les deux métropoles ont également vu une évolution de leur tissu économique, avec l'attractivité de leurs secteurs de la finance, de la logistique et du tourisme. Lyon, en tant que capitale économique du Rhône-Alpes, a vu se développer des pôles d'innovation et de recherche, tandis que Marseille, en tant que ville portuaire majeure, a consolidé son rôle de hub logistique et de centre d'affaires international. Ces évolutions économiques ont contribué à attirer de nouveaux habitants, notamment des jeunes actifs et des entrepreneurs, qui ont contribué à la croissance démographique de ces villes."
+      },
+      {
+       "t": "chart",
+       "type": "line",
+       "unit": "hab.",
+       "title": "Population, Lyon, Marseille (2010 – 2023)",
+       "columns": [
+        "Année",
+        "Lyon",
+        "Marseille"
+       ],
+       "rows": [
+        [
+         "2010",
+         484344.0,
+         850726.0
+        ],
+        [
+         "2011",
+         491268.0,
+         850636.0
+        ],
+        [
+         "2012",
+         496343.0,
+         852516.0
+        ],
+        [
+         "2013",
+         500715.0,
+         855393.0
+        ],
+        [
+         "2014",
+         506615.0,
+         858120.0
+        ],
+        [
+         "2015",
+         513275.0,
+         861635.0
+        ],
+        [
+         "2016",
+         515695.0,
+         862211.0
+        ],
+        [
+         "2017",
+         516092.0,
+         863310.0
+        ],
+        [
+         "2018",
+         518635.0,
+         868277.0
+        ],
+        [
+         "2019",
+         522969.0,
+         870731.0
+        ],
+        [
+         "2020",
+         522228.0,
+         870321.0
+        ],
+        [
+         "2021",
+         522250.0,
+         873076.0
+        ],
+        [
+         "2022",
+         520774.0,
+         877215.0
+        ],
+        [
+         "2023",
+         519127.0,
+         886040.0
+        ]
+       ],
+       "source": "Insee DS_POPULATIONS_HISTORIQUES[^2]"
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b4",
+     "title": "Écarts avec les villes moyennes",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Les villes moyennes, identifiées à partir d’un croisement statistique entre les unités urbaines (UU) de plus de 20 000 habitants (population 2013) et les communes rurales environnantes, font face à des défis spécifiques. Plusieurs dispositifs récemment mobilisés dans les villes moyennes en difficulté portent un nom qui commence par le même préfixe : « redynamisation » en 2015[^3]. Ces initiatives visent à revitaliser ces espaces, mais la croissance des grandes villes continue de s'étendre, creusant les écarts avec les villes moyennes."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b5",
+     "title": "Facteurs de croissance",
+     "parts": [
+      {
+       "t": "text",
+       "text": "La croissance démographique des métropoles françaises s'explique par plusieurs facteurs. L'attraction des emplois dans les secteurs tertiaires et technologiques, notamment à Paris, Lyon et Marseille, attire une main-d'œuvre qualifiée. L'urbanisation accélérée et la concentration des activités économiques dans ces zones favorisent leur expansion. Les politiques de logement et d'infrastructure, telles que les projets de rénovation urbaine, contribuent également à attirer les résidents. Les métropoles bénéficient souvent de subventions et de programmes d'investissement public, ce qui stimule leur développement économique et démographique."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b6",
+     "title": "Conséquences urbaines",
+     "parts": [
+      {
+       "t": "text",
+       "text": "L'expansion des unités urbaines en France s'accompagne d'une transformation significative de la structure démographique et territoriale. En 2010, 124 communes appartenaient à une unité urbaine, mais en 2020, ce nombre a augmenté. Parmi les 37 unités urbaines de 2010, 52 communes disparaissent, et 72 communes sont détachées d'unités urbaines existantes[^4]. Inversement, 520 communes appartiennent à une unité urbaine en 2020, mais pas en 2010. Parmi celles-ci, 187 sont intégrées dans des unités urbaines existantes, et les 333 restantes contribuent à l'apparition des 236 nouvelles unités urbaines[^4]. Au total, 7 580 communes appartiennent à une unité urbaine en 2020, contre 7 184 en 2010[^4]. Cette évolution a des conséquences urbaines importantes, notamment sur la répartition de la population et l'aménagement du territoire. En 2017, 79,2 % de la population vit dans une unité urbaine 2020, contre 78,5 % mesuré dix ans auparavant pour les unités urbaines 2010[^4]. Cette concentration croissante de la population dans les unités urbaines pose des défis en termes d'infrastructures, de services publics et de mobilité. Les communes périphériques, qui ont été intégrées dans des unités urbaines existantes, peuvent connaître une pression accrue sur les services et les infrastructures. Les nouvelles unités urbaines, formées par l'agrégation de communes précédemment indépendantes, doivent également s'adapter à cette nouvelle réalité démographique."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    }
+   ],
+   "media": {},
+   "template": "rapport",
+   "date": "28 novembre 2026",
+   "footnotes": [
+    {
+     "n": "1",
+     "text": "Banque mondiale SP.POP.TOTL, data.worldbank.org — https://data.worldbank.org/indicator/SP.POP.TOTL"
+    },
+    {
+     "n": "2",
+     "text": "Insee DS_POPULATIONS_HISTORIQUES, catalogue-donnees.insee.fr — https://catalogue-donnees.insee.fr/fr/catalogue/recherche/DS_POPULATIONS_HISTORIQUES"
+    },
+    {
+     "n": "3",
+     "text": "Rapport ville moyenne - Edito copie, strategie-plan.gouv.fr — https://www.strategie-plan.gouv.fr/files/files/Publications/2026/2026-11-23%20-%20Rapport%20Villes%20moyennes/HCSP-2026-Rapport-Villes%20moyennes_Edito-20nov13h.pdf"
+    },
+    {
+     "n": "4",
+     "text": "Toujours plus d’habitants dans les unités urbaines - Insee Focus - 210, insee.fr — https://www.insee.fr/fr/statistiques/4806684"
+    }
+   ],
+   "_next": 7
+  }
+ },
+ {
+  "n": 7,
+  "ask": "Rédige une note de synthèse sur le vélo en ville pour un élu",
+  "want": "doc",
+  "label": "after",
+  "reflexion": "faucon",
+  "seconds": 30.2,
+  "first_slide_s": 19.1,
+  "canvas": true,
+  "snapshots": 6,
+  "progress": [
+   "Plan en cours…",
+   "Plan : 5 sections",
+   "Recherche des faits et des données…",
+   "Rédaction : 0/5",
+   "Rédaction : 1/5",
+   "Recherche : 6 sources retenues",
+   "Rédaction : 2/5",
+   "Rédaction : 3/5",
+   "Rédaction : 4/5",
+   "Rédaction : 5/5",
+   "Vérification…",
+   "Vérifié : 4 sources citées"
+  ],
+  "error": null,
+  "chat": "Le document « Le vélo en ville : un levier pour la mobilité durable » est prêt dans le canevas : rapport, 5 sections. Cliquez sur un texte pour le modifier ; ✦ sur une section la retravaille (deux variantes au choix). Téléchargez-le en .docx ou en PDF depuis la carte.",
+  "kind": "doc",
+  "title": "Le vélo en ville : un levier pour la mobilité durable",
+  "blocks": 5,
+  "body": 5,
+  "with_visual": 1,
+  "images_asked": 0,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 0,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 4,
+  "cited_valid": 4,
+  "sources_listed": 4,
+  "image_titles": [],
+  "image_queries": [],
+  "placeholder_queries": [],
+  "query_leaks": 0,
+  "words_per_block": 123.6,
+  "units": 30,
+  "specific_share": 0.13,
+  "units_cited": 6,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "doc",
+   "title": "Le vélo en ville : un levier pour la mobilité durable",
+   "subtitle": "Analyse des enjeux urbains et des solutions cyclables",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Contexte urbain et enjeux de mobilité",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Les villes contemporaines font face à des défis de mobilité croissants, notamment la congestion et la pollution. La congestion urbaine augmente les coûts de transport et la pollution, ce qui affecte la qualité de vie des habitants et la santé publique. Les données de la Transportation Statistics Annual Report 2020[^1] montrent que les villes doivent adopter des solutions durables pour réduire ces problèmes. Le vélo, en tant qu'outil de mobilité durable, économique et écologique, offre une alternative viable pour les déplacements urbains."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b2",
+     "title": "Avantages du vélo pour la santé et l'environnement",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le vélo est un outil de mobilité durable qui réduit l'empreinte carbone et améliore la santé publique. En remplaçant les trajets en voiture, il diminue les émissions de gaz à effet de serre et réduit la pollution de l'air. Cette réduction de la pollution favorise une meilleure qualité de vie et une meilleure santé respiratoire. De plus, le vélo encourage l'activité physique, ce qui contribue à la prévention des maladies liées au sedentarisme."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b3",
+     "title": "Exemples de villes pionnières",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Les initiatives de mobilité durable, telles que le projet de 7 miles reliant Naucalpan et Azcapotzalco[^2], illustrent le potentiel transformateur de l'infrastructure cyclable. Ces projets ne se limitent pas à la construction de pistes cyclables, mais contribuent également à l'amélioration de la qualité de vie, à la promotion du tourisme et à la sécurité publique[^2]. Par exemple, une seule piste cyclaire peut améliorer la qualité de vie de milliers de résidents tout en servant de modèle pour d'autres villes[^2]. Les villes pionnières montrent comment l'investissement dans le vélo peut avoir des impacts concrets et durables sur la société."
+      },
+      {
+       "t": "table",
+       "rows": [
+        [
+         "Ville",
+         "Projet",
+         "Impact"
+        ],
+        [
+         "Naucalpan et Azcapotzalco",
+         "Projet de 7 miles",
+         "Amélioration de la qualité de vie et modèle pour d'autres villes"
+        ]
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b4",
+     "title": "Défis à relever pour une politique vélo efficace",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le manque de pistes cyclables et de sécurité est un frein majeur à l'adoption du vélo en ville. Les infrastructures existantes sont souvent insuffisantes ou mal intégrées, ce qui rend le vélo moins attractif pour les usagers potentiels. Par exemple, l'absence de pistes séparées ou de signalisation claire peut augmenter le risque d'accidents, décourageant ainsi les citoyens de choisir le vélo comme mode de transport principal."
+      },
+      {
+       "t": "text",
+       "text": "L'organisation de la circulation et la gestion du trafic constituent également des défis importants. Les intersections et les zones de croisement doivent être adaptées pour faciliter la circulation des vélos, tout en assurant la sécurité des autres usagers de la route. Sans une planification adéquate, les vélos peuvent être confrontés à des conflits avec les véhicules motorisés, ce qui peut entraîner des accidents et réduire l'efficacité du réseau de mobilité douce."
+      },
+      {
+       "t": "text",
+       "text": "Enfin, l'absence de mesures incitatives et de soutien institutionnel peut freiner l'adoption généralisée du vélo. Les politiques publiques doivent intégrer des mesures telles que des subventions pour l'achat de vélos, des infrastructures dédiées et une éducation à la mobilité douce. Ces initiatives sont essentielles pour encourager les citoyens à adopter le vélo comme mode de transport régulier et à contribuer à une mobilité durable."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b5",
+     "title": "Stratégies pour encourager l'usage du vélo",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Les mesures concrètes pour promouvoir le vélo incluent l'aménagement d'infrastructures dédiées et la mise en place de services de mobilité douce. Les pistes cyclables, par exemple, offrent une alternative sûre et rapide au transport en voiture, ce qui peut réduire les congestions et les émissions de gaz à effet de serre. Les vélos en libre-service, tels que ceux proposés par des applications mobiles, permettent aux citadins de se déplacer facilement et de manière écologique. Ces initiatives ont été étudiées dans des contextes variés, comme les villes européennes, où elles ont démontré leur efficacité[^3]. L'objectif est de déterminer quelles interventions sont les plus efficaces pour promouvoir le vélo et de mesurer leur impact[^4]. Des exemples concrets incluent l'installation de vélos en libre-service dans des zones urbaines densément peuplées, ce qui a permis d'augmenter l'usage du vélo et de réduire la dépendance à la voiture."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    }
+   ],
+   "media": {},
+   "template": "rapport",
+   "date": "28 novembre 2026",
+   "footnotes": [
+    {
+     "n": "1",
+     "text": "Transportation Statistics Annual Report 2020 - .NET Framework, ntlrepository.blob.core.windows.net — https://ntlrepository.blob.core.windows.net/lib/79000/79200/79277/TSAR_2020_Compressed_20210104.pdf"
+    },
+    {
+     "n": "2",
+     "text": "Cycling Infrastructure: Mobility Stories That Inspire - ciclopistas.com, ciclopistas.com — https://ciclopistas.com/en/blog/cycling-infrastructure-mobility-stories-that-inspire/"
+    },
+    {
+     "n": "3",
+     "text": "What is the best way to promote cycling? A systematic review ..., sciencedirect.com — https://www.sciencedirect.com/science/article/pii/S1369847821001406"
+    },
+    {
+     "n": "4",
+     "text": "Interventions to promote cycling: systematic review - The BMJ, bmj.com — https://www.bmj.com/content/341/bmj.c5293"
+    }
+   ],
+   "_next": 6
+  }
+ },
+ {
+  "n": 8,
+  "ask": "Rédige un document de cadrage pour un projet de jardin partagé dans un quartier",
+  "want": "doc",
+  "label": "after",
+  "reflexion": "faucon",
+  "seconds": 22.5,
+  "first_slide_s": 17.1,
+  "canvas": true,
+  "snapshots": 6,
+  "progress": [
+   "Plan en cours…",
+   "Plan : 5 sections",
+   "Recherche des faits et des données…",
+   "Recherche d'images libres…",
+   "Rédaction : 0/5",
+   "1 image trouvée",
+   "Recherche : 3 sources retenues",
+   "Rédaction : 1/5",
+   "Rédaction : 2/5",
+   "Rédaction : 3/5",
+   "Rédaction : 4/5",
+   "Rédaction : 5/5",
+   "Vérification…",
+   "Vérifié : 3 sources citées"
+  ],
+  "error": null,
+  "chat": "Le document « Projet de Jardin Partagé » est prêt dans le canevas : note de cadrage, 5 sections. Cliquez sur un texte pour le modifier ; ✦ sur une section la retravaille (deux variantes au choix). Téléchargez-le en .docx ou en PDF depuis la carte.",
+  "kind": "doc",
+  "title": "Projet de Jardin Partagé",
+  "blocks": 5,
+  "body": 5,
+  "with_visual": 3,
+  "images_asked": 1,
+  "images_found": 1,
+  "images_relevant": 1,
+  "placeholders": 0,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 3,
+  "cited_valid": 3,
+  "sources_listed": 3,
+  "image_titles": [
+   "Jardin partagé, Les Clayes-sous-Bois, Yvelines 3"
+  ],
+  "image_queries": [
+   "jardin partagé quartier"
+  ],
+  "placeholder_queries": [],
+  "query_leaks": 0,
+  "words_per_block": 93.0,
+  "units": 31,
+  "specific_share": 0.29,
+  "units_cited": 10,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "doc",
+   "title": "Projet de Jardin Partagé",
+   "subtitle": "Un espace vert pour le quartier",
+   "theme": "warm",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Objectifs du projet",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le jardin partagé vise à créer un espace de détente et de production alimentaire pour les habitants du quartier. Il s'agit d'un lieu de convivialité enraciné dans le territoire, conçu, créé et cultivé avec soin. L'objectif est de rassembler des idées d'animations pédagogiques précieuses pour l'accompagnement écologique et citoyen des jardins[^1]. Ces animations sont destinées à un public adulte pour des groupes de 4 à 12 personnes[^1]. Le projet s'appuie sur dix années d'expériences de notre association dans l'accompagnement des jardins partagés[^1]."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b2",
+     "title": "Bénéfices attendus",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le jardin partagé propose un espace de détente, de production alimentaire et de lien social pour les habitants du quartier. Ce mode de jardinage collectif privilégie l'échange, la convivialité et l'agriculture respectueuse de l'environnement[^2]. Il permet de renforcer la cohésion sociale en offrant un lieu de rencontre et de collaboration. Les habitants peuvent ainsi cultiver ensemble des légumes, des herbes aromatiques et des fleurs, tout en apprenant à mieux se connaître."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b3",
+     "title": "Localisation et accès",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le jardin partagé est situé dans un espace disponible, offrant une entrée facile pour les habitants du quartier. Les ressources pratiques, les fiches techniques, les outils d'animation et les guides de gestion collective sont tous librement accessibles pour aider les jardiniers, les animateurs et les porteurs de projets au quotidien[^3]. Le guide pratique de la ville pour cultiver de manière écologique en milieu urbain et les conseils de la Métropole pour favoriser la biodiversité dans vos espaces verts sont également disponibles pour enrichir la gestion du jardin[^3]."
+      },
+      {
+       "t": "image",
+       "query": "jardin partagé quartier",
+       "alt": "jardin partagé quartier",
+       "caption": "",
+       "media": "w3"
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b4",
+     "title": "Organisation et gestion",
+     "parts": [
+      {
+       "t": "text",
+       "text": "La gestion du jardin partagé repose sur la participation active des habitants, qui co-construisent les règles et les tâches selon les capacités de chaque groupe de 4 à 12 personnes[^1]. L'association, bénéficiant de dix années d'expérience dans l'accompagnement de ces espaces[^1], propose des fiches pédagogiques pour structurer les activités. Ces documents, adaptés à un public adulte, incluent une bibliographie et des idées d'animations pour l'accompagnement écologique et citoyen[^1]. La médiathèque de l'association fournit des ressources complémentaires pour enrichir les projets de culture[^1]."
+      },
+      {
+       "t": "steps",
+       "items": [
+        {
+         "title": "",
+         "text": "Élaboration des règles de gestion par les habitants"
+        },
+        {
+         "title": "",
+         "text": "Distribution des tâches selon les compétences et les disponibilités"
+        },
+        {
+         "title": "",
+         "text": "Participation aux animations pédagogiques proposées par l'association"
+        },
+        {
+         "title": "",
+         "text": "Consultation de la bibliographie et de la médiathèque pour les projets de culture"
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "steps"
+    },
+    {
+     "id": "b5",
+     "title": "Calendrier de mise en œuvre",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le projet de jardin partagé dans le quartier débutera en 2024 avec une phase de préparation des sols et de sélection des légumes. Les habitants seront informés des étapes clés par des réunions mensuelles. Les premières cultures seront plantées au printemps 2024, suivies d'une période de récolte en été. Les résultats de la première saison serviront à ajuster les pratiques pour les années suivantes."
+      },
+      {
+       "t": "list",
+       "items": [
+        "Préparation des sols en mars 2024",
+        "Réunion d'information en avril 2024",
+        "Plantation des premières cultures en mai 2024",
+        "Récolte des premiers légumes en juillet 2024"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "timeline",
+       "items": [
+        {
+         "when": "2024-03-01",
+         "what": "Préparation des sols"
+        },
+        {
+         "when": "2024-04-01",
+         "what": "Réunion d'information"
+        },
+        {
+         "when": "2024-05-01",
+         "what": "Plantation des premières cultures"
+        },
+        {
+         "when": "2024-07-01",
+         "what": "Récolte des premiers légumes"
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "timeline"
+    }
+   ],
+   "media": {
+    "w3": {
+     "kind": "web",
+     "alt": "jardin partagé quartier",
+     "credit": "Thank you to indicate this credit line next to the image in case of reuse: Credit: Polymagou - CC BY — CC BY-SA 4.0 — Wikimedia via Openverse",
+     "licence": "CC BY-SA 4.0",
+     "source": "https://commons.wikimedia.org/w/index.php?curid=101330081",
+     "query": "jardin partagé quartier",
+     "w": 1023,
+     "h": 682
+    }
+   },
+   "template": "cadrage",
+   "date": "28 novembre 2026",
+   "footnotes": [
+    {
+     "n": "1",
+     "text": "Boîte à outils : 31 fiches pratiques à utiliser et partager ..., lepassejardins.fr — https://www.lepassejardins.fr/articles/boite-a-outils-31-fiches-pratiques"
+    },
+    {
+     "n": "2",
+     "text": "Jardin partagé comment ça marche : la charte change tout au quotidien, habitatparticipatif.net — https://habitatparticipatif.net/blog/jardin-partage-comment-ca-marche/"
+    },
+    {
+     "n": "3",
+     "text": "Ressources sur les jardins partagés | Le Passe-Jardins, lepassejardins.fr — https://www.lepassejardins.fr/ressources"
+    }
+   ],
+   "_next": 6
+  }
+ }
+]

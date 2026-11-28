@@ -425,3 +425,77 @@ relever : modèle choisi par le modèle (`template_by`), complétude, réparatio
 section (deux variantes lues ou non). Hors ligne, le chemin entraîné réel de la note de cadrage (4 sections
 `make_document`) donne désormais une seule carte, le canevas ouvert, sans ligne « Fichier » (test
 `test_an_adopted_word_document_opens_in_the_canvas_with_one_card`).
+
+## 11. Présentations et documents progressifs (`birds/canvas/progressive.py`)
+
+Une nouvelle présentation ou un nouveau document (pas un fichier joint ; `BIRD_CANVAS_PROGRESSIVE=0` revient à la
+génération unique) se fait en quatre temps, avant l'équipe du Mode Agent (Mode Agent « activé » garde l'équipe) :
+
+1. **Plan** — une génération en sortie structurée, validée champ par champ (`parse_outline`) : public, message, 6 à
+   12 diapositives (4 à 8 sections), et pour chacune son visuel : `image` (une requête concrète en anglais),
+   `chart` (seulement une vraie série : `get_statistics`, ou les chiffres de l'utilisateur), `diagram` (dessiné en
+   étapes), `kpi`, `table`, `timeline`, `compare`, `cards`, `quote` ou `none`. Garde-fous (veto, jamais des choix) :
+   une photo « de statistiques » devient un graphique ou des chiffres clés ; une requête sans chose à montrer
+   (« uniquement une photo », écho des consignes) ou déjà prise par une autre diapositive ne crée pas d'emplacement
+   photo ; une série que ni la demande ni la diapositive ne nomme (la population dans une présentation sur la
+   mobilité douce) est remplacée par des faits du web ; une série n'est tracée qu'une fois.
+2. **Collecte en parallèle** (5 fils, 38 s au plus) — images libres de droits (Openverse, Commons, Pexels si une clé
+   est configurée ; licence vérifiée, cache, jamais deux fois le même fichier), séries officielles, recherche web
+   et lecture d'une page par diapositive qui demande des faits (un résultat qui ne partage aucun mot avec la
+   diapositive n'est pas lu). Filet de secours : un plan qui ne demande aucun fait reçoit des faits du web pour ses
+   premières sections (Faucon, Chouette, Albatros ; Colibri et Hirondelle : plan, images et rédaction seulement).
+3. **Rédaction** — une génération par diapositive ou section, avec SES faits et son visuel : 4 à 6 points précis
+   (un fait, un nom, une date, un chiffre des faits) par diapositive, 2 à 4 paragraphes par section. Chaque
+   diapositive apparaît dans le canevas dès qu'elle est écrite ; les lignes de progression disent « Plan :
+   7 diapositives », « 1 graphique à partir de Eurostat », « 3 images trouvées », « Rédaction : 4/7 ».
+4. **Vérification** (code) — tout chiffre absent de la demande, des faits lus et des séries est retiré ; la notation
+   du modèle (« [Graphique des données officielles : …] », « <étape> ») et un point qui ne fait qu'annoncer le
+   graphique sont retirés ; une liste qui répète la frise de la même diapositive part ; sources numérotées dans
+   l'ordre de lecture (diapositive « Sources » avec leurs adresses, notes de bas de page dans un document).
+
+Une image introuvable devient un **emplacement conçu** (`missing`) : « Image à ajouter », les mots de la recherche
+nettoyés, « Chercher une image » et « Importer une image » ; il n'est pas recherché une seconde fois dans le tour, et
+la puce « Compléter les N images manquantes » relance la recherche (modification directe, `patch.direct_ops`). La
+génération unique applique la même règle aux photos (`turn.photo_queries`). Exports : photos et graphiques natifs
+dans le .pptx (la photo de couverture est désormais envoyée par le navigateur), figures dans le .docx (test
+`test_exports_carry_the_pictures_and_a_native_chart` ; un .pptx de production relu : photo et crédit présents).
+
+### Mesure en direct, 28/11/2026 (production, Faucon, 6 demandes fixes, 27 générations au total)
+
+`scripts/progressive_eval.py` (par défaut les demandes 1, 2, 3 : présentations — chômage pour des lycéens, mobilité
+douce pour un conseil municipal, pitch de livraison de repas à vélo ; 6, 7, 8 : documents — population des grandes
+villes, note sur le vélo en ville, cadrage d'un jardin partagé). Tout est compté sur les événements, rien n'est
+jugé à la main : visuels = diapositives ou sections avec une image affichée, un graphique, des chiffres clés, un
+tableau, une frise… ; « précis » = part des phrases et des points portant un chiffre ou un nom propre ; fuites =
+notation du modèle visible ou requête d'image « statistique ». Fichiers : `docs/measures/progressive-2026-11-28-*.json`.
+
+| Version | Canevas | Visuels | Images trouvées | Emplacements | Graphiques réels | Citations avec adresse | Précis | Mots / bloc | Fuites | 1re diapo | Total |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Avant (une génération) | 5/6 | 13/39 | 1/6 | 3 | 0/1 | 0/0 | 0,22 | 49 | 0 | 17,7 s | 40,4 s |
+| Après 4e9342f | 6/6 | 19/44 | 5/7 | 1 | 4/4 | 1/3 | 0,36 | 80 | 2 | 15,0 s | 23,1 s |
+| Après 00b3309 | 6/6 | 17/43 | 1/11 | 8 | 5/5 | 10/10 | 0,39 | 80 | 0 | 18,9 s | 30,3 s |
+| Après 486b330 | 6/6 | 23/45 | 3/8 | 4 | 5/5 | 16/16 | 0,32 | 88 | 0 | 22,6 s | 32,6 s |
+| **Après 5fb370f** | **6/6** | 18/41 | 3/8 | 4 | **3/3** | **16/16** | **0,38** | **83** | **0** | **16,8 s** | **26,4 s** |
+
+Lecture :
+- **Avant**, la présentation sur le chômage n'était pas faite (réponse dans le chat), aucun graphique ne venait de
+  données réelles, aucune citation n'avait d'adresse, 1 image sur 6 demandées.
+- **Images** : leur nombre varie d'un passage à l'autre avec les mêmes demandes (5/7, 1/11, 3/8, 3/8) et des
+  requêtes correctes (« Paris skyline », « cyclist delivering food to office » non trouvées) : les banques libres
+  limitent les adresses partagées de l'hébergeur (429). Les 5 images de 4e9342f comptaient trois fois la même photo
+  d'un studio pour « uniquement » (corrigé dans 00b3309 : écho, doublon). Sur 5fb370f, lues une à une : « City
+  Mobility Center », un jardin partagé aux Clayes-sous-Bois (pertinentes), « Bois de Boulogne with People Walking »
+  de Van Gogh pour « people walking on a city street » (littérale).
+- **Graphiques** : tous tracés depuis Eurostat, la Banque mondiale ou l'Insee ; 486b330 traçait chômage, croissance
+  et créations d'entreprises dans la présentation chômage (pertinents).
+- **Contenu** : deux fois plus de texte utile par bloc, toutes les citations ont leur source ; les chiffres non
+  sourcés sont retirés (15 sur le pitch, où le modèle invente un marché). La note sur le vélo (demande 7) reste
+  générale (0,13 de phrases précises) malgré 4 sources lues : le modèle reformule plus qu'il ne cite.
+- **Temps** : 26 s en moyenne au lieu de 40 s (les diapositives s'écrivent en parallèle), première diapositive
+  visible en 17 s.
+
+Pas vérifié ici : la recherche d'images depuis cet environnement (le garde d'egress se connecte sans le proxy du
+bac à sable : `ConnectError`) ; la capture d'un emplacement d'image en production (aucun dans la présentation
+capturée) a été faite sur le serveur de démonstration en simulant l'échec (bureau clair, téléphone sombre).
+Configuration : `BIRD_PEXELS_API_KEY` (clé gratuite, pexels.com/api) donne une source d'images à quota par clé,
+non limitée par l'adresse partagée ; c'est le levier principal pour que les emplacements se remplissent.
