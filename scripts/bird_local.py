@@ -46,6 +46,10 @@ FR_EN = {
         "The model server answers oddly ({detail}).",
     ),
     "ok": ("Modèle servi : {model}", "Model served: {model}"),
+    "other_model": (
+        "Ce n'est pas un modèle Bird : les modules et le routage sont réglés pour Bird ({bird}). Pour un autre, passez --model.",
+        "This is not a Bird model: the modules and routing are tuned for Bird ({bird}). For another one, pass --model.",
+    ),
     "structured": ("Sorties structurées : {kind}", "Structured outputs: {kind}"),
     "no_structured": (
         "Sorties structurées : non détectées (le routage reste fiable, avec un filet de réparation).",
@@ -181,6 +185,8 @@ def main(argv: list[str] | None = None) -> int:
             print(say(status.status, lang, detail=status.detail, models=", ".join(status.models) or "-"))
         return 2
     print(say("ok", lang, model=status.model))
+    if not args.model and "bird" not in (status.model or "").lower():
+        print(say("other_model", lang, bird=local.DEFAULT_MODEL))
     print(say("structured", lang, kind=status.structured) if status.structured else say("no_structured", lang))
     if not port_free(args.port):
         print(say("port", lang, port=args.port))

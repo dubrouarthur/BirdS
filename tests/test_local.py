@@ -321,3 +321,19 @@ def test_command_output_never_crashes_on_a_cp1252_console():
     mod.safe_console(out)
     print("─" * 4 + " → Réglages", file=out, flush=True)
     assert raw.getvalue().endswith("???? ? Réglages\n".encode("cp1252"))
+
+
+def test_command_says_when_the_served_model_is_not_bird(capsys, monkeypatch):
+    import importlib.util
+    from pathlib import Path
+
+    spec = importlib.util.spec_from_file_location("bird_local", Path(__file__).parents[1] / "scripts" / "bird_local.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    ok = local.VllmStatus(True, "ok", "http://127.0.0.1:8000/v1", models=["meta/llama"], model="meta/llama")
+    monkeypatch.setattr(local, "probe_vllm", lambda *a, **k: ok)
+    monkeypatch.setattr(mod, "port_free", lambda port: False)  # stop before serving
+    assert mod.main(["--no-browser"]) == 3
+    assert "pas un modèle Bird" in capsys.readouterr().out
+    assert mod.main(["--no-browser", "--model", "meta/llama"]) == 3  # chosen on purpose: no warning
+    assert "pas un modèle Bird" not in capsys.readouterr().out
