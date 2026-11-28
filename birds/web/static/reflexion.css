@@ -590,10 +590,10 @@
     transform-box: fill-box;
     transform-origin: 50% 45%;
   }
-  .rf-flyer.is-flying {
+  .rf-flyer.rf-in-flight {
     animation: rf-hop 0.55s cubic-bezier(0.3, 1.5, 0.5, 1);
   }
-  .rf-flyer.is-flying .rf-wing {
+  .rf-flyer.rf-in-flight .rf-wing {
     animation: rf-beat 0.14s ease-in-out 4 alternate;
   }
   /* at rest the chosen bird hovers gently, as a hummingbird would */

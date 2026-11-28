@@ -151,9 +151,9 @@ function syncMenu() {
     ui.flyer.replaceChildren(birdIcon(key));
     if (!first) {
       // restart the flight: remove, force a layout, add again
-      ui.flyer.classList.remove("is-flying");
+      ui.flyer.classList.remove("rf-in-flight");
       void ui.flyer.offsetWidth;
-      ui.flyer.classList.add("is-flying");
+      ui.flyer.classList.add("rf-in-flight");
     }
   }
 }
