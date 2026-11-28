@@ -38,8 +38,11 @@ T1 2026 : pilote
 > « Mesurer avant de généraliser. » — Une élue
 ```
 
-Blocs : `kpi`, `chart` (bar, line, pie), `table` (ou un tableau `| a | b |`), `timeline`, `image query="…"`, `quote`
-(ou `>`), `code` (ou une clôture ` ``` `), `note` / `attention` (encadrés), `notes` (notes de l'orateur). Les
+Blocs : `kpi`, `chart` (bar, line, pie), `table` (ou un tableau `| a | b |`), `timeline`, `steps` (étapes d'une
+méthode), `compare` (`A | B` puis les points, ou « A : » suivi de puces), `cards` (`Nom : description`),
+`image query="…"`, `quote` (ou `>`), `code` (ou une clôture ` ``` `), `note` / `attention` (encadrés), `notes` (notes
+de l'orateur). En tête : `image: <mots>` pour la photo de couverture. Une mise en page peut être demandée
+(`# Titre {versus}` ou `layout: étapes`) ; le harnais ne la garde que si le contenu s'y prête (§ 9). Les
 alias français sont lus (`graphique`, `frise`, `citation`, `tableau`, `chiffres`…).
 
 **Le parseur ne plante jamais** (`dsl.parse`, essai à données aléatoires dans les tests) et liste ses réparations :
@@ -193,7 +196,83 @@ chat le dit au lieu d'afficher les opérations. Sur les deux réponses réelles 
 sur 6 attendues, toutes gardées ; « plus court » ne casse plus rien. L'effet du nouvel exemple sur le modèle reste à
 mesurer en direct (budget de générations atteint).
 
-## 9. Documents type Word (branche `canvas-docs`)
+## 9. Diapositives « exceptionnelles » : 21 mises en page, quatre thèmes, images libres (branche `canvas-decks`)
+
+Code : `birds/canvas/layouts.py` (catalogue et choix), `birds/canvas/deck_pptx.py` (le .pptx), `birds/canvas/images.py`
+(Openverse, Commons, cache), `birds/web/static/canvas-layouts.js` (la même règle dans le navigateur). Tests :
+`tests/test_canvas_decks.py`, `tests/js/canvas-layouts.test.mjs`, `tests/e2e/canvas-decks.spec.js`. Mesure :
+`scripts/deck_eval.py`, fichiers `docs/measures/deck-eval-2026-11-28-*.json`.
+
+**Le modèle type, le harnais compose.** Le modèle écrit des diapositives typées (`kpi`, `compare`, `steps`, `cards`,
+`chart`, `image`…) et peut nommer une mise en page ; `layouts.pick` choisit parmi 21 mises en page conçues —
+intercalaire, sommaire, message clé, points, deux colonnes, chiffre clé géant, rangée de chiffres, face à face (VS),
+comparaison à 3 colonnes, frise, étapes, citation, image à gauche / à droite, plein cadre, galerie, graphique + message
+clé, tableau, cartes (équipe, piliers), clôture, code — plus la couverture plein cadre avec photo. Le choix du modèle
+n'est gardé que si le contenu s'y prête (`fits` : un « chiffre clé » sans chiffre est refusé, jamais forcé). Une liste
+écrite à côté d'un bloc dessiné seul (`- …` puis `::: cards`, habitude du 4B) devient deux diapositives (`split`) :
+rien n'est perdu. Menu « Mise en page » par diapositive : seules les mises en page compatibles sont proposées.
+
+**Aperçu = fichier.** Le navigateur (`canvas-layouts.js`) et le .pptx (`deck_pptx.py`) appliquent la même règle,
+vérifiée sur un jeu commun (`tests/fixtures/canvas_layouts.json`, 34 cas, pytest et node). Les palettes CSS (`--d-*`)
+sont celles de `deck_pptx.PALETTES` (test). Même grille (1 pouce = 7,5 cqi), même police (Carlito, jumelle métrique de
+Calibri ; Georgia pour les titres Terracotta). Chaque thème a son masque .pptx (fond) ; graphiques natifs éditables ;
+crédit de chaque image sur la diapositive et dans les notes.
+
+**Thèmes** : Bleu Bird, Forêt, Terracotta, Nuit (sombre). « passe en thème nuit » est appliqué sans modèle.
+
+**Images** : la requête vient du modèle (en anglais depuis la mesure ci-dessous, les fonds Openverse / Commons étant
+surtout anglophones), jamais une URL. Openverse d'abord (licences demandées à l'API ET revérifiées par résultat :
+CC0, marque domaine public, CC BY, CC BY-SA ; auteur obligatoire hors domaine public), puis Commons ; le résultat doit
+parler de la requête (`relevant` : un mot pour une requête courte, deux au-delà ; Commons aussi depuis la mesure),
+une requête longue est retentée courte, rien plutôt qu'une image hors sujet. Récupération par le garde d'egress,
+ré-encodage serveur, cache mémoire (96 entrées, 1 h), 8 images par deck au plus en 20 s. Le navigateur reçoit des
+octets (blob:) : aucune requête tierce (e2e). « Une autre image » / « Sans image » par diapositive et pour la couverture.
+
+**Panneau** : diapositives qui apparaissent une à une pendant l'écriture (animation coupée si `prefers-reduced-motion`),
+poignée pour glisser-déposer (les flèches restent pour le clavier), ✦ « Demander à Bird » par diapositive, versions
+avec « Restaurer cette version », thème appliqué à l'instant. Carte du chat : la couverture en miniature, « N
+diapositives · M mises en page », puis 2-3 suites concrètes selon ce qui manque (images, chiffres clés, clôture,
+« Plus court », thème suivant).
+
+### Mesure en direct, 28/11/2026 (Bird S 4B, endpoint de production, 6 demandes fixes, 26 générations au total)
+
+« avant » = la base `8d439bd` ; « après » = cette branche (passage `after3`, spécification finale ; `after` et
+`after2` sont les passages intermédiaires, gardés). Mises en page comptées telles que dessinées (règle de canvas.js
+pour la base, `layouts.pick` après). Recherche d'images : `BIRD_PIN_DNS=0` (le bac à sable passe par un proxy).
+
+| Demande | avant : sortie | avant : diapos / mises en page distinctes | après : sortie | après : diapos / distinctes | images après (demandées / trouvées) | réparations après | s (avant → après) |
+|---|---|---|---|---|---|---|---|
+| 1 mobilité douce, conseil municipal | ✘ chat (veto « conseil ») | — | ✔ canevas | 10 / 6 | 1 / 1 | 1 | 12,4 → 20,2 |
+| 2 pitch deck livraison à vélo | ✔ canevas | 7 / 3 | ✔ canevas | 11 / 8 | 1 / 0 | 5 | 12,2 → 19,5 |
+| 3 cybersécurité, nouveaux arrivants | ✔ canevas | 7 / 4 | ✔ canevas | 7 / 5 | 2 / 0 | 2 | 13,6 → 10,6 |
+| 4 bilan du club (chiffres donnés) | fichier de l'équipe Agent, 2 diapos | 2 / 2 | idem (l'Agent garde ce cas) | 2 / 2 | 0 / 0 | 0 | 8,5 → 9,2 |
+| 5 télétravail vs bureau | ✘ fichier .pptx seul (veto « compare ») | — | ✔ canevas | 12 / 5 | 1 / 0 | 4 | 16,4 → 16,6 |
+| 6 train de nuit en Europe | ✘ chat (le modèle refuse) | — | ✔ canevas | 10 / 7 | 2 / 1 (écartée ensuite par la règle des deux mots) | 3 | 5,9 → 22,2 |
+| **Total** | **2 decks / 6 au canevas** | moyenne 3,5 mises en page | **5 / 6 au canevas** | moyenne **6,2** mises en page (4 à 8) | **7 demandées, 2 trouvées** | — | — |
+
+Lecture :
+- Variété : 3,5 → 6,2 mises en page distinctes par deck (base : surtout « liste » et tuiles de chiffres). Les
+  diapositives alternent souvent points / bloc depuis `split` (la liste n'est plus perdue).
+- Réparations : surtout des blocs `:::` non fermés (lus comme voulu) et une tête sans `---` d'ouverture (réparée).
+- Images : le modèle demande une image de couverture presque toujours, rarement sur les diapositives malgré la
+  consigne. Trouvées : 2 sur 7, car l'API anonyme d'Openverse et celle de Commons renvoyaient **429 (limite de
+  débit)** depuis le bac à sable pendant la mesure : chiffre plancher, à refaire depuis le déploiement. Une image
+  trouvée hors sujet (« Calendrier sept 2024 » pour « équipe en réunion », Commons) a conduit à vérifier aussi
+  Commons ; une autre (« Praha Hilton » pour « night train europe luxury ») à exiger deux mots d'une requête longue.
+- La demande 4 (« bilan 2025 … 320 adhérents … ») part à l'équipe du Mode Agent (signaux « chiffres » + « 2025 ») et
+  sort en fichier de 2 diapositives : non modifié ici (le Mode Agent reste en Auto ; un essai « deck d'abord au
+  canevas » cassait les decks de recherche sourcés de l'Agent, testés : retiré).
+- Le modèle écrit parfois un chiffre qui n'est pas dans la demande (« 30 % » dans le deck 1) : la consigne le
+  défend, aucun contrôle automatique ici.
+- Déclenchement : 2094/2094 avant et après (`trigger_bench.py`) ; les deux faux veto corrigés ont leurs tests.
+
+Captures regardées : chaque mise en page en 1280 et 360 px, clair et sombre, et les quatre thèmes
+(`tests/e2e/canvas-decks.spec.js`). Le .pptx de la galerie a été rendu par LibreOffice et regardé.
+
+Reste à vérifier : les images en production (limites Openverse / Commons ; une clé Openverse enregistrée lèverait la
+limite), l'ouverture du .pptx dans PowerPoint (seul LibreOffice a été regardé), l'effet de la consigne « image sur 2-3
+diapositives » (peu suivie), le rendu des thèmes dans Keynote / Google Slides.
+## 10. Documents type Word (branche `canvas-docs`)
 
 Un document se lit et s'édite comme une page Word, au niveau des diapositives :
 

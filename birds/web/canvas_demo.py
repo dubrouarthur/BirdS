@@ -15,7 +15,13 @@ DECK = {
     "fr": """---
 title: {subject}
 subtitle: Exemple de démonstration
+image: {query}
 ---
+# Sommaire
+- Contexte
+- Chiffres clés
+- Méthode
+- Prochaines étapes
 # Contexte
 - Pourquoi le sujet compte aujourd'hui
 - Ce que l'équipe a déjà observé
@@ -28,11 +34,18 @@ subtitle: Exemple de démonstration
 6 semaines | de test
 2 | indicateurs suivis
 :::
-# Calendrier
-::: timeline
-Semaine 1 : cadrage
-Semaine 3 : pilote
-Semaine 6 : bilan
+# Aujourd'hui et demain
+::: compare
+Aujourd'hui | Demain
+Outils dispersés | Un seul espace partagé
+Suivi à la main | Indicateurs communs
+:::
+# Méthode
+::: steps
+Cadrer : objectifs et équipe
+Tester : pilote de six semaines
+Mesurer : deux indicateurs
+Décider : bilan en comité
 :::
 # Ce qu'on attend
 > « Mesurer avant de généraliser. »
@@ -45,7 +58,13 @@ Semaine 6 : bilan
     "en": """---
 title: {subject}
 subtitle: Demo example
+image: {query}
 ---
+# Agenda
+- Context
+- Key figures
+- Method
+- Next steps
 # Context
 - Why the topic matters now
 - What the team has already seen
@@ -58,11 +77,18 @@ subtitle: Demo example
 6 weeks | of testing
 2 | indicators followed
 :::
-# Timeline
-::: timeline
-Week 1: scoping
-Week 3: pilot
-Week 6: review
+# Today and tomorrow
+::: compare
+Today | Tomorrow
+Scattered tools | One shared space
+Manual follow-up | Common indicators
+:::
+# Method
+::: steps
+Scope: goals and team
+Test: six-week pilot
+Measure: two indicators
+Decide: committee review
 :::
 # What we expect
 > "Measure before rolling out."
@@ -151,6 +177,122 @@ def doc_text(subject: str, query: str, lg: str, words: str) -> str:
     return "".join(out)
 
 
+# every layout of birds/canvas/layouts.py once (demo prompt « galerie des mises en page »): screenshots and tests
+GALLERY = """---
+title: Toutes les mises en page
+subtitle: Galerie de démonstration (contenu scripté)
+image: paysage de montagne
+---
+# Sommaire
+- Le contexte
+- Les chiffres
+- La méthode
+- La suite
+# Première partie
+# Message clé
+La légèreté ouvre la voie : un modèle qui s'installe où l'on veut.
+# Les points
+- Un modèle conçu en France
+- Installé sur vos serveurs ou dans le nuage
+- Des sources d'énergie variées
+- Une interface simple
+# Une longue liste {columns}
+- Accueil
+- Recherche
+- Documents
+- Diapositives
+- Tableaux
+- Graphiques
+- Cartes
+- Agents
+# Un chiffre clé
+::: kpi
+92 % | des équipes satisfaites (exemple) | +6 pts
+:::
+# Chiffres clés
+::: kpi
+3 | équipes pilotes
+6 semaines | de test
+2 | indicateurs
+:::
+# Avant / après
+::: compare
+Avant | Après
+Papier | Numérique
+Lent | Rapide
+:::
+# Trois options
+::: compare
+Option A | Option B | Option C
+Rapide | Équilibrée | Complète
+Peu chère | Coût moyen | Plus chère
+:::
+# Calendrier
+::: timeline
+Janvier : cadrage
+Mars : pilote
+Juin : bilan
+Septembre : déploiement
+:::
+# Méthode
+::: steps
+Cadrer : objectifs
+Tester : pilote
+Mesurer : indicateurs
+Décider : comité
+:::
+# Ce qu'on attend
+> « Mesurer avant de généraliser. »
+> — Principe du pilote
+# Sur le terrain
+- Des équipes formées en deux jours
+- Un pilote suivi chaque semaine
+- Des retours partagés
+::: image query="atelier équipe"
+:::
+# En ville {image-left}
+- Des trajets plus courts
+- Moins de voitures
+- Plus de vélos
+::: image query="vélo en ville"
+:::
+# Plein cadre
+La forêt, notre meilleure alliée.
+::: image query="forêt"
+:::
+# Galerie
+::: image query="mer"
+:::
+::: image query="montagne"
+:::
+::: image query="ville"
+:::
+# Évolution (exemple)
+::: chart type=bar unit="%"
+2023: 12
+2024: 18
+2025: 26
+:::
+La part progresse chaque année.
+# Tableau
+| Option | Coût | Délai |
+|---|---|---|
+| Pilote | 20 k€ | 6 semaines |
+| Déploiement | 120 k€ | 6 mois |
+# L'équipe
+::: cards
+Alice : cheffe de projet
+Bruno : données
+Chloé : design
+:::
+# Exemple de code
+::: code lang=python
+print("Bonjour")
+:::
+# Merci
+- Des questions ?
+- contact : l'équipe projet
+"""
 PAGE = """<!doctype html>
 <html lang="{lang}">
 <head>
@@ -244,6 +386,8 @@ def scripted(p: turn.Plan, words: str, lang: str) -> str:
     lg = "en" if lang == "en" else "fr"
     subject = convert.subject(words) or ("Projet pilote" if lg == "fr" else "Pilot project")
     if p.mode == "create":
+        if p.kind == "deck" and re.search(r"\b(?:mises? en page|layouts?|galerie)\b", words, re.I):
+            return GALLERY
         if p.kind == "deck":
             return DECK[lg].format(subject=subject, query=_q(subject))
         if p.kind == "doc":

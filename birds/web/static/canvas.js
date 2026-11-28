@@ -25,17 +25,28 @@ import { renderChart } from "./chart.js";
 import { flowSvg, parseFlow } from "./canvas-flow.js";
 import * as sheet from "./canvas-sheet.js";
 import * as pages from "./canvas-doc.js";
+import {
+  CATALOGUE,
+  columnsOf,
+  compatible,
+  itemsOf,
+  mainPart,
+  pick as pickLayout,
+} from "./canvas-layouts.js";
 
 Object.assign(STRINGS.fr, CANVAS_STRINGS.fr);
 Object.assign(STRINGS.en, CANVAS_STRINGS.en);
 
 const MAX_VERSIONS = 24;
 const KEEP_MEDIA_B64 = 90_000; // pictures larger than this are kept in memory only (localStorage is small)
-const THEMES = ["corporate", "modern", "warm"];
+const THEMES = ["corporate", "modern", "warm"]; // documents
+const DECK_THEMES = ["corporate", "forest", "warm", "night"]; // decks: the four of deck_pptx.py
 const PALETTES = {
   corporate: ["1E5BD8", "0B1B3F", "7FA4EE", "5BD69B", "B7C6E8", "586078"],
   modern: ["0D9488", "6366F1", "111827", "5EEAD4", "A5B4FC", "64748B"],
   warm: ["C2410C", "3B1F14", "E8A26B", "9A6B4F", "F2C9A0", "7C6A5E"],
+  forest: ["2E7D52", "12301F", "8FC484", "C9A227", "B9D8B0", "5C6B61"],
+  night: ["5B8DEF", "A78BFA", "5BD69B", "F2B25C", "7FA4EE", "9AA4BC"],
 };
 
 let handlers = {
@@ -317,9 +328,11 @@ export function canvasCard(turn) {
     turn.status === "running" && turn.canvasLive?.phase === "stream";
   const kind = doc.kind || a.kind;
   if (kind === "doc") return docCard(turn, a, v, doc, writing);
+  const thumb = kind === "deck" ? deckThumb(doc) : null;
   return h(
     "div",
-    { class: `cv-card cv-card-${kind}` },
+    { class: `cv-card cv-card-${kind}${thumb ? " has-thumb" : ""}` },
+    thumb ||
     h(
       "span",
       { class: "cv-card-icon" },
@@ -451,9 +464,47 @@ function docCard(turn, a, v, doc, writing) {
   );
 }
 
+/** The deck's cover, small: the chat card shows what was made, not an icon. */
+function deckThumb(doc) {
+  const cv = doc.cover || {};
+  const url = cv.media && !cv.off ? mediaUrl(cv.media) : null;
+  return h(
+    "span",
+    { class: `cv-dthumb cvt-${doc.theme || "corporate"}${url ? " has-img" : ""}`, "aria-hidden": "true" },
+    url ? h("img", { src: url, alt: "", decoding: "async" }) : h("span", { class: "cv-disc cv-disc-1" }),
+    h("span", { class: "cv-dthumb-veil" }),
+    h("span", { class: "cv-dthumb-bar" }),
+    h("span", { class: "cv-dthumb-title", text: doc.title || "" }),
+  );
+}
+
+/** The 2-3 next steps of a deck the chat just showed (followups.js): concrete, from what the deck lacks. */
+export function canvasSuggestions(ref) {
+  if (!ref?.aid) return [];
+  const a = art(ref.aid);
+  const v = a && (ref.version ? a.versions.find((x) => x.n === ref.version) : a.versions.at(-1));
+  const doc = v?.doc;
+  if (!doc || doc.kind !== "deck") return [];
+  const out = [];
+  const add = (k, vars = {}) => out.push({ label: t(k, vars), prompt: t(`${k}.p`, vars), kind: "follow" });
+  const parts = (doc.blocks || []).flatMap((b) => b.parts || []);
+  if (!parts.some((p) => p.t === "image")) add("cv.chip.images");
+  if (!parts.some((p) => p.t === "kpi" || p.t === "chart")) add("cv.chip.figures");
+  const n = (doc.blocks || []).length;
+  const last = doc.blocks?.[n - 1];
+  if (last && pickLayout(last, n - 1, n) !== "closing") add("cv.chip.closing");
+  if (n >= 8) add("cv.chip.shorter");
+  const next = DECK_THEMES[(DECK_THEMES.indexOf(doc.theme || "corporate") + 1) % DECK_THEMES.length];
+  add("cv.chip.theme", { name: t(`cv.theme.${next}`).toLowerCase() });
+  return out.slice(0, 3);
+}
+
 function sizeText(doc) {
-  if (doc.kind === "deck")
-    return t("cv.slides", { n: (doc.blocks || []).length });
+  if (doc.kind === "deck") {
+    const n = (doc.blocks || []).length;
+    const kinds = new Set((doc.blocks || []).map((b, i) => pickLayout(b, i, n)));
+    return t("cv.card.slides", { n, layouts: kinds.size }); // as the chat says it: the cover is not counted
+  }
   if (doc.kind === "doc")
     return t("cv.sections", { n: (doc.blocks || []).length });
   if (doc.kind === "code")
@@ -624,7 +675,7 @@ function head(a, doc) {
             role: "radiogroup",
             "aria-label": t("cv.theme"),
           },
-          THEMES.map((name) =>
+          (kind === "deck" ? DECK_THEMES : THEMES).map((name) =>
             h("button", {
               type: "button",
               role: "radio",
@@ -1021,7 +1072,17 @@ export function setPath(doc, path, value) {
         value.slice(0, 600);
   } else if (/^k\d+$/.test(leaf) && p.items?.[Number(leaf.slice(1))])
     p.items[Number(leaf.slice(1))][bits[3]] = value.slice(0, 120);
-  else if (/^t\d+$/.test(leaf) && p.items?.[Number(leaf.slice(1))])
+  else if (/^s\d+$/.test(leaf) && p.items?.[Number(leaf.slice(1))] && ["title", "text"].includes(bits[3]))
+    p.items[Number(leaf.slice(1))][bits[3]] = value.slice(0, bits[3] === "title" ? 80 : 300);
+  else if (/^c\d+$/.test(leaf) && p.columns?.[Number(leaf.slice(1))]) {
+    const c = p.columns[Number(leaf.slice(1))];
+    if (bits[3] === "title") c.title = value.slice(0, 80);
+    else if (/^i\d+$/.test(bits[3] || "")) {
+      const i = Number(bits[3].slice(1));
+      if (!value) c.items.splice(i, 1);
+      else c.items[i] = value.slice(0, 300);
+    } else return false;
+  } else if (/^t\d+$/.test(leaf) && p.items?.[Number(leaf.slice(1))])
     p.items[Number(leaf.slice(1))][bits[3]] = value.slice(0, 300);
   else if (/^r\d+$/.test(leaf) && p.rows?.[Number(leaf.slice(1))])
     p.rows[Number(leaf.slice(1))][Number(bits[3].slice(1))] = value.slice(
@@ -1053,7 +1114,7 @@ function nextId(d) {
   return `b${n}`;
 }
 
-function blockTools(a, doc, b, index) {
+function blockTools(a, doc, b, index, layout = null) {
   const busy = !!a.draft;
   const n = doc.blocks.length;
   const imgPart = b.parts.findIndex((p) => p.t === "image");
@@ -1118,7 +1179,7 @@ function blockTools(a, doc, b, index) {
           },
         },
         icon("retry"),
-        h("span", { text: t("cv.image.again") }),
+        h("span", { text: t("cv.image.replace") }),
       ),
     h(
       "button",
@@ -1149,7 +1210,7 @@ function blockTools(a, doc, b, index) {
           },
         },
         icon("trash"),
-        h("span", { text: t("cv.image.remove") }),
+        h("span", { text: t("cv.image.none.short") }),
       ),
   );
   const toggle = (pop) => (e) => {
@@ -1170,7 +1231,22 @@ function blockTools(a, doc, b, index) {
           ? t("cv.slide.n", { n: index + 1 })
           : t("cv.section.n", { n: index + 1 }),
     },
-    h("span", { class: "cv-block-n", text: String(index + 1) }),
+    doc.kind === "deck"
+      ? h(
+          "span",
+          {
+            class: "cv-grip",
+            draggable: busy ? "false" : "true",
+            role: "img",
+            title: t("cv.drag"),
+            "aria-label": t("cv.drag"),
+            "data-k": `grip-${b.id}`,
+            ondragstart: (e) => dragStart(e, b.id),
+            ondragend: dragEnd,
+          },
+          h("span", { class: "cv-block-n", text: String(index + 1) }),
+        )
+      : h("span", { class: "cv-block-n", text: String(index + 1) }),
     button(
       "btn-quiet btn-icon btn-small cv-up",
       "down",
@@ -1224,6 +1300,7 @@ function blockTools(a, doc, b, index) {
       ),
       imgMenu,
     ),
+    layout && layoutMenu(a, b, layout, toggle),
     h(
       "span",
       { class: "cv-menu-wrap cv-ask-wrap" },
@@ -1236,6 +1313,54 @@ function blockTools(a, doc, b, index) {
       ),
       ask,
     ),
+  );
+}
+
+/** « Mise en page »: the layouts this slide's content can take (canvas-layouts.js), the current one checked. */
+function layoutMenu(a, b, layout, toggle) {
+  const lang = state.prefs.lang === "en" ? 1 : 0;
+  const menu = h(
+    "div",
+    { class: "cv-pop cv-menu cv-layouts", role: "menu", hidden: true },
+    compatible(b).map((name) =>
+      h(
+        "button",
+        {
+          type: "button",
+          role: "menuitemradio",
+          class: "cv-menu-item",
+          "aria-checked": String(name === layout),
+          "data-k": `layout-${b.id}-${name}`,
+          onclick: () => {
+            closePops();
+            if (name === layout) return;
+            commit((d) => {
+              d.blocks.find((x) => x.id === b.id).layout = name;
+            }, CATALOGUE[name][lang]);
+          },
+        },
+        h("span", { class: `cv-lay-ico cv-lay-${name}`, "aria-hidden": "true" }),
+        h("span", { text: CATALOGUE[name][lang] }),
+      ),
+    ),
+  );
+  return h(
+    "span",
+    { class: "cv-menu-wrap" },
+    button(
+      "btn-quiet btn-small cv-layout-btn",
+      "make_slides",
+      CATALOGUE[layout]?.[lang] || t("cv.layout"),
+      toggle(menu),
+      {
+        disabled: !!a.draft,
+        "aria-haspopup": "menu",
+        "aria-expanded": "false",
+        "aria-label": t("cv.layout.now", { name: CATALOGUE[layout]?.[lang] || layout }),
+        "data-k": `layout-${b.id}`,
+      },
+    ),
+    menu,
   );
 }
 
@@ -1456,96 +1581,449 @@ function picture(doc, b, part, { cls = "" } = {}) {
 
 // ------------------------------------------------------------------ the deck
 
-const primaryOf = (parts) =>
-  ["chart", "table", "timeline", "kpi", "quote", "code"]
-    .map((k) => parts.find((p) => p.t === k))
-    .find(Boolean) || null;
+// The layout of each slide comes from canvas-layouts.js (the same choice as the exported .pptx: deck_pptx.py).
+const slideCount = (doc) => (doc.blocks || []).length + 1;
 
 function deckView(a, doc) {
-  const slides = [coverSlide(doc)];
-  doc.blocks.forEach((b, i) =>
+  const slides = [coverSlide(a, doc)];
+  const total = doc.blocks.length;
+  let sections = 0;
+  doc.blocks.forEach((b, i) => {
+    const layout = layoutOf(b, i, total);
+    if (layout === "section") sections += 1;
     slides.push(
       h(
         "section",
         {
-          class: "cv-slide-wrap",
+          class: `cv-slide-wrap${a.draft && i === total - 1 ? " is-new" : ""}`,
+          "data-block": b.id,
           "aria-label": `${t("cv.slide.n", { n: i + 1 })} : ${b.title || ""}`,
+          ondragover: (e) => dragOver(e, b.id),
+          ondragleave: (e) => e.currentTarget.classList.remove("is-drop-before", "is-drop-after"),
+          ondrop: (e) => dropOn(e, b.id),
         },
-        blockTools(a, doc, b, i),
-        slide(doc, b, i),
+        blockTools(a, doc, b, i, layout),
+        slide(doc, b, i, layout, sections),
       ),
-    ),
-  );
+    );
+  });
   return h("div", { class: "cv-deck" }, slides);
 }
 
-function coverSlide(doc) {
+// ------------------------------------------------------------------ drag to reorder (the arrows do the same by keyboard)
+
+let dragging = null;
+function dragStart(e, id) {
+  dragging = id;
+  e.dataTransfer.effectAllowed = "move";
+  e.dataTransfer.setData("text/plain", id);
+  e.currentTarget.closest(".cv-slide-wrap")?.classList.add("is-dragging");
+}
+function dragOver(e, id) {
+  if (!dragging || dragging === id) return;
+  e.preventDefault();
+  const r = e.currentTarget.getBoundingClientRect();
+  const after = e.clientY > r.top + r.height / 2;
+  e.currentTarget.classList.toggle("is-drop-after", after);
+  e.currentTarget.classList.toggle("is-drop-before", !after);
+}
+function dropOn(e, id) {
+  if (!dragging) return;
+  e.preventDefault();
+  const after = e.currentTarget.classList.contains("is-drop-after");
+  e.currentTarget.classList.remove("is-drop-before", "is-drop-after");
+  const from = dragging;
+  dragging = null;
+  if (from === id) return;
+  commit((d) => {
+    const i = d.blocks.findIndex((x) => x.id === from);
+    if (i < 0) return false;
+    const [blk] = d.blocks.splice(i, 1);
+    let j = d.blocks.findIndex((x) => x.id === id);
+    if (after) j += 1;
+    d.blocks.splice(j, 0, blk);
+  }, t("cv.label.moved"));
+}
+function dragEnd(e) {
+  dragging = null;
+  panel?.querySelectorAll(".is-dragging, .is-drop-before, .is-drop-after").forEach((el) =>
+    el.classList.remove("is-dragging", "is-drop-before", "is-drop-after"),
+  );
+}
+
+// ------------------------------------------------------------------ the cover
+
+function coverSlide(a, doc) {
+  const cv = doc.cover || {};
+  const url = cv.media && !cv.off ? mediaUrl(cv.media) : null;
+  const meta = url ? mediaMeta(doc, cv.media) : null;
+  const tools = h(
+    "div",
+    { class: "cv-block-tools cv-block-tools-cover", role: "toolbar", "aria-label": t("cv.cover") },
+    h("span", { class: "cv-block-n", text: t("cv.cover") }),
+    url &&
+      button("btn-quiet btn-small", "retry", t("cv.image.again"), () => coverImage(a, "again"), {
+        disabled: !!a.draft,
+        "data-k": "cover-again",
+      }),
+    url &&
+      button("btn-quiet btn-small", "trash", t("cv.image.none.short"), () => coverImage(a, "off"), {
+        disabled: !!a.draft,
+        "data-k": "cover-off",
+      }),
+    !url &&
+      button("btn-quiet btn-small", "image", t("cv.image.cover"), () => coverImage(a, "search"), {
+        disabled: !!a.draft,
+        "data-k": "cover-search",
+      }),
+  );
   return h(
     "section",
     { class: "cv-slide-wrap", "aria-label": t("cv.cover") },
+    tools,
     h(
       "div",
-      { class: "cv-block-tools cv-block-tools-cover" },
-      h("span", { class: "cv-block-n", text: t("cv.cover") }),
-    ),
-    h(
-      "div",
-      { class: "cv-slide cv-cover" },
+      { class: `cv-slide cv-cover${url ? " has-img" : ""}`, "data-layout": "cover" },
+      url
+        ? h("img", { class: "cv-bleed", src: url, alt: meta?.alt || cv.query || "", decoding: "async" })
+        : [h("span", { class: "cv-disc cv-disc-1", "aria-hidden": "true" }), h("span", { class: "cv-disc cv-disc-2", "aria-hidden": "true" })],
+      url && h("span", { class: "cv-veil", "aria-hidden": "true" }),
+      url && creditLine(meta, "cv-credit-top"),
       h("div", { class: "cv-cover-accent", "aria-hidden": "true" }),
-      editable("h3", "cv-cover-title", doc.title, "title", {
-        label: t("cv.edit.title"),
-      }),
+      editable("h3", "cv-cover-title", doc.title, "title", { label: t("cv.edit.title") }),
       doc.subtitle || !doc.blocks?.length
         ? editable("p", "cv-cover-sub", doc.subtitle || "", "subtitle")
         : editable("p", "cv-cover-sub cv-faint", "", "subtitle"),
       h("p", {
         class: "cv-cover-date",
-        text: new Date().toLocaleDateString(
-          state.prefs.lang === "en" ? "en-GB" : "fr-FR",
-          { day: "numeric", month: "long", year: "numeric" },
-        ),
+        text: new Date().toLocaleDateString(state.prefs.lang === "en" ? "en-GB" : "fr-FR", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        }),
       }),
     ),
   );
 }
 
-function slide(doc, b, index) {
-  const parts = b.parts || [];
-  const main = primaryOf(parts);
-  const img = parts.find((p) => p.t === "image");
-  const text = parts.filter((p) =>
-    ["list", "text", "callout", "heading"].includes(p.t),
-  );
-  let layout = "list";
-  if (main) layout = main.t;
-  else if (img && !text.length) layout = "image";
-  else if (img) layout = "image-side";
-  else if (
-    text.length === 1 &&
-    text[0].t === "text" &&
-    text[0].text.length <= 160
-  )
-    layout = "statement";
-  const total = doc.blocks.length;
+function creditLine(meta, cls = "") {
+  if (!meta) return null;
+  const text = meta.kind === "gen" ? t("cv.image.gen") : meta.credit || "";
+  if (!text) return null;
   return h(
-    "div",
-    { class: `cv-slide cv-l-${layout}` },
-    editable("h3", "cv-slide-title", b.title, `${b.id}:title`, {
-      label: t("cv.edit.title"),
-    }),
-    h("div", { class: "cv-slide-rule", "aria-hidden": "true" }),
-    h(
-      "div",
-      { class: "cv-slide-body" },
-      slideBody(doc, b, layout, main, img, text),
-    ),
+    "span",
+    { class: `cv-credit ${cls}` },
+    text,
+    meta.source && /^https:\/\//.test(meta.source)
+      ? [" · ", h("a", { href: meta.source, target: "_blank", rel: "noopener noreferrer", text: t("cv.source") })]
+      : null,
+  );
+}
+
+async function coverImage(a, how) {
+  const doc = current(a);
+  const cv = doc.cover || {};
+  if (how === "off") return commit((d) => { d.cover = { ...(d.cover || {}), off: true }; }, t("cv.label.image"));
+  let query = cv.query || doc.title || "";
+  if (how === "search") {
+    if (cv.off && cv.media && mediaUrl(cv.media))
+      return commit((d) => { delete d.cover.off; }, t("cv.label.image"));
+    const q = window.prompt(t("cv.image.query"), query);
+    if (q === null || !q.trim()) return;
+    query = q.trim();
+  }
+  const exclude = how === "again" && cv.media ? [mediaMeta(doc, cv.media)?.source || cv.media] : [];
+  toast(t("cv.image.searching"));
+  try {
+    const res = await fetchImage(query, exclude, doc.theme);
+    if (!res.ok) return toast(t("cv.image.none", { q: query }), "error");
+    keepMedia(conv, [res.media]);
+    commit((d) => {
+      storeMedia(d, res.media, query);
+      d.cover = { query, media: res.media.id };
+    }, t("cv.label.image"));
+  } catch (e) {
+    toast(t("cv.download.failed", { why: String(e?.message || e) }), "error");
+  }
+}
+
+function storeMedia(d, m, query) {
+  d.media ||= {};
+  d.media[m.id] = {
+    kind: m.kind,
+    alt: m.alt,
+    credit: m.credit,
+    licence: m.licence,
+    source: m.source,
+    w: m.w,
+    h: m.h,
+    query,
+  };
+}
+
+// ------------------------------------------------------------------ one slide
+
+const layoutOf = (b, i, total) => pickLayout(b, i, total);
+const isDark = (layout) => ["section", "closing", "image-full"].includes(layout);
+const OWN_FOOT = new Set(["section", "closing", "image-full"]);
+
+function slide(doc, b, index, layout, sections) {
+  const total = doc.blocks.length;
+  const parts = b.parts || [];
+  const main = mainPart(b);
+  const imgs = parts.filter((p) => p.t === "image");
+  const text = parts.filter((p) => ["list", "text", "callout", "heading"].includes(p.t));
+  const title = (cls = "cv-slide-title") =>
+    editable("h3", cls, b.title, `${b.id}:title`, { label: t("cv.edit.title") });
+  const rule = () => h("div", { class: "cv-slide-rule", "aria-hidden": "true" });
+  const foot = () =>
     h(
       "footer",
       { class: "cv-slide-foot" },
       h("span", { text: doc.title || "" }),
       h("span", { text: `${index + 2} / ${total + 1}` }),
-    ),
-  );
+    );
+  const k = main ? b.parts.indexOf(main) : -1;
+  const shell = (body, extra = {}) =>
+    h(
+      "div",
+      { class: `cv-slide cv-L-${layout}${extra.cls || ""}`, "data-layout": layout },
+      extra.before || null,
+      extra.noTitle ? null : title(extra.titleCls),
+      extra.noTitle ? null : rule(),
+      h("div", { class: "cv-slide-body" }, body),
+      foot(),
+    );
+  const img0 = imgs[0];
+  const sideImg = img0 && mediaUrl(img0.media || "") ? img0 : null;
+
+  switch (layout) {
+    case "section":
+      return h(
+        "div",
+        { class: `cv-slide cv-L-section${sideImg ? " has-img" : ""}`, "data-layout": layout },
+        sideImg ? picture(doc, b, sideImg, { cls: "cv-half" }) : h("span", { class: "cv-disc cv-disc-1", "aria-hidden": "true" }),
+        h("div", { class: "cv-divider-num", "aria-hidden": "true", text: String(sections).padStart(2, "0") }),
+        h("div", { class: "cv-cover-accent", "aria-hidden": "true" }),
+        title("cv-slide-title cv-divider-title"),
+        text.length ? h("div", { class: "cv-divider-sub" }, textParts(b, text)) : null,
+        foot(),
+      );
+    case "closing": {
+      const url = img0 && mediaUrl(img0.media || "");
+      return h(
+        "div",
+        { class: `cv-slide cv-L-closing${url ? " has-img" : ""}`, "data-layout": layout },
+        url
+          ? [h("img", { class: "cv-bleed", src: url, alt: img0.alt || "", decoding: "async" }), h("span", { class: "cv-veil", "aria-hidden": "true" }), creditLine(mediaMeta(doc, img0.media), "cv-credit-top")]
+          : h("span", { class: "cv-disc cv-disc-3", "aria-hidden": "true" }),
+        h("div", { class: "cv-cover-accent", "aria-hidden": "true" }),
+        title("cv-slide-title cv-close-title"),
+        text.length ? h("div", { class: "cv-close-body" }, textParts(b, text)) : null,
+        foot(),
+      );
+    }
+    case "image-full": {
+      const meta = img0 ? mediaMeta(doc, img0.media) : null;
+      const url = img0?.media ? mediaUrl(img0.media) : null;
+      return h(
+        "div",
+        { class: "cv-slide cv-L-image-full", "data-layout": layout },
+        url ? h("img", { class: "cv-bleed", src: url, alt: img0.alt || meta?.alt || "", decoding: "async" }) : picture(doc, b, img0, { cls: "cv-bleed-ph" }),
+        h("span", { class: "cv-veil cv-veil-foot", "aria-hidden": "true" }),
+        url && creditLine(meta, "cv-credit-top"),
+        h("div", { class: "cv-cover-accent", "aria-hidden": "true" }),
+        title("cv-slide-title cv-full-title"),
+        text.length ? h("div", { class: "cv-full-sub" }, textParts(b, text)) : null,
+        foot(),
+      );
+    }
+    case "image-left":
+    case "image-right":
+      return h(
+        "div",
+        { class: `cv-slide cv-L-side cv-L-${layout}`, "data-layout": layout },
+        picture(doc, b, img0, { cls: "cv-side-img" }),
+        h(
+          "div",
+          { class: "cv-side-text" },
+          title(),
+          rule(),
+          h("div", { class: "cv-slide-body" }, textParts(b, text)),
+          foot(),
+        ),
+      );
+    case "statement":
+      return shell(h("div", { class: "cv-statement" }, textParts(b, text)), { titleCls: "cv-slide-title cv-eyebrow" });
+    case "bullets":
+      return shell(h("div", { class: `cv-bullets n${text.reduce((n, p) => n + (p.items?.length || 1), 0)}` }, textParts(b, text)));
+    case "columns":
+      return shell(h("div", { class: "cv-columns" }, textParts(b, text)));
+    case "agenda": {
+      const lp = parts.find((p) => p.t === "list");
+      const kk = parts.indexOf(lp);
+      return shell(
+        h(
+          "ol",
+          { class: `cv-agenda n${lp.items.length}` },
+          lp.items.map((it, i) =>
+            it.startsWith("  ")
+              ? null
+              : h(
+                  "li",
+                  null,
+                  h("span", { class: "cv-agenda-n", "aria-hidden": "true", text: String(i + 1).padStart(2, "0") }),
+                  editable("span", "cv-agenda-t", it.trim(), `${b.id}:p${kk}:i${i}`),
+                ),
+          ),
+        ),
+      );
+    }
+    case "figure": {
+      const it = main.items[0] || {};
+      return h(
+        "div",
+        { class: `cv-slide cv-L-figure${sideImg ? " has-img" : ""}`, "data-layout": layout },
+        title(),
+        rule(),
+        h(
+          "div",
+          { class: "cv-slide-body cv-figure" },
+          editable("strong", "cv-fig-value", it.value, `${b.id}:p${k}:k0:value`),
+          editable("span", "cv-fig-label", it.label, `${b.id}:p${k}:k0:label`),
+          it.delta && h("span", { class: `cv-delta ${/^[-−]/.test(it.delta) ? "is-down" : "is-up"}`, text: it.delta }),
+          !sideImg && text.length ? h("div", { class: "cv-fig-rest" }, textParts(b, text)) : null,
+        ),
+        sideImg ? picture(doc, b, sideImg, { cls: "cv-half" }) : null,
+        foot(),
+      );
+    }
+    case "kpis":
+      return shell([
+        h(
+          "div",
+          { class: `cv-kpis n${main.items.length}` },
+          main.items.slice(0, 4).map((it, i) =>
+            h(
+              "div",
+              { class: "cv-kpi" },
+              editable("strong", "cv-kpi-value", it.value, `${b.id}:p${k}:k${i}:value`),
+              editable("span", "cv-kpi-label", it.label, `${b.id}:p${k}:k${i}:label`),
+              it.delta && h("span", { class: `cv-delta ${/^[-−]/.test(it.delta) ? "is-down" : "is-up"}`, text: it.delta }),
+            ),
+          ),
+        ),
+        textParts(b, text),
+      ]);
+    case "versus":
+    case "compare": {
+      const cols = columnsOf(b).slice(0, layout === "versus" ? 2 : 3);
+      const own = main && main.t === "compare";
+      return shell(
+        h(
+          "div",
+          { class: `cv-cols cv-${layout} n${cols.length}` },
+          cols.map((c, j) =>
+            h(
+              "div",
+              { class: "cv-col" },
+              own
+                ? editable("h4", "cv-col-title", c.title, `${b.id}:p${k}:c${j}:title`)
+                : h("h4", { class: "cv-col-title", text: c.title }),
+              h(
+                "ul",
+                { class: "cv-list" },
+                (c.items || []).map((x, i) =>
+                  own ? editable("li", "", x, `${b.id}:p${k}:c${j}:i${i}`) : h("li", { text: x }),
+                ),
+              ),
+            ),
+          ),
+          layout === "versus" && cols.length === 2 ? h("span", { class: "cv-vs", "aria-hidden": "true", text: "VS" }) : null,
+        ),
+      );
+    }
+    case "steps":
+    case "cards": {
+      const items = itemsOf(b).slice(0, 6);
+      const own = main && (main.t === "steps" || main.t === "cards");
+      return shell(
+        h(
+          "ol",
+          { class: `cv-${layout} n${items.length}` },
+          items.map((it, i) =>
+            h(
+              "li",
+              null,
+              h("span", {
+                class: "cv-step-n",
+                "aria-hidden": "true",
+                text: layout === "steps" ? String(i + 1) : (it.title || "?").trim().slice(0, 1).toUpperCase(),
+              }),
+              own
+                ? editable("strong", "cv-step-t", it.title, `${b.id}:p${k}:s${i}:title`)
+                : h("strong", { class: "cv-step-t", text: it.title }),
+              it.text
+                ? own
+                  ? editable("span", "cv-step-d", it.text, `${b.id}:p${k}:s${i}:text`)
+                  : h("span", { class: "cv-step-d", text: it.text })
+                : null,
+            ),
+          ),
+        ),
+      );
+    }
+    case "timeline":
+      return shell(
+        h(
+          "ol",
+          { class: `cv-timeline n${main.items.length}` },
+          main.items.map((it, i) =>
+            h(
+              "li",
+              null,
+              h("span", { class: "cv-dot", "aria-hidden": "true" }),
+              editable("strong", "cv-when", it.when, `${b.id}:p${k}:t${i}:when`),
+              editable("span", "cv-what", it.what, `${b.id}:p${k}:t${i}:what`),
+            ),
+          ),
+        ),
+      );
+    case "quote":
+      return h(
+        "div",
+        { class: `cv-slide cv-L-quote${sideImg ? " has-img" : ""}`, "data-layout": layout },
+        title("cv-slide-title cv-eyebrow"),
+        h(
+          "div",
+          { class: "cv-slide-body" },
+          h(
+            "blockquote",
+            { class: "cv-quote" },
+            editable("p", "", main.text, `${b.id}:p${k}:text`, { multiline: true }),
+            main.by ? editable("cite", "", main.by, `${b.id}:p${k}:by`) : null,
+          ),
+        ),
+        sideImg ? picture(doc, b, sideImg, { cls: "cv-half" }) : null,
+        foot(),
+      );
+    case "image-grid":
+      return shell(h("div", { class: `cv-grid n${imgs.length}` }, imgs.slice(0, 4).map((p) => picture(doc, b, p))));
+    case "chart":
+      return shell(
+        h(
+          "div",
+          { class: `cv-chart-slide${text.length ? " has-msg" : ""}` },
+          chartBox(main, doc.theme),
+          text.length ? h("div", { class: "cv-takeaway" }, textParts(b, text)) : null,
+        ),
+      );
+    case "table":
+      return shell(tableOf(b, main, k));
+    case "code":
+      return shell(h("pre", { class: "cv-code-slide" }, h("code", { text: main.text })));
+  }
+  return shell(textParts(b, text));
 }
 
 function textParts(b, parts) {
@@ -1576,86 +2054,6 @@ function textParts(b, parts) {
       multiline: true,
     });
   });
-}
-
-function slideBody(doc, b, layout, main, img, text) {
-  const k = main ? b.parts.indexOf(main) : -1;
-  if (layout === "image") return picture(doc, b, img, { cls: "cv-img-full" });
-  if (layout === "image-side")
-    return h(
-      "div",
-      { class: "cv-split" },
-      h("div", { class: "cv-split-text" }, textParts(b, text)),
-      picture(doc, b, img),
-    );
-  if (layout === "statement")
-    return h("div", { class: "cv-statement" }, textParts(b, text));
-  if (layout === "list") return textParts(b, text);
-  if (layout === "kpi")
-    return [
-      h(
-        "div",
-        { class: `cv-kpis n${main.items.length}` },
-        main.items.map((it, i) =>
-          h(
-            "div",
-            { class: "cv-kpi" },
-            editable(
-              "strong",
-              "cv-kpi-value",
-              it.value,
-              `${b.id}:p${k}:k${i}:value`,
-            ),
-            editable(
-              "span",
-              "cv-kpi-label",
-              it.label,
-              `${b.id}:p${k}:k${i}:label`,
-            ),
-            it.delta &&
-              h("span", {
-                class: `cv-delta ${/^[-−]/.test(it.delta) ? "is-down" : "is-up"}`,
-                text: it.delta,
-              }),
-          ),
-        ),
-      ),
-      textParts(b, text),
-    ];
-  if (layout === "chart")
-    return h(
-      "div",
-      { class: "cv-chart-slide" },
-      chartBox(main, doc.theme),
-      text.length
-        ? h("div", { class: "cv-takeaway" }, textParts(b, text))
-        : null,
-    );
-  if (layout === "table") return tableOf(b, main, k);
-  if (layout === "timeline")
-    return h(
-      "ol",
-      { class: `cv-timeline n${main.items.length}` },
-      main.items.map((it, i) =>
-        h(
-          "li",
-          null,
-          h("span", { class: "cv-dot", "aria-hidden": "true" }),
-          editable("strong", "cv-when", it.when, `${b.id}:p${k}:t${i}:when`),
-          editable("span", "cv-what", it.what, `${b.id}:p${k}:t${i}:what`),
-        ),
-      ),
-    );
-  if (layout === "quote")
-    return h(
-      "blockquote",
-      { class: "cv-quote" },
-      editable("p", "", main.text, `${b.id}:p${k}:text`, { multiline: true }),
-      main.by || "" ? editable("cite", "", main.by, `${b.id}:p${k}:by`) : null,
-    );
-  if (layout === "code")
-    return h("pre", { class: "cv-code-slide" }, h("code", { text: main.text }));
-  return textParts(b, text);
 }
 
 function chartBox(p, theme) {

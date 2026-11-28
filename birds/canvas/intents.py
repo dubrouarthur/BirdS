@@ -56,7 +56,8 @@ _HOWTO = re.compile(
 )
 # A question anywhere in the sentence (« … des conseils pour le stress ? », « … dure combien de temps ? »).
 _QUESTION = re.compile(
-    r"\b(?:conseils?|astuces?|tips|advice|avis|combien|c['’]est quoi|qu['’]est-ce|est-ce que|est-il|est-elle|"
+    r"\b(?:conseils?(?! (?:municipal|communautaire|d['’]administration|de (?:classe|quartier|direction|surveillance|"
+    r"l['’]ordre|d[ée]veloppement)|r[ée]gional|d[ée]partemental|scientifique|syndical|des ministres))|astuces?|tips|advice|avis|combien|c['’]est quoi|qu['’]est-ce|est-ce que|est-il|est-elle|"
     r"faut-il|dois-je|should i|what does|que dit|quels? sont|quelles? sont|(?<!sur )(?<!about )pourquoi|"
     r"(?<!sur )(?<!about )comment (?:faire|on|je|puis|r[ée]ussir))\b",
     re.I,
@@ -140,7 +141,12 @@ def ask(words: str, attached: bool = False) -> str | None:
         # its card downloads the .docx — one deliverable, one card (the trained tool's file would be a second one)
         if _near(head, _DOC, lead=False) or _near(head, _LETTER.pattern, lead=False):
             return "doc"
-    if _NOT.search(head) or _FILE_FORMAT.search(head):
+    veto = _NOT.search(head)
+    if veto and re.match(r"compar|expli", veto.group(0), re.I) and _near(head, _DECK):
+        noun = re.search(_DECK, head, re.I)
+        if noun and veto.start() > noun.end():
+            veto = None  # « une présentation qui compare A et B »: what the deck does, not a request to compare
+    if veto or _FILE_FORMAT.search(head):
         return None  # a named file format (« une présentation pptx ») is a file: the trained tool makes it
     if _near(head, _DECK):
         return "deck"

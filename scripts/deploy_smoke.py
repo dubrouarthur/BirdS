@@ -50,7 +50,7 @@ def main() -> int:
 
     assert isinstance(entry.app, FastAPI)
     checks = {}
-    body = {"messages": [{"role": "user", "content": "Prépare un mail de réponse à Camille"}]}
+    body = {"messages": [{"role": "user", "content": "Prépare un mail de réponse à Camille à partir de la page https://example.org/demo/offre-fournisseur"}]}
     with TestClient(entry.app) as client:
         health = client.get("/api/health").json()
         checks["demo_out_of_the_box"] = health["backend"] == "demo" and health["modes"]["user"] is True

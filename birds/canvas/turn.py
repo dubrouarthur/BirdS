@@ -24,34 +24,44 @@ from . import convert, dsl, intents, patch
 FILE_TOOLS = ("make_slides", "make_document", "make_sheet")
 STREAM_EVERY = 0.35  # seconds between two snapshots sent while the model writes
 CANVAS_MAX_TOKENS = 2200  # a 8-slide deck in the text format is about 900 tokens; a web page up to ~2000
-IMAGE_SECONDS = 15.0
-IMAGE_LIMIT = 4
+IMAGE_SECONDS = 20.0
+IMAGE_LIMIT = 8  # a deck: the cover and up to seven slides (searches are cached, the time is capped)
 
 SPEC = {
     "deck": {
         "fr": (
             "[Canevas] Écris la présentation directement dans ta réponse, dans ce format (pas d'outil, pas de JSON) :\n"
-            "---\ntitle: <titre>\nsubtitle: <sous-titre court>\n---\n# <titre de la diapositive>\n- point court\n"
-            "- autre point\n\nBlocs facultatifs, un par diapositive au plus :\n"
+            "---\ntitle: <titre>\nsubtitle: <sous-titre court>\nimage: <2 à 4 mots en anglais pour la photo de couverture>\n---\n"
+            "# <titre de la diapositive>\n- point court\n- autre point\n\n"
+            "Varie les diapositives : un bloc au plus par diapositive, choisi selon le contenu :\n"
             "::: kpi\n<chiffre> | <ce qu'il mesure>\n:::\n"
             '::: chart type=bar unit="%"\n<libellé>: <nombre>\n:::\n'
             "::: timeline\n<date> : <étape>\n:::\n"
-            '::: image query="<2 à 4 mots pour chercher une photo>"\n:::\n'
+            "::: steps\n<étape> : <ce qu'on y fait>\n:::\n"
+            "::: compare\n<option A> | <option B>\n<point A> | <point B>\n:::\n"
+            "::: cards\n<nom> : <description courte>\n:::\n"
+            '::: image query="<2 à 4 mots en anglais pour chercher une photo>"\n:::\n'
             "> « citation » — auteur\n\n"
-            "Règles : 4 à 8 diapositives, 3 à 5 points courts par diapositive. N'invente aucun chiffre : seulement ceux "
-            "de la demande ou des sources lues."
+            "Une diapositive avec un titre seul ouvre une partie. "
+            "Règles : 5 à 8 diapositives, 3 à 5 points courts par diapositive, une image sur 2 ou 3 diapositives "
+            "quand une photo aide. N'invente aucun chiffre : seulement ceux de la demande ou des sources lues."
         ),
         "en": (
             "[Canvas] Write the deck directly in your answer, in this format (no tool, no JSON):\n"
-            "---\ntitle: <title>\nsubtitle: <short subtitle>\n---\n# <slide title>\n- short point\n- another point\n\n"
-            "Optional blocks, at most one per slide:\n"
+            "---\ntitle: <title>\nsubtitle: <short subtitle>\nimage: <2 to 4 words for the cover photo>\n---\n"
+            "# <slide title>\n- short point\n- another point\n\n"
+            "Vary the slides: at most one block per slide, chosen from the content:\n"
             "::: kpi\n<figure> | <what it measures>\n:::\n"
             '::: chart type=bar unit="%"\n<label>: <number>\n:::\n'
             "::: timeline\n<date>: <step>\n:::\n"
+            "::: steps\n<step>: <what happens>\n:::\n"
+            "::: compare\n<option A> | <option B>\n<point A> | <point B>\n:::\n"
+            "::: cards\n<name>: <short description>\n:::\n"
             '::: image query="<2 to 4 words to search a photo>"\n:::\n'
             '> "quotation" — author\n\n'
-            "Rules: 4 to 8 slides, 3 to 5 short points per slide. Invent no figure: only those of the request or of "
-            "the sources read."
+            "A slide with a title only opens a part. "
+            "Rules: 5 to 8 slides, 3 to 5 short points per slide, a picture on 2 or 3 slides when a photo helps. "
+            "Invent no figure: only those of the request or of the sources read."
         ),
     },
     "doc": {
@@ -341,7 +351,10 @@ def finish_doc(doc: dict, kind: str, words: str, lang: str, repairs: list[str] |
     if kind in ("deck", "doc") and not doc.get("theme"):
         doc["theme"] = office.pick_theme(words + " " + doc["title"])
     if kind == "deck":
+        from . import layouts
+
         convert.enrich(doc)
+        layouts.split(doc)  # a list and a cards / steps / comparison block on one slide: two slides, nothing lost
     if kind == "doc":
         from . import templates
 

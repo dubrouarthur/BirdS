@@ -109,7 +109,7 @@ def run_crew(
         plan=plan,
         notes=box,
         run_id=run_id,
-        slices=request.agent_flow == "plan" or request.agent_plan is not None,  # the app continues long tasks
+        slices=request.agent_flow in ("plan", "run") or request.agent_plan is not None,  # the app continues long tasks
     )
     try:
         return crew.run(user_sent, words, docs=docs, history=history)

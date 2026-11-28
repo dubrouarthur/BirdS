@@ -49,6 +49,10 @@ Objectif : le niveau d'OpenAI dans les usages de bureau, porté par un petit mod
    - diapos : ~20 mises en page (couverture plein cadre, chiffre clé géant, comparaison, frise, grille d'images, citation,
      graphique + message clé, clôture), thèmes marqués, mise en page choisie d'après le contenu ; images Openverse +
      Wikimedia (licences vérifiées, crédits), « Remplacer » / « Sans image » par diapositive ;
+     Fait sur la branche `canvas-decks` (docs/CANVAS.md § 9) : 21 mises en page + couverture, 4 thèmes avec masques
+     .pptx, aperçu = fichier (règle commune testée), Openverse + Commons, menu « Mise en page », glisser-déposer,
+     restauration de version, carte avec couverture et suites ; mesure live 3,5 → 6,2 mises en page par deck, 2 → 5
+     decks sur 6 au canevas ; reste : images en production (limites de débit des API), ouverture dans PowerPoint ;
    - documents type Word au même niveau : page de garde, sommaire, styles de titres, encadrés, tableaux, figures légendées,
      images, notes, sources ; édition en place, sections déplaçables, export .docx fidèle à l'aperçu ;
      **Fait sur la branche `canvas-docs`** (docs/CANVAS.md, section 9 : six modèles choisis par le modèle, pages A4,

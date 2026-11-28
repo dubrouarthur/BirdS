@@ -1157,7 +1157,8 @@ export function renderSettings() {
           role: "radiogroup",
           "aria-labelledby": "set-model-title",
         },
-        modeCard("demo", t("set.mode.demo"), t("set.mode.demo.hint"), true),
+        // the demo exists only where no model is connected (a showcase deployment, the e2e server): never beside a real one
+        !modes.server && modeCard("demo", t("set.mode.demo"), t("set.mode.demo.hint"), true),
         modeCard(
           "server",
           t("set.mode.server"),
