@@ -237,7 +237,7 @@ def _json(raw: str):
 
 
 _ECHO = set("""uniquement seulement only if si none aucun aucune image images photo photos picture visual visuel anglais
-english mots words requete query slide diapositive section""".split())
+english mots words requete query slide diapositive section une des les the and for with pour avec dans sur""".split())
 
 
 def _picture_words(query: str) -> list[str]:
@@ -274,6 +274,7 @@ def parse_outline(
     items: list[Item] = []
     seen: set[str] = set()
     used_queries: set[str] = set()
+    used_series: set[tuple[str, str]] = set()
     for r in rows:
         if not isinstance(r, dict):
             continue
@@ -294,6 +295,12 @@ def parse_outline(
 
             indicator = stats.indicator_of(indicator, loose=True) if indicator else ""
             indicator = indicator if indicator in INDICATORS else ""
+        series = (indicator, cc.fold(_s(r.get("places"), 80)))
+        if data == "statistics" and indicator and series in used_series:
+            data, indicator = "web", ""  # the same series twice: one chart, the other slide gets facts
+            repairs.append(f"series repeated: {title[:30]}")
+        if data == "statistics" and indicator:
+            used_series.add(series)
         if data == "statistics" and not indicator:
             data = "web" if r.get("search") else "none"
             repairs.append(f"statistics without an indicator: {title[:30]}")
@@ -312,15 +319,20 @@ def parse_outline(
         if visual == "diagram":
             visual = "steps"  # a flow drawn by the canvas (steps); a timeline when the plan says so
         query = images.clean_query(_s(r.get("image_query"), 80))[:60]
-        if visual == "image" and (not _picture_words(query) or cc.fold(query) in used_queries):
-            # an echo of the instructions (« uniquement ») or the picture of another slide: the slide's own words
-            repairs.append(f"picture query replaced by the title: {query[:30]!r}")
-            query = images.clean_query(title)[:60]
+        if (visual == "image" or layout.startswith("image")) and (
+                not _picture_words(query) or cc.fold(query) in used_queries):  # fmt: skip
+            # no concrete thing to show (« uniquement une photo », an echo of the instructions) or the picture of
+            # another slide: no photo slot (a search on « Impact de la crise » only finds noise or nothing)
+            repairs.append(f"photo slot dropped, no concrete query: {query[:30]!r}")
+            query = ""
+            visual = "none" if visual == "image" else visual
+            layout = "" if layout.startswith("image") else layout
         if query:
             used_queries.add(cc.fold(query))
-        if visual == "image" and not images.variants(query):
+        if query and not images.variants(query):
             # « Paris bike cargo statistics »: a statistic is a chart (from real data) or key figures, never a photo
-            visual = "chart" if data in ("statistics", "request") else "kpi"
+            visual = ("chart" if data in ("statistics", "request") else "kpi") if visual == "image" else visual
+            layout = "" if layout.startswith("image") else layout
             repairs.append(f"photo of a statistic turned into a {visual}: {title[:30]}")
             query = ""
         if visual != "image" and not layout.startswith("image"):
@@ -389,7 +401,7 @@ VISUAL_HINT = {
     "fr": {
         "kpi": "Puis les chiffres clés, pris dans les faits ou la demande :\n::: kpi\n<chiffre> | <ce qu'il mesure>\n:::\n",
         "chart_request": 'Puis le graphique des chiffres de la demande :\n::: chart type=bar unit="<unité>"\n<libellé>: <nombre>\n:::\n',
-        "chart_data": "Un graphique des données officielles est placé par Bird sous ce texte : commente la tendance avec les valeurs exactes des faits.\n",
+        "chart_data": "Bird place la courbe officielle sous ces points : ne la décris pas, donne les valeurs exactes des faits et ce qu'elles signifient.\n",
         "timeline": "Puis une frise :\n::: timeline\n<date> : <étape>\n:::\n",
         "steps": "Puis les étapes :\n::: steps\n<étape> : <ce qu'on y fait>\n:::\n",
         "compare": "Puis la comparaison :\n::: compare\n<option A> | <option B>\n<point A> | <point B>\n:::\n",
@@ -401,7 +413,7 @@ VISUAL_HINT = {
     "en": {
         "kpi": "Then the key figures, taken from the facts or the request:\n::: kpi\n<figure> | <what it measures>\n:::\n",
         "chart_request": 'Then the chart of the request\'s figures:\n::: chart type=bar unit="<unit>"\n<label>: <number>\n:::\n',
-        "chart_data": "A chart of the official data is placed by Bird under this text: comment on the trend with the exact values of the facts.\n",
+        "chart_data": "Bird places the official curve under these points: do not describe it, give the exact values of the facts and what they mean.\n",
         "timeline": "Then a timeline:\n::: timeline\n<date>: <step>\n:::\n",
         "steps": "Then the steps:\n::: steps\n<step>: <what happens>\n:::\n",
         "compare": "Then the comparison:\n::: compare\n<option A> | <option B>\n<point A> | <point B>\n:::\n",
@@ -549,6 +561,7 @@ def check_figures(block: dict, allowed: set[float], kind: str) -> int:
     return dropped
 
 
+_ANNOUNCE = re.compile(r"^\s*(?:graphiques?|courbes?|charts?|graphs?|figures?)\b[^.]{0,90}$", re.I)
 _NOTE = re.compile(r"\[(?!\^?\d{1,2}\])[^\[\]\n]{3,}\]|<[^<>\n]{2,40}>")
 
 
@@ -573,6 +586,9 @@ def scrub(block: dict) -> int:
             for x in items:
                 if isinstance(x, str):
                     y = _clean(x) if _NOTE.search(x) else x
+                    if p.get("t") == "list" and _ANNOUNCE.match(y) and any(q.get("t") == "chart" for q in
+                                                                           block.get("parts") or []):  # fmt: skip
+                        y = ""  # « Graphique montrant la tendance » beside the chart itself: says nothing
                     n += y != x
                     if y:
                         out.append(y)
@@ -938,7 +954,8 @@ class Pipeline:
         self.snapshot(doc)
         self.gather_until = time.monotonic() + GATHER_SECONDS
         n = len(o.items)
-        wants_image = [i for i, it in enumerate(o.items) if it.visual == "image" or it.layout.startswith("image")]
+        wants_image = [i for i, it in enumerate(o.items) if it.query and (it.visual == "image"
+                                                                           or it.layout.startswith("image"))]
         for i in wants_image:
             if not o.items[i].query:
                 o.items[i].query = o.items[i].title
@@ -1039,7 +1056,8 @@ class Pipeline:
 
     def _place_image(self, o: Outline, doc: dict, i: int, block: dict) -> None:
         it = o.items[i]
-        if not (it.visual == "image" or it.layout.startswith("image")) or i not in self._found_keys(doc, i):
+        if not it.query or not (it.visual == "image" or it.layout.startswith("image")) or \
+                i not in self._found_keys(doc, i):  # fmt: skip
             return
         entry = self._entry(doc, i)
         have = next((p for p in block["parts"] if p.get("t") == "image"), None)
