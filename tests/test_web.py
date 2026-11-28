@@ -689,7 +689,7 @@ def test_static_payload_budget():
     # the canvas (decks, documents, code preview, mini-sheet, flowcharts: +126 kB raw, +34 kB gzipped)
     # the small modules (research card, relation graph, timeline, matrix, calculator, checklist, chips: +86 kB)
     # and deep research's live board and full-screen report (research.js/.css: +48 kB raw, +12 kB gzipped)
-    assert total < 1_220_000, f"static payload is {total} bytes"  # about 310 kB once gzipped
+    assert total < 1_195_000, f"static payload is {total} bytes"  # measured 1 189 508 after merging w1-modules
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     assert demo < 520_000, f"demo maps weigh {demo} bytes"  # + the maps of the scripted lists of places
 
