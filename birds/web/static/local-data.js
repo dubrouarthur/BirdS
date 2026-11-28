@@ -79,6 +79,13 @@ export function codeFromHash(hash) {
   return m && codeShapeOk(m[1]) ? formatCode(m[1]) : null;
 }
 
+/** « #bird-local=8765:ABCD-EFGH », the ready-made link scripts/bird_local.py prints for the hosted chat: {port, code}
+ * or null. Nothing to type; the fragment never leaves the browser. */
+export function linkFromHash(hash) {
+  const m = /(?:^#|&)bird-local=(\d{2,5}):([A-Za-z0-9-]{4,20})(?:&|$)/.exec(String(hash || ""));
+  return m && codeShapeOk(m[2]) ? { port: Number(m[1]), code: formatCode(m[2]) } : null;
+}
+
 const plainHeaders = (headers) => {
   const out = {};
   if (!headers) return out;

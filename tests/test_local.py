@@ -125,9 +125,13 @@ def test_every_api_call_needs_the_pairing_code(client):
     ok = chat(client, {**hosted, "X-Bird-Pair": "abcd-efgh"})
     assert ok.status_code == 200 and ok.headers["access-control-allow-origin"] == HOSTED
     assert '"type": "answer"' in ok.text
-    # the page served by Bird local itself needs it too (another local program or tab cannot use the API blind)
+    # the page Bird local serves itself needs no code (its own origin, or a same-origin browser request); a program
+    # that sends neither (curl, another process) still needs it — and no other site can send them (Host check)
     assert chat(client, {}).status_code == 401
+    assert chat(client, {"Origin": LOCAL_URL}).status_code == 200
+    assert chat(client, {"Sec-Fetch-Site": "same-origin"}).status_code == 200
     assert chat(client, {"Origin": LOCAL_URL, "X-Bird-Pair": CODE}).status_code == 200
+    assert chat(client, {"Sec-Fetch-Site": "cross-site"}).status_code == 403
     for path in ("/api/endpoint/test", "/api/tool", "/api/export", "/api/canvas/check", "/api/local/pair"):
         assert client.post(path, json={}, headers=hosted).status_code == 401, path
 

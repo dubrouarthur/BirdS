@@ -1109,6 +1109,11 @@ def create_app(
         # « curl -fsSL https://<site>/install.sh | sh »: Bird and its model on the user's own machine (docs/LOCAL.md)
         return FileResponse(Path(__file__).with_name("install.sh"), media_type="text/plain; charset=utf-8")
 
+    @app.get("/install.ps1", include_in_schema=False)
+    def install_script_windows() -> FileResponse:
+        # « irm https://<site>/install.ps1 | iex »: the same, from Windows PowerShell (WSL, or a local server)
+        return FileResponse(Path(__file__).with_name("install.ps1"), media_type="text/plain; charset=utf-8")
+
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon() -> FileResponse:
         return FileResponse(STATIC_DIR / "brand" / "favicon.svg", media_type="image/svg+xml")

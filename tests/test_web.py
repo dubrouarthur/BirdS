@@ -1477,3 +1477,13 @@ def test_install_script_is_served_as_plain_text_and_binds_locally():
     # the logs hold the pairing code printed by scripts/bird_local.py: other users of the machine cannot read them
     assert 'chmod 700 "$LOGS"' in body
     assert "HF_TOKEN=" not in body.replace("HF_TOKEN        jeton", "")
+
+
+def test_windows_installer_is_served_and_keeps_secrets_off_command_lines():
+    """« irm …/install.ps1 | iex »: served as text; HF_TOKEN reaches WSL through WSLENV only; Bird on 127.0.0.1."""
+    with TestClient(create_app(settings())) as client:
+        r = client.get("/install.ps1")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    body = r.text
+    assert "WSLENV" in body and "HF_TOKEN/u" in body and "HF_TOKEN='" not in body
+    assert "127.0.0.1" in body and "0.0.0.0" not in body and "--no-browser" in body
