@@ -1,0 +1,1139 @@
+[
+ {
+  "n": 1,
+  "ask": "Fais une présentation sur l'évolution du chômage en France depuis 2015 pour des lycéens",
+  "want": "deck",
+  "label": "before",
+  "reflexion": "faucon",
+  "seconds": 77.3,
+  "first_slide_s": null,
+  "canvas": false,
+  "snapshots": 0,
+  "progress": [],
+  "error": null,
+  "chat": "Voici une présentation adaptée à des lycéens, basée sur les données officielles (INSEE, BIT) :\n\n---\n\n## Diapositive 1 — Titre\n**L’évolution du chômage en France depuis 2015**  \nUn regard sur les chiffres, les causes et les enjeux pour l’avenir.\n\n## Diapositive 2 — Introduction\n- Le chômage est un in"
+ },
+ {
+  "n": 2,
+  "ask": "Fais une présentation sur la mobilité douce en ville pour un conseil municipal",
+  "want": "deck",
+  "label": "before",
+  "reflexion": "faucon",
+  "seconds": 37.5,
+  "first_slide_s": 24.9,
+  "canvas": true,
+  "snapshots": 47,
+  "progress": [],
+  "error": null,
+  "chat": "La présentation « La mobilité douce en ville » est dans le canevas : 8 diapositives. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », « plus court »).",
+  "kind": "deck",
+  "title": "La mobilité douce en ville",
+  "blocks": 8,
+  "body": 8,
+  "with_visual": 4,
+  "images_asked": 2,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 1,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 0,
+  "cited_valid": 0,
+  "sources_listed": 0,
+  "image_titles": [],
+  "image_queries": [],
+  "doc": {
+   "v": 1,
+   "kind": "deck",
+   "title": "La mobilité douce en ville",
+   "subtitle": "Vers une ville plus verte et plus sûre",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Contexte et enjeux",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "La mobilité douce (marche, vélo, trottinette) est un levier clé pour réduire la pollution et la congestion urbaine.",
+        "Elle répond à une demande croissante de qualité de vie et de santé publique.",
+        "Les villes françaises s'engagent à transformer leurs espaces publics pour favoriser ces modes de déplacement.",
+        "Les défis restent la sécurité des usagers et l'équité territoriale."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "image",
+       "query": "city mobility bicycle pedestrian",
+       "alt": "city mobility bicycle pedestrian",
+       "caption": "",
+       "missing": true
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b2",
+     "title": "Bilan 2023-2024",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Extension rapide des réseaux cyclables et sécurisation des aménagements.",
+        "Hausse de la fréquentation des vélos et des trottinettes électriques.",
+        "Développement des services partagés et des aides à l'achat.",
+        "Persistance des accidents et des disparités entre territoires."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "kpi",
+       "items": [
+        {
+         "value": "10 à 20%",
+         "label": "Hausse de fréquentation cyclable",
+         "delta": ""
+        }
+       ]
+      },
+      {
+       "t": "list",
+       "items": [
+        "<option A>",
+        "Vélo",
+        "<option B>",
+        "Trottinette",
+        "<point A>",
+        "Usage plus répandu, infrastructures matures",
+        "<point B>",
+        "Usage en croissance, controverses sur la sécurité"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b3",
+     "title": "Projections 2027",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Objectif de doubler le linéaire cyclable sécurisé.",
+        "Généralisation des zones piétonnes et des zones 30.",
+        "Intégration systématique de la mobilité douce dans les PDU.",
+        "Réduction significative des accidents impliquant les modes actifs."
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b6",
+     "title": "Projections 2027",
+     "parts": [
+      {
+       "t": "timeline",
+       "items": [
+        {
+         "when": "2024",
+         "what": "bilan des progrès"
+        },
+        {
+         "when": "2025",
+         "what": "consolidation des infrastructures"
+        },
+        {
+         "when": "2027",
+         "what": "objectifs ambitieux"
+        }
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b4",
+     "title": "Recommandations pour le conseil municipal",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Prioriser les investissements dans les pistes cyclables sécurisées.",
+        "Renforcer la signalisation et la formation des usagers.",
+        "Lutter contre le vol de vélos et améliorer le stationnement.",
+        "Promouvoir le télétravail et les trajets de proximité."
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b7",
+     "title": "Recommandations pour le conseil municipal",
+     "parts": [
+      {
+       "t": "steps",
+       "items": [
+        {
+         "title": "Étude d'impact des aménagements",
+         "text": ""
+        },
+        {
+         "title": "Lancement de campagnes de sensibilisation",
+         "text": ""
+        },
+        {
+         "title": "Évaluation annuelle des résultats",
+         "text": ""
+        }
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b5",
+     "title": "Conclusion",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "La mobilité douce est un pilier de la transition écologique urbaine.",
+        "Les actions concrètes et les investissements sont nécessaires.",
+        "La collaboration entre les acteurs publics et privés est essentielle.",
+        "L'objectif est une ville plus verte, plus sûre et plus inclusive."
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b8",
+     "title": "Conclusion",
+     "parts": [
+      {
+       "t": "quote",
+       "text": "La mobilité douce est un levier puissant pour transformer nos villes.",
+       "by": "citation inspirée des politiques publiques françaises"
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {},
+   "cover": {
+    "query": "city mobility",
+    "missing": true
+   },
+   "_next": 9
+  }
+ },
+ {
+  "n": 3,
+  "ask": "Prépare un pitch deck pour une startup de livraison de repas à vélo",
+  "want": "deck",
+  "label": "before",
+  "reflexion": "faucon",
+  "seconds": 22.3,
+  "first_slide_s": 4.3,
+  "canvas": true,
+  "snapshots": 75,
+  "progress": [],
+  "error": null,
+  "chat": "La présentation « VeloPlate — Livraison de repas à vélo » est dans le canevas : 12 diapositives. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », « plus court »).",
+  "kind": "deck",
+  "title": "VeloPlate — Livraison de repas à vélo",
+  "blocks": 12,
+  "body": 12,
+  "with_visual": 6,
+  "images_asked": 2,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 1,
+  "charts": 1,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 0,
+  "cited_valid": 0,
+  "sources_listed": 0,
+  "image_titles": [],
+  "image_queries": [],
+  "doc": {
+   "v": 1,
+   "kind": "deck",
+   "title": "VeloPlate — Livraison de repas à vélo",
+   "subtitle": "Un service de livraison de repas frais, rapide et durable",
+   "theme": "modern",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Présentation",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Une startup de livraison de repas à vélo, basée sur la mobilité douce et la fraîcheur",
+        "Objectif : réduire les émissions de CO2 tout en offrant une expérience de livraison rapide",
+        "Modèle économique : abonnement mensuel + commande à la carte",
+        "Cible : particuliers, restaurants, bureaux et événements"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "image",
+       "query": "cyclist delivering food",
+       "alt": "cyclist delivering food",
+       "caption": "",
+       "missing": true
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b2",
+     "title": "Le problème",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "La livraison par voiture génère des émissions importantes",
+        "Les repas frais sont souvent livrés en vrac, sans traçabilité",
+        "Les utilisateurs veulent du local, du rapide et du durable",
+        "Les restaurants souffrent de coûts logistiques élevés"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b9",
+     "title": "Le problème",
+     "parts": [
+      {
+       "t": "cards",
+       "items": [
+        {
+         "title": "Restaurant",
+         "text": "coûts de livraison élevés"
+        },
+        {
+         "title": "Particulier",
+         "text": "recherche de fraîcheur et de rapidité"
+        },
+        {
+         "title": "Bureau",
+         "text": "besoin de repas sains et accessibles"
+        }
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b3",
+     "title": "La solution",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Livraison à vélo : zéro émission, plus rapide en ville",
+        "Repas préparés localement, livrés frais",
+        "Interface simple pour commander et suivre la commande",
+        "Option de retrait en point relais pour les bureaux"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b10",
+     "title": "La solution",
+     "parts": [
+      {
+       "t": "compare",
+       "columns": [
+        {
+         "title": "Option A",
+         "items": [
+          "Livraison par voiture",
+          "Émissions élevées",
+          "Temps de livraison long"
+         ]
+        },
+        {
+         "title": "Option B",
+         "items": [
+          "Livraison à vélo",
+          "Zéro émission",
+          "Temps de livraison court"
+         ]
+        }
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b4",
+     "title": "Modèle économique",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Abonnement mensuel : 15 € pour 4 livraisons/mois",
+        "Commande à la carte : 3 € par livraison",
+        "Frais de service : 2 € par commande",
+        "Revenus récurrents via l'abonnement",
+        "Marges sur les repas préparés"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "kpi",
+       "items": [
+        {
+         "value": "15 €",
+         "label": "Abonnement mensuel",
+         "delta": ""
+        },
+        {
+         "value": "3 €",
+         "label": "Coût par livraison",
+         "delta": ""
+        },
+        {
+         "value": "2 €",
+         "label": "Frais de service",
+         "delta": ""
+        }
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b5",
+     "title": "Marché et opportunité",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Marché de la livraison de repas en croissance",
+        "Augmentation de la demande pour les repas sains",
+        "Tendance vers la durabilité et le local",
+        "Opportunité dans les zones urbaines denses"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "chart",
+       "type": "bar",
+       "unit": "%",
+       "title": "Marché et opportunité",
+       "columns": [
+        "",
+        "%"
+       ],
+       "rows": [
+        [
+         "Marché de la livraison de repas",
+         12.0
+        ],
+        [
+         "Marché des repas sains",
+         8.0
+        ],
+        [
+         "Marché de la durabilité",
+         5.0
+        ]
+       ],
+       "source": ""
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b6",
+     "title": "Équipe",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Fondée par des experts en logistique et en durabilité",
+        "Équipe technique pour la plateforme",
+        "Partenaires avec des restaurants locaux",
+        "Expert en mobilité douce"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b11",
+     "title": "Équipe",
+     "parts": [
+      {
+       "t": "cards",
+       "items": [
+        {
+         "title": "Fondateur",
+         "text": "expert en logistique"
+        },
+        {
+         "title": "Chef de produit",
+         "text": "passionné de durabilité"
+        },
+        {
+         "title": "Technicien",
+         "text": "développeur de la plateforme"
+        },
+        {
+         "title": "Partenaire",
+         "text": "restaurateur local"
+        }
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b7",
+     "title": "Roadmap",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Q1 2025 : lancement de la plateforme",
+        "Q2 2025 : première livraison en zone urbaine",
+        "Q3 2025 : expansion à 3 villes",
+        "Q4 2025 : lancement de l'abonnement"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b12",
+     "title": "Roadmap",
+     "parts": [
+      {
+       "t": "timeline",
+       "items": [
+        {
+         "when": "Q1 2025",
+         "what": "lancement de la plateforme"
+        },
+        {
+         "when": "Q2 2025",
+         "what": "première livraison en zone urbaine"
+        },
+        {
+         "when": "Q3 2025",
+         "what": "expansion à 3 villes"
+        },
+        {
+         "when": "Q4 2025",
+         "what": "lancement de l'abonnement"
+        }
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b8",
+     "title": "Demande de financement",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Besoin de 50 000 € pour le lancement",
+        "Utilisation des fonds :",
+        "  20 000 € : développement de la plateforme",
+        "  15 000 € : acquisition de vélos et de matériel",
+        "  10 000 € : marketing et communication",
+        "  5 000 € : fonds de roulement",
+        "Objectif : atteindre 100 livraisons/mois en 6 mois",
+        "Retour sur investissement attendu en 18 mois"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {},
+   "cover": {
+    "query": "cyclist delivering food",
+    "missing": true
+   },
+   "_next": 13
+  }
+ },
+ {
+  "n": 4,
+  "ask": "Crée une présentation sur l'histoire et l'avenir du train de nuit en Europe",
+  "want": "deck",
+  "label": "before",
+  "reflexion": "faucon",
+  "seconds": 38.1,
+  "first_slide_s": 24.0,
+  "canvas": true,
+  "snapshots": 51,
+  "progress": [],
+  "error": null,
+  "chat": "La présentation « L'histoire et l'avenir du train de nuit en Europe » est dans le canevas : 10 diapositives. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », « plus court »).",
+  "kind": "deck",
+  "title": "L'histoire et l'avenir du train de nuit en Europe",
+  "blocks": 10,
+  "body": 10,
+  "with_visual": 4,
+  "images_asked": 1,
+  "images_found": 1,
+  "images_relevant": 1,
+  "placeholders": 0,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 0,
+  "cited_valid": 0,
+  "sources_listed": 0,
+  "image_titles": [
+   "Night train at Høje Taastrup Station - Karen Melchior 01"
+  ],
+  "image_queries": [
+   "night train europe"
+  ],
+  "doc": {
+   "v": 1,
+   "kind": "deck",
+   "title": "L'histoire et l'avenir du train de nuit en Europe",
+   "subtitle": "Un voyage entre le passé et le présent",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Introduction",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Le train de nuit a longtemps été un pilier du transport intercontinental en Europe",
+        "Son déclin s'observe depuis le début du XXIe siècle",
+        "Une résurgence est en cours grâce à des projets récents",
+        "L'avenir dépend de l'équilibre entre confort, coût et durabilité"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b7",
+     "title": "Introduction",
+     "parts": [
+      {
+       "t": "timeline",
+       "items": [
+        {
+         "when": "1830",
+         "what": "Premiers trains de nuit en Europe"
+        },
+        {
+         "when": "1999",
+         "what": "Réduction importante du réseau"
+        },
+        {
+         "when": "2010",
+         "what": "Déclin rapide des services"
+        },
+        {
+         "when": "2021",
+         "what": "Année européenne du rail et nouvelles lignes"
+        },
+        {
+         "when": "2026",
+         "what": "Réouverture de plusieurs routes majeures"
+        }
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b2",
+     "title": "L'histoire du train de nuit",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Le train de nuit a longtemps été un pilier du transport intercontinental en Europe",
+        "Son déclin s'observe depuis le début du XXIe siècle",
+        "Une résurgence est en cours grâce à des projets récents",
+        "L'avenir dépend de l'équilibre entre confort, coût et durabilité"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b8",
+     "title": "L'histoire du train de nuit",
+     "parts": [
+      {
+       "t": "timeline",
+       "items": [
+        {
+         "when": "1830",
+         "what": "Premiers trains de nuit en Europe"
+        },
+        {
+         "when": "1999",
+         "what": "Réduction importante du réseau"
+        },
+        {
+         "when": "2010",
+         "what": "Déclin rapide des services"
+        },
+        {
+         "when": "2021",
+         "what": "Année européenne du rail et nouvelles lignes"
+        },
+        {
+         "when": "2026",
+         "what": "Réouverture de plusieurs routes majeures"
+        }
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b3",
+     "title": "Le déclin du train de nuit",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Le nombre de trains de nuit proposant des couchettes ou des cabines a chuté depuis 2010",
+        "Les lignes à grande vitesse ont contribué à ce déclin",
+        "Les coûts de fonctionnement et les besoins en personnel ont pesé sur la viabilité",
+        "Les nouvelles routes ont été limitées par des contraintes budgétaires"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b9",
+     "title": "Le déclin du train de nuit",
+     "parts": [
+      {
+       "t": "table",
+       "rows": [
+        [
+         "Année : <nombre>"
+        ]
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b4",
+     "title": "Les nouvelles routes en 2026",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Plusieurs routes majeures ont été réouvertes en 2026",
+        "Les nouvelles lignes visent à relier les grandes capitales européennes",
+        "Les tarifs restent compétitifs pour les voyageurs internationaux",
+        "Les cabines et couchettes sont disponibles sur les principales lignes"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b10",
+     "title": "Les nouvelles routes en 2026",
+     "parts": [
+      {
+       "t": "cards",
+       "items": [
+        {
+         "title": "Cabine",
+         "text": "Lit privé avec lit et salle de bain"
+        },
+        {
+         "title": "Couchette",
+         "text": "Lit individuel dans un compartiment"
+        },
+        {
+         "title": "Couchette partagée",
+         "text": "Lit dans un compartiment partagé"
+        }
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b5",
+     "title": "L'avenir du train de nuit",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Le train de nuit pourrait retrouver une place importante dans le transport intercontinental",
+        "Les nouvelles technologies pourraient améliorer le confort et la durabilité",
+        "Les projets futurs dépendront des investissements publics et privés",
+        "L'avenir du train de nuit est incertain mais prometteur"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "list",
+       "items": [
+        "Option A : Confort premium",
+        "Option B : Confort standard",
+        "<point A> : Cabines privées",
+        "<point B> : Couchettes partagées"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b6",
+     "title": "Conclusion",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Le train de nuit a connu un déclin important depuis 2010",
+        "Des projets récents en 2026 montrent une résurgence",
+        "L'avenir dépend de l'équilibre entre confort, coût et durabilité",
+        "Les nouvelles technologies pourraient améliorer le confort et la durabilité"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {
+    "w1": {
+     "kind": "web",
+     "alt": "night train europe",
+     "credit": "Leif Jørgensen — CC BY-SA 4.0 — Wikimedia Commons",
+     "licence": "CC BY-SA 4.0",
+     "source": "https://commons.wikimedia.org/wiki/File:Night_train_at_H%C3%B8je_Taastrup_Station_-_Karen_Melchior_01.jpg",
+     "w": 1048,
+     "h": 1572,
+     "query": "night train europe",
+     "title": "Night train at Høje Taastrup Station - Karen Melchior 01"
+    }
+   },
+   "cover": {
+    "query": "night train europe",
+    "media": "w1"
+   },
+   "_next": 11
+  }
+ },
+ {
+  "n": 5,
+  "ask": "Fais une présentation sur l'inflation en zone euro depuis 2019 pour un comité de direction",
+  "want": "deck",
+  "label": "before",
+  "reflexion": "faucon",
+  "seconds": 71.5,
+  "first_slide_s": 71.0,
+  "canvas": true,
+  "snapshots": 5,
+  "progress": [],
+  "error": null,
+  "chat": "La présentation « Inflation en zone euro : évolution récente et recommandations » est prête : 5 diapositives, plus une diapositive Sources.\n\nContexte et dynamique post-pandémie · Évolution de l'inflation (2022-2024) · Impacts sur les ménages et les entreprises · Mesures de politique monétaire et bud",
+  "kind": "deck",
+  "title": "Inflation en zone euro : évolution récente et recommandations",
+  "blocks": 6,
+  "body": 5,
+  "with_visual": 1,
+  "images_asked": 0,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 0,
+  "charts": 1,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 1,
+  "cited_valid": 0,
+  "sources_listed": 0,
+  "image_titles": [],
+  "image_queries": [],
+  "doc": {
+   "v": 1,
+   "kind": "deck",
+   "title": "Inflation en zone euro : évolution récente et recommandations",
+   "subtitle": "",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Contexte et dynamique post-pandémie",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "L'inflation a accéléré fortement depuis 2021",
+        "2019 : baseline pré-pandémique (pas de chiffre donné)",
+        "Facteurs clés : chocs d'énergie, rupture des chaînes d'approvisionnement, demande résidentielle",
+        "L'inflation annuelle 2022 a atteint +5,2 % [1]"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b2",
+     "title": "Évolution de l'inflation (2022-2024)",
+     "parts": [
+      {
+       "t": "chart",
+       "type": "bar",
+       "unit": "%",
+       "title": "Évolution de l'inflation (2022-2024)",
+       "columns": [
+        "",
+        "%"
+       ],
+       "rows": [
+        [
+         "2022",
+         5.2
+        ],
+        [
+         "2023",
+         4.9
+        ],
+        [
+         "2024",
+         2.0
+        ]
+       ],
+       "source": ""
+      },
+      {
+       "t": "text",
+       "text": "Trajectoire : pic en 2022, ralentissement progressif"
+      },
+      {
+       "t": "text",
+       "text": "L'inflation reste positive mais tend vers la cible de l'EBC"
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b3",
+     "title": "Impacts sur les ménages et les entreprises",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Coût de la vie : hausse des prix de l'énergie, alimentation et produits de première nécessité",
+        "Marges des entreprises : compression due à la hausse des coûts d'entrée",
+        "Pouvoir d'achat : réduction du revenu réel pour les ménages à revenu fixe"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b4",
+     "title": "Mesures de politique monétaire et budgétaire",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "L'EBC a augmenté ses taux directeurs pour freiner l'inflation",
+        "Les gouvernements ont implementé des mesures fiscales et des aides ciblées",
+        "Les politiques monétaires restent restrictives pour ancrer les attentes"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b5",
+     "title": "Recommandations pour les décideurs",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Surveiller les risques d'inflation résiduelle et les chocs externes",
+        "Anticiper les coûts budgétaires liés à l'aide au pouvoir d'achat",
+        "Renforcer les politiques de coût du travail et de productivité"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b6",
+     "title": "Sources",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "[1] L'essentiel sur... l'inflation | Insee — https://www.insee.fr/fr/statistiques/4268033"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {},
+   "_next": 7
+  }
+ },
+ {
+  "n": 6,
+  "ask": "Rédige un rapport sur la population des grandes villes françaises depuis 2010",
+  "want": "doc",
+  "label": "before",
+  "reflexion": "faucon",
+  "seconds": 29.6,
+  "first_slide_s": 29.2,
+  "canvas": true,
+  "snapshots": 5,
+  "progress": [],
+  "error": null,
+  "chat": "Le document « Rapport : Évolution de la population des grandes villes françaises depuis 2010 » est prêt.\n\nIntroduction · Méthodologie des estimations Insee · Disponible sur les grandes villes · Limites des données disponibles · Conclusion · Sources\n\nLes informations viennent de 1 source(s) vérifiée(",
+  "kind": "doc",
+  "title": "Rapport : Évolution de la population des grandes villes françaises depuis 2010",
+  "blocks": 6,
+  "body": 5,
+  "with_visual": 0,
+  "images_asked": 0,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 0,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 0,
+  "cited_valid": 0,
+  "sources_listed": 0,
+  "image_titles": [],
+  "image_queries": [],
+  "doc": {
+   "v": 1,
+   "kind": "doc",
+   "title": "Rapport : Évolution de la population des grandes villes françaises depuis 2010",
+   "subtitle": "",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Introduction",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Ce rapport présente les données disponibles sur l'évolution démographique des grandes villes françaises depuis 2010. Les informations proviennent exclusivement de l'Insee et de ses estimations de population annuelles au 1er janvier."
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b2",
+     "title": "Méthodologie des estimations Insee",
+     "parts": [
+      {
+       "t": "text",
+       "text": "L'Insee estime la population des régions et départements français (métropole et DOM) au 1er janvier de chaque année, de 1975 à 2026. Pour les années 2006 à 2023, ces estimations s'appuient sur le recensement actuel. À partir de 2024, le niveau de population et la pyramide des âges sont évalués annuellement à partir des statistiques d'état civil et d'une estimation du solde migratoire."
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b3",
+     "title": "Disponible sur les grandes villes",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Les estimations Insee sont déclinées par région, département, sexe et âge. Les données détaillées par ville ne figurent pas dans les sources fournies. Les soldes migratoires des départements et régions sont estimés et qualifiés d'apparents, car ils échappent à toute procédure d'enregistrement."
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b4",
+     "title": "Limites des données disponibles",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Les chiffres précis pour les grandes villes ne sont pas fournis dans les extraits de sources. Toute présentation de chiffres spécifiques (ex. population de Paris en 2025) serait inventée et ne serait pas conforme à la demande de fiabilité."
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b5",
+     "title": "Conclusion",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Les grandes villes françaises font partie des régions et départements dont l'Insee estime la population annuellement. Cependant, sans données détaillées par ville, il n'est pas possible de dresser un tableau chiffré de leur évolution depuis 2010. Les estimations globales par région et département restent les seules données fiables disponibles."
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b6",
+     "title": "Sources",
+     "parts": [
+      {
+       "t": "text",
+       "text": "[1] Estimation de la population au 1ᵉʳ janvier 2026 | Insee — https://www.insee.fr/fr/statistiques/8721456"
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {},
+   "_next": 7,
+   "template": "rapport",
+   "template_by": "hint",
+   "date": "28 novembre 2026"
+  }
+ }
+]
