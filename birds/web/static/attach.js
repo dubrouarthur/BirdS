@@ -290,7 +290,7 @@ export function docCard(doc, { onRemove, status, compact, excerpt, onOpen } = {}
   return h(
     "div",
     {
-      class: `att-card att-doc ${k.cls}${compact ? " is-compact" : ""}${onOpen ? " is-openable" : ""}`,
+      class: `att-card att-doc ${k.cls}${compact ? " is-compact" : ""}${onOpen ? " cx-openable" : ""}`,
       tabindex: "0",
       title: doc.name,
       "data-att": doc.name,

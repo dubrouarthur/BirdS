@@ -121,10 +121,10 @@
   border-block-start: 1px solid var(--line);
   padding-block-start: 4px;
 }
-.att-card.is-openable {
+.cx-openable {
   cursor: pointer;
 }
-.att-card.is-openable:hover {
+.cx-openable:hover {
   border-color: var(--line-strong);
 }
 
@@ -136,7 +136,7 @@
   color: var(--muted);
   font-size: 0.8rem;
 }
-.cx-pager .btn-icon {
+.cx-pager > .btn {
   inline-size: 30px;
   min-block-size: 30px;
 }
@@ -162,8 +162,8 @@
   opacity: 0;
   transition: opacity 0.12s;
 }
-.turn-user:hover .cx-user-acts,
-.turn-user:focus-within .cx-user-acts,
+.cx-has-acts:hover .cx-user-acts,
+.cx-has-acts:focus-within .cx-user-acts,
 .cx-user-acts:has(.cx-pager) {
   opacity: 1;
 }
@@ -172,7 +172,7 @@
     opacity: 1;
   }
 }
-.turn-user.cx-has-acts {
+.cx-has-acts {
   flex-direction: column;
   align-items: flex-end;
 }
@@ -308,7 +308,7 @@
     border-color: var(--accent);
   }
 }
-.conv-open .cx-snippet {
+.cx-hit .cx-snippet {
   display: block;
   overflow: hidden;
   margin-block-start: 2px;
@@ -322,18 +322,18 @@
   background: var(--accent-soft);
   color: var(--ink);
 }
-.conv-menu[role="menu"] {
+.cx-menu {
   flex-direction: column;
   flex-wrap: nowrap;
   gap: 0;
   padding: 2px 4px 6px;
 }
-.conv-menu[role="menu"] .btn {
+.cx-menu > .btn {
   justify-content: flex-start;
   min-block-size: 36px;
   border-radius: 8px;
 }
-.conv-menu[role="menu"] .btn:focus-visible {
+.cx-menu > .btn:focus-visible {
   background: var(--surface-2);
 }
 .cx-hit {
@@ -343,7 +343,7 @@
 }
 
 /* ------------------------------------------------------------ « Livrables »: mails drafted in the chat */
-.deliv-ic.is-mail {
+.cx-deliv-mail {
   background: var(--accent-soft);
   color: var(--link);
   font-size: 0.9rem;
@@ -351,25 +351,25 @@
 
 /* ------------------------------------------------------------ attachment tray: every card in sight */
 /* the tray wraps on every screen (4 documents and 3 images at most): no card hides past the edge */
-.att-tray {
+.cx-tray {
   flex-wrap: wrap;
   overflow-x: visible;
   max-block-size: 40dvh;
   overflow-y: auto;
 }
-.att-tray .att-in {
+.cx-tray > li {
   flex: 0 1 auto;
   min-inline-size: 0;
   max-inline-size: 100%;
 }
 /* keyboard open on a phone (little height left): one scrolling row again, so the conversation keeps its room */
 @media (max-width: 640px) and (max-height: 520px) {
-  .att-tray {
+  .cx-tray {
     flex-wrap: nowrap;
     overflow-x: auto;
     overflow-y: visible;
   }
-  .att-tray .att-in {
+  .cx-tray > li {
     flex: none;
   }
 }

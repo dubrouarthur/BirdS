@@ -553,7 +553,7 @@ function renderSidebar() {
         h(
           "div",
           {
-            class: "conv-menu",
+            class: "conv-menu cx-menu",
             role: "menu",
             "aria-label": t("side.more", { title }),
             onkeydown: convMenuKeys,
@@ -1157,7 +1157,7 @@ function drawAttachments(box) {
   const tray = (docs.length || imgs.length) && [
     h(
       "ul",
-      { class: "att-tray", "aria-label": t("att.tray") },
+      { class: "att-tray cx-tray", "aria-label": t("att.tray") },
       imgs.map((img) =>
         h(
           "li",
@@ -2393,7 +2393,7 @@ function openDeliverables() {
       );
     } else if (d.type === "mail") {
       ul.append(
-        item("@", "is-mail", d.title, [t("cx.deliv.kind.mail"), d.to && t("cx.deliv.mail.to", { to: d.to })].filter(Boolean).join(" · "),
+        item("@", "cx-deliv-mail", d.title, [t("cx.deliv.kind.mail"), d.to && t("cx.deliv.mail.to", { to: d.to })].filter(Boolean).join(" · "),
           h("button", { class: "btn btn-outline btn-small", type: "button", "data-deliv": "show", text: t("deliv.show"),
             onclick: () => showTurn(d.turn, ".email-card") }),
         ),
