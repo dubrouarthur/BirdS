@@ -2361,18 +2361,11 @@ async function loadHealth() {
   }
   state.health = health;
   showBanner("");
-  let sessionDemo = false;
-  try {
-    sessionDemo = sessionStorage.getItem("bird.demoSession") === "1";
-  } catch {
-    /* no storage: no demo kept */
-  }
-  if (state.prefs.mode === "demo" && state.health?.modes?.server && !(state.prefs.demoChosen && sessionDemo)) {
-    // the demo is never sticky: a visitor who tried it (or picked it in an earlier visit) comes back on the real model
+  if (state.prefs.mode === "demo" && state.health?.modes?.server) {
+    // a real model is connected: the demo is gone, whatever an earlier visit stored
     state.prefs.mode = "";
     state.prefs.demoChosen = false;
     savePrefs();
-    toast(t("mode.switched"), "ok");
   }
 }
 

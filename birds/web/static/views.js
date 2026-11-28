@@ -951,16 +951,7 @@ export function renderSettings() {
         value,
         checked: mode === value,
         disabled: !enabled,
-        onchange: () => {
-          // a demo chosen by hand lasts this browser session only: the next visit is back on the real model
-          try {
-            if (value === "demo") sessionStorage.setItem("bird.demoSession", "1");
-            else sessionStorage.removeItem("bird.demoSession");
-          } catch {
-            /* private mode: the demo then lasts until the page is reloaded */
-          }
-          apply({ mode: value, demoChosen: value === "demo" });
-        },
+        onchange: () => apply({ mode: value, demoChosen: value === "demo" }),
       }),
       h(
         "span",
@@ -1166,7 +1157,8 @@ export function renderSettings() {
           role: "radiogroup",
           "aria-labelledby": "set-model-title",
         },
-        modeCard("demo", t("set.mode.demo"), t("set.mode.demo.hint"), true),
+        // the demo exists only where no model is connected (a showcase deployment, the e2e server): never beside a real one
+        !modes.server && modeCard("demo", t("set.mode.demo"), t("set.mode.demo.hint"), true),
         modeCard(
           "server",
           t("set.mode.server"),
