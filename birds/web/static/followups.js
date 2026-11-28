@@ -24,6 +24,8 @@ export function suggestions(answer) {
     if (out.length < 3 && !out.some((x) => x.prompt === prompt))
       out.push({ label, prompt, kind });
   };
+  // a document that evolves in the canvas: the next steps the harness read in its structure (a missing section…)
+  for (const c of answer.canvas?.next || []) add(c.label, c.prompt, "canvas");
   const widgets = answer.widgets || [];
   for (const w of widgets) {
     if (w.type === "weather") {

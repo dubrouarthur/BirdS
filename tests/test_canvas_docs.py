@@ -120,6 +120,17 @@ def test_a_letter_has_its_own_chips_and_completeness():
     assert [c["label"] for c in templates.next_steps(d)] == ["Plus formelle", "Plus courte"]
 
 
+def test_template_flags_match_the_preview_table():
+    """canvas-doc.js keeps the same template table (cover, toc, numbered, letter) as birds/canvas/templates.py."""
+    js = (ROOT / "birds/web/static/canvas-doc.js").read_text(encoding="utf-8")
+    for t in templates.TEMPLATES.values():
+        m = re.search(rf'(?:"{t.id}"|\b{t.id}):\s*\{{([^}}]*)\}}', js)
+        assert m, t.id
+        row = m.group(1)
+        for flag in ("cover", "toc", "numbered", "letter"):
+            assert re.search(rf"\b{flag}:\s*{str(getattr(t, flag)).lower()}\b", row), (t.id, flag)
+
+
 # ------------------------------------------------------------------ when the canvas opens
 
 

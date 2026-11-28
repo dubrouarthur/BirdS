@@ -24,6 +24,7 @@ import { chartSvg } from "./previews.js";
 import { renderChart } from "./chart.js";
 import { flowSvg, parseFlow } from "./canvas-flow.js";
 import * as sheet from "./canvas-sheet.js";
+import * as pages from "./canvas-doc.js";
 
 Object.assign(STRINGS.fr, CANVAS_STRINGS.fr);
 Object.assign(STRINGS.en, CANVAS_STRINGS.en);
@@ -161,6 +162,7 @@ function commit(mutate, label) {
   pushVersion(a, doc, label);
   handlers.save(conv);
   render();
+  handlers.changed?.(a.aid);
   announce(t("cv.live.version", { n: a.versions.at(-1).n }));
 }
 
@@ -195,6 +197,21 @@ export function onEvent(c, turn, ev) {
       cur: 0,
       draft: null,
     };
+  }
+  if (ev.phase === "variants") {
+    // ✦ on a section: two rewrites to choose from, shown in place of the section (no version until one is chosen)
+    if (!a.versions.length || !Array.isArray(ev.blocks) || !ev.target) return false;
+    a.pending = { target: ev.target, blocks: ev.blocks.slice(0, 2) };
+    turn.canvasLive = { aid: ev.aid, phase: "variants" };
+    if (c === conv) {
+      s.active = ev.aid;
+      if (!panel || panel.hidden || view.aid !== ev.aid) open(ev.aid, { focus: false });
+      else render();
+      panel
+        ?.querySelector(".cv-variants")
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    return true;
   }
   if (ev.phase === "reopen") {
     // an edit asked while the panel was closed: it opens again, and the next message carries the document
@@ -235,7 +252,8 @@ export function onEvent(c, turn, ev) {
 /** The answer's ``canvas`` field: a document a trained file tool made arrives here (not streamed). */
 export function onAnswer(c, turn, ref) {
   if (!ref || typeof ref.aid !== "string") return;
-  turn.canvasLive = null;
+  const live = turn.canvasLive;
+  turn.canvasLive = live?.phase === "variants" ? live : null;
   if (ref.doc) {
     const s = store(c);
     if (!s.list[ref.aid]) {
@@ -247,6 +265,11 @@ export function onAnswer(c, turn, ref) {
         draft: null,
       };
       pushVersion(s.list[ref.aid], ref.doc, t("cv.label.created"));
+    }
+    // a Word-like document made by the trained tool: the canvas opens on it at once (one deliverable, one card)
+    if (ref.open && c === conv) {
+      s.active = ref.aid;
+      open(ref.aid, { focus: false });
     }
   }
 }
@@ -273,7 +296,10 @@ export function payload(c) {
     };
   const out = { aid: a.aid, version: v.n, doc: clone(v.doc), open: !!shown };
   if (fresh) out.fresh = true;
-  if (shown && tgt && tgt.aid === a.aid) out.target = tgt.block;
+  if (shown && tgt && tgt.aid === a.aid) {
+    out.target = tgt.block;
+    if (tgt.variants) out.variants = 2; // ✦ on a section of a document: two variants to choose from
+  }
   return { canvas: out };
 }
 
@@ -290,6 +316,7 @@ export function canvasCard(turn) {
   const writing =
     turn.status === "running" && turn.canvasLive?.phase === "stream";
   const kind = doc.kind || a.kind;
+  if (kind === "doc") return docCard(turn, a, v, doc, writing);
   return h(
     "div",
     { class: `cv-card cv-card-${kind}` },
@@ -335,6 +362,91 @@ export function canvasCard(turn) {
         open(a.aid, { focus: true });
       },
       { "data-act": `cv-open-${a.aid}` },
+    ),
+  );
+}
+
+/** The highest version of an artifact that an answer of the conversation points to. */
+function newestRef(aid) {
+  let n = 0;
+  for (const tn of conv?.turns || [])
+    if (tn.answer?.canvas?.aid === aid) n = Math.max(n, tn.answer.canvas.version || 0);
+  return n;
+}
+
+/** The card of a document: its first page, its template and version, and the downloads right there. */
+function docCard(turn, a, v, doc, writing) {
+  const choosing =
+    turn.canvasLive?.phase === "variants" && !!a.pending && !writing;
+  // the newest card of the document follows it (edits made in the canvas since, a restore): its downloads are
+  // the document as it is now; an older card keeps the version of its turn
+  const latest = !v || v.n >= newestRef(a.aid);
+  const shown = choosing || latest ? current(a) : doc;
+  const ver = choosing ? null : latest ? a.versions[a.cur] : v;
+  const now = () => (latest ? current(a) : doc); // read at the click: edits made since are in the file
+  const lk = pages.look(shown);
+  const openIt = () => {
+    if (v && !choosing) a.cur = a.versions.indexOf(v);
+    store().active = a.aid;
+    open(a.aid, { focus: true });
+  };
+  return h(
+    "div",
+    { class: "cv-card cv-card-doc" },
+    h(
+      "button",
+      {
+        type: "button",
+        class: "cv-card-thumb",
+        "aria-label": `${t("cv.open")} : ${shown.title || t("cv.kind.doc")}`,
+        tabindex: "-1",
+        onclick: openIt,
+      },
+      pages.thumb(shown),
+    ),
+    h(
+      "span",
+      { class: "cv-card-text" },
+      h("strong", { text: shown.title || t("cv.kind.doc") }),
+      h("span", {
+        class: "cv-card-meta",
+        text: [
+          lk.name,
+          writing
+            ? t("cv.card.writing")
+            : choosing
+              ? t("cv.doc.variants.waiting")
+              : ver
+                ? t("cv.card.version.of", { n: ver.n })
+                : "",
+          lk.letter ? "" : sizeText(shown),
+        ]
+          .filter(Boolean)
+          .join(" · "),
+      }),
+      h(
+        "span",
+        { class: "cv-card-actions" },
+        button("btn-outline btn-small cv-card-open", "expand", t("cv.open"), openIt, {
+          "data-act": `cv-open-${a.aid}`,
+        }),
+        button(
+          "btn-quiet btn-small",
+          "download",
+          ".docx",
+          () => exportAs(now(), "docx"),
+          {
+            disabled: writing,
+            "data-act": `cv-docx-${a.aid}`,
+            "aria-label": t("cv.download.docx"),
+          },
+        ),
+        button("btn-quiet btn-small", "file", "PDF", () => printDoc(now(), a), {
+          disabled: writing,
+          "data-act": `cv-pdf-${a.aid}`,
+          "aria-label": t("cv.download.pdf"),
+        }),
+      ),
     ),
   );
 }
@@ -458,6 +570,10 @@ function render() {
       ? focusPath(document.activeElement)
       : null;
   panel.replaceChildren(head(a, doc), status(a, doc), bodyOf(a, doc));
+  for (const r of panel.querySelectorAll(".cv-doc")) {
+    pages.paginate(r); // the pages are laid out once the paper has its width
+    pages.watch(r);
+  }
   const nb = panel.querySelector(".cv-body");
   if (nb) nb.scrollTop = scroll;
   if (keep) restorePath(keep);
@@ -492,9 +608,10 @@ function head(a, doc) {
       h("option", {
         value: String(i),
         selected: i === a.cur,
-        text: v.label
-          ? t("cv.version.label", { n: v.n, label: v.label })
-          : t("cv.version.n", { n: v.n }),
+        text:
+          (v.label
+            ? t("cv.version.label", { n: v.n, label: v.label })
+            : t("cv.version.n", { n: v.n })) + hhmm(v.at),
       }),
     ),
   );
@@ -560,14 +677,43 @@ function head(a, doc) {
   );
 }
 
+const hhmm = (at) =>
+  at
+    ? ` · ${new Date(at).toLocaleTimeString(state.prefs.lang === "en" ? "en-GB" : "fr-FR", { hour: "2-digit", minute: "2-digit" })}`
+    : "";
+
 function status(a, doc) {
   const what = sizeText(doc);
-  return h("p", {
-    class: `cv-status${a.draft ? " is-writing" : ""}`,
-    role: "status",
-    "aria-live": "polite",
-    text: a.draft ? t("cv.writing", { what }) : t("cv.ready", { what }),
-  });
+  const old = !a.draft && a.cur < a.versions.length - 1 ? a.versions[a.cur] : null;
+  return h(
+    "div",
+    { class: `cv-status${a.draft ? " is-writing" : ""}${old ? " is-old" : ""}` },
+    h("span", {
+      role: "status",
+      "aria-live": "polite",
+      text: a.draft
+        ? t("cv.writing", { what })
+        : old
+          ? `${t("cv.doc.viewing", { n: old.n })} ${t("cv.ready", { what })}`
+          : t("cv.ready", { what }),
+    }),
+    // an older version is shown: « Restaurer » makes it the newest one (the history keeps every step)
+    old &&
+      button(
+        "btn-outline btn-small cv-restore",
+        "retry",
+        t("cv.doc.restore"),
+        () => {
+          const n = old.n;
+          pushVersion(a, clone(old.doc), t("cv.doc.restored", { n }));
+          handlers.save(conv);
+          render();
+          handlers.changed?.(a.aid);
+          announce(t("cv.live.version", { n: a.versions.at(-1).n }));
+        },
+        { "data-k": "restore" },
+      ),
+  );
 }
 
 function downloadMenu(doc) {
@@ -765,7 +911,7 @@ function bodyOf(a, doc) {
   return h(
     "div",
     { class: `cv-body cv-kind-${kind} cvt-${doc.theme || "corporate"}` },
-    kind === "deck" ? deckView(a, doc) : docView(a, doc),
+    kind === "deck" ? deckView(a, doc) : pages.docView(a, doc, docApi),
   );
 }
 
@@ -1122,7 +1268,11 @@ function freeMediaId(prefix) {
   return `${prefix}${n}`;
 }
 
-async function searchImage(b, partIndex, { ask = false, again = false } = {}) {
+async function searchImage(
+  b,
+  partIndex,
+  { ask = false, again = false, append = false } = {},
+) {
   const a = art(view.aid);
   const doc = current(a);
   const part = partIndex >= 0 ? b.parts[partIndex] : null;
@@ -1164,7 +1314,7 @@ async function searchImage(b, partIndex, { ask = false, again = false } = {}) {
         media: m.id,
       };
       const i = blk.parts.findIndex((x) => x.t === "image");
-      if (i >= 0) blk.parts[i] = p;
+      if (i >= 0 && !append) blk.parts[i] = p;
       else blk.parts.push(p);
     }, t("cv.label.image"));
   } catch (e) {
@@ -1580,49 +1730,6 @@ function tableOf(b, p, k) {
 
 // ------------------------------------------------------------------ the document
 
-function docView(a, doc) {
-  const page = h(
-    "article",
-    { class: "cv-page" },
-    h(
-      "header",
-      { class: "cv-page-head" },
-      h("span", { class: "cv-page-kind", text: t("cv.kind.doc") }),
-      editable("h3", "cv-page-title", doc.title, "title", {
-        label: t("cv.edit.title"),
-      }),
-      editable(
-        "p",
-        `cv-page-sub${doc.subtitle ? "" : " cv-faint"}`,
-        doc.subtitle || "",
-        "subtitle",
-      ),
-      h("p", {
-        class: "cv-page-date",
-        text: new Date().toLocaleDateString(
-          state.prefs.lang === "en" ? "en-GB" : "fr-FR",
-          { day: "numeric", month: "long", year: "numeric" },
-        ),
-      }),
-    ),
-    doc.blocks.map((b, i) =>
-      h(
-        "section",
-        {
-          class: "cv-sec",
-          "aria-label": b.title || t("cv.section.n", { n: i + 1 }),
-        },
-        blockTools(a, doc, b, i),
-        editable("h4", "cv-sec-title", b.title, `${b.id}:title`, {
-          label: t("cv.edit.title"),
-        }),
-        b.parts.map((p, k) => docPart(doc, b, p, k)),
-      ),
-    ),
-  );
-  return page;
-}
-
 function mdBlock(text, path) {
   // rendered Markdown (escaped by markdown.js); a click swaps it for the raw text, edited in place
   const box = h("div", {
@@ -1715,6 +1822,329 @@ function docPart(doc, b, p, k) {
   if (p.t === "code")
     return h("pre", { class: "cv-pre" }, h("code", { text: p.text }));
   return null;
+}
+
+// ------------------------------------------------------------------ Word-like documents (canvas-doc.js lays out)
+
+const docApi = {
+  editable,
+  mdBlock,
+  textParts,
+  tableOf,
+  picture,
+  chartBox,
+  docPart,
+  mediaMeta,
+  sectionTools: (a, doc, b, i) => docTools(a, doc, b, i),
+  pendingFor: (a, bid) =>
+    a?.pending && a.pending.target === bid && !a.draft ? a.pending : null,
+  variantsBox: (a, doc, b, pending) => variantsBox(a, doc, b, pending),
+};
+
+/** A new part for « Insérer » (placeholder text the person writes over: nothing is said for them). */
+function newPart(kind) {
+  if (kind === "table")
+    return {
+      t: "table",
+      rows: [
+        [1, 2, 3].map((n) => t("cv.doc.new.col", { n })),
+        ["", "", ""],
+        ["", "", ""],
+      ],
+    };
+  if (kind === "heading")
+    return { t: "heading", level: 2, text: t("cv.doc.new.heading") };
+  return { t: "callout", tone: kind, text: t("cv.doc.new.text") };
+}
+
+function docTools(a, doc, b, index) {
+  const busy = !!a.draft || !!a.pending;
+  const n = doc.blocks.length;
+  const imgPart = b.parts.findIndex((p) => p.t === "image");
+  const toggle = (pop) => (e) => {
+    const openNow = pop.hidden;
+    closePops();
+    pop.hidden = !openNow;
+    e.currentTarget.setAttribute("aria-expanded", String(openNow));
+    if (openNow)
+      (pop.querySelector("input") || pop.querySelector("button"))?.focus();
+  };
+  const item = (ic, label, fn, k) =>
+    h(
+      "button",
+      {
+        type: "button",
+        role: "menuitem",
+        class: "cv-menu-item",
+        "data-k": k,
+        onclick: () => {
+          closePops();
+          fn();
+        },
+      },
+      icon(ic),
+      h("span", { text: label }),
+    );
+  const add = (kind) => () =>
+    commit((d) => {
+      d.blocks.find((x) => x.id === b.id).parts.push(newPart(kind));
+    }, t("cv.doc.insert"));
+  const insert = h(
+    "div",
+    { class: "cv-pop cv-menu", role: "menu", hidden: true },
+    item(
+      "image",
+      t("cv.doc.insert.image"),
+      () => searchImage(b, -1, { ask: true, append: true }),
+      `ins-image-${b.id}`,
+    ),
+    item(
+      "make_sheet",
+      t("cv.doc.insert.table"),
+      add("table"),
+      `ins-table-${b.id}`,
+    ),
+    item("check", t("cv.doc.insert.key"), add("key"), `ins-key-${b.id}`),
+    item("alert", t("cv.doc.insert.warn"), add("warn"), `ins-warn-${b.id}`),
+    item("info", t("cv.doc.insert.info"), add("info"), `ins-info-${b.id}`),
+    item(
+      "edit",
+      t("cv.doc.insert.heading"),
+      add("heading"),
+      `ins-heading-${b.id}`,
+    ),
+    imgPart >= 0 &&
+      item(
+        "retry",
+        t("cv.image.again"),
+        () => searchImage(b, imgPart, { again: true }),
+        `img-again-${b.id}`,
+      ),
+    imgPart >= 0 &&
+      item(
+        "trash",
+        t("cv.image.remove"),
+        () =>
+          commit((d) => {
+            d.blocks.find((x) => x.id === b.id).parts.splice(imgPart, 1);
+          }, t("cv.label.image")),
+        `img-remove-${b.id}`,
+      ),
+  );
+  const ask = (text) => {
+    if (!text) return;
+    if (handlers.busy()) return toast(t("cv.ask.busy"), "error");
+    closePops();
+    target = { aid: a.aid, block: b.id, variants: true };
+    handlers.send(text);
+  };
+  const presets = [
+    ["shorter", "Rends cette section plus concise", "Make this section more concise"],
+    ["clearer", "Rends cette section plus claire", "Make this section clearer"],
+    ["formal", "Rends cette section plus formelle", "Make this section more formal"],
+    ["expand", "Développe cette section", "Expand this section"],
+  ];
+  const rework = h(
+    "form",
+    {
+      class: "cv-pop cv-ask cv-rework",
+      hidden: true,
+      "aria-label": t("cv.doc.rework.title"),
+      onsubmit: (e) => {
+        e.preventDefault();
+        ask(e.currentTarget.querySelector("input").value.trim());
+      },
+    },
+    h("p", { class: "cv-rework-hint", text: t("cv.doc.rework.hint") }),
+    h(
+      "div",
+      { class: "cv-rework-presets" },
+      presets.map(([k, fr, en]) =>
+        h("button", {
+          type: "button",
+          class: "mchip",
+          "data-k": `rw-${k}-${b.id}`,
+          text: t(`cv.doc.rework.${k}`),
+          onclick: () => ask(state.prefs.lang === "en" ? en : fr),
+        }),
+      ),
+    ),
+    h("label", {
+      class: "sr-only",
+      for: `cv-rw-${b.id}`,
+      text: t("cv.doc.rework.placeholder"),
+    }),
+    h(
+      "div",
+      { class: "cv-rework-row" },
+      h("input", {
+        id: `cv-rw-${b.id}`,
+        type: "text",
+        maxlength: "600",
+        placeholder: t("cv.doc.rework.placeholder"),
+        autocomplete: "off",
+      }),
+      button("btn-primary btn-small", "send", t("cv.ask.send"), null, {
+        type: "submit",
+      }),
+    ),
+  );
+  return h(
+    "div",
+    {
+      class: "cv-block-tools cv-doc-tools",
+      role: "toolbar",
+      "aria-label": t("cv.section.n", { n: index + 1 }),
+    },
+    button(
+      "btn-quiet btn-icon btn-small cv-up",
+      "down",
+      t("cv.up"),
+      () => moveBlock(b.id, -1),
+      { disabled: busy || index === 0, "data-k": `up-${b.id}` },
+    ),
+    button(
+      "btn-quiet btn-icon btn-small",
+      "down",
+      t("cv.down"),
+      () => moveBlock(b.id, 1),
+      { disabled: busy || index === n - 1, "data-k": `down-${b.id}` },
+    ),
+    button(
+      "btn-quiet btn-icon btn-small",
+      "copy",
+      t("cv.duplicate"),
+      () =>
+        commit((d) => {
+          const i = d.blocks.findIndex((x) => x.id === b.id);
+          d.blocks.splice(i + 1, 0, { ...clone(d.blocks[i]), id: nextId(d) });
+        }, t("cv.label.dup")),
+      { disabled: busy || n >= 40, "data-k": `dup-${b.id}` },
+    ),
+    button(
+      "btn-quiet btn-icon btn-small",
+      "trash",
+      t("cv.delete"),
+      () =>
+        commit((d) => {
+          if (d.blocks.length <= 1) return false;
+          d.blocks = d.blocks.filter((x) => x.id !== b.id);
+        }, t("cv.label.deleted")),
+      { disabled: busy || n <= 1, "data-k": `del-${b.id}` },
+    ),
+    h(
+      "span",
+      { class: "cv-menu-wrap" },
+      button(
+        "btn-quiet btn-icon btn-small",
+        "plus",
+        t("cv.doc.insert"),
+        toggle(insert),
+        {
+          disabled: busy,
+          "aria-haspopup": "menu",
+          "aria-expanded": "false",
+          "data-k": `ins-${b.id}`,
+        },
+      ),
+      insert,
+    ),
+    h(
+      "span",
+      { class: "cv-menu-wrap cv-ask-wrap" },
+      button(
+        "btn-quiet btn-small cv-ask-btn cv-rework-btn",
+        "spark",
+        t("cv.doc.rework"),
+        toggle(rework),
+        { disabled: busy, "aria-expanded": "false", "data-k": `ask-${b.id}` },
+      ),
+      rework,
+    ),
+  );
+}
+
+/** Two variants of a section, side by side (stacked on a phone): pick one (a new version) or keep the current. */
+function variantsBox(a, doc, b, pending) {
+  const choose = (i) => {
+    const blk = pending.blocks[i];
+    a.pending = null;
+    commit((d) => {
+      const j = d.blocks.findIndex((x) => x.id === b.id);
+      if (j < 0) return false;
+      d.blocks[j] = { ...clone(blk), id: b.id };
+    }, t("cv.doc.variant.label", { n: i + 1 }));
+    panel?.querySelector(`[data-k="ask-${b.id}"]`)?.focus();
+  };
+  const marks = new Map(pages.footnotes(doc).map((x) => [x.key, x.n]));
+  const preview = (blk) => {
+    const fake = { ...blk, id: b.id };
+    return h(
+      "div",
+      { class: "cv-variant-body", inert: "" },
+      (fake.parts || []).map((p, k) => {
+        if (p.t === "text")
+          return h("p", { class: "cv-para" }, pages.withMarks(p.text, marks));
+        if (p.t === "callout")
+          return h(
+            "aside",
+            { class: `cv-callout cv-tone-${p.tone === "ok" ? "key" : p.tone || "info"}` },
+            h("p", null, pages.withMarks(p.text, marks)),
+          );
+        const el = p.t === "list" ? textParts(fake, [p])[0] : docPart(doc, fake, p, k);
+        if (el) pages.markTextNodes(el, marks);
+        return el;
+      }),
+    );
+  };
+  return h(
+    "div",
+    {
+      class: "cv-variants",
+      role: "group",
+      "aria-label": t("cv.doc.variants", { title: b.title || "" }),
+    },
+    h("p", {
+      class: "cv-variants-title",
+      text: t("cv.doc.variants", { title: b.title || "" }),
+    }),
+    h(
+      "div",
+      { class: "cv-variants-grid" },
+      pending.blocks.map((blk, i) =>
+        h(
+          "div",
+          { class: "cv-variant" },
+          h("p", {
+            class: "cv-variant-n",
+            text: t("cv.doc.variant", { n: i + 1 }),
+          }),
+          blk.title && blk.title !== b.title
+            ? h("p", { class: "cv-variant-head", text: blk.title })
+            : null,
+          preview(blk),
+          button(
+            "btn-primary btn-small cv-variant-pick",
+            "check",
+            t("cv.doc.variant.pick", { n: i + 1 }),
+            () => choose(i),
+            { "data-k": `pick-${i + 1}-${b.id}` },
+          ),
+        ),
+      ),
+    ),
+    button(
+      "btn-quiet btn-small",
+      "cross",
+      t("cv.doc.variant.keep"),
+      () => {
+        a.pending = null;
+        handlers.save(conv);
+        render();
+      },
+      { "data-k": `keep-${b.id}` },
+    ),
+  );
 }
 
 // ------------------------------------------------------------------ code
@@ -2278,11 +2708,10 @@ const fmtNum = (v) =>
 
 // ------------------------------------------------------------------ print (PDF)
 
-function printDoc(doc) {
+function printDoc(doc, a = art(view.aid)) {
   const kind = doc.kind;
   const old = document.getElementById("cv-print");
   old?.remove();
-  const a = art(view.aid);
   const box = h(
     "div",
     {
@@ -2291,7 +2720,7 @@ function printDoc(doc) {
     },
     kind === "deck"
       ? deckView({ ...a, draft: null }, doc)
-      : docView({ ...a, draft: null }, doc),
+      : pages.docView({ ...a, draft: null, pending: null }, doc, docApi),
   );
   box.querySelectorAll(".cv-block-tools").forEach((x) => x.remove());
   box

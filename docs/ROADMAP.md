@@ -51,6 +51,9 @@ Objectif : le niveau d'OpenAI dans les usages de bureau, porté par un petit mod
      Wikimedia (licences vérifiées, crédits), « Remplacer » / « Sans image » par diapositive ;
    - documents type Word au même niveau : page de garde, sommaire, styles de titres, encadrés, tableaux, figures légendées,
      images, notes, sources ; édition en place, sections déplaçables, export .docx fidèle à l'aperçu ;
+     **Fait sur la branche `canvas-docs`** (docs/CANVAS.md, section 9 : six modèles choisis par le modèle, pages A4,
+     ✦ à deux variantes, historique avec restauration, une seule carte, .docx vérifié contre l'aperçu) ; reste : la
+     mesure en réel « après » sur les 6 demandes fixes (l'avant est noté).
    - code avec Web preview façon ChatGPT : aperçu HTML/CSS/JS en direct (iframe isolée), plusieurs fichiers, console,
      responsive (mobile / tablette / bureau), « Corriger avec Bird », itérations versionnées, export / copie ;
    - ✦ par bloc, retouche d'une sélection avec variantes, versions + restauration, le document modifié fait foi ;

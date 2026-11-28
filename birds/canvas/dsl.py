@@ -928,7 +928,7 @@ def _part_dsl(p: dict) -> list[str]:
     if t == "code":
         return [f"```{p.get('lang', '')}", p.get("text", ""), "```"]
     if t == "callout":
-        word = {"warn": "attention", "ok": "ok"}.get(p.get("tone"), "note")
+        word = {"warn": "attention", "ok": "ok", "key": "cle"}.get(p.get("tone"), "note")
         return [f"::: {word}", p.get("text", ""), ":::"]
     return []
 

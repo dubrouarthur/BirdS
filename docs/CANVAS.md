@@ -192,3 +192,75 @@ remplacement à côté du bloc demandé en ajout, un ajout ou un bloc rallongé 
 chat le dit au lieu d'afficher les opérations. Sur les deux réponses réelles : « ajoute une slide » donne 6 diapositives
 sur 6 attendues, toutes gardées ; « plus court » ne casse plus rien. L'effet du nouvel exemple sur le modèle reste à
 mesurer en direct (budget de générations atteint).
+
+## 9. Documents type Word (branche `canvas-docs`)
+
+Un document se lit et s'édite comme une page Word, au niveau des diapositives :
+
+- **Un livrable, une carte.** « Rédige un document Word : … », « une lettre en Word », « le compte rendu en docx »
+  ouvrent le canevas (`intents.ask` : un format Word nommé n'envoie plus vers l'outil entraîné, sauf avec un autre
+  format, une question, un mail, une traduction, un résumé). Si le modèle appelle quand même `make_document` (tour
+  ordinaire), le document est adopté, le canevas s'ouvre aussitôt (`ref.open`), sa carte remplace la carte fichier
+  (`ref.files`) et la ligne « Fichier : x.docx » est retirée du texte (`canvas_web.strip_file_lines`). Une
+  présentation ou un tableur adoptés gardent leur carte fichier. La carte du chat montre la première page, le modèle,
+  « Version N », et télécharge .docx / PDF sur place ; la carte la plus récente suit les éditions faites depuis.
+- **Modèles** (`birds/canvas/templates.py`) : note de cadrage, compte rendu, rapport, proposition commerciale,
+  procédure, lettre. **Le modèle choisit** (`template:` dans l'en-tête du format, lu avec indulgence : accents,
+  alias, anglais) ; un indice tiré des mots de la personne ne sert que s'il n'a rien écrit (`template_by` = `model`
+  | `hint` | `default`). Le code vérifie la structure (sections attendues trouvées, manquantes, taux sur les
+  obligatoires) et n'ajoute **jamais** de contenu : une section manquante devient une puce de suite (« Ajouter
+  « Périmètre » »), placée à son rang du modèle quand on l'ajoute (`patch._template_place`). Un auteur ou un
+  destinataire n'est gardé que si la demande le nomme ; la date est fixée une fois (aperçu et fichier identiques).
+- **Page** (`canvas-doc.js`) : pages A4 (210 × 297, unités de conteneur, mise en page refaite à chaque changement et
+  au redimensionnement ; une feuille continue sous 520 px), couverture (nom du modèle, titre, sous-titre, date,
+  auteur), sommaire avec numéros de page, titres numérotés « 1. » / « 1.1 » (H1-H3), encadrés « À retenir » /
+  « Attention » / « Info », tableaux à en-tête, figures numérotées « Figure n – légende · Source : crédit · licence »
+  (images par le même chemin serveur Commons, ou graphiques du moteur), notes `[^1]` en exposant puis listées à la fin,
+  en-tête courant et « n / N ». Lettre : expéditeur, date, destinataire, « Objet : », corps sans titres.
+- **Édition** : texte sur place par bloc ; par section : monter, descendre, dupliquer, supprimer, **Insérer** (image,
+  tableau, trois encadrés, sous-titre), **✦ Retravailler** (plus concis / clair / formel / développer, ou une
+  consigne) : le modèle écrit **deux variantes** (`turn.VARIANTS`, `parse_variants`), montrées côte à côte à la place
+  de la section (`canvas` phase `variants`) ; « Choisir » crée la version suivante, « Garder l'actuelle » ne change
+  rien ; une seule variante lisible est appliquée comme un « Demander à Bird ». Historique : chaque version porte son
+  libellé et son heure ; une version ancienne affichée propose « Restaurer » (nouvelle version, rien n'est perdu).
+- **Export fidèle** (`birds/canvas/docx_out.py`) : le .docx suit le même plan que la page (`outline`) — couverture,
+  sommaire Word (champ TOC), titres numérotés aux mêmes niveaux, encadrés, tableaux, figures à légende numérotée
+  (champ SEQ) avec crédit et licence, notes, numéros de page. Vérifié : `tests/test_canvas_docs.py` (python-docx,
+  rendu LibreOffice), et l'e2e télécharge le .docx depuis la carte, `scripts/check_docx.py` compare ses titres à ceux
+  de l'aperçu (identiques) et le rend en PNG.
+- **Continuité** : chaque tour qui fait évoluer le document dit « Version N du document », la carte montre la nouvelle
+  version, et 2-3 puces viennent de la structure (`templates.next_steps` : section manquante, tableau d'actions /
+  de risques / de tarifs, image, plus concis ; lettre : plus formelle, plus courte).
+
+### Mesures
+
+| | avant (base 8d439bd) | après |
+| --- | --- | --- |
+| pytest | 2 432 réussis, 1 ignoré | 2 467 réussis, 1 ignoré (+35 documents) |
+| node --test tests/js | 93 | 96 (+3 plan de page) |
+| banc de déclenchement | 2 094/2 094 | 2 094/2 094 |
+| e2e `canvas_docs.spec.js` (démo, 1280 et 360 px, clair et sombre) | — | 4 parcours (36 vérifications au bureau, 32 au téléphone), 0 erreur de page, 0 requête tierce ; `canvas.spec.js` inchangé : réussi |
+| poids statique de l'app | 1 380 878 o (398 Ko gzip) | 1 427 833 o (+47 Ko brut, +12 Ko gzip) |
+| .docx téléchargé vs aperçu (`check_docx.py`) | — | titres identiques (8/8), tableau, figure, notes, n° de page |
+
+**En réel, avant** (production, base, 28/11/2026, `scripts/canvas_docs_live.js`, 6 demandes fixes, une conversation
+chacune ; complétude = sections obligatoires du modèle attendu présentes, calculée après coup par `templates.check`) :
+
+| Demande | Chemin | Cartes | Canevas ouvert | « Fichier : » | Sections | Complétude | Temps |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Note de cadrage (Word) | `make_document` adopté | 2 (canevas + fichier) | non | oui | 4 | 0,8 (Contexte manque) | 14 s |
+| Compte rendu | canevas | 1 | oui | non | 4 | 1,0 | 7 s |
+| Rapport | canevas | 1 | oui | non | 5 | 0,33 | 14 s |
+| Proposition commerciale | canevas | 1 | oui | non | 5 | 0,75 | 18 s |
+| Procédure | `make_document` **échoué** : contenu recopié dans le chat | 0 | non | non | 0 | 0 | 34 s |
+| Lettre (Word) | `make_document` adopté | 2 | non | non | 5 | 1,0 | 12 s |
+
+Base : 3/6 en une carte, 3/6 canevas ouvert, modèle choisi 0/6 (aucun), réparations non comptées.
+
+**En réel, après : non mesuré.** Le serveur local de cette branche n'a pas d'accès à l'endpoint du modèle dans cette
+session (pas de clé dans l'environnement) ; la mesure se relance telle quelle sur un serveur `--from-env` :
+`node scripts/canvas_docs_live.js http://127.0.0.1:<port>/ out/docs-after` (≤ 6 générations + 3 pour ✦). À
+relever : modèle choisi par le modèle (`template_by`), complétude, réparations (`ref.repairs`), temps ; puis ✦ sur une
+section (deux variantes lues ou non). Hors ligne, le chemin entraîné réel de la note de cadrage (4 sections
+`make_document`) donne désormais une seule carte, le canevas ouvert, sans ligne « Fichier » (test
+`test_an_adopted_word_document_opens_in_the_canvas_with_one_card`).

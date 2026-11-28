@@ -212,7 +212,8 @@ def test_search_scenario_steps_sources_citations(client):
     ("prompt", "tool", "suffix", "kind"),
     [
         ("Prépare une présentation pptx de 5 diapositives", "make_slides", ".pptx", "slides"),
-        ("Rédige un document Word de synthèse", "make_document", ".docx", "document"),
+        # « un document Word » opens the canvas (docs/CANVAS.md § 9); a file asked by its format is the trained tool's
+        ("Génère un fichier docx de synthèse", "make_document", ".docx", "document"),
         ("Fais un tableur de budget", "make_sheet", ".xlsx", "sheet"),
     ],
 )
@@ -703,7 +704,8 @@ def test_static_payload_budget():
     # the data card and the richer charts (datakit.js, charts2.js, their app.css section: ~110 kB raw, ~31 kB gzipped)
     # the open-data cards (holidays, entity, tenders, papers, communes, chart source line: +44 kB raw, ~9 kB gzipped)
     # and Mode Réflexion (bird picker, drawings, flight header: +20 kB raw, +6 kB gzipped)
-    assert total < 1_390_000, f"static payload is {total} bytes"  # measured 1 380 866 with the reasoning slider
+    # and Word-like documents in the canvas (canvas-doc.js, A4 pages, variants: +47 kB raw, +12 kB gzipped)
+    assert total < 1_440_000, f"static payload is {total} bytes"  # measured 1 427 833 with the A4 documents
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"

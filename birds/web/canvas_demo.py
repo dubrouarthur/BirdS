@@ -286,7 +286,8 @@ def scripted(p: turn.Plan, words: str, lang: str) -> str:
                     part["text"] = part["text"].split(". ")[0].rstrip(".") + "."
         return dsl.to_dsl(out, ids=True)
     m = re.search(r"\b(?:ajoute|rajoute|ins[èe]re|add)\w*\b.{0,40}?\b(?:sur|about|on|concernant)\s+(?P<s>[^.?!\n]{2,60})",
-                  words, re.I)  # fmt: skip
+                  words, re.I) or re.search(r"\b(?:ajoute|add)\w*\s+(?:une|la|a|the)\s+(?:section|partie)\s+"
+                                            r"(?P<s>[^.?!\n]{2,40}?)\s+(?:au|to the)\s+document", words, re.I)  # fmt: skip
     if m:
         title = m.group("s").strip()
         title = title[:1].upper() + title[1:]

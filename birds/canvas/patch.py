@@ -383,10 +383,39 @@ def _default_after(doc: dict, words: str) -> str:
         j = _index(doc, ids[0])
         return doc["blocks"][j - 1]["id"] if j > 0 else "start"
     blocks = doc.get("blocks") or []
+    placed = _template_place(doc, words)
+    if placed:
+        return placed
     if len(blocks) > 1 and re.match(r"(?i)^\s*(?:merci|thanks?|thank you|questions?|conclusion|contact|q ?& ?a|"
                                     r"prochaines? [ée]tapes|next steps)", blocks[-1].get("title") or ""):  # fmt: skip
         return blocks[-2]["id"]
     return "end"
+
+
+def _template_place(doc: dict, words: str) -> str | None:
+    """A section the document's template expects (« ajoute une section Périmètre »): after the last section of
+    the document that comes before it in the template's order (« Périmètre » after « Objectifs »), else first."""
+    if doc.get("kind") != "doc" or not doc.get("template"):
+        return None
+    from . import templates
+
+    tpl = templates.TEMPLATES.get(doc["template"])
+    if tpl is None or not tpl.sections:
+        return None
+    said = templates.fold(words)
+    asked = next((k for k, sec in enumerate(tpl.sections) if re.search(rf"\b(?:{sec.match})", said)
+                  and re.search(r"\b(?:section|partie|ajoute|add)\b", said)), None)  # fmt: skip
+    if asked is None:
+        return None
+    at = "start"
+    for b in doc.get("blocks") or []:
+        title = templates.fold(b.get("title") or "")
+        rank = next((k for k, sec in enumerate(tpl.sections) if re.search(rf"\b(?:{sec.match})", title)), None)
+        if rank is not None and rank < asked:
+            at = b["id"]
+        elif rank is not None and rank > asked:
+            break
+    return at
 
 
 _STRUCTURE = re.compile(r"(?m)^\s{0,3}#{1,3}\s+\S|^\s*:::|^-{3,}\s*$")
