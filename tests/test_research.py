@@ -470,3 +470,13 @@ def test_the_shared_query_check_reads_word_forms_and_acronyms():
         {"question": "Recettes ?", "query": "recette de la tarte aux pommes"},
     ]}, req)  # fmt: skip
     assert [q for _, q in got] == ["risques juridiques AI Act PME France"]
+
+
+def test_counts_in_the_team_lines_choose_their_form():
+    from birds.harness import research as R
+
+    assert R._pl(1, "page lue", "pages lues") == "1 page lue" and R._pl(0, "page lue", "pages lues") == "0 page lue"
+    assert R._pl(3, "page lue", "pages lues") == "3 pages lues"
+    assert R._pl(0, "claim", "claims", False) == "0 claims" and R._pl(1, "claim", "claims", False) == "1 claim"
+    src = open(R.__file__, encoding="utf-8").read()
+    assert "(s)" not in src and "(es)" not in src  # never « affirmation(s) » on screen

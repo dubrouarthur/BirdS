@@ -20,15 +20,20 @@ const FR = {
   "rs.phase.done": "Recherche terminée",
   "rs.stat.questions": "sous-questions résolues",
   "rs.stat.sources": "sources retenues",
+  "rs.stat.sources.one": "source retenue",
   "rs.stat.claims": "affirmations vérifiées",
+  "rs.stat.claims.one": "affirmation vérifiée",
   "rs.stat.crossed": "recoupées",
+  "rs.stat.crossed.one": "recoupée",
   "rs.questions": "Sous-questions",
   "rs.q.open": "à chercher",
   "rs.q.resolved": "résolue",
   "rs.q.thin": "peu de sources",
-  "rs.q.claims": "{n} affirmation(s)",
+  "rs.q.claims": "{n} affirmations",
+  "rs.q.claims.one": "{n} affirmation",
   "rs.queries": "Requêtes",
-  "rs.query.results": "{n} résultat(s)",
+  "rs.query.results": "{n} résultats",
+  "rs.query.results.one": "{n} résultat",
   "rs.sources": "Sources, au fil de la lecture",
   "rs.src.queued": "en attente",
   "rs.src.reading": "lecture…",
@@ -39,11 +44,17 @@ const FR = {
   "rs.src.unread": "non lue",
   "rs.contra": "Les sources divergent",
   "rs.contra.item": "{a} [{na}] contre {b} [{nb}]",
+  "rp.vs": "contre",
   "rs.graph": "Carte des relations (en cours)",
   "rs.say.resolved": "Sous-question résolue : {q}",
   "rs.say.done": "Recherche terminée, rapport prêt",
   "rp.card": "Rapport de recherche",
-  "rp.meta": "{s} section(s) · {c} source(s) citée(s) · {k} affirmation(s) vérifiée(s)",
+  "rp.n.sections": "{n} sections",
+  "rp.n.sections.one": "{n} section",
+  "rp.n.cited": "{n} sources citées",
+  "rp.n.cited.one": "{n} source citée",
+  "rp.n.claims": "{n} affirmations vérifiées",
+  "rp.n.claims.one": "{n} affirmation vérifiée",
   "rp.open": "Ouvrir le rapport",
   "rp.close": "Fermer le rapport",
   "rp.toc": "Sommaire",
@@ -80,8 +91,14 @@ const FR = {
   "rp.export.error": "L'export n'a pas abouti",
   "rp.note":
     "Chaque phrase citée a été vérifiée dans sa source par Bird ; les chiffres sans source ont été retirés.",
-  "rp.counts":
-    "{queries} recherche(s) · {read} page(s) lue(s) · {kept} retenue(s) · {claims} affirmation(s) vérifiée(s) · {crossed} recoupée(s)",
+  "rp.n.queries": "{n} recherches",
+  "rp.n.queries.one": "{n} recherche",
+  "rp.n.read": "{n} pages lues",
+  "rp.n.read.one": "{n} page lue",
+  "rp.n.kept": "{n} retenues",
+  "rp.n.kept.one": "{n} retenue",
+  "rp.n.crossed": "{n} recoupées",
+  "rp.n.crossed.one": "{n} recoupée",
   "rp.sourcesTitle": "Sources",
 };
 const EN = {
@@ -96,14 +113,17 @@ const EN = {
   "rs.stat.questions": "sub-questions resolved",
   "rs.stat.sources": "sources kept",
   "rs.stat.claims": "claims checked",
+  "rs.stat.claims.one": "claim checked",
   "rs.stat.crossed": "corroborated",
   "rs.questions": "Sub-questions",
   "rs.q.open": "to search",
   "rs.q.resolved": "resolved",
   "rs.q.thin": "few sources",
-  "rs.q.claims": "{n} claim(s)",
+  "rs.q.claims": "{n} claims",
+  "rs.q.claims.one": "{n} claim",
   "rs.queries": "Queries",
-  "rs.query.results": "{n} result(s)",
+  "rs.query.results": "{n} results",
+  "rs.query.results.one": "{n} result",
   "rs.sources": "Sources, as they are read",
   "rs.src.queued": "queued",
   "rs.src.reading": "reading…",
@@ -114,11 +134,17 @@ const EN = {
   "rs.src.unread": "not read",
   "rs.contra": "The sources disagree",
   "rs.contra.item": "{a} [{na}] against {b} [{nb}]",
+  "rp.vs": "against",
   "rs.graph": "Relation map (growing)",
   "rs.say.resolved": "Sub-question resolved: {q}",
   "rs.say.done": "Research done, report ready",
   "rp.card": "Research report",
-  "rp.meta": "{s} section(s) · {c} source(s) cited · {k} claim(s) checked",
+  "rp.n.sections": "{n} sections",
+  "rp.n.sections.one": "{n} section",
+  "rp.n.cited": "{n} sources cited",
+  "rp.n.cited.one": "{n} source cited",
+  "rp.n.claims": "{n} claims checked",
+  "rp.n.claims.one": "{n} claim checked",
   "rp.open": "Open the report",
   "rp.close": "Close the report",
   "rp.toc": "Contents",
@@ -155,8 +181,14 @@ const EN = {
   "rp.export.error": "The export failed",
   "rp.note":
     "Bird checked each cited sentence in its source; figures with no source were removed.",
-  "rp.counts":
-    "{queries} search(es) · {read} page(s) read · {kept} kept · {claims} claim(s) checked · {crossed} corroborated",
+  "rp.n.queries": "{n} searches",
+  "rp.n.queries.one": "{n} search",
+  "rp.n.read": "{n} pages read",
+  "rp.n.read.one": "{n} page read",
+  "rp.n.kept": "{n} kept",
+  "rp.n.kept.one": "{n} kept",
+  "rp.n.crossed": "{n} corroborated",
+  "rp.n.crossed.one": "{n} corroborated",
   "rp.sourcesTitle": "Sources",
 };
 for (const [k, v] of Object.entries(FR)) STRINGS.fr[k] ??= v;
@@ -168,6 +200,11 @@ const Q_STATUS = ["open", "resolved", "thin"];
 const SRC_STATUS = ["queued", "reading", "kept", "thin", "error", "flagged", "unread"];
 const CONF = ["high", "medium", "low"];
 const pick = (v, list, dflt) => (list.includes(v) ? v : dflt);
+/** t() chosen by count: « 1 affirmation » / « 2 affirmations » (key + ".one"; in French 0 and 1 are singular). */
+export const tn = (key, n, vars = {}) => {
+  const one = state.prefs?.lang === "en" ? n === 1 : n <= 1;
+  return one && t(`${key}.one`) !== `${key}.one` ? t(`${key}.one`, { n, ...vars }) : t(key, { n, ...vars });
+};
 const int = (v) => (Number.isFinite(Number(v)) ? Math.max(0, Math.round(Number(v))) : 0);
 
 // ------------------------------------------------------------------ the live board
@@ -255,9 +292,9 @@ export function researchBoard(turn) {
       "div",
       { class: "rsb-stats" },
       b.questions.length > 0 && stat(`${resolved}/${b.questions.length}`, t("rs.stat.questions")),
-      stat(String(kept), t("rs.stat.sources")),
-      stat(String(b.claims.checked), t("rs.stat.claims")),
-      stat(String(b.claims.crossed), t("rs.stat.crossed")),
+      stat(String(kept), tn("rs.stat.sources", kept)),
+      stat(String(b.claims.checked), tn("rs.stat.claims", b.claims.checked)),
+      stat(String(b.claims.crossed), tn("rs.stat.crossed", b.claims.crossed)),
     ),
     b.questions.length > 0 &&
       h(
@@ -288,7 +325,7 @@ export function researchBoard(turn) {
                     class: "rsb-q-status",
                     text:
                       q.status === "resolved" && q.claims
-                        ? `${t("rs.q.resolved")} · ${t("rs.q.claims", { n: q.claims })}`
+                        ? `${t("rs.q.resolved")} · ${tn("rs.q.claims", q.claims)}`
                         : t(`rs.q.${q.status}`),
                   }),
                 ),
@@ -315,7 +352,7 @@ export function researchBoard(turn) {
                 h("span", { class: "rsb-src-d", text: s.domain || s.title }),
                 h("span", {
                   class: "rsb-src-s",
-                  text: s.status === "kept" && s.claims ? t("rs.q.claims", { n: s.claims }) : t(`rs.src.${s.status}`),
+                  text: s.status === "kept" && s.claims ? tn("rs.q.claims", s.claims) : t(`rs.src.${s.status}`),
                 }),
               ),
             ),
@@ -360,7 +397,7 @@ function renderReportCard(w, turn) {
     h(
       "p",
       { class: "muted rp-card-meta" },
-      t("rp.meta", { s: sections.length, c: cited, k: (w.claims || []).length }),
+      [tn("rp.n.sections", sections.length), tn("rp.n.cited", cited), tn("rp.n.claims", (w.claims || []).length)].join(" · "),
     ),
     (w.figures || []).length > 0 &&
       h(
@@ -544,7 +581,7 @@ function sourcesPanel(w) {
       url
         ? h("a", { class: "rp-src-t", href: url, target: "_blank", rel: "noopener noreferrer", referrerpolicy: "no-referrer", text: s.title || url })
         : h("span", { class: "rp-src-t", text: s.title || "" }),
-      s.claims > 0 && h("span", { class: "muted rp-src-c", text: t("rs.q.claims", { n: s.claims }) }),
+      s.claims > 0 && h("span", { class: "muted rp-src-c", text: tn("rs.q.claims", s.claims) }),
     );
   };
   const lists = {
@@ -635,7 +672,7 @@ export function openReport(w, turn) {
             h("span", { class: "rp-contra-v num", text: str(c.a?.value, 40) }),
             " ",
             citeButton(w, int(c.a?.n), c.a?.text, scroller),
-            h("span", { class: "muted", text: ` ${t("rp.against")} ` }),
+            h("span", { class: "muted", text: ` ${t("rp.vs")} ` }),
             h("span", { class: "rp-contra-v num", text: str(c.b?.value, 40) }),
             " ",
             citeButton(w, int(c.b?.n), c.b?.text, scroller),
@@ -714,7 +751,7 @@ export function openReport(w, turn) {
     { class: "rp-main" },
     h("p", { class: "rp-eyebrow", text: t("rp.card") }),
     h("h1", { class: "rp-title", id: "rp-title", text: str(w.title, 140) }),
-    h("p", { class: "muted rp-counts", text: t("rp.counts", { queries: int(c.queries), read: int(c.read), kept: int(c.kept), claims: int(c.claims), crossed: int(c.crossed) }) }),
+    h("p", { class: "muted rp-counts", text: ["queries", "read", "kept", "claims", "crossed"].map((k) => tn(`rp.n.${k}`, int(c[k]))).join(" · ") }),
     ...blocks,
     h("p", { class: "widget-source rp-note", text: t("rp.note") }),
   );

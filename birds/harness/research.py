@@ -222,6 +222,11 @@ def _size(w: dict) -> int:
     return len(json.dumps(w, ensure_ascii=False, separators=(",", ":")))
 
 
+def _pl(n: int, one: str, many: str, fr: bool = True) -> str:
+    """« 1 page lue » / « 3 pages lues »: the form chosen by the count (French: 0 and 1 are singular)."""
+    return f"{n} {one if (n <= 1 if fr else n == 1) else many}"
+
+
 def _domain(url: str) -> str:
     try:
         host = (urlsplit(url).hostname or "").lower()
@@ -673,8 +678,8 @@ class Research(Crew):
                 src.update(status="kept", n=n)
                 domains.append(_domain(url))
             self._board()
-            self._step(lane, "running", "research", detail=(f"{len(pages)} page(s) retenue(s)" if fr else
-                       f"{len(pages)} page(s) kept"), progress=round(min(1.0, len(pages) / MAX_READ), 2))  # fmt: skip
+            self._step(lane, "running", "research", detail=(_pl(len(pages), "page retenue", "pages retenues") if fr else
+                       _pl(len(pages), "page kept", "pages kept", False)), progress=round(min(1.0, len(pages) / MAX_READ), 2))  # fmt: skip
         for src in self.board["sources"]:
             if src["status"] == "queued":
                 src["status"] = "unread"
@@ -683,8 +688,8 @@ class Research(Crew):
                           for s in self.board["sources"] if s["status"] in ("thin", "error", "flagged")]  # fmt: skip
         self._board()
         self._step(lane, "done", "research", seconds=round(time.monotonic() - self.t0, 1),
-                   detail=(f"{read} page(s) lue(s), {len(pages)} retenue(s)" if fr else f"{read} page(s) read, "
-                           f"{len(pages)} kept"))  # fmt: skip
+                   detail=(f"{_pl(read, 'page lue', 'pages lues')}, {_pl(len(pages), 'retenue', 'retenues')}" if fr
+                           else f"{_pl(read, 'page read', 'pages read', False)}, {len(pages)} kept"))  # fmt: skip
         if len(pages) < MIN_PAGES:
             raise _Fallback("no_facts")
         return pages
@@ -740,8 +745,9 @@ class Research(Crew):
             got, stats = check_claims(raw, {p["n"]: by_n[p["n"]] for p in group})
             if g:
                 self._step(lane, "done", "brief", tokens=g["tokens"], seconds=g["seconds"],
-                           detail=(f"{len(got)} affirmation(s) vérifiée(s) sur {stats['seen']}" if self.lang == "fr"
-                                   else f"{len(got)} claim(s) checked of {stats['seen']}"))  # fmt: skip
+                           detail=(f"{_pl(len(got), 'affirmation vérifiée', 'affirmations vérifiées')} sur {stats['seen']}"
+                                   if self.lang == "fr" else
+                                   f"{_pl(len(got), 'claim checked', 'claims checked', False)} of {stats['seen']}"))  # fmt: skip
             return got, stats
 
         claims, totals = [], {"seen": 0, "no_quote": 0, "figure": 0, "weak": 0}
@@ -848,7 +854,7 @@ class Research(Crew):
             title, summary, sections = self._code_report(topic, claims, pages)
         if g:
             self._step("redacteur_a", "done" if written else "error", "drafts", tokens=g["tokens"], seconds=g["seconds"],
-                       detail=(f"{len(sections)} section(s)" if written else ("rapport écrit par le code" if fr else
+                       detail=(_pl(len(sections), "section", "sections", fr) if written else ("rapport écrit par le code" if fr else
                                "report written by code")))  # fmt: skip
         text, stats, head, secs = self._report_text(title, summary, sections, pages)
         if written and not secs:  # every section lost its sentences
@@ -888,12 +894,15 @@ class Research(Crew):
         caveats = []
         dropped = cstats["seen"] - len(claims)
         if dropped:
-            caveats.append(f"{dropped} affirmation(s) écartée(s) : citation absente de la page ou chiffre absent de la "
-                           "citation" if fr else f"{dropped} claim(s) set aside: quote not in the page or figure not in "
-                           "the quote")  # fmt: skip
+            caveats.append(f"{_pl(dropped, 'affirmation écartée', 'affirmations écartées')} : citation absente de la "
+                           "page ou chiffre absent de la citation" if fr else
+                           f"{_pl(dropped, 'claim', 'claims', False)} set aside: quote not in the page or figure not "
+                           "in the quote")  # fmt: skip
         if rstats["removed"]:
-            caveats.append(f"{rstats['removed']} phrase(s) du rapport retirée(s) : chiffre absent des sources" if fr else
-                           f"{rstats['removed']} report sentence(s) removed: figure in no source")  # fmt: skip
+            caveats.append(f"{_pl(rstats['removed'], 'phrase du rapport retirée', 'phrases du rapport retirées')} : "
+                           "chiffre absent des sources" if fr else
+                           f"{_pl(rstats['removed'], 'report sentence', 'report sentences', False)} removed: figure in "
+                           "no source")  # fmt: skip
         for c in contradictions[:2]:
             caveats.append(f"les sources divergent : {c['a']['value']} [{c['a']['n']}] contre {c['b']['value']} "
                            f"[{c['b']['n']}]" if fr else f"sources disagree: {c['a']['value']} [{c['a']['n']}] against "
@@ -902,9 +911,11 @@ class Research(Crew):
             caveats.append(f"à vérifier dans la source [{w['cited'][0]}] : « {w['sentence'][:110]} »" if fr else
                             f"to check in source [{w['cited'][0]}]: “{w['sentence'][:110]}”")  # fmt: skip
         self._step("verificateur", "done", "check",
-                   detail=(f"{len(claims)} affirmation(s) vérifiée(s) · {crossed} recoupée(s) · {rstats['recited']} "
-                           f"citation(s) corrigée(s)" if fr else f"{len(claims)} claim(s) checked · {crossed} "
-                           f"corroborated · {rstats['recited']} citation(s) fixed"))  # fmt: skip
+                   detail=(f"{_pl(len(claims), 'affirmation vérifiée', 'affirmations vérifiées')} · "
+                           f"{_pl(crossed, 'recoupée', 'recoupées')} · "
+                           f"{_pl(rstats['recited'], 'citation corrigée', 'citations corrigées')}" if fr else
+                           f"{_pl(len(claims), 'claim', 'claims', False)} checked · {crossed} corroborated · "
+                           f"{_pl(rstats['recited'], 'citation', 'citations', False)} fixed"))  # fmt: skip
         counts = {"queries": len(queries), "read": self.trace.get("read", 0), "kept": len(pages), "claims": len(claims),
                   "dropped": dropped, "removed": rstats["removed"], "recited": rstats["recited"], "crossed": crossed,
                   "contradictions": len(contradictions)}  # fmt: skip
@@ -913,14 +924,19 @@ class Research(Crew):
         if caveats:
             parts += ["", "### À vérifier" if fr else "### To check", ""] + [f"- {c}" for c in caveats]
         team = [
-            (f"{len(queries)} recherche(s), {counts['read']} page(s) lue(s), {len(pages)} source(s) retenue(s) sur "
-             f"{len({p['domain'] for p in pages})} site(s)" if fr else f"{len(queries)} search(es), {counts['read']} "
-             f"page(s) read, {len(pages)} source(s) kept from {len({p['domain'] for p in pages})} site(s)")
+            (f"{_pl(len(queries), 'recherche', 'recherches')}, {_pl(counts['read'], 'page lue', 'pages lues')}, "
+             f"{_pl(len(pages), 'source retenue', 'sources retenues')} sur "
+             f"{_pl(len({p['domain'] for p in pages}), 'site', 'sites')}" if fr else
+             f"{_pl(len(queries), 'search', 'searches', False)}, {_pl(counts['read'], 'page', 'pages', False)} read, "
+             f"{_pl(len(pages), 'source', 'sources', False)} kept from "
+             f"{_pl(len({p['domain'] for p in pages}), 'site', 'sites', False)}")
             if not own else ("vos documents comme seules sources, rien n'a été cherché sur le web" if fr else
                              "your documents as the only sources, nothing searched on the web"),
-            (f"{cstats['seen']} affirmation(s) relevée(s), {len(claims)} vérifiée(s) mot pour mot dans leur source, "
-             f"{crossed} recoupée(s) par un autre site" if fr else f"{cstats['seen']} claim(s) found, {len(claims)} "
-             f"checked word for word in their source, {crossed} corroborated by another site"),
+            (f"{_pl(cstats['seen'], 'affirmation relevée', 'affirmations relevées')}, "
+             f"{_pl(len(claims), 'vérifiée', 'vérifiées')} mot pour mot dans leur source, "
+             f"{_pl(crossed, 'recoupée', 'recoupées')} par un autre site" if fr else
+             f"{_pl(cstats['seen'], 'claim', 'claims', False)} found, {len(claims)} checked word for word in their "
+             f"source, {crossed} corroborated by another site"),
             ("rapport rédigé par le modèle puis vérifié phrase par phrase" if written else
              "rapport écrit par le code à partir des affirmations vérifiées") if fr else
             ("report written by the model, then checked sentence by sentence" if written else
