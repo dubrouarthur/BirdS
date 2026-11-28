@@ -159,8 +159,9 @@ class _Scripted:
                 {"question": "Quels usages concrets aujourd'hui ?", "query": "mobilité hydrogène taxis filière"}])  # fmt: skip
             self.pause(0.9)
         elif tools == ["record_claims"]:
-            out = _call("record_claims", claims=[c for n in (1, 2, 3, 4) if f"[{n}] " in user for c in _claims(n)])
-            self.pause(1.4)
+            mine = [n for n in (1, 2, 3, 4) if f"[{n}] " in user]
+            out = _call("record_claims", claims=[c for n in mine for c in _claims(n)])
+            self.pause(0.8 + 0.9 * min(mine or [1]))  # the readers finish one after the other: the graph grows
         elif tools == ["write_report"]:
             out = _call("write_report", **_REPORT)
             self.pause(2.0)

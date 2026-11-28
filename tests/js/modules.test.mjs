@@ -19,6 +19,20 @@ test("graph layout: deterministic, inside the box, linked nodes closer than unli
   const d = (u, v) => Math.hypot(p1[u][0] - p1[v][0], p1[u][1] - p1[v][1]);
   assert.ok(d("a", "b") < d("a", "f") && d("d", "e") < d("d", "f"));
   assert.deepEqual(Object.keys(layoutGraph([{ id: "x" }], [])), ["x"]);
+  // a connected graph stays spread once the forces cool (the centre pull used to fold it onto the centre)
+  const ring = ["e0", "e1", "e2", "e3", "e4", "e5", "e6"].map((id) => ({ id }));
+  const links = [["e1", "e0"], ["e2", "e3"], ["e4", "e5"], ["e3", "e6"], ["e6", "e5"], ["e2", "e6"]].map(([s, t]) => ({ s, t }));
+  const p = layoutGraph(ring, links, { width: 640, height: 360 });
+  const ids = Object.keys(p);
+  let near = Infinity;
+  for (let i = 0; i < ids.length; i++)
+    for (let j = i + 1; j < ids.length; j++)
+      near = Math.min(near, Math.hypot(p[ids[i]][0] - p[ids[j]][0], p[ids[i]][1] - p[ids[j]][1]));
+  assert.ok(near > 45, `nodes too close: ${near}`);
+  // a graph that grows: the nodes already placed start where they were and stay near
+  const seed = new Map([["e0", [100, 100]], ["e1", [180, 100]]]);
+  const q = layoutGraph(ring, links, { width: 640, height: 360, iterations: 140, seed });
+  assert.ok(Math.hypot(q.e0[0] - 100, q.e0[1] - 100) < 160);
 });
 
 test("matrix sort: numbers when every row has one, French formats read", () => {

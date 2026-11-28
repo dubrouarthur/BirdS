@@ -26,6 +26,8 @@ const FR = {
   "mod.research.counts":
     "{queries} recherche(s) · {kept} source(s) retenue(s) sur {read} lue(s) · {claims} affirmation(s) vérifiée(s)",
   "mod.research.own": "Vos documents",
+  "mod.research.resolved": "Sous-question résolue",
+  "mod.research.crossed": "{n} recoupée(s) par un autre site",
   "mod.research.note":
     "Chaque affirmation a été retrouvée mot pour mot dans sa source par Bird.",
   "mod.graph.title": "Carte des relations",
@@ -94,6 +96,8 @@ const EN = {
   "mod.research.counts":
     "{queries} search(es) · {kept} source(s) kept of {read} read · {claims} claim(s) checked",
   "mod.research.own": "Your documents",
+  "mod.research.resolved": "Sub-question resolved",
+  "mod.research.crossed": "{n} corroborated by another site",
   "mod.research.note": "Bird found each claim word for word in its source.",
   "mod.graph.title": "Relation map",
   "mod.graph.hint":
@@ -154,9 +158,10 @@ const EN = {
 for (const [k, v] of Object.entries(FR)) STRINGS.fr[k] ??= v;
 for (const [k, v] of Object.entries(EN)) STRINGS.en[k] ??= v;
 
-let hooks = { onChange: () => {}, onSuggest: () => {} };
-/** app.js: how a module saves the conversation (ticks) and sends a suggestion. */
+let hooks = { onChange: () => {}, onSuggest: () => {}, headers: () => ({ "Content-Type": "application/json" }) };
+/** app.js: how a module saves the conversation (ticks), sends a suggestion and builds API headers. */
 export const setModuleHooks = (value) => (hooks = { ...hooks, ...value });
+export const moduleHooks = () => hooks;
 
 const SVG = "http://www.w3.org/2000/svg";
 const svg = (tag, attrs = {}, ...kids) => {
@@ -234,7 +239,15 @@ function renderResearch(w, turn) {
         h(
           "ol",
           { class: "rs-plan" },
-          (w.questions || []).map((q) => h("li", { text: String(q) })),
+          (w.questions || []).map((q, i) =>
+            h(
+              "li",
+              { class: w.resolved?.[i] ? "rs-plan-done" : null },
+              String(q),
+              w.resolved?.[i] &&
+                h("span", { class: "rs-plan-mark", title: t("mod.research.resolved") }, icon("check")),
+            ),
+          ),
         ),
       )
     : null;
@@ -304,6 +317,7 @@ function renderResearch(w, turn) {
         read: c.read ?? 0,
         claims: c.claims ?? 0,
       }),
+      c.crossed ? ` · ${t("mod.research.crossed", { n: c.crossed })}` : "",
       " · ",
       t("mod.research.note"),
     ),
@@ -316,7 +330,7 @@ function renderResearch(w, turn) {
 export function layoutGraph(
   nodes,
   edges,
-  { width = 640, height = 400, iterations = 300 } = {},
+  { width = 640, height = 400, iterations = 300, seed = null } = {},
 ) {
   const n = nodes.length;
   const pos = new Map();
@@ -333,11 +347,13 @@ export function layoutGraph(
   order.forEach((d, i) => {
     const a = (2 * Math.PI * i) / Math.max(1, n);
     const r = i === 0 && n > 3 ? 0 : Math.min(width, height) * 0.35;
-    pos.set(d.id, [width / 2 + r * Math.cos(a), height / 2 + r * Math.sin(a)]);
+    // a graph that grows (live research): the nodes already drawn start where they were
+    const was = seed?.get?.(d.id);
+    pos.set(d.id, was ? [...was] : [width / 2 + r * Math.cos(a), height / 2 + r * Math.sin(a)]);
   });
   if (n < 2) return Object.fromEntries(pos);
   const k = Math.sqrt((width * height) / n) * 0.75;
-  let temp = width / 8;
+  let temp = seed?.size ? width / 16 : width / 8;
   const ids = order.map((d) => d.id);
   for (let it = 0; it < iterations; it++) {
     const disp = new Map(ids.map((id) => [id, [0, 0]]));
@@ -378,10 +394,12 @@ export function layoutGraph(
     }
     for (const id of ids) {
       const [dx, dy] = disp.get(id);
-      // a light pull to the centre keeps unlinked nodes in view
+      // a light pull to the centre keeps unlinked nodes in view; it cools with the forces (else, once they are
+      // cold, it alone pulls every node onto the centre)
       const p = pos.get(id);
-      const cx = (width / 2 - p[0]) * 0.02;
-      const cy = (height / 2 - p[1]) * 0.02;
+      const pull = 0.02 * Math.min(1, temp / 10);
+      const cx = (width / 2 - p[0]) * pull;
+      const cy = (height / 2 - p[1]) * pull;
       const d = Math.max(0.01, Math.hypot(dx, dy));
       const step = Math.min(d, temp);
       p[0] = Math.min(width - 40, Math.max(40, p[0] + (dx / d) * step + cx));
@@ -472,6 +490,13 @@ function renderGraph(w, turn) {
       if (ev.key === "Enter" || ev.key === " ") {
         ev.preventDefault();
         select(selected === d.id ? null : d.id);
+      } else if (["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp"].includes(ev.key)) {
+        // arrows go from node to node (by degree order), skipping the hidden types
+        ev.preventDefault();
+        const shown = nodeEls.filter((x) => !x.g.classList.contains("is-hidden"));
+        const i = shown.findIndex((x) => x.g === g);
+        const step = ev.key === "ArrowRight" || ev.key === "ArrowDown" ? 1 : -1;
+        shown[(i + step + shown.length) % shown.length]?.g.focus();
       }
     });
     world.append(g);
@@ -750,6 +775,59 @@ function renderGraph(w, turn) {
     panel,
     list,
     h("p", { class: "widget-source", text: t("mod.graph.note") }),
+  );
+}
+
+/** The relation graph while the research runs: compact, no controls, the nodes already drawn keep their place and
+ * the new ones fade in; a list of the relations under it (keyboard and screen readers). */
+export function liveGraph(w, turn) {
+  const nodes = (w.nodes || []).filter((d) => d && d.id);
+  const ids = new Set(nodes.map((d) => d.id));
+  const edges = (w.edges || []).filter((e) => ids.has(e.s) && ids.has(e.t));
+  if (nodes.length < 2) return null;
+  turn.ui ||= {};
+  const memo = (turn.ui.grLive ||= {}); // label -> [x, y], across redraws of the board
+  const W = 560;
+  const H = 300;
+  const key = (d) => String(d.label).toLowerCase();
+  const seed = new Map(nodes.filter((d) => memo[key(d)]).map((d) => [d.id, memo[key(d)]]));
+  const pos = layoutGraph(nodes, edges, { width: W, height: H, iterations: seed.size ? 140 : 240, seed });
+  const world = svg("g", {});
+  for (const e of edges) {
+    const [x1, y1] = pos[e.s];
+    const [x2, y2] = pos[e.t];
+    world.append(svg("line", { class: "gr-edge", x1, y1, x2, y2 }));
+  }
+  const byId = new Map(nodes.map((d) => [d.id, d]));
+  for (const d of nodes) {
+    const [x, y] = pos[d.id];
+    const fresh = !memo[key(d)];
+    world.append(
+      svg(
+        "g",
+        { class: `gr-node gr-t-${typeOf(d.type)}${fresh ? " is-new" : ""}`, transform: `translate(${x} ${y})` },
+        svg("circle", { r: 7 }),
+        svg("text", { class: "gr-label", y: 20, "text-anchor": "middle" }, String(d.label).slice(0, 24)),
+      ),
+    );
+    memo[key(d)] = [x, y];
+  }
+  return h(
+    "div",
+    { class: "gr-live" },
+    svg("svg", { class: "gr-svg is-live", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": t("mod.graph.title") }, world),
+    h(
+      "details",
+      { class: "gr-list" },
+      h("summary", { text: t("mod.graph.list") }),
+      h(
+        "ul",
+        null,
+        edges.map((e) =>
+          h("li", null, h("strong", { text: byId.get(e.s).label }), ` ${e.label} `, h("strong", { text: byId.get(e.t).label })),
+        ),
+      ),
+    ),
   );
 }
 

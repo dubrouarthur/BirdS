@@ -60,6 +60,7 @@ import { addNote, applyAgentEvent, countdownText, deliverablesOf } from "./agent
 import { cleanPlan, planNews } from "./plan.js"; // task plan checklist (w1-harness)
 import * as canvas from "./canvas.js"; // the canvas beside the chat (decks, documents, code, sheets)
 import { setModuleHooks } from "./modules.js";
+import { applyResearchEvent } from "./research.js";
 
 // Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
 const AGENT_MODES = ["auto", "on", "off"];
@@ -1335,6 +1336,12 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
       if (!canvas.onEvent(conv, turn, event)) return;
       if (event.type === "canvas" && event.phase === "final") saveConv(conv); // a reload keeps each version
       break;
+    case "agent_research": {
+      // deep research's live board: replaced whole by each event; only its transitions are read out
+      const said = applyResearchEvent(turn, event);
+      if (said) announce(said);
+      break;
+    }
     case "agent_start":
     case "agent_step":
     case "agent_done":
@@ -2410,7 +2417,7 @@ async function init() {
       store.set("bird.side", keep);
     },
   });
-  setModuleHooks({ onChange: () => saveConv(), onSuggest: (text) => send(text) });
+  setModuleHooks({ onChange: () => saveConv(), onSuggest: (text) => send(text), headers: requestHeaders });
   setViewHooks({
     onPrefs: () => {
       state.thinking = !!state.prefs.thinking;

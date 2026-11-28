@@ -14,6 +14,7 @@ import {
 import { safeUrl } from "./markdown.js";
 import { buildIcs, icsName } from "./ics.js";
 import { MODULES, moduleText } from "./modules.js";
+import { REPORT_MODULES, reportText } from "./research.js";
 
 const OSM_COPYRIGHT = "https://www.openstreetmap.org/copyright";
 const MAP_SRC =
@@ -2214,6 +2215,7 @@ const RENDER = {
   clock: renderClock,
   event: renderEvent,
   ...MODULES, // research, graph, timeline, matrix, calc, checklist (modules.js)
+  ...REPORT_MODULES, // the deep research report card and its full-screen view (research.js)
 };
 
 export function renderWidgets(turn, widgets = turn.answer?.widgets || []) {
@@ -2266,6 +2268,8 @@ export function widgetsText(turn, markdown = false) {
       );
       const sl = (w.common || [])[0] || (w.wide || [])[0];
       if (sl) out.push(slotText(w, sl, !(w.common || []).length));
+    } else if (w.type === "report") {
+      out.push(reportText(w));
     } else if (MODULES[w.type]) {
       out.push(moduleText(w, turn, markdown));
     } else if (w.type === "event") {

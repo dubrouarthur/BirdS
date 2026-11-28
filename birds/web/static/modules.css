@@ -55,6 +55,7 @@
 }
 .rs-plan {
   margin: 0;
+  list-style: decimal;
   padding-inline-start: 1.3em;
   display: grid;
   gap: 4px;
@@ -631,6 +632,41 @@ a.rs-link {
   font-size: 0.8rem;
   color: var(--ink-2);
 }
+/* the graph while the research runs (liveGraph): no controls, the new nodes fade in */
+.gr-live {
+  display: grid;
+  gap: 6px;
+}
+.gr-svg.is-live {
+  aspect-ratio: 56 / 30;
+  cursor: default;
+  touch-action: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+.gr-node.is-new {
+  animation: gr-in 0.5s ease-out;
+}
+@keyframes gr-in {
+  from {
+    opacity: 0;
+  }
+}
+.rs-plan .rs-plan-done::marker {
+  color: var(--eco);
+}
+.rs-plan-mark {
+  display: inline-flex;
+  margin-inline-start: 6px;
+  vertical-align: -0.15em;
+  color: var(--eco);
+}
+.rs-plan-mark .icon {
+  inline-size: 14px;
+  block-size: 14px;
+}
+
 @media (max-width: 520px) {
   .gr-svg {
     aspect-ratio: 1 / 1;
@@ -643,9 +679,16 @@ a.rs-link {
     gap: 0 8px;
   }
 }
+@media print {
+  .gr-tools,
+  .gr-filters {
+    display: none !important;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .mchip,
   .ck-bar-fill,
+  .gr-node.is-new,
   .gr-node circle {
     transition: none;
   }

@@ -11,6 +11,7 @@ import {
   t,
   toolLabel,
 } from "./core.js";
+import { researchBoard } from "./research.js";
 
 // Role icons: constants, 20x20, stroke only (same style as core.js icons).
 const ROLE = {
@@ -1150,8 +1151,9 @@ export function renderAgents(turn, handlers) {
           { class: "crew-questions", "aria-label": t("agent.questions") },
           crew.questions.map((q) => h("li", { text: q })),
         ),
-      open && sourceChips(turn),
-      open && board(turn, crew),
+      // deep research has its own live board (sub-questions, sources arriving, claims, the growing graph)
+      open && (turn.research ? researchBoard(turn) : sourceChips(turn)),
+      open && !turn.research && board(turn, crew),
       noteFeed(crew),
     );
   }
