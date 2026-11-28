@@ -2392,6 +2392,10 @@ class HarnessBackend:
             def on_step_end(index: int, step) -> None:
                 ctx.emit(self._step_event(index + offset, step, lang))
                 cards = self._live_widgets(step, ctx, lang)
+                from .widgets import _same_card
+
+                shown = {_same_card(w) for _, _, got in live for w in got}
+                cards = [w for w in cards if _same_card(w) not in shown]  # the same places found twice: one card
                 if cards:
                     live.append((index + offset, step, cards))
                     ctx.emit({"type": "widget", "index": index + offset, "widgets": cards})

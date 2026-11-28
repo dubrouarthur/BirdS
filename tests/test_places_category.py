@@ -119,3 +119,20 @@ def test_pharmacie_de_garde_tells_the_model_what_osm_cannot_say(tmp_path):
     ctx = ctx_for(tmp_path, [])
     out = TOOLS["find_places"]({"query": "pharmacie de garde", "near": "Saint-Cloud"}, ctx)
     assert "de garde" in out and "3237" in out
+
+
+def test_the_same_places_found_twice_make_one_card(tmp_path):
+    """Production: « Saint-Cloud » then « Saint-Cloud, France »: two find_places steps, the same card twice."""
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    from birds.web.widgets import build_widgets
+
+    infos = []
+    for near in ("Saint-Cloud", "Saint-Cloud, France"):
+        ctx = ctx_for(tmp_path, [])
+        TOOLS["find_places"]({"query": "supermarché", "near": near}, ctx)
+        infos.append(ctx.step_info)
+    steps = [SimpleNamespace(tool="find_places", info=i, error=None) for i in infos]
+    ws = build_widgets(steps, "", "fr", datetime(2026, 11, 28, 10, 0), b"k")
+    assert [w["type"] for w in ws] == ["places"]
