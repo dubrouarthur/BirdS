@@ -2414,6 +2414,7 @@ class HarnessBackend:
                 hooks=hooks,
             )
             carry = {"seconds": 0.0, "energy_wh": None}
+            words = ""  # the user's own words (a resumed confirmation has none of its own)
             if request.resume is not None:
                 if request.resume.get("k") not in ("harness", "crew"):
                     raise ValueError("this confirmation does not belong to this backend")
@@ -2529,7 +2530,7 @@ class HarnessBackend:
             if run.stop_reason in ("plan", "slice"):  # the plan card, or a long task's slice: its events are sent
                 return
             if run.stop_reason != "confirm":
-                canvas_web.adopt_files(run, ctx, run.lang or lang)  # a file a trained tool made: also in the canvas
+                canvas_web.adopt_files(run, ctx, run.lang or lang, words)  # a trained tool's file: also in the canvas
             report = run.report or {}
             previews = iter(
                 written_preview(s.tool, s.arguments, getattr(s, "info", None))

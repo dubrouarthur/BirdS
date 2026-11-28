@@ -73,54 +73,84 @@ Week 6: review
 - Plan the review
 """,
 }
-DOC = {
-    "fr": """---
-title: {subject}
-subtitle: Exemple de démonstration
----
-# Objet
-Cette note présente le sujet, les options et une recommandation. Le contenu est un exemple scripté.
-# Constat
-- Les usages progressent
-- Les attentes des équipes sont claires
-- Le budget reste contraint
-::: image query="{query}"
-:::
-# Options
-| Option | Avantage | Limite |
-|---|---|---|
-| Pilote court | Rapide | Peu de recul |
-| Déploiement large | Effet global | Risque élevé |
-# Recommandation
-Commencer par un pilote de six semaines, puis décider sur des chiffres mesurés.
-::: attention
-Les chiffres de cet exemple sont fictifs : à remplacer par les vôtres.
-:::
-""",
-    "en": """---
-title: {subject}
-subtitle: Demo example
----
-# Purpose
-This note presents the topic, the options and a recommendation. The content is a scripted example.
-# Findings
-- Usage is growing
-- The teams' expectations are clear
-- The budget is tight
-::: image query="{query}"
-:::
-# Options
-| Option | Upside | Limit |
-|---|---|---|
-| Short pilot | Fast | Little hindsight |
-| Wide rollout | Global effect | High risk |
-# Recommendation
-Start with a six-week pilot, then decide on measured figures.
-::: warning
-The figures of this example are made up: replace them with yours.
-:::
-""",
-}
+# A scripted document per template (the demo « model » picks the template from the words, as the real one
+# does from the request): every expected section, with the blocks a document can hold (a key point, a table, a
+# picture with its caption, a warning, a footnote). Marked as an example throughout.
+DOC_BODIES = {
+    "cadrage": [
+        ("Contexte", "Le projet répond à un besoin exprimé par les équipes[^1]. Ce document en fixe le cadre.",
+         "cle", "Un cadre partagé avant de lancer les travaux."),
+        ("Objectifs", "- Clarifier le résultat attendu\n- Fixer les critères de réussite\n- Aligner les équipes", "", ""),
+        ("Périmètre", "## Inclus\n- Les équipes pilotes\n- Les outils actuels\n## Exclu\n- La refonte du système "
+                      "d'information", "image", ""),
+        ("Planning", "| Étape | Échéance | Responsable |\n|---|---|---|\n| Cadrage | Semaine 1 | Chef de projet |\n"
+                     "| Pilote | Semaine 3 | Équipe pilote |\n| Bilan | Semaine 6 | Comité |", "", ""),
+        ("Risques", "- Disponibilité des équipes\n- Données incomplètes", "attention",
+         "Les éléments de cet exemple sont fictifs : à remplacer par les vôtres."),
+    ],
+    "compte-rendu": [
+        ("Participants", "- Équipe projet (exemple)\n- Référent métier (exemple)", "", ""),
+        ("Points abordés", "L'équipe a fait le point sur l'avancement[^1].", "", ""),
+        ("Décisions", "- Lancer le pilote\n- Revoir le planning dans trois semaines", "cle",
+         "Le pilote démarre la semaine prochaine."),
+        ("Actions", "| Action | Responsable | Échéance |\n|---|---|---|\n| Préparer le pilote | Équipe projet | "
+                    "Semaine 1 |\n| Informer les équipes | Référent | Semaine 2 |", "", ""),
+    ],
+    "procedure": [
+        ("Objet", "Cette procédure décrit les étapes à suivre[^1].", "cle", "Une étape à la fois, dans l'ordre."),
+        ("Champ d'application", "- Les équipes concernées\n- Les outils utilisés", "", ""),
+        ("Étapes", "1. Préparer\n2. Réaliser\n3. Vérifier\n4. Archiver", "image", ""),
+        ("Points de vigilance", "- Vérifier chaque étape avant de passer à la suivante", "attention",
+         "Exemple scripté : adaptez chaque étape à votre organisation."),
+    ],
+    "proposition": [
+        ("Votre besoin", "Vous cherchez une solution simple et fiable[^1].", "", ""),
+        ("Notre solution", "- Une offre adaptée\n- Un accompagnement dédié\n- Un suivi mensuel", "image", ""),
+        ("Bénéfices", "Moins de temps perdu, plus de visibilité.", "cle", "Un interlocuteur unique."),
+        ("Tarifs", "| Formule | Contenu | Prix |\n|---|---|---|\n| Essentiel | Exemple | À définir |\n| Complet | "
+                   "Exemple | À définir |", "", ""),
+        ("Prochaines étapes", "- Un échange pour préciser le besoin\n- Une proposition détaillée", "", ""),
+    ],
+    "rapport": [
+        ("Synthèse", "Ce rapport présente le sujet, les constats et des recommandations[^1].", "cle",
+         "Commencer petit, mesurer, puis généraliser."),
+        ("Constats", "- Les usages progressent\n- Les attentes des équipes sont claires\n- Le budget reste contraint",
+         "image", ""),
+        ("Options", "| Option | Avantage | Limite |\n|---|---|---|\n| Pilote court | Rapide | Peu de recul |\n"
+                    "| Déploiement large | Effet global | Risque élevé |", "", ""),
+        ("Recommandations", "Commencer par un pilote de six semaines, puis décider sur des chiffres mesurés.",
+         "attention", "Les éléments de cet exemple sont fictifs : à remplacer par les vôtres."),
+        ("Conclusion", "Un pilote court donne les chiffres qui manquent pour décider.", "", ""),
+    ],
+}  # fmt: skip
+LETTER = {
+    "fr": "Madame, Monsieur,\n\nPar la présente, je vous fais part de ma demande. Ce courrier est un exemple scripté "
+          "(mode démo) : remplacez-le par votre situation.\n\nJe vous remercie de bien vouloir m'en confirmer la "
+          "bonne réception.\n\nVeuillez agréer, Madame, Monsieur, mes salutations distinguées.",
+    "en": "Dear Sir or Madam,\n\nI am writing to make my request. This letter is a scripted example (demo mode): "
+          "replace it with your situation.\n\nThank you for confirming receipt.\n\nYours faithfully,",
+}  # fmt: skip
+
+
+def doc_text(subject: str, query: str, lg: str, words: str) -> str:
+    from birds.canvas import templates
+
+    tid = templates.hint(words) or templates.DEFAULT
+    head = f"---\ntitle: {subject}\nsubtitle: {'Exemple de démonstration' if lg == 'fr' else 'Demo example'}\n"
+    head += f"template: {tid}\n---\n"
+    if tid == "lettre":
+        return head + f"# {'Lettre' if lg == 'fr' else 'Letter'}\n" + LETTER[lg] + "\n"
+    out = [head]
+    for title, body, extra, extra_text in DOC_BODIES.get(tid, DOC_BODIES["rapport"]):
+        out.append(f"# {title}\n{body}\n")
+        if extra == "image":
+            out.append(f'::: image query="{query}" caption="Illustration de l\'exemple"\n:::\n')
+        elif extra:
+            out.append(f"::: {extra}\n{extra_text}\n:::\n")
+    out.append("[^1]: Exemple de source (contenu scripté du mode démo).\n")
+    return "".join(out)
+
+
 PAGE = """<!doctype html>
 <html lang="{lang}">
 <head>
@@ -217,7 +247,7 @@ def scripted(p: turn.Plan, words: str, lang: str) -> str:
         if p.kind == "deck":
             return DECK[lg].format(subject=subject, query=_q(subject))
         if p.kind == "doc":
-            return DOC[lg].format(subject=subject, query=_q(subject))
+            return doc_text(subject, _q(subject), lg, words)
         if p.kind == "diagram":
             return f"```mermaid\n{FLOW[lg]}\n```\n" + SCRIPTED[lg]
         t = PAGE_TEXT[lg]
@@ -232,6 +262,9 @@ def scripted(p: turn.Plan, words: str, lang: str) -> str:
             code = re.sub(r"--accent:\s*#[0-9a-fA-F]{3,8}", f"--accent: {hit}", code)
             return f"```{(base.get('code') or {}).get('lang') or 'html'}\n{code}\n```"
         return ""
+    if p.target and p.variants:
+        b = next(x for x in base.get("blocks") or [] if x["id"] == p.target)
+        return variants_text(b, lg)
     if p.target:
         b = next(x for x in base.get("blocks") or [] if x["id"] == p.target)
         lines = [f"# {b.get('title') or ''}"]
@@ -267,6 +300,42 @@ def scripted(p: turn.Plan, words: str, lang: str) -> str:
     return ""
 
 
+def variants_text(b: dict, lg: str) -> str:
+    """Two scripted rewrites of a section: a concise one (first sentence, two points) and one that leads with a
+    key point taken from the section itself (nothing new is said)."""
+    short, lead = [f"# {b.get('title') or ''}"], [f"# {b.get('title') or ''}"]
+    first = ""
+    for part in b.get("parts") or []:
+        if part["t"] == "list":
+            items = [i.strip() for i in part["items"] if i.strip()]
+            first = first or (items[0] if items else "")
+            short += [f"- {i}" for i in items[:2]]
+            lead += [f"- {i}" for i in items]
+        elif part["t"] == "text":
+            sentence = part["text"].split(". ")[0].rstrip(".") + "."
+            first = first or sentence
+            short.append(sentence)
+            lead.append(part["text"])
+        else:
+            lead += dsl._part_dsl(part)
+    key = "cle" if lg == "fr" else "key"
+    lead[1:1] = [f"::: {key}", first or (b.get("title") or ""), ":::"]
+    marker = "@variante" if lg == "fr" else "@variant"
+    return f"{marker} 1\n" + "\n".join(short) + f"\n{marker} 2\n" + "\n".join(lead) + "\n"
+
+
+def _ref(demo_run, p: turn.Plan, doc: dict | None, version: int, variants: bool = False) -> None:
+    """The answer's link to the artifact (its version, and for a document the next-step chips)."""
+    from types import SimpleNamespace
+
+    from birds.web.canvas_web import ref
+
+    info = {"aid": p.aid, "version": version, "doc": doc or p.base or {}}
+    if variants:
+        info["variants"] = True
+    demo_run.adopted = ref(SimpleNamespace(canvas=info))
+
+
 def run(demo_run, p: turn.Plan, words: str) -> None:
     """One demo canvas turn, start to end (events, answer, usage)."""
     from birds.web.canvas_web import emit_doc
@@ -285,6 +354,7 @@ def run(demo_run, p: turn.Plan, words: str) -> None:
         doc, done, failed = patch.apply_all(p.base, p.ops or [])
         _illustrate(ctx, p, doc, lang)
         emit_doc(ctx, p, doc, "final", lang, label=p.said)
+        _ref(demo_run, p, doc, p.version + 1)
         demo_run.finish(p.said if done else DEMO_LIMIT[lg])
         return
     text = scripted(p, words, lang)
@@ -293,6 +363,18 @@ def run(demo_run, p: turn.Plan, words: str) -> None:
         return
     demo_run.think("Je rédige le contenu bloc par bloc ; le canevas l'affiche au fur et à mesure.",
                    "I write the content block by block; the canvas shows it as it comes.")  # fmt: skip
+    if p.variants:
+        base = next(b for b in p.base["blocks"] if b["id"] == p.target)
+        found = turn.parse_variants(text, base, lang)
+        demo_run.pause(0.4)
+        ctx.emit({"type": "canvas", "phase": "variants", "aid": p.aid, "base": p.version, "kind": "doc",
+                  "target": p.target, "blocks": found[:2]})  # fmt: skip
+        _ref(demo_run, p, None, p.version, variants=True)
+        title = base.get("title") or ""
+        demo_run.finish((f"Deux variantes de la section « {title} » : choisissez-en une dans le canevas, ou gardez "
+                         "l'actuelle." if lg == "fr" else f"Two variants of the section \"{title}\": choose one in "
+                         "the canvas, or keep the current one.") + "\n\n" + SCRIPTED[lg])  # fmt: skip
+        return
     stream = turn.Stream(turn.compute_for(p, words, lang), lambda d: emit_doc(ctx, p, d, "stream", lang))
     for piece in re.findall(r"[^\n]*\n|[^\n]+", text):
         stream.feed(piece)
@@ -307,8 +389,10 @@ def run(demo_run, p: turn.Plan, words: str) -> None:
         turn.finish_doc(doc, kind, words, lang)
     _illustrate(ctx, p, doc, lang)
     emit_doc(ctx, p, doc, "final", lang, label="Création" if p.mode == "create" else words[:80])
+    version = 1 if p.mode == "create" else p.version + 1
+    _ref(demo_run, p, doc, version)
     said = turn.chat_text("code" if p.kind == "diagram" else kind, doc, lang,
-                          verb="create" if p.mode == "create" else "patch")  # fmt: skip
+                          verb="create" if p.mode == "create" else "patch", version=version)  # fmt: skip
     demo_run.extra_completion += len(text) // 4
     demo_run.finish(said + "\n\n" + SCRIPTED[lg])
 

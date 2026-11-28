@@ -223,7 +223,13 @@ def export(doc: dict, fmt: str, media_data: dict[str, str] | None = None) -> tup
             office_deck.build(path, title, slides, doc.get("subtitle") or "", lang, {}, media=media + charts,
                               theme=doc.get("theme"), sources=[], request="",
                               options={"agenda": False, "closing": False, "cover": "none"})  # fmt: skip
-        elif fmt == "docx" and kind in ("doc", "deck"):
+        elif fmt == "docx" and kind == "doc":  # the page the canvas shows: template, numbering, figures, notes
+            from . import docx_out
+
+            if not doc.get("blocks"):
+                raise ExportError("the document has no section")
+            docx_out.build(path, doc, media_list(doc, media_data or {}))
+        elif fmt == "docx" and kind == "deck":
             media = media_list(doc, media_data or {})
             sections, charts = doc_args(doc, {m.id for m in media})
             if not sections:

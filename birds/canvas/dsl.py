@@ -50,7 +50,7 @@ THEME_ALIASES = {
 }  # fmt: skip
 PART_TYPES = ("text", "list", "kpi", "image", "chart", "table", "timeline", "quote", "code", "callout", "heading")
 CHART_TYPES = ("bar", "line", "pie")
-TONES = ("info", "warn", "ok")
+TONES = ("info", "warn", "ok", "key")  # key: « à retenir »
 CODE_LANGS = ("html", "svg", "css", "js", "python", "mermaid", "markdown", "json", "text")
 
 MAX_BLOCKS = 40
@@ -86,12 +86,16 @@ _FRONT_KEYS = {
     "title": "title", "titre": "title", "subtitle": "subtitle", "sous-titre": "subtitle", "sous titre": "subtitle",
     "soustitre": "subtitle", "theme": "theme", "thème": "theme", "style": "theme", "kind": "kind", "type": "kind",
     "lang": "lang", "langue": "lang",
+    "template": "template", "modèle": "template", "modele": "template", "gabarit": "template",
+    "author": "author", "auteur": "author", "autrice": "author", "rédacteur": "author", "redacteur": "author",
+    "to": "recipient", "destinataire": "recipient", "recipient": "recipient",
 }  # fmt: skip
 _ATTR = re.compile(r"""([A-Za-zÀ-ÿ_][\w-]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|«\s*([^»]*?)\s*»|(\S+))""")
 _TYPE_ALIASES = {
     "kpi": "kpi", "kpis": "kpi", "stats": "kpi", "stat": "kpi", "chiffres": "kpi", "chiffres-cles": "kpi",
     "figures": "kpi", "metrics": "kpi", "indicateurs": "kpi",
     "image": "image", "img": "image", "photo": "image", "picture": "image", "illustration": "image",
+    "figure": "image",
     "chart": "chart", "graph": "chart", "graphique": "chart", "graphe": "chart", "diagramme": "chart",
     "bar": "chart", "line": "chart", "pie": "chart", "courbe": "chart", "barres": "chart", "camembert": "chart",
     "table": "table", "tableau": "table", "grid": "table",
@@ -102,6 +106,8 @@ _TYPE_ALIASES = {
     "callout": "callout", "note": "callout", "info": "callout", "important": "callout", "warning": "callout",
     "attention": "callout", "alerte": "callout", "tip": "callout", "astuce": "callout", "ok": "callout",
     "success": "callout", "succes": "callout", "succès": "callout", "danger": "callout", "risque": "callout",
+    "cle": "callout", "clé": "callout", "key": "callout", "retenir": "callout", "a-retenir": "callout",
+    "à-retenir": "callout", "essentiel": "callout", "key-point": "callout", "takeaway": "callout",
     "notes": "notes", "speaker": "notes", "orateur": "notes",
     "list": "list", "liste": "list", "points": "list",
     "text": "text", "texte": "text", "paragraph": "text",
@@ -112,6 +118,11 @@ _CHART_WORDS = {"bar": "bar", "barres": "bar", "bars": "bar", "histogramme": "ba
 _WARN = re.compile(r"^\W{0,3}(?:attention|avertissement|vigilance|risques?|warning|caution|alerte|danger)\b", re.I)
 _INFO = re.compile(r"^\W{0,3}(?:à retenir|a retenir|important|note|nb|n\.b\.|conseil|astuce|en bref|key takeaway|tip)\b",
                    re.I)  # fmt: skip
+_KEY = re.compile(r"^\W{0,3}(?:à retenir|a retenir|important|essentiel|en bref|key takeaway|key point)\b", re.I)
+# Footnotes: « … 40 % des trajets[^1] » in the text, « [^1]: Source, 2024 » on its own line anywhere.
+FOOTNOTE_DEF = re.compile(r"^\s*\[\^([\w-]{1,8})\]\s*:\s*(.+?)\s*$")
+FOOTNOTE_REF = re.compile(r"\[\^([\w-]{1,8})\]")
+MAX_FOOTNOTES = 30
 _NUM = re.compile(r"[+\-−]?\d{1,3}(?:[\s  ]\d{3})+(?:[.,]\d+)?|[+\-−]?\d+(?:[.,]\d+)?")
 _DELTA = re.compile(r"^[+\-−]\s?\d")
 
@@ -333,6 +344,9 @@ def _tone(kind_word: str, text: str) -> str:
         return "warn"
     if w in ("ok", "success", "succes", "succès"):
         return "ok"
+    if w in ("cle", "clé", "key", "retenir", "a-retenir", "à-retenir", "essentiel", "key-point", "takeaway",
+             "important") or _KEY.match(text):
+        return "key"
     return "info"
 
 
@@ -609,6 +623,21 @@ def parse(text: object, kind: str = "deck", lang: str = "fr", repairs: list[str]
         doc["kind"] = "doc"
     doc["title"] = _cut(meta.get("title") or "", MAX_TITLE)
     doc["subtitle"] = _cut(meta.get("subtitle") or "", MAX_TITLE)
+    for key in ("template", "author", "recipient"):  # read as written; turn.finish_doc checks them
+        if meta.get(key):
+            doc[key] = _cut(meta[key], 120)
+    notes, kept, fence = [], [], False
+    for ln in lines:  # footnote definitions, wherever the model put them, outside code
+        if _FENCE.match(ln):
+            fence = not fence
+        m = None if fence else FOOTNOTE_DEF.match(ln)
+        if m and len(notes) < MAX_FOOTNOTES:
+            notes.append({"n": m.group(1), "text": _cut(_clean_inline(m.group(2)), 600)})
+        elif not m:
+            kept.append(ln)
+    if notes:
+        lines = kept
+        doc["footnotes"] = notes
     if meta.get("theme"):
         doc["theme"] = theme_of(meta["theme"])
         if doc["theme"] is None:
@@ -935,8 +964,13 @@ def to_dsl(doc: dict, ids: bool = True) -> str:
         head.append(f"subtitle: {doc['subtitle']}")
     if doc.get("theme"):
         head.append(f"theme: {doc['theme']}")
+    for key in ("template", "author", "recipient"):
+        if doc.get(key):
+            head.append(f"{key}: {doc[key]}")
     head.append("---")
-    return "\n".join(head) + "\n" + "\n".join(block_dsl(b, ids) for b in doc.get("blocks") or [])
+    notes = "".join(f"[^{x['n']}]: {x['text']}\n" for x in doc.get("footnotes") or [])
+    return "\n".join(head) + "\n" + "\n".join(block_dsl(b, ids) for b in doc.get("blocks") or []) + (
+        "\n" + notes if notes else "")
 
 
 def summary_line(b: dict) -> str:
@@ -1097,6 +1131,8 @@ def validate(doc) -> dict:
                     "notes": _str(b.get("notes"), MAX_TEXT),
                 }
             )
+        if kind == "doc":
+            _doc_fields(doc, out)
     elif kind == "code":
         c = doc.get("code")
         if not isinstance(c, dict):
@@ -1128,6 +1164,41 @@ def validate(doc) -> dict:
         top = max(int(b["id"][1:]) for b in out["blocks"])
         out["_next"] = max(out["_next"], top + 1)
     return out
+
+
+def _doc_fields(doc: dict, out: dict) -> None:
+    """The fields of a Word-like document: its template, author, recipient (letters), date and footnotes."""
+    from . import templates
+
+    tpl = templates.of(doc.get("template"))
+    if tpl:
+        out["template"] = tpl
+    for key, n in (("author", 120), ("recipient", 300), ("date", 40)):
+        if doc.get(key):
+            out[key] = _str(doc.get(key), n)
+    notes = doc.get("footnotes")
+    if isinstance(notes, list):
+        clean = [{"n": _str(x.get("n"), 8), "text": _str(x.get("text"), 600)}
+                 for x in notes[:MAX_FOOTNOTES] if isinstance(x, dict) and x.get("text")]  # fmt: skip
+        if clean:
+            out["footnotes"] = clean
+
+
+def footnote_order(doc: dict) -> list[dict]:
+    """The footnotes as numbered on the page: by first call in the text (blocks in order), then the ones never
+    called. [{'key', 'n' (1, 2…), 'text'}]. The preview and the .docx number them the same way."""
+    defs = {str(x.get("n")): x.get("text") or "" for x in doc.get("footnotes") or []}
+    order: list[str] = []
+    for b in doc.get("blocks") or []:
+        for p in b.get("parts") or []:
+            texts = [p.get("text") or ""] + [str(i) for i in p.get("items") or [] if isinstance(i, str)]
+            texts += [str(c) for r in p.get("rows") or [] for c in r if isinstance(c, str)]
+            for t in texts:
+                for m in FOOTNOTE_REF.finditer(t):
+                    if m.group(1) in defs and m.group(1) not in order:
+                        order.append(m.group(1))
+    order += [k for k in defs if k not in order]
+    return [{"key": k, "n": i, "text": defs[k]} for i, k in enumerate(order, 1)]
 
 
 def clone(doc: dict) -> dict:

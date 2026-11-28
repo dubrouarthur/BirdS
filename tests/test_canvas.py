@@ -1064,7 +1064,7 @@ def test_chat_text_drops_an_excuse_before_the_deck():
     d = dsl.parse(DECK, "deck")
     text = turn.chat_text("deck", d, "fr", before="Je n'ai pas accès à vos données internes ni à l'outil web.")
     assert "accès" not in text
-    assert "ajoute une section" in turn.chat_text("doc", dsl.parse("# A\nx\n# B\ny", "doc"), "fr")
+    assert "✦ sur une section" in turn.chat_text("doc", dsl.parse("# A\nx\n# B\ny", "doc"), "fr")
 
 
 # ------------------------------------------------------------------ the task plan on canvas turns

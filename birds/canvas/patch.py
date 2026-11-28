@@ -610,6 +610,8 @@ def rewrite(old: dict, new: dict) -> dict:
     out["title"] = new.get("title") or old.get("title") or ""
     out["subtitle"] = new.get("subtitle") or old.get("subtitle") or ""
     out["theme"] = new.get("theme") or old.get("theme")
+    if new.get("footnotes"):
+        out["footnotes"] = new["footnotes"]
     by_title = {re.sub(r"\W+", " ", (b.get("title") or "").lower()).strip(): b for b in old.get("blocks") or []}
     blocks = []
     used: set[str] = set()
