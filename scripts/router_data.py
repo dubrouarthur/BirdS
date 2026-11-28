@@ -261,3 +261,69 @@ class Imitator:
                     "convert_currency": {"from": "USD", "to": "EUR"}}.get(tool, {})  # fmt: skip
             return json.dumps({"modules": [{"tool": tool, "args": args}], "agent": "auto", "needs_web": False})
         return json.dumps({"modules": [], "agent": "auto", "needs_web": False})  # a missed module
+
+
+# ---------------------------------------------------------------- the data planner (birds/harness/analysis/planner.py)
+# Fixed cases on tests/fixtures/data/ventes.csv: (id, message, previous spec or None, gold, charts accepted).
+# gold None = no computation; otherwise the query keys that must match (by/pivot may be swapped for a cross-tab,
+# "filter" = (column, value) of one filter). ``LIVE_8`` are the 8 prompts of the live before/after (docs/HARNESS.md).
+_PREV_REGION = {"analysis": {"op": "aggregate", "measure": "CA (€)", "agg": "sum", "by": "Région", "sort": "desc"},
+                "chart": "bar", "version": 1}  # fmt: skip
+DATA_PLAN = [
+    ("units_seller", "Quel commercial a vendu le plus d'unités ?", None,
+     {"op": "aggregate", "measure": "Quantité", "agg": "sum", "by": "Commercial"}, {"bar", "hbar", "auto"}),
+    ("moving_avg", "CA mensuel avec une moyenne mobile sur 3 mois", None,
+     {"op": "aggregate", "measure": "CA (€)", "time": "Date", "period": "month", "window": 3},
+     {"combo", "line", "area", "auto"}),
+    ("pivot", "CA par région et par produit", None,
+     {"op": "aggregate", "measure": "CA (€)", "agg": "sum", "by": "Région", "pivot": "Produit"},
+     {"stacked", "heatmap", "bar", "auto"}),
+    ("top_filter", "Les 5 clients qui rapportent le plus dans le Sud", None,
+     {"op": "aggregate", "measure": "CA (€)", "by": "Client", "top": 5, "filter": ("Région", "Sud")},
+     {"hbar", "bar", "auto"}),
+    ("pct_change", "Évolution du CA d'un trimestre à l'autre, en %", None,
+     {"op": "aggregate", "measure": "CA (€)", "time": "Date", "period": "quarter", "change": True},
+     {"combo", "line", "bar", "auto"}),
+    ("compare_by", "Compare 2024 et 2025 par produit", None,
+     {"op": "compare", "measure": "CA (€)", "by": "Produit", "years": [2024, 2025]}, {"bar", "hbar", "auto"}),
+    ("share", "Quelle part du CA fait chaque produit ?", None,
+     {"op": "aggregate", "measure": "CA (€)", "by": "Produit", "share": True}, {"donut", "auto"}),
+    ("summary_no", "Résume ce fichier en deux phrases", None, None, set()),
+    # held out of the live run (rules and scripted checks only)
+    ("followup_pie", "plutôt en camembert", _PREV_REGION,
+     {"op": "aggregate", "measure": "CA (€)", "by": "Région", "share": True}, {"donut"}),
+    ("followup_top", "garde seulement les 3 premières", _PREV_REGION,
+     {"op": "aggregate", "measure": "CA (€)", "by": "Région", "top": 3}, {"bar", "hbar", "auto"}),
+    ("mean_price", "Prix unitaire moyen par produit", None,
+     {"op": "aggregate", "measure": "Prix unitaire (€)", "agg": "mean", "by": "Produit"}, {"bar", "hbar", "auto"}),
+    ("corr", "Y a-t-il un lien entre la remise et la quantité ?", None,
+     {"op": "corr", "x": {"Remise", "Quantité"}, "y": {"Remise", "Quantité"}}, {"scatter", "auto"}),
+    ("mail_no", "Rédige un mail à Paul pour lui présenter ce fichier", None, None, set()),
+    ("en_monthly", "monthly revenue in 2025", None,
+     {"op": "aggregate", "measure": "CA (€)", "time": "Date", "period": "month", "filter": ("Date", 2025)},
+     {"line", "area", "bar", "combo", "auto"}),
+]  # fmt: skip
+LIVE_8 = ("units_seller", "moving_avg", "pivot", "top_filter", "pct_change", "compare_by", "share", "summary_no")
+
+
+def data_judge(plan: dict | None, gold: dict | None, charts: set[str]) -> dict:
+    """{"ok": the right analysis, "chart_ok": an accepted chart (or no computation when none is due)}."""
+    if gold is None:
+        return {"ok": plan is None, "chart_ok": plan is None}
+    if plan is None:
+        return {"ok": False, "chart_ok": False}
+    q = plan["query"]
+    ok = True
+    for k, v in gold.items():
+        if k == "filter":
+            col, val = v
+            ok &= any(f.get("col") == col and (str(f.get("value")).lower() == str(val).lower()
+                      or (isinstance(f.get("value"), list) and str(val) in map(str, f["value"])))
+                      for f in q.get("filters") or [])  # fmt: skip
+        elif k in ("by", "pivot") and "pivot" in gold:
+            ok &= {q.get("by"), q.get("pivot")} == {gold["by"], gold["pivot"]}
+        elif isinstance(v, set):
+            ok &= q.get(k) in v
+        else:
+            ok &= q.get(k) == v
+    return {"ok": bool(ok), "chart_ok": (plan.get("chart") or "auto") in charts}

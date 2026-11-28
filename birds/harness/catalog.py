@@ -147,6 +147,21 @@ MODULES: tuple[Module, ...] = (
         available=False,  # run_python is off by default; enabled by router.available_modules(cfg)
     ),
     Module(
+        "analyze_table", CARD, "data",
+        "analyse calculée d'un tableau joint : regroupement, filtre, croisement, top, évolution, moyenne mobile, "
+        "et son graphique",
+        "computed analysis of an attached table: group-by, filter, pivot, top, change, moving average, and its chart",
+        {"op": Arg("enum", True, choices=("aggregate", "compare", "corr", "describe"), fr="opération", en="operation"),
+         "chart": Arg("enum", choices=("auto", "bar", "hbar", "line", "area", "scatter", "donut", "stacked", "combo",
+                                       "heatmap"), fr="graphique", en="chart")},
+        (("montant total par région", {"op": "aggregate", "chart": "bar"}),
+         ("how did the amount change from 2024 to 2025?", {"op": "compare", "chart": "bar"}),
+         ("corrélation entre prix et quantité", {"op": "corr", "chart": "scatter"})),
+        # decided by its own planner call, with the table's columns as a schema (birds/harness/analysis/planner.py),
+        # only when a table is attached: never in the router's catalogue
+        available=False,
+    ),
+    Module(
         "calculator", HINT, "calc",
         "calcul exact (pourcentages, TVA, sommes)",
         "exact calculation (percentages, VAT, sums)",
