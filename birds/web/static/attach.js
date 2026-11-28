@@ -1,6 +1,7 @@
 // Attachments: documents (text, PDF, Office) and images, from the picker, the camera, drag-and-drop or paste.
 // Images are decoded, oriented (EXIF), downscaled and re-encoded HERE, in the browser; they are sent once with
 // the message that carries them and never stored (localStorage keeps only their name and size).
+import { blobs as keptBlobs } from "./keep.js";
 import {
   $,
   announce,
@@ -161,7 +162,11 @@ function canvasOf(source, w, h) {
 /** A blob: URL for display: the CSP allows blob: images (made by this page), never data: ones. */
 const blobUrl = (canvas, quality = 0.82) =>
   new Promise((resolve) =>
-    canvas.toBlob((blob) => resolve(blob ? URL.createObjectURL(blob) : ""), "image/jpeg", quality),
+    canvas.toBlob((blob) => {
+      const url = blob ? URL.createObjectURL(blob) : "";
+      if (url) keptBlobs.set(url, blob); // a thumbnail can be kept for a reload (keep.js)
+      resolve(url);
+    }, "image/jpeg", quality),
   );
 
 const fit = (w, h, side) => {

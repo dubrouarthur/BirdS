@@ -65,6 +65,7 @@ import { applyResearchEvent } from "./research.js";
 import { mountPicker, updatePicker } from "./reflexion.js"; // Mode Réflexion: the bird picker
 import { normalizeChoice, thinks } from "./reflexion-data.js";
 import * as cx from "./conversation.js"; // versions, inline edit, documents in context, dialogs, back button
+import * as kept from "./keep.js"; // PDFs, office files and image thumbnails kept across a reload (IndexedDB)
 import { cleanTitle, contextDocs, convText, findIn, fork, switchVersion, validGroup } from "./conversation-data.js";
 
 import { loadAgentMode } from "./agent-mode.js"; // Mode Agent: Auto by default; Activé for this session only
@@ -233,6 +234,7 @@ function loadTurns(list) {
         x.role === "user"
           ? {
               role: "user",
+              ...(typeof x.id === "string" ? { id: x.id } : {}),
               content: String(x.content ?? ""),
               // the exact text the model got (image and scan transcriptions included): keep it for the history
               sent: typeof x.sent === "string" ? x.sent : undefined,
@@ -266,6 +268,7 @@ function openConv(id) {
   const conv = (id && running.get(id)?.conv) || (id && loadConv(id)) || newConv();
   state.conv = conv;
   syncBusy();
+  restoreKept(conv);
   state.editing = false;
   forgetRendered();
   showView("chat");
@@ -273,6 +276,50 @@ function openConv(id) {
   renderSidebar();
   scrollToEnd(true);
   closeDrawer();
+}
+
+/** The thumbnails of a question's images, kept in this browser so a reload shows them (never sent anywhere). */
+function keepThumbs(conv, user) {
+  for (const img of user?.images || []) {
+    const blob = img.thumb && kept.blobs.get(img.thumb);
+    if (blob) kept.keep(conv.id, "img", `${user.id}:${img.name}`, { blob });
+  }
+}
+
+/** What this browser kept of the conversation's files (IndexedDB): the PDFs and office files come back, and the
+ * images of earlier messages get their thumbnails back; what is gone stays « à joindre de nouveau ». */
+async function restoreKept(conv) {
+  const lost = (conv.attachments || []).filter((a) => a.lost);
+  const ghosts = [];
+  const walk = (list) => {
+    for (const turn of list || []) {
+      if (turn.role === "user" && turn.id) for (const img of turn.images || []) if (!img.thumb) ghosts.push([turn, img]);
+      for (const tail of turn.alts?.list || []) if (Array.isArray(tail)) walk(tail);
+    }
+  };
+  walk(conv.turns);
+  if (!lost.length && !ghosts.length) return;
+  const map = await kept.load(conv.id);
+  let changed = false;
+  for (const doc of lost) {
+    const got = map.get(`doc/${doc.name}`);
+    if (got?.content) {
+      Object.assign(doc, { content: got.content, encoding: got.encoding || "base64", size: got.size || doc.size, lost: false });
+      changed = true;
+    }
+  }
+  for (const [turn, img] of ghosts) {
+    const blob = map.get(`img/${turn.id}:${img.name}`)?.blob;
+    if (blob instanceof Blob) {
+      img.thumb = URL.createObjectURL(blob);
+      kept.blobs.set(img.thumb, blob);
+      changed = true;
+    }
+  }
+  if (!changed || state.conv !== conv) return;
+  renderAttachments();
+  updateComposer();
+  renderConversation();
 }
 
 /** After the first answer: a short title summarised by the model (or a mail's subject), checked here too; the
@@ -598,6 +645,7 @@ function deleteConv(id, title) {
   if (wasOpen) openConv(null);
   else renderSidebar();
   if (!$("sidebar").contains(document.activeElement) || document.activeElement === document.body) $("conv-search").focus({ preventScroll: true });
+  window.setTimeout(() => !state.convs.some((c) => c.id === id) && kept.drop(id), 9000); // after « Annuler »
   toast(t("cx.side.deleted", { title }), "ok", {
     ms: 8000,
     action: {
@@ -628,6 +676,7 @@ async function clearAll() {
   if (!ok) return;
   for (const r of running.values()) r.controller.abort();
   for (const key of store.keys("bird.conv.")) store.set(key, null);
+  kept.dropAll();
   state.convs = [];
   store.set("bird.convs", null);
   store.set("bird.current", null);
@@ -995,6 +1044,9 @@ function updateComposer() {
   const send = $("btn-send");
   const awaiting = pendingConfirm();
   const images = readyImages().length;
+  // a document of the conversation whose content this browser lost: attach it again (or remove it) first, never
+  // a question about it answered « je n'ai pas accès à vos fichiers »
+  const lostDoc = (state.conv?.attachments || []).find((a) => a.lost);
   const reason = !state.online
     ? "composer.send.offline"
     : state.busy
@@ -1003,7 +1055,9 @@ function updateComposer() {
         ? "composer.send.pending"
         : busyImages()
           ? "att.reading"
-          : !text.trim() && !images
+          : lostDoc
+            ? "cx.ctx.lost.block"
+            : !text.trim() && !images
             ? "composer.send.empty"
             : "";
   const nAtt =
@@ -1014,7 +1068,7 @@ function updateComposer() {
   const label = nAtt
     ? t(nAtt === 1 ? "att.send.one" : "att.send.many", { n: nAtt })
     : t("composer.send");
-  send.title = reason ? t(reason) : label;
+  send.title = reason ? t(reason, { name: lostDoc?.name || "" }) : label;
   send.setAttribute("aria-label", label);
   const photo = $("btn-photo");
   const canImages = imagesAvailable();
@@ -1029,10 +1083,10 @@ function updateComposer() {
   $("btn-photo").dataset.count = images ? String(images) : "";
   // most reasons stay for screen readers only; a pending approval is shown, with a way to reach the request
   const why = $("send-why");
-  const shown = reason === "composer.send.pending" || reason === "composer.send.offline";
+  const shown = reason === "composer.send.pending" || reason === "composer.send.offline" || reason === "cx.ctx.lost.block";
   why.className = shown ? "send-why" : "sr-only";
   why.replaceChildren(
-    reason ? h("span", { text: t(reason) }) : "",
+    reason ? h("span", { text: t(reason, { name: lostDoc?.name || "" }) }) : "",
     reason === "composer.send.pending"
       ? h("button", {
           class: "link",
@@ -1151,7 +1205,7 @@ function addAttachment(name, content, encoding = "text", size = 0) {
   const maxChars = limits.max_attachment_chars || 60_000;
   const maxCount = limits.max_attachments || 4;
   const list = state.conv.attachments;
-  if (list.length >= maxCount)
+  if (list.filter((a) => !a.lost).length >= maxCount && !list.some((a) => a.lost))
     return toast(t("composer.attach.toomany", { max: maxCount }), "error");
   if (encoding === "text" && content.length > maxChars)
     return toast(
@@ -1172,9 +1226,15 @@ function addAttachment(name, content, encoding = "text", size = 0) {
   if (!/\.[A-Za-z0-9]{1,8}$/.test(safe)) safe += ".txt";
   const stem = safe.replace(/(\.[^.]+)$/, "");
   const ext = safe.slice(stem.length);
-  for (let n = 2; list.some((a) => a.name === safe); n++)
-    safe = `${stem}-${n}${ext}`;
-  list.push({ name: safe, content, encoding, size: size || content.length });
+  // the same file attached again after a reload took its content away: it takes its place back (same name)
+  const lost = list.find((a) => a.lost && a.name === safe);
+  if (lost) Object.assign(lost, { content, encoding, size: size || content.length, lost: false });
+  else {
+    for (let n = 2; list.some((a) => a.name === safe); n++)
+      safe = `${stem}-${n}${ext}`;
+    list.push({ name: safe, content, encoding, size: size || content.length });
+  }
+  if (encoding === "base64") kept.keep(state.conv.id, "doc", safe, { content, encoding, size: size || content.length });
   announce(t("att.added", { name: safe }));
   renderAttachments();
   updateComposer();
@@ -1822,7 +1882,8 @@ function send(text) {
     state.busy ||
     pendingConfirm() ||
     !state.online ||
-    busyImages()
+    busyImages() ||
+    (state.conv.attachments || []).some((a) => a.lost) // attach it again or remove it first (the pill says so)
   )
     return;
   const conv = state.conv;
@@ -1847,6 +1908,7 @@ function send(text) {
   conv.turns.push(
     {
       role: "user",
+      id: uid("u"),
       content,
       attachments: newDocs.map(({ name, size, encoding, content: c }) => ({
         name,
@@ -1865,6 +1927,7 @@ function send(text) {
     turn,
   );
   for (const a of newDocs) a.sent = true;
+  keepThumbs(conv, conv.turns[conv.turns.length - 2]);
   saveConv(conv); // the question is stored before the answer starts: a reload or a switch never loses it
   const payload = images.map(({ name, url }) => ({ name, url }));
   sentImages.set(conv.turns[conv.turns.length - 2], payload);
@@ -2078,6 +2141,7 @@ function editSend(i, text) {
   const sent = old.sent && old.sent.startsWith(old.content) ? text + old.sent.slice(old.content.length) : undefined;
   const user = {
     role: "user",
+    id: uid("u"),
     content: text,
     attachments: (old.attachments || []).map((a) => ({ ...a })),
     images: (old.images || []).map((img) => ({ ...img })),
@@ -2087,6 +2151,7 @@ function editSend(i, text) {
   if (imgs) sentImages.set(user, imgs);
   const turn = newAssistantTurn();
   fork(turns, i, [user, turn]);
+  keepThumbs(conv, user);
   if (i === 0) conv.title = autoTitle(text);
   saveConv(conv);
   renderChat();
@@ -2801,6 +2866,7 @@ async function init() {
   state.convs = store.json("bird.convs", []).filter((c) => c && c.id);
   const current = store.get("bird.current");
   state.conv = (current && loadConv(current)) || newConv();
+  restoreKept(state.conv);
   bind();
   trackViewport();
   trackTyping();

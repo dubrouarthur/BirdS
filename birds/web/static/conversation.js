@@ -198,7 +198,7 @@ export function contextPill(context, lost, { onRemove, onPreview, onReattach }) 
     { class: "cx-ctx-pop", id: panelId, hidden: true },
     h("p", { class: "cx-ctx-title", text: t("cx.ctx.title") }),
     h("ul", { class: "cx-ctx-list" }, lost.map((d) => row(d, true)), context.map((d) => row(d, false))),
-    h("p", { class: "cx-ctx-note", text: lost.length ? t("cx.ctx.lost.block", { name: lost[0].name }) : t("cx.ctx.note") }),
+    h("p", { class: "cx-ctx-note", text: t("cx.ctx.note") }), // a lost one is said under the composer (send-why)
   );
   const wrap = h("div", { class: "cx-ctx" }, pill, pop);
   const set = (open) => {

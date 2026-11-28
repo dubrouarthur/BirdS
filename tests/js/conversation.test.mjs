@@ -101,3 +101,16 @@ test("R14: the proposed title is cleaned and checked, else the fallback", () => 
   assert.equal(C.cleanTitle("voir https://x.y", "fallback"), "fallback");
   assert.equal(C.cleanTitle("Budget 2026\nautre ligne", "f"), "Budget 2026");
 });
+
+test("R5: kept files are pruned by age, then oldest first to the byte cap", async () => {
+  const { planPrune, KEEP_DAYS } = await import("../../birds/web/static/keep.js");
+  const now = 1_000 * 86_400_000;
+  const rows = [
+    { key: "old", at: now - (KEEP_DAYS + 1) * 86_400_000, bytes: 10 },
+    { key: "a", at: now - 3, bytes: 60 },
+    { key: "b", at: now - 2, bytes: 30 },
+    { key: "c", at: now - 1, bytes: 30 },
+  ];
+  assert.deepEqual(planPrune(rows, now, 100).sort(), ["a", "old"]);
+  assert.deepEqual(planPrune(rows, now, 1000), ["old"]);
+});

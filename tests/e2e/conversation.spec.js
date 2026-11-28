@@ -356,6 +356,63 @@ part("back", async (page, name, fail, shot) => {
   await shot("r4-after-backs");
 });
 
+// a one-page PDF with a line of text (enough for the reader on the server)
+const PDF = Buffer.from(
+  "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n" +
+    "3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 144]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n" +
+    "4 0 obj<</Length 44>>stream\nBT /F1 18 Tf 20 60 Td (Facture 2026) Tj ET\nendstream endobj\n" +
+    "5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n",
+);
+
+async function png(page) {
+  const b64 = await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 900;
+    c.height = 500;
+    const g = c.getContext("2d");
+    g.fillStyle = "#2a6"; g.fillRect(0, 0, 900, 500);
+    g.fillStyle = "#fff"; g.font = "60px sans-serif"; g.fillText("Ticket 42,50 €", 80, 260);
+    return c.toDataURL("image/png").split(",")[1];
+  });
+  return Buffer.from(b64, "base64");
+}
+
+// ---------------------------------------------------------------- R5 + R21: attachments kept across a reload
+part("reload", async (page, name, fail, shot) => {
+  await newChat(page);
+  await page.setInputFiles("#file-input", [
+    { name: "facture.pdf", mimeType: "application/pdf", buffer: PDF },
+    { name: "ticket.png", mimeType: "image/png", buffer: await png(page) },
+  ]);
+  await page.waitForSelector(".att-tray .att-doc");
+  await page.waitForFunction(() => document.querySelectorAll(".att-tray .att-card").length === 2, null, { timeout: 8000 }).catch(() => {});
+  const names = await page.locator(".att-tray .att-name").allInnerTexts();
+  if (!names.some((n) => /ticket\.png/.test(n))) fail(`R21: the PNG was renamed (${names.join(", ")})`);
+  await send(page, "Résume ce document.");
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+  const pill = (await page.locator(".cx-pill").innerText().catch(() => "")).trim();
+  if (!/1 document en contexte/.test(pill)) fail(`R5: after a reload the pill says « ${pill} »`);
+  if (!(await page.evaluate(() => !!document.querySelector(".bubble-gallery img.att-thumb[src^='blob:']")))) fail("R5: the image thumbnail is gone after a reload");
+  if (await page.locator("#btn-send[disabled]").count() && (await page.locator("#send-why").innerText()).includes("joindre"))
+    fail("R5: a kept document blocks sending");
+  await shot("r5-after-reload");
+  // the browser lost what it kept: say so, block sending, re-attach in one click
+  await page.evaluate(() => new Promise((r) => { const q = indexedDB.deleteDatabase("bird-files"); q.onsuccess = q.onerror = q.onblocked = () => r(); }));
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForTimeout(1200);
+  if (!/à joindre de nouveau/.test(await page.locator(".cx-pill").innerText().catch(() => ""))) fail("R5: a lost document is not said");
+  await page.fill("#composer-input", "Et le total ?");
+  if (!(await page.locator("#btn-send").isDisabled())) fail("R5: sending is allowed with a lost document");
+  await page.click(".cx-pill");
+  await shot("r5-lost");
+  await page.setInputFiles("#file-input", { name: "facture.pdf", mimeType: "application/pdf", buffer: PDF });
+  await page.waitForTimeout(500);
+  if (await page.locator("#btn-send").isDisabled()) fail("R5: re-attaching did not unblock sending");
+  if (!/1 document en contexte/.test(await page.locator(".cx-pill").innerText().catch(() => ""))) fail("R5: the re-attached file did not take its place");
+  await page.fill("#composer-input", "");
+});
+
 (async () => {
   const browser = await chromium.launch();
   const problems = [];
