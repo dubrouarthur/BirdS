@@ -38,20 +38,21 @@ from . import dsl, images
 
 FLAG = "BIRD_CANVAS_PROGRESSIVE"  # "0": off (the single-generation path, measured as « before »)
 FULL_LEVELS = ("faucon", "chouette", "albatros")
-VISUALS = ("image", "chart", "kpi", "table", "timeline", "steps", "compare", "cards", "quote", "none")
+VISUALS = ("image", "chart", "kpi", "table", "diagram", "timeline", "steps", "compare", "cards", "quote", "none")
 DATA = ("none", "request", "web", "statistics")
-INDICATORS = ("unemployment", "inflation", "gdp", "gdp_growth", "population", "electricity", "exports", "creations")
+INDICATORS = ("unemployment", "inflation", "gdp", "gdp_growth", "population", "birth_rate", "fertility", "electricity",
+              "exports", "creations")  # the data engine's series (birds.harness.tools.opendata.stats.PRESETS)
 LAYOUTS = tuple(x for x in dsl.LAYOUT_NAMES if x not in ("agenda", "closing", "code"))
 BOUNDS = {"deck": (6, 12), "doc": (4, 8)}
-PLAN_TOKENS = 1100
-WRITE_TOKENS = {"deck": 300, "doc": 520}
+PLAN_TOKENS = 1600
+WRITE_TOKENS = {"deck": 460, "doc": 900}
 WORKERS = 5
 GATHER_SECONDS = 38.0  # web + statistics, all slides together (Faucon / Chouette)
 MAX_READS = 6  # pages read in one deck (one per slide that needs facts, the first ones)
 MAX_FACTS = 4  # facts given to one slide
 FACT_CHARS = 240
-MAX_POINTS = {"deck": 5, "doc": 8}
-POINT_CHARS = 170
+MAX_POINTS = {"deck": 6, "doc": 8}
+POINT_CHARS = 220
 
 _CITE = re.compile(r"\[\^?(\d{1,2})\]")
 
@@ -108,8 +109,8 @@ PLAN = {
             '{{"title": "<titre>", "subtitle": "<sous-titre court>", "audience": "<le public>", '
             '"message": "<le message clé, une phrase>", "cover_image": "<2 à 4 mots en anglais>", '
             '"slides": [{{"title": "<titre de la diapositive>", "intent": "<ce qu\'elle doit faire comprendre>", '
-            '"layout": "<{layouts}>", "visual": "<image|chart|kpi|table|timeline|steps|compare|cards|quote|none>", '
-            '"image_query": "<2 à 4 mots en anglais, si visual=image>", "data": "<none|request|web|statistics>", '
+            '"layout": "<{layouts}>", "visual": "<image|chart|kpi|table|diagram|timeline|steps|compare|cards|quote|none>", '
+            '"image_query": "<ce qu\'on voit sur la photo, 2 à 5 mots en anglais, si visual=image>", "data": "<none|request|web|statistics>", '
             '"indicator": "<{indicators}, si data=statistics>", "places": "<pays ou villes, si data=statistics>", '
             '"since": "<année de début>", "search": "<requête web, si data=web>", '
             '"facts": ["<un fait de la demande à reprendre>"]}}]}}\n'
@@ -119,15 +120,16 @@ PLAN = {
             "série officielle (chômage, inflation, PIB, croissance, population, prix de l'électricité, exportations, "
             "créations d'entreprises), data=request pour les chiffres donnés dans la demande ; data=web quand la "
             "diapositive a besoin de faits ou de chiffres précis ; aucun chiffre dans facts qui ne soit dans la "
-            "demande."
+            "demande. Une photo montre une chose réelle (un lieu, un objet, des gens) : jamais une statistique, une "
+            "évolution ou un chiffre, qui sont un graphique (chart) ou des chiffres clés (kpi)."
         ),
         "en": (
             "[Plan] Before writing the requested deck, write its plan, in JSON only:\n"
             '{{"title": "<title>", "subtitle": "<short subtitle>", "audience": "<the audience>", '
             '"message": "<the key message, one sentence>", "cover_image": "<2 to 4 words>", '
             '"slides": [{{"title": "<slide title>", "intent": "<what it must get across>", '
-            '"layout": "<{layouts}>", "visual": "<image|chart|kpi|table|timeline|steps|compare|cards|quote|none>", '
-            '"image_query": "<2 to 4 words, if visual=image>", "data": "<none|request|web|statistics>", '
+            '"layout": "<{layouts}>", "visual": "<image|chart|kpi|table|diagram|timeline|steps|compare|cards|quote|none>", '
+            '"image_query": "<what the photo shows, 2 to 5 words, if visual=image>", "data": "<none|request|web|statistics>", '
             '"indicator": "<{indicators}, if data=statistics>", "places": "<countries or towns, if '
             'data=statistics>", "since": "<start year>", "search": "<web query, if data=web>", '
             '"facts": ["<a fact of the request to use>"]}}]}}\n'
@@ -135,7 +137,9 @@ PLAN = {
             "varied (a picture on 2 to 4 slides, key figures, timeline, steps, comparison…); a chart only from real "
             "data: data=statistics for an official series (unemployment, inflation, GDP, growth, population, "
             "electricity prices, exports, business start-ups), data=request for figures given in the request; "
-            "data=web when the slide needs precise facts or figures; no figure in facts that is not in the request."
+            "data=web when the slide needs precise facts or figures; no figure in facts that is not in the request. A photo "
+            "shows a real thing (a place, an object, people): never a statistic, a trend or a figure, which are a chart "
+            "or key figures (kpi)."
         ),
     },
     "doc": {
@@ -144,8 +148,8 @@ PLAN = {
             '{{"title": "<titre>", "subtitle": "<sous-titre court>", "audience": "<le lecteur>", '
             '"message": "<ce que le lecteur doit retenir, une phrase>", '
             '"sections": [{{"title": "<titre de section>", "intent": "<ce qu\'elle doit établir>", '
-            '"layout": "bullets", "visual": "<image|chart|kpi|table|timeline|steps|compare|none>", '
-            '"image_query": "<2 à 4 mots en anglais, si visual=image>", "data": "<none|request|web|statistics>", '
+            '"layout": "bullets", "visual": "<image|chart|kpi|table|diagram|timeline|steps|compare|none>", '
+            '"image_query": "<ce qu\'on voit sur la photo, 2 à 5 mots en anglais, si visual=image>", "data": "<none|request|web|statistics>", '
             '"indicator": "<{indicators}, si data=statistics>", "places": "<pays ou villes>", '
             '"since": "<année de début>", "search": "<requête web, si data=web>", '
             '"facts": ["<un fait de la demande à reprendre>"]}}]}}\n'
@@ -153,22 +157,24 @@ PLAN = {
             "figure là où ils aident ; un graphique seulement à partir de vraies données (data=statistics : "
             "chômage, inflation, PIB, croissance, population, prix de l'électricité, exportations, créations "
             "d'entreprises ; data=request : les chiffres de la demande) ; data=web quand la section a besoin de "
-            "faits précis ; aucun chiffre dans facts qui ne soit dans la demande."
+            "faits précis ; aucun chiffre dans facts qui ne soit dans la demande ; une photo seulement pour une chose "
+            "réelle à montrer (un lieu, un objet), jamais pour une statistique."
         ),
         "en": (
             "[Plan] Before writing the requested document, write its plan, in JSON only:\n"
             '{{"title": "<title>", "subtitle": "<short subtitle>", "audience": "<the reader>", '
             '"message": "<what the reader must remember, one sentence>", '
             '"sections": [{{"title": "<section title>", "intent": "<what it must establish>", '
-            '"layout": "bullets", "visual": "<image|chart|kpi|table|timeline|steps|compare|none>", '
-            '"image_query": "<2 to 4 words, if visual=image>", "data": "<none|request|web|statistics>", '
+            '"layout": "bullets", "visual": "<image|chart|kpi|table|diagram|timeline|steps|compare|none>", '
+            '"image_query": "<what the photo shows, 2 to 5 words, if visual=image>", "data": "<none|request|web|statistics>", '
             '"indicator": "<{indicators}, if data=statistics>", "places": "<countries or towns>", '
             '"since": "<start year>", "search": "<web query, if data=web>", '
             '"facts": ["<a fact of the request to use>"]}}]}}\n'
             "Rules: {lo} to {hi} sections, the ones the request names first; a table, a chart or a figure where it "
             "helps; a chart only from real data (data=statistics: unemployment, inflation, GDP, growth, population, "
             "electricity prices, exports, business start-ups; data=request: the figures of the request); data=web "
-            "when the section needs precise facts; no figure in facts that is not in the request."
+            "when the section needs precise facts; no figure in facts that is not in the request; a photo only for a real "
+            "thing to show (a place, an object), never for a statistic."
         ),
     },
 }
@@ -280,9 +286,18 @@ def parse_outline(
                 facts.append(f)
             elif f:
                 repairs.append("a planned fact with a figure not in the request dropped")
-        query = _s(r.get("image_query"), 60)
+        if visual == "diagram":
+            visual = "steps"  # a flow drawn by the canvas (steps); a timeline when the plan says so
+        query = images.clean_query(_s(r.get("image_query"), 80))[:60]
         if visual == "image" and not query:
-            query = _s(title, 60)
+            query = images.clean_query(title)[:60]
+        if visual == "image" and not images.variants(query):
+            # « Paris bike cargo statistics »: a statistic is a chart (from real data) or key figures, never a photo
+            visual = "chart" if data in ("statistics", "request") else "kpi"
+            repairs.append(f"photo of a statistic turned into a {visual}: {title[:30]}")
+            query = ""
+        if visual != "image" and not layout.startswith("image"):
+            query = ""
         items.append(Item(title, _s(r.get("intent"), 200), layout, visual, query, data, indicator,
                           _s(r.get("places"), 80), _s(r.get("since"), 10), _s(r.get("search"), 120),
                           facts[:4]))  # fmt: skip
@@ -294,8 +309,11 @@ def parse_outline(
     if len(items) < lo:
         repairs.append(f"plan of {len(items)} items (fewer than {lo})")
     title = _s(obj.get("title"), 110)
+    cover = images.clean_query(_s(obj.get("cover_image"), 80))[:60]
+    if cover and not images.variants(cover):
+        cover = ""
     return Outline(kind, title, _s(obj.get("subtitle"), 140), _s(obj.get("audience"), 120),
-                   _s(obj.get("message"), 240), _s(obj.get("cover_image"), 60), items)  # fmt: skip
+                   _s(obj.get("message"), 240), cover, items)  # fmt: skip
 
 
 # ------------------------------------------------------------------ 3. writing one slide or section
@@ -305,14 +323,16 @@ WRITE = {
         "fr": (
             "[Canevas] Présentation « {title} »{audience}. Message clé : {message}\n"
             "Écris uniquement la diapositive {i} sur {n} : « {stitle} ». Objectif : {intent}\n{facts}"
-            "Format :\n# {stitle}\n- 3 à 5 points courts (12 mots au plus chacun)\n{visual}"
+            "Format :\n# {stitle}\n- 4 à 6 points précis, 25 mots au plus chacun : chacun porte un fait, un nom, un lieu, une "
+            "date, un chiffre des faits ou un exemple concret, jamais une généralité ni une formule creuse\n{visual}"
             "Règles : rien d'autre que cette diapositive (pas d'introduction, pas de titre de présentation) ; "
             "n'invente aucun chiffre : seulement ceux des faits ci-dessus ou de la demande{cite}."
         ),
         "en": (
             '[Canvas] Deck "{title}"{audience}. Key message: {message}\n'
             'Write only slide {i} of {n}: "{stitle}". Goal: {intent}\n{facts}'
-            "Format:\n# {stitle}\n- 3 to 5 short points (12 words at most each)\n{visual}"
+            "Format:\n# {stitle}\n- 4 to 6 precise points, 25 words at most each: each one carries a fact, a name, a place, a "
+            "date, a figure of the facts or a concrete example, never a generality or an empty phrase\n{visual}"
             "Rules: nothing but this slide (no introduction, no deck title); invent no figure: only those of the "
             "facts above or of the request{cite}."
         ),
@@ -321,14 +341,18 @@ WRITE = {
         "fr": (
             "[Canevas] Document « {title} »{audience}. À retenir : {message}\n"
             "Écris uniquement la section {i} sur {n} : « {stitle} ». Objectif : {intent}\n{facts}"
-            "Format :\n# {stitle}\n1 à 3 paragraphes courts, une liste (- point) si elle aide.\n{visual}"
+            "Format :\n# {stitle}\n2 à 4 paragraphes de 3 à 5 phrases : des faits précis (noms, lieux, dates, chiffres des "
+            "faits), des exemples, leurs conséquences ; une liste (- point) si elle aide ; ni généralités ni "
+            "conclusion creuse.\n{visual}"
             "Règles : rien d'autre que cette section ; n'invente aucun chiffre ni aucun nom : seulement ceux des "
             "faits ci-dessus ou de la demande{cite}."
         ),
         "en": (
             '[Canvas] Document "{title}"{audience}. To remember: {message}\n'
             'Write only section {i} of {n}: "{stitle}". Goal: {intent}\n{facts}'
-            "Format:\n# {stitle}\n1 to 3 short paragraphs, a list (- point) if it helps.\n{visual}"
+            "Format:\n# {stitle}\n2 to 4 paragraphs of 3 to 5 sentences: precise facts (names, places, dates, figures of "
+            "the facts), examples, their consequences; a list (- point) if it helps; no generalities, no empty "
+            "conclusion.\n{visual}"
             "Rules: nothing but this section; invent no figure and no name: only those of the facts above or of "
             "the request{cite}."
         ),
@@ -345,7 +369,7 @@ VISUAL_HINT = {
         "cards": "Puis des cartes :\n::: cards\n<nom> : <description courte>\n:::\n",
         "quote": "Puis une citation tirée des faits, avec son auteur :\n> « citation » — auteur\n",
         "table": "Puis un tableau :\n| <colonne> | <colonne> |\n| <valeur> | <valeur> |\n",
-        "image": "Une photo est placée à côté du texte par Bird : 2 à 4 points seulement.\n",
+        "image": "Une photo est placée à côté du texte par Bird : 3 ou 4 points précis.\n",
     },
     "en": {
         "kpi": "Then the key figures, taken from the facts or the request:\n::: kpi\n<figure> | <what it measures>\n:::\n",
@@ -357,7 +381,7 @@ VISUAL_HINT = {
         "cards": "Then cards:\n::: cards\n<name>: <short description>\n:::\n",
         "quote": 'Then a quotation from the facts, with its author:\n> "quotation" — author\n',
         "table": "Then a table:\n| <column> | <column> |\n| <value> | <value> |\n",
-        "image": "A photo is placed beside the text by Bird: 2 to 4 points only.\n",
+        "image": "A photo is placed beside the text by Bird: 3 or 4 precise points.\n",
     },
 }  # fmt: skip
 
@@ -897,8 +921,6 @@ class Pipeline:
                                           "done" if len(written) == n else "running")  # fmt: skip
                 if changed:
                     self.snapshot(doc)
-                if full and "gather" in {w for w, _ in jobs.values()} is False:
-                    pass
                 if full and not any(w == "gather" for w, _ in jobs.values()):
                     self.progress.set("gather", self._gather_line(), "done")
                 if not any(w in ("image", "cover") for w, _ in jobs.values()) and (wants_image or cover_q):
@@ -918,10 +940,15 @@ class Pipeline:
         it = o.items[i]
         if not (it.visual == "image" or it.layout.startswith("image")) or i not in self._found_keys(doc, i):
             return
-        if any(p.get("t") == "image" for p in block["parts"]):
-            return
         entry = self._entry(doc, i)
-        part = {"t": "image", "query": it.query, "alt": it.query, "caption": ""}
+        have = next((p for p in block["parts"] if p.get("t") == "image"), None)
+        if have is not None:
+            if entry and not have.get("media"):  # the picture arrived after the slide was written
+                have["media"] = entry
+                have.pop("missing", None)
+            return
+        q = images.clean_query(it.query)
+        part = {"t": "image", "query": q, "alt": q, "caption": ""}
         if entry:
             part["media"] = entry
         else:

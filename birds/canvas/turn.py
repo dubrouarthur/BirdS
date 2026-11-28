@@ -396,6 +396,25 @@ def memo_line(info: dict | None, lang: str = "fr") -> str:
     return f"[canvas {doc.get('kind')} « {doc.get('title', '')[:80]} »]"
 
 
+def photo_queries(doc: dict, repairs: list[str]) -> None:
+    """A picture's search is the words of a real thing: the model's notation removed (« [Paris bike cargo 1] »), and
+    a photo « of statistics » or « of a chart » dropped (a statistic is a chart from real data, never a photo)."""
+    from . import images
+
+    for b in doc.get("blocks") or []:
+        keep = []
+        for p in b.get("parts") or []:
+            if p.get("t") == "image" and not p.get("media"):
+                q = images.clean_query(p.get("query") or "")
+                if not images.variants(q):
+                    repairs.append(f"picture of a chart or a statistic dropped: {b.get('title', '')[:30]}")
+                    continue
+                p["query"] = q
+                p["alt"] = images.clean_query(p.get("alt") or "") or q
+            keep.append(p)
+        b["parts"] = keep
+
+
 def finish_doc(doc: dict, kind: str, words: str, lang: str, repairs: list[str] | None = None) -> dict:
     """Defaults the model left out: a title from the request, a theme from the subject, rich blocks from bullets.
     A document also gets its template (the model's choice when it is a known one, else a hint from the words), its
@@ -408,6 +427,7 @@ def finish_doc(doc: dict, kind: str, words: str, lang: str, repairs: list[str] |
                                                   "Presentation" if kind == "deck" else "Document")  # fmt: skip
     if kind in ("deck", "doc") and not doc.get("theme"):
         doc["theme"] = office.pick_theme(words + " " + doc["title"])
+    photo_queries(doc, repairs)
     if kind == "deck":
         from . import layouts
 

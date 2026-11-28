@@ -1225,6 +1225,8 @@ def _part_ok(p) -> dict:
                "caption": _str(p.get("caption"), 200)}  # fmt: skip
         if isinstance(p.get("media"), str) and re.fullmatch(r"[a-z]{1,2}\d{1,4}", p["media"]):
             out["media"] = p["media"]
+        elif p.get("missing") is True:
+            out["missing"] = True  # searched, none found: a designed placeholder (« Chercher » / « Importer »)
         return out
     if t == "chart":
         cols, rows = p.get("columns"), p.get("rows")

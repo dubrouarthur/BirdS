@@ -95,3 +95,21 @@ test("flowchart: garbage never throws", () => {
 test("canvas strings: same keys in French and English", () => {
   assert.deepEqual(Object.keys(CANVAS_STRINGS.fr).sort(), Object.keys(CANVAS_STRINGS.en).sort());
 });
+
+test("pictures: a placeholder shows clean words, the missing ones are counted per slide", async () => {
+  const { cleanQuery, missingPictures } = await import("../../birds/web/static/canvas-pictures.js");
+  assert.equal(cleanQuery("[Paris bike cargo 1]"), "Paris bike cargo");
+  assert.equal(cleanQuery("Photo : « cargo bike street »"), "cargo bike street");
+  assert.equal(cleanQuery("train de nuit 2024"), "train de nuit 2024");
+  const doc = {
+    blocks: [
+      { parts: [{ t: "image", query: "a", media: "w1" }] },
+      { parts: [{ t: "image", query: "b", missing: true }] },
+      { parts: [{ t: "text", text: "x" }] },
+      { parts: [{ t: "image", query: "c" }] },
+    ],
+  };
+  assert.deepEqual(missingPictures(doc), [2, 4]);
+  for (const k of ["cv.chip.missing", "cv.chip.missing.p", "cv.image.missing", "cv.and", "cv.unit.slides"])
+    assert.ok(CANVAS_STRINGS.fr[k] && CANVAS_STRINGS.en[k], k);
+});

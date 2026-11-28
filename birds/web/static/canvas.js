@@ -23,6 +23,7 @@ import { renderMarkdown } from "./markdown.js";
 import { chartSvg } from "./previews.js";
 import { renderChart } from "./chart.js";
 import { flowSvg, parseFlow } from "./canvas-flow.js";
+import { cleanQuery, missingPictures } from "./canvas-pictures.js";
 import * as sheet from "./canvas-sheet.js";
 import * as cc from "./canvas-code.js";
 import { highlight } from "./richcode.js";
@@ -499,16 +500,27 @@ export function canvasSuggestions(ref) {
   const a = art(ref.aid);
   const v = a && (ref.version ? a.versions.find((x) => x.n === ref.version) : a.versions.at(-1));
   const doc = v?.doc;
-  if (!doc || doc.kind !== "deck") return [];
+  if (!doc || (doc.kind !== "deck" && doc.kind !== "doc")) return [];
   const out = [];
   const add = (k, vars = {}, kind = "follow") =>
     out.push({ label: t(k, vars), prompt: t(`${k}.p`, vars), kind });
+  // pictures searched and not found: one chip completes them all (a direct edit, patch.direct_ops « image »)
+  const miss = missingPictures(doc);
+  if (miss.length) {
+    const list = miss.length > 1 ? `${miss.slice(0, -1).join(", ")} ${t("cv.and")} ${miss.at(-1)}` : `${miss[0]}`;
+    add(miss.length > 1 ? "cv.chip.missing" : "cv.chip.missing1", {
+      n: miss.length,
+      list,
+      unit: t(doc.kind === "deck" ? (miss.length > 1 ? "cv.unit.slides" : "cv.unit.slide") : miss.length > 1 ? "cv.unit.sections" : "cv.unit.section"),
+    });
+  }
+  if (doc.kind !== "deck") return out;
   const parts = (doc.blocks || []).flatMap((b) => b.parts || []);
   // a chart waiting for figures (birds/canvas/figures.py): the chip writes the start of the message, the user
   // gives the numbers (a chip that sent « ajoute des chiffres » would only get made-up ones)
   const waiting = (doc.blocks || []).find((b) => (b.parts || []).some((p) => p.need === "figures"));
   if (waiting) add("cv.chip.give", { title: waiting.title || "" }, "fill");
-  if (!parts.some((p) => p.t === "image")) add("cv.chip.images");
+  if (!parts.some((p) => p.t === "image") && !miss.length) add("cv.chip.images");
   if (!waiting && !parts.some((p) => p.t === "kpi" || p.t === "chart")) add("cv.chip.chart", {}, "fill");
   const n = (doc.blocks || []).length;
   const last = doc.blocks?.[n - 1];
@@ -1571,6 +1583,7 @@ async function shrink(file, id) {
 
 // ------------------------------------------------------------------ pictures
 
+
 function picture(doc, b, part, { cls = "" } = {}) {
   const url = part.media ? mediaUrl(part.media) : null;
   const meta = mediaMeta(doc, part.media);
@@ -1582,17 +1595,27 @@ function picture(doc, b, part, { cls = "" } = {}) {
         "div",
         { class: "cv-img-ph" },
         icon("image"),
-        h("span", {
+        h("strong", {
+          class: "cv-img-ph-title",
           text: part.media
             ? t("cv.image.lost")
-            : t("cv.image.pending", { q: part.query || "" }),
+            : t(part.missing ? "cv.image.missing" : "cv.image.pending"),
         }),
-        button(
-          "btn-outline btn-small",
-          "search",
-          t("cv.image.search"),
-          () => searchImage(b, b.parts.indexOf(part)),
-          { "data-k": `ph-${b.id}` },
+        cleanQuery(part.query) &&
+          h("span", { class: "cv-img-ph-q", text: cleanQuery(part.query) }),
+        h(
+          "div",
+          { class: "cv-img-ph-actions" },
+          button(
+            "btn-outline btn-small",
+            "search",
+            t("cv.image.search"),
+            () => searchImage(b, b.parts.indexOf(part)),
+            { "data-k": `ph-${b.id}` },
+          ),
+          button("btn-ghost btn-small", "image", t("cv.image.upload"), () =>
+            uploadImage(b),
+          ),
         ),
       ),
     );

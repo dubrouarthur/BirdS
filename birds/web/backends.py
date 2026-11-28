@@ -2631,7 +2631,10 @@ class HarnessBackend:
                         cplan = canvas_web.plan_for(request, words, rl, self.canvas, attached=joined)
                         canvas_kw = dict(user_sent=user_sent, words=words, system=system, history=kept, lang=rl,
                                          mode="server", attached=joined)  # fmt: skip
-                        if cplan is not None and cplan.mode != "create":
+                        if cplan is not None and (cplan.mode != "create" or (
+                                canvas_web.progressive_for(cplan, joined) and request.agent != "on")):
+                            # an edit, or a new deck / document made in steps (plan, facts and pictures gathered
+                            # in parallel, slide by slide): the canvas comes before the team
                             run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
                         else:
                             decision = crew_web.decide_for(request, words, len(new_names), len(image_texts), rl)

@@ -1135,5 +1135,561 @@
    "template_by": "hint",
    "date": "28 novembre 2026"
   }
+ },
+ {
+  "n": 7,
+  "ask": "Rédige une note de synthèse sur le vélo en ville pour un élu",
+  "want": "doc",
+  "label": "before",
+  "reflexion": "faucon",
+  "seconds": 37.2,
+  "first_slide_s": 18.4,
+  "canvas": true,
+  "snapshots": 60,
+  "progress": [],
+  "error": null,
+  "chat": "Le document « Le vélo en ville : un levier de mobilité et de santé publique » est prêt dans le canevas : proposition commerciale, 7 sections. Cliquez sur un texte pour le modifier ; ✦ sur une section la retravaille (deux variantes au choix). Téléchargez-le en .docx ou en PDF depuis la carte.",
+  "kind": "doc",
+  "title": "Le vélo en ville : un levier de mobilité et de santé publique",
+  "blocks": 7,
+  "body": 7,
+  "with_visual": 1,
+  "images_asked": 1,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 1,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 0,
+  "cited_valid": 0,
+  "sources_listed": 1,
+  "image_titles": [],
+  "image_queries": [],
+  "placeholder_queries": [
+   "vélo en ville politique urbaine"
+  ],
+  "query_leaks": 0,
+  "words_per_block": 53.7,
+  "units": 36,
+  "specific_share": 0.06,
+  "units_cited": 0,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "doc",
+   "title": "Le vélo en ville : un levier de mobilité et de santé publique",
+   "subtitle": "Note de synthèse pour l'élu",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le vélo en ville est aujourd'hui un levier majeur de mobilité douce, de santé publique et de qualité de vie. Il répond à des besoins croissants de déplacement urbain, tout en contribuant à réduire la congestion, la pollution et les coûts de transport. Les politiques urbaines modernes accordent une place croissante au vélo, non seulement comme mode de transport, mais aussi comme outil de réorganisation de l'espace public."
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b2",
+     "title": "Avantages du vélo en ville",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Réduction de la congestion et des temps de trajet",
+        "Amélioration de la qualité de l'air et de la santé publique",
+        "Moins de dépendance aux énergies fossiles",
+        "Coûts de transport plus faibles pour les ménages",
+        "Renforcement de la sécurité routière"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b3",
+     "title": "Défis à relever",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Manque d'infrastructures dédiées",
+        "Insécurité perçue et réelle",
+        "Coûts d'entretien et de réparation",
+        "Manque de sensibilisation et d'information",
+        "Inégalités d'accès selon les quartiers"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b4",
+     "title": "Exemples de politiques urbaines",
+     "parts": [
+      {
+       "t": "table",
+       "rows": [
+        [
+         "Ville",
+         "Mesure clé",
+         "Impact"
+        ],
+        [
+         "Copenhague",
+         "Réseau de pistes cyclables prioritaires",
+         "50 % des trajets quotidiens en vélo"
+        ],
+        [
+         "Amsterdam",
+         "Interdiction de stationnement de voitures",
+         "Augmentation de l'usage du vélo"
+        ],
+        [
+         "Paris",
+         "Plan vélo et pistes cyclables",
+         "10 % d'augmentation des trajets en vélo"
+        ]
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b5",
+     "title": "Propositions d'action",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "**Étendre le réseau de pistes cyclables** : prioriser les axes majeurs et les zones résidentielles.",
+        "**Améliorer la sécurité** : éclairage, marquage, signalétique et zones de rencontre.",
+        "**Promouvoir l'intermodalité** : stationnement vélo aux gares, aires de transfert et points multimodaux.",
+        "**Sensibiliser et informer** : campagnes publiques, ateliers et partenariats avec les écoles.",
+        "**Encourager l'usage du vélo** : tarifs réduits, location, et aides à l'achat."
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b6",
+     "title": "Évaluation et suivi",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Il est essentiel de mesurer l'impact des politiques mises en place. Des indicateurs clés à suivre incluent :"
+      },
+      {
+       "t": "list",
+       "items": [
+        "Nombre de trajets en vélo",
+        "Taux d'usage des pistes cyclables",
+        "Réduction de la congestion",
+        "Amélioration de la qualité de l'air",
+        "Satisfaction des usagers"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b7",
+     "title": "Conclusion",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le vélo en ville est un levier puissant pour une mobilité plus durable, plus saine et plus inclusive. Les élus ont un rôle central à jouer dans la promotion et la mise en œuvre de politiques adaptées aux besoins de la population."
+      },
+      {
+       "t": "callout",
+       "tone": "key",
+       "text": "À retenir : le vélo en ville est un levier de mobilité, de santé publique et de qualité de vie."
+      },
+      {
+       "t": "callout",
+       "tone": "warn",
+       "text": "Risque : les politiques mal conçues peuvent créer des inégalités d'accès ou des conflits d'usage."
+      },
+      {
+       "t": "callout",
+       "tone": "info",
+       "text": "Information utile : les villes qui investissent dans le vélo voient souvent une amélioration de la qualité de vie et une réduction de la congestion."
+      },
+      {
+       "t": "image",
+       "query": "vélo en ville politique urbaine",
+       "alt": "vélo en ville politique urbaine",
+       "caption": "Le vélo en ville : un levier de mobilité et de santé publique",
+       "missing": true
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {},
+   "template": "proposition",
+   "footnotes": [
+    {
+     "n": "1",
+     "text": "Les éléments et facteurs d'une politique vélo réussie en ville."
+    }
+   ],
+   "_next": 8,
+   "template_by": "model",
+   "date": "28 novembre 2026"
+  }
+ },
+ {
+  "n": 8,
+  "ask": "Rédige un document de cadrage pour un projet de jardin partagé dans un quartier",
+  "want": "doc",
+  "label": "before",
+  "reflexion": "faucon",
+  "seconds": 38.6,
+  "first_slide_s": 11.5,
+  "canvas": true,
+  "snapshots": 97,
+  "progress": [],
+  "error": null,
+  "chat": "Le document « Cadrage du projet de jardin partagé » est prêt dans le canevas : proposition commerciale, 7 sections. Cliquez sur un texte pour le modifier ; ✦ sur une section la retravaille (deux variantes au choix). Téléchargez-le en .docx ou en PDF depuis la carte.",
+  "kind": "doc",
+  "title": "Cadrage du projet de jardin partagé",
+  "blocks": 7,
+  "body": 7,
+  "with_visual": 2,
+  "images_asked": 1,
+  "images_found": 1,
+  "images_relevant": 1,
+  "placeholders": 0,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 0,
+  "cited_valid": 0,
+  "sources_listed": 1,
+  "image_titles": [
+   "Jardin partagé, Les Clayes-sous-Bois, Yvelines 3"
+  ],
+  "image_queries": [
+   "jardin partagé quartier"
+  ],
+  "placeholder_queries": [],
+  "query_leaks": 0,
+  "words_per_block": 78.6,
+  "units": 61,
+  "specific_share": 0.07,
+  "units_cited": 0,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "doc",
+   "title": "Cadrage du projet de jardin partagé",
+   "subtitle": "Proposition de cadre de travail pour un quartier",
+   "theme": "warm",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Contexte et enjeux",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Un jardin partagé dans un quartier peut répondre à plusieurs besoins : accès à l’alimentation locale, lien social, éducation à l’agriculture urbaine et amélioration du cadre de vie. Le projet doit s’inscrire dans une logique de participation des habitants, de durabilité et de respect des règles d’urbanisme et de copropriété."
+      },
+      {
+       "t": "heading",
+       "text": "1.1. Objectifs prioritaires",
+       "level": 2
+      },
+      {
+       "t": "list",
+       "items": [
+        "Créer un espace de production alimentaire accessible à tous les habitants.",
+        "Favoriser les échanges et la cohésion sociale.",
+        "Valoriser les compétences locales (jardinage, cuisine, animation).",
+        "Préserver un espace vert et écologique dans le quartier."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "heading",
+       "text": "1.2. Contraintes à anticiper",
+       "level": 2
+      },
+      {
+       "t": "list",
+       "items": [
+        "Disponibilité du terrain et accès aux réseaux (eau, électricité, compost).",
+        "Conformité aux règles de copropriété ou de mairie.",
+        "Gestion des responsabilités et des conflits d’usage.",
+        "Financement et entretien régulier."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "callout",
+       "tone": "warn",
+       "text": "Le projet doit éviter de devenir un espace de compétition ou de surcharge. La participation doit rester inclusive et non hiérarchisée."
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b2",
+     "title": "Acteurs et rôles",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le succès du jardin partagé dépend de la mobilisation d’acteurs variés :"
+      },
+      {
+       "t": "list",
+       "items": [
+        "**Habitants** : jardiniers, animateurs, bénévoles.",
+        "**Syndic ou copropriétaires** : gestion des accès, des règles d’usage et des travaux.",
+        "**Mairie ou association locale** : soutien administratif, financement, médiation.",
+        "**Éducateurs ou associations** : animation pédagogique, ateliers."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "heading",
+       "text": "2.1. Rôles clés",
+       "level": 2
+      },
+      {
+       "t": "table",
+       "rows": [
+        [
+         "Acteur",
+         "Rôle principal"
+        ],
+        [
+         "Jardiniers",
+         "Entretien des parcelles, production, partage."
+        ],
+        [
+         "Animateurs",
+         "Organisation des ateliers, des réunions, de la médiation."
+        ],
+        [
+         "Copropriété",
+         "Gestion des accès, des règles, des travaux."
+        ],
+        [
+         "Mairie",
+         "Soutien administratif, financement, médiation."
+        ]
+       ]
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b3",
+     "title": "Organisation du projet",
+     "parts": [
+      {
+       "t": "heading",
+       "text": "3.1. Modalités de participation",
+       "level": 2
+      },
+      {
+       "t": "text",
+       "text": "La participation peut se faire sous forme de :"
+      },
+      {
+       "t": "list",
+       "items": [
+        "**Parcelles individuelles** : chaque jardinier s’engage sur une surface définie.",
+        "**Parcelles collectives** : un groupe gère un espace commun.",
+        "**Ateliers et formations** : ateliers de jardinage, de cuisine, de compostage.",
+        "**Réunions régulières** : pour décider des règles, des travaux et des activités."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "heading",
+       "text": "3.2. Règles d’usage",
+       "level": 2
+      },
+      {
+       "t": "text",
+       "text": "Les règles doivent être établies collectivement et écrites :"
+      },
+      {
+       "t": "list",
+       "items": [
+        "Respect des parcelles et des cultures.",
+        "Entretien régulier des espaces communs.",
+        "Interdiction de jeter des déchets dans les cultures.",
+        "Respect des horaires d’accès.",
+        "Gestion des animaux (si autorisés)."
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b4",
+     "title": "Calendrier prévisionnel",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Un calendrier réaliste permet de structurer le projet :"
+      },
+      {
+       "t": "list",
+       "items": [
+        "**Mois 1** : étude du terrain, recherche de financement, constitution d’un comité de pilotage.",
+        "**Mois 2** : demande d’autorisation, préparation des parcelles, achat des outils.",
+        "**Mois 3** : inauguration, première séance de règles, ateliers de démarrage.",
+        "**Mois 4 à 12** : entretien régulier, ateliers, réunions, évaluation."
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b5",
+     "title": "Budget et financement",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le budget doit être partagé entre les acteurs :"
+      },
+      {
+       "t": "list",
+       "items": [
+        "**Coûts initiaux** : aménagement, outils, semences, eau.",
+        "**Coûts récurrents** : entretien, fertilisation, eau, outils.",
+        "**Financement** : fonds propres, subventions, dons, vente de produits."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "heading",
+       "text": "5.1. Sources de financement possibles",
+       "level": 2
+      },
+      {
+       "t": "list",
+       "items": [
+        "Fonds propres des habitants.",
+        "Subventions municipales ou associatives.",
+        "Dons de matériel ou d’argent.",
+        "Vente de produits du jardin."
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b6",
+     "title": "Suivi et évaluation",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le suivi doit être régulier et transparent :"
+      },
+      {
+       "t": "list",
+       "items": [
+        "**Réunions trimestrielles** : bilan des activités, des problèmes et des décisions.",
+        "**Journal de bord** : enregistrement des actions, des dépenses et des événements.",
+        "**Évaluation annuelle** : bilan des objectifs, des coûts et des impacts."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "callout",
+       "tone": "info",
+       "text": "Un journal de bord partagé en ligne ou papier permet de garder une trace claire et accessible à tous."
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b7",
+     "title": "Risques et mesures de prévention",
+     "parts": [
+      {
+       "t": "table",
+       "rows": [
+        [
+         "Risque",
+         "Mesure de prévention"
+        ],
+        [
+         "Conflits d’usage",
+         "Règles écrites, médiation, réunions régulières."
+        ],
+        [
+         "Abandon des parcelles",
+         "Engagement écrit, suivi régulier, aide aux nouveaux jardiniers."
+        ],
+        [
+         "Coûts non couverts",
+         "Budget partagé, recherche de financement, vente de produits."
+        ],
+        [
+         "Problèmes juridiques",
+         "Accord avec la copropriété, respect des règles d’urbanisme."
+        ]
+       ]
+      },
+      {
+       "t": "image",
+       "query": "jardin partagé quartier",
+       "alt": "jardin partagé quartier",
+       "caption": "Exemple de jardin partagé dans un quartier urbain",
+       "media": "w1"
+      },
+      {
+       "t": "callout",
+       "tone": "key",
+       "text": "À retenir : le jardin partagé repose sur une organisation collective, des règles écrites et une participation active des habitants."
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {
+    "w1": {
+     "kind": "web",
+     "alt": "jardin partagé quartier",
+     "credit": "Thank you to indicate this credit line next to the image in case of reuse: Credit: Polymagou - CC BY — CC BY-SA 4.0 — Wikimedia via Openverse",
+     "licence": "CC BY-SA 4.0",
+     "source": "https://commons.wikimedia.org/w/index.php?curid=101330081",
+     "w": 1023,
+     "h": 682,
+     "query": "jardin partagé quartier",
+     "title": "Jardin partagé, Les Clayes-sous-Bois, Yvelines 3"
+    }
+   },
+   "template": "proposition",
+   "footnotes": [
+    {
+     "n": "1",
+     "text": "Audit de la gestion des jardins partagés – Octobre 2012"
+    }
+   ],
+   "_next": 8,
+   "template_by": "model",
+   "date": "28 novembre 2026"
+  }
  }
 ]

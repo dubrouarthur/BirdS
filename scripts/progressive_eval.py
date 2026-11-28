@@ -33,6 +33,7 @@ PROMPTS = [
     ("doc", "Rédige une note de synthèse sur le vélo en ville pour un élu"),
     ("doc", "Rédige un document de cadrage pour un projet de jardin partagé dans un quartier"),
 ]
+FIXED = (1, 2, 3, 6, 7, 8)  # the fixed set of docs/CANVAS.md § 11: three decks, three documents
 VISUAL = {"chart", "kpi", "table", "timeline", "steps", "compare", "cards", "quote", "code"}
 _STOP = set("le la les un une des de du d l et en au aux pour par sur dans avec the a an of and in on for to".split())
 _CITE = re.compile(r"\[\^?(\d{1,2})\]")
@@ -62,6 +63,31 @@ def texts(part: dict) -> list[str]:
     return out
 
 
+_LEAK = re.compile(r"\[(?!\^?\d{1,2}\])[^\]\n]{2,}\]|\bImage\s*:|^:::|\{\{|<[a-z_]{3,}>|\b(?:TODO|lorem)\b", re.I | re.M)
+_PROPER = re.compile(r"(?<=[\w,;:] )[A-ZÉÈÀÂÎ][\wÀ-ÿ'-]{2,}")
+
+
+def content(body: list[dict]) -> dict:
+    """Content specificity, counted: words per slide or section, the share of points and sentences that carry a
+    figure or a proper name (a named fact), those citing a source, and notation leaks (« [Paris bike cargo] »,
+    « Image : », a ``:::`` left as text, a ``<placeholder>``)."""
+    units, words_n, leaks = [], [], 0
+    for b in body:
+        n = 0
+        for p in b.get("parts") or []:
+            if p.get("t") in ("image", "chart"):
+                continue
+            for t in texts(p):
+                leaks += len(_LEAK.findall(t))
+                n += len(t.split())
+                units += [u for u in re.split(r"(?<=[.!?])\s+", t) if len(u.split()) >= 3]
+        words_n.append(n)
+    specific = [u for u in units if re.search(r"\d", _CITE.sub("", u)) or _PROPER.search(u)]
+    return {"words_per_block": round(sum(words_n) / len(words_n), 1) if words_n else 0, "units": len(units),
+            "specific_share": round(len(specific) / len(units), 2) if units else 0.0,
+            "units_cited": sum(1 for u in units if _CITE.search(u)), "leaks": leaks}  # fmt: skip
+
+
 def measure(doc: dict, media: list[dict]) -> dict:
     blocks = doc.get("blocks") or []
     shown = {m["id"] for m in media}
@@ -89,6 +115,7 @@ def measure(doc: dict, media: list[dict]) -> dict:
                 cited.update(_CITE.findall(t))
     valid = sum(1 for n in cited if listed.get(n, "").startswith("https://"))
     placeholders = sum(1 for p in images if not p.get("media") or p.get("media") not in shown)
+    leaks_q = sum(1 for p in images if re.search(r"[\[\]{}<>]|statisti|chart|graph", str(p.get("query") or ""), re.I))
     return {
         "kind": doc.get("kind"), "title": doc.get("title"), "blocks": len(blocks), "body": len(body),
         "with_visual": with_visual, "images_asked": asked, "images_found": len(media),
@@ -97,6 +124,8 @@ def measure(doc: dict, media: list[dict]) -> dict:
         "chart_sources": [str(c.get("source") or "")[:80] for c in real],
         "cited": len(cited), "cited_valid": valid, "sources_listed": len(listed),
         "image_titles": [m.get("title") for m in media], "image_queries": [m.get("query") for m in media],
+        "placeholder_queries": [p.get("query") for p in images if not p.get("media") or p.get("media") not in shown],
+        "query_leaks": leaks_q, **content(body),
     }  # fmt: skip
 
 
@@ -183,7 +212,8 @@ def main() -> int:
     ap.add_argument("--label", default="after")
     ap.add_argument("--reflexion", default="faucon")
     ap.add_argument("--out", default="out/progressive_eval.json")
-    ap.add_argument("--only", default="", help="comma-separated prompt numbers (1-8)")
+    ap.add_argument("--only", default=",".join(map(str, FIXED)), help="comma-separated prompt numbers (1-8); "
+                    "default: the fixed set")  # fmt: skip
     args = ap.parse_args()
     if not args.url and not os.environ.get("BIRD_BASE_URL"):
         print("give --url or set BIRD_BASE_URL: this script measures the real model")
@@ -203,7 +233,8 @@ def main() -> int:
         rows.append(row)
         print(json.dumps({k: row.get(k) for k in ("n", "canvas", "kind", "body", "with_visual", "images_asked",
                                                   "images_found", "images_relevant", "placeholders", "charts",
-                                                  "charts_real", "cited", "cited_valid", "first_slide_s", "seconds",
+                                                  "charts_real", "cited", "cited_valid", "words_per_block", "specific_share",
+                                                  "leaks", "query_leaks", "first_slide_s", "seconds",
                                                   "error")}, ensure_ascii=False), flush=True)  # fmt: skip
         out.write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"written {out}")

@@ -204,6 +204,10 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
         return run_direct(p, ctx, agent, lang, mode)
     if p.mode == "reopen":
         return run_reopen(p, ctx, agent, lang)
+    if progressive_for(p, attached):
+        run = run_progressive(agent, p, request, ctx, words=words, lang=lang, mode=mode)
+        if run is not None:
+            return run
     captured: list[dict] = []
     compute = turn.compute_for(p, words, lang)
     if p.variants:
@@ -322,6 +326,79 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
     run.stop_reason = "answer"
     run.canvas = {"aid": p.aid, "version": version, "doc": doc, "repairs": repairs,
                   "raw": text[:8000]}  # fmt: skip  # raw: for evaluations, never sent
+    return run
+
+
+def progressive_for(p: turn.Plan | None, attached: bool = False) -> bool:
+    """A new deck or document made in steps (birds.canvas.progressive): plan, gather, write slide by slide. Not for a
+    deck made from attached files (the single generation reads them), nor when BIRD_CANVAS_PROGRESSIVE=0."""
+    from birds.canvas import progressive as pg
+
+    return bool(p is not None and p.mode == "create" and p.kind in ("deck", "doc") and not attached and pg.enabled())
+
+
+def tool_runner(agent, lang: str, words: str):
+    """``tool(name, args, ctx=None) -> (step, text, ctx)`` for the pipeline's gathering: the harness's own tool call
+    (arguments validated, egress guard, injection scan), as the Mode Agent's team makes it (crew._tool)."""
+    import copy
+
+    from birds.harness.agent import Hooks, Run
+    from birds.harness.config import Context
+    from birds.harness.crew import _PAGE_LOCK
+
+    def tool(name: str, args: dict, ctx=None):
+        ctx = ctx or Context(config=agent.cfg, http=agent.http, search=agent.search, lang=lang, request=words,
+                             message=words, found=[], sources=[], images=[])  # fmt: skip
+        clone = copy.copy(agent)
+        clone.hooks = Hooks()
+        sub = Run(lang=lang)
+        if name == "read_page":  # page parsing is not thread-safe (crew._PAGE_LOCK)
+            with _PAGE_LOCK:
+                step, text = clone._call(name, args, 0, sub, ctx, 0, None, frozenset())
+        else:
+            step, text = clone._call(name, args, 0, sub, ctx, 0, None, frozenset())
+        return step, text, ctx
+
+    return tool
+
+
+def run_progressive(agent, p: turn.Plan, request, ctx, *, words: str, lang: str, mode: str):
+    """A new deck or document in steps (docs/CANVAS.md § 11). None when the plan could not be read: the caller then
+    makes it in one generation, as before."""
+    from birds.canvas import progressive as pg
+    from birds.harness import meter
+    from birds.harness.agent import Run
+
+    t0 = time.monotonic()
+    level = getattr(request, "reflexion", None) or "faucon"
+    if level == "auto":
+        level = "faucon"
+    left = ctx.seconds_left() if hasattr(ctx, "seconds_left") else 240.0
+    env = pg.Env(llm=agent.llm, tok=agent.tok, lang=lang, words=words, kind=p.kind, aid=p.aid, emit=ctx.emit,
+                 finder=_finder(mode, agent, {}, lang), tool=tool_runner(agent, lang, words) if mode != "demo" else None,
+                 deadline=time.monotonic() + max(30.0, min(left - 15.0, 170.0)), level=level)  # fmt: skip
+    try:
+        res = pg.Pipeline(env).run()
+    except Exception:  # noqa: BLE001 - the single generation stays the fallback, never a broken turn
+        res = None
+    if res is None or res.doc is None or not _enough(res.doc):
+        return None
+    doc = res.doc
+    repairs = list(res.repairs)
+    turn.finish_doc(doc, p.kind, words, lang, repairs)
+    try:
+        doc = dsl.validate(doc)
+    except dsl.Invalid as e:
+        repairs.append(f"progressive document invalid ({e}): single generation")
+        return None
+    emit_doc(ctx, p, doc, "final", lang, label=_t(lang, "Création", "Created"))
+    run = Run(lang=lang, stop_reason="answer")
+    run.answer = turn.chat_text(p.kind, doc, lang, verb="create", version=1)
+    usage = [u for u in res.usage if u]
+    run.report = meter.report(usage, wall_seconds=time.monotonic() - t0, tool_calls=res.counts.get("read", 0),
+                              bytes_fetched=0, measured_wh=None, **meter.energy_options(agent.cfg))  # fmt: skip
+    run.canvas = {"aid": p.aid, "version": 1, "doc": doc, "repairs": repairs, "raw": res.raw_plan[:8000],
+                  "progressive": res.counts}  # fmt: skip
     return run
 
 
