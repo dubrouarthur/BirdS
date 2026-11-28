@@ -27,6 +27,7 @@ import { wrapPref } from "./richcode.js";
 import { docCard, imageCard, kindOf, middle } from "./attach.js";
 import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 import { openEditor } from "./editor.js";
+import { unreachableCard } from "./local.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { moveFull, renderWidgets, widgetsText } from "./widgets.js";
 import { renderAgents, renderChecks } from "./agents.js";
@@ -1317,13 +1318,21 @@ const FRIENDLY_ERRORS = new Set(
     "unknown_model blocked disabled not_configured host_not_allowed https_only invalid_url address bad_request " +
     "demo invalid_model invalid_token port server timeout unreachable attachment_invalid attachment_too_long " +
     "attachment_type cross_origin image_invalid image_too_large image_too_small image_type invalid_mode " +
-    "invalid_request message_too_long request_too_large too_large too_many_attachments too_many_messages"
+    "invalid_request message_too_long request_too_large too_large too_many_attachments too_many_messages " +
+    "pair_required pair_invalid pair_locked"
   ).split(" "),
 );
 
 function renderError(turn, isLast) {
   if (!turn.error) return null;
   const code = turn.error.code;
+  if (code === "local_unreachable")
+    // Bird local did not answer: the three steps to start it, never a raw network error
+    return unreachableCard({
+      compact: true,
+      onRetry: isLast && !state.busy ? () => handlers.onRetry() : null,
+      onOff: isLast && handlers.onLocalOff ? () => handlers.onLocalOff() : null,
+    });
   // the model asleep or paused is not the user's doing: a calm card (moon, no red), in words for people. The
   // server's sentence for a paused endpoint speaks to its administrator: folded away, and only for someone who
   // set their own endpoint in Settings.
@@ -1356,6 +1365,8 @@ function renderError(turn, isLast) {
     "host_not_allowed",
     "https_only",
     "invalid_url",
+    "pair_required",
+    "pair_invalid",
   ].includes(code);
   return h(
     "div",

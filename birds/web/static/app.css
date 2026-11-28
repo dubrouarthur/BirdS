@@ -713,6 +713,16 @@ html[data-side="closed"] body:not(.side-open) .side {
   background: none;
   border: 1.5px solid var(--muted);
 }
+/* Bird local (local.js): a calm badge, distinct from the hosted model (blue dot) and the demo (dashed) */
+.btn-chip.is-local {
+  border-color: color-mix(in srgb, var(--eco) 45%, var(--line));
+  background: var(--eco-soft);
+  color: var(--ink);
+}
+.btn-chip.is-local .chip-dot {
+  background: var(--eco);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--eco) 22%, transparent);
+}
 .btn-footprint .icon {
   color: var(--eco);
 }
@@ -3451,6 +3461,9 @@ kbd {
      it only opened Settings, which the menu already has) is left out; the footprint is a quiet leaf. */
   #btn-model {
     display: none;
+  }
+  #btn-model.is-local {
+    display: inline-flex; /* on the user's own machine: the calm badge says so (docs/LOCAL.md) */
   }
   #footprint-total {
     display: none;

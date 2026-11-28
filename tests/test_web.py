@@ -648,9 +648,13 @@ def test_csp_and_security_headers_everywhere(client):
         assert response.headers["x-content-type-options"] == "nosniff"
         assert response.headers["referrer-policy"] == "no-referrer"
     assert "default-src 'none'" in CSP and "script-src 'self'" in CSP and "style-src 'self'" in CSP
-    assert "unsafe" not in CSP and "http" not in CSP and "*" not in CSP and "data:" not in CSP
+    # the one origin exception: Bird local on the user's own loopback, its two exact origins, nothing wider
+    local = "http://127.0.0.1:8765 http://localhost:8765"
+    assert CSP.count(local) == 2 and f"connect-src 'self' {local};" in CSP and f"img-src 'self' blob: {local};" in CSP
+    rest = CSP.replace(local, "")
+    assert "unsafe" not in rest and "http" not in rest and "*" not in CSP and "data:" not in CSP
     # blob: only for images: thumbnails of attached images are object URLs made by the page itself
-    assert CSP.count("blob:") == 1 and "img-src 'self' blob:;" in CSP
+    assert CSP.count("blob:") == 1 and "img-src 'self' blob:;" in rest.replace("blob: ;", "blob:;")
     assert client.get("/api/health").headers["cache-control"] == "no-store"
     assert client.get("/files/anything").status_code == 404  # no file is served from a server-side workspace any more
 
@@ -715,8 +719,9 @@ def test_static_payload_budget():
     # +37 kB raw, +11 kB gzipped)
     # and the quote card (finance.js/.css: +17 kB raw, ~4 kB gzipped)
     # and the UX pass (calm wake-up line and bar, mail card recipient hints and blanks, lighter phone top bar)
+    # and Bird local (settings choice, connect flow, « ne répond pas » card, request routing: +34 kB raw, +9 kB gz)
     # and the late events of a turn (Bird's next steps after « final », readLate: +2 kB raw)
-    assert total < 1_545_000, f"static payload is {total} bytes"  # measured 1 539 049 with the late next steps
+    assert total < 1_580_000, f"static payload is {total} bytes"  # measured 1 578 907 (+ Bird local, + late next steps)
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"
@@ -731,6 +736,9 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     # Mode Réflexion keeps its strings apart (reflexion-i18n.js, merged at load; parity in tests/js/reflexion.test.mjs)
     rf = (STATIC_DIR / "reflexion-i18n.js").read_text().split("\n  en: {", 1)[0]
     fr |= set(re.findall(r'^\s+"(rf\.[\w.]+)":', rf, re.M))
+    # Bird local too (local-i18n.js, merged at load; parity in tests/js/local.test.mjs)
+    lc = (STATIC_DIR / "local-i18n.js").read_text().split("\n  en: {", 1)[0]
+    fr |= set(re.findall(r'^\s+"(local\.[\w.]+)":', lc, re.M))
     used = set()
     for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))

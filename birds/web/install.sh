@@ -121,7 +121,7 @@ ok "Le modèle $MODEL_ID répond : « $REPLY »"
 # ---- 4. Bird, sur votre machine uniquement
 cd "$APP"
 if [ -f scripts/bird_local.py ]; then
-  set -- "$VENV/bin/python" scripts/bird_local.py --vllm-url "$BASE_URL" --port "$BIRD_PORT"
+  set -- "$VENV/bin/python" scripts/bird_local.py --vllm-url "$BASE_URL" --port "$BIRD_PORT" --no-browser
 else
   set -- "$VENV/bin/python" scripts/serve.py --base-url "$BASE_URL" --model "$MODEL_ID" --api-key local \
     --host 127.0.0.1 --port "$BIRD_PORT"
@@ -148,6 +148,9 @@ chmod +x "$BIRD_HOME/stop.sh"
 URL="http://127.0.0.1:$BIRD_PORT/"
 ok "Bird tourne sur votre machine : $URL"
 grep -m1 -i "code" "$LOGS/bird.log" 2>/dev/null || true # the pairing code of bird_local.py, when it prints one
+# the page opens already paired: the code rides in the fragment, which never leaves the browser (docs/LOCAL.md)
+CODE="$(sed -n "s/.*Code d'appairage *\([A-Z0-9-]*\).*/\1/p" "$LOGS/bird.log" 2>/dev/null | head -n 1)"
+[ -n "$CODE" ] && URL="$URL#pair=$CODE"
 echo "   Journaux : $LOGS   ·   Arrêter : sh $BIRD_HOME/stop.sh"
 echo "   Le modèle seul, en API compatible OpenAI :"
 echo "     curl -X POST \"$BASE_URL/chat/completions\" -H \"Content-Type: application/json\" \\"

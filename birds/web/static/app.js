@@ -21,6 +21,7 @@ import {
   toast,
   uid,
   modelLabel,
+  localPair,
 } from "./core.js";
 import { wire as wireRich } from "./richcode.js";
 import {
@@ -65,6 +66,7 @@ import { mountPicker, updatePicker } from "./reflexion.js"; // Mode Réflexion: 
 import { normalizeChoice, thinks } from "./reflexion-data.js";
 import { chipsWaiting, cleanSuggestions } from "./followups.js"; // Bird's next steps (the suggestions event)
 
+import { installRouting, localizeEvent, openPairDialog, refreshLocal } from "./local.js"; // Bird local (docs/LOCAL.md)
 import { loadAgentMode } from "./agent-mode.js"; // Mode Agent: Auto by default; Activé for this session only
 let planTimer = 0; // the plan card's countdown (Auto, high confidence)
 let teamDone = false; // a team finished while the tab was hidden: « ✓ » in the tab title
@@ -523,6 +525,7 @@ function updateTop() {
     : modelLabel();
   $("model-name").textContent = model;
   $("btn-model").classList.toggle("is-demo", isDemo());
+  $("btn-model").classList.toggle("is-local", activeMode() === "local" || !!state.health?.bird_local);
   const label = t("nav.model", {
     model: isDemo() ? model : `${model} (${activeModel()})`,
   });
@@ -1197,6 +1200,8 @@ function httpMessage(status, detail) {
   if (code === "rate_limited") return t("error.rate");
   if (code === "confirm_invalid") return t("confirm.expired");
   if (code === "agent_state_used") return t("agent.used");
+  if (code === "pair_required" || code === "pair_invalid") return t("local.err.pair");
+  if (code === "pair_locked") return t("local.err.locked");
   if (status === 413) return t("error.toolong");
   if (detail?.message) return detail.message;
   // a gateway or a cold start answers 502/503/504 with an HTML page: say it in words; the status goes in the details
@@ -1546,7 +1551,7 @@ async function runTurn(turn, extra = {}) {
         late = Array.isArray(event.pending) && event.pending.length > 0;
         if (late && event.pending.includes("suggestions") && turn.answer) chipsWaiting.add(turn);
         break;
-      } else handleEvent(turn, event, conv, docs);
+      } else handleEvent(turn, turn.mode === "local" ? localizeEvent(event) : event, conv, docs);
     }
     if (finished && turn.status === "running" && !turn.answer) {
       // the plan card waits for « Lancer »; a long task's slice ended: the next one starts below
@@ -1565,7 +1570,10 @@ async function runTurn(turn, extra = {}) {
       turn.status = "error"; // not the user's Stop: the « Réessayer » card
       turn.error = { code: "dropped", message: t("error.dropped") };
     } else if (controller.signal.aborted) turn.status = "stopped";
-    else {
+    else if (turn.mode === "local" && !finished && state.online) {
+      turn.status = "error"; // the user's machine did not answer: the three steps to start Bird local
+      turn.error = { code: "local_unreachable", message: t("local.down.title") };
+    } else {
       turn.status = "error";
       turn.error = {
         code: state.online ? "network" : "offline",
@@ -2279,7 +2287,10 @@ function bind() {
     renderSidebar();
   });
   $("btn-back").addEventListener("click", () => showView("chat") || el.focus());
-  $("btn-model").addEventListener("click", () => showView("settings"));
+  $("btn-model").addEventListener("click", () => {
+    showView("settings"); // the model pill opens the model choice (Bird local included)
+    $("settings-model")?.scrollIntoView({ block: "start" });
+  });
   $("btn-footprint").addEventListener("click", () => showView("footprint"));
   for (const [id, view] of [
     ["nav-footprint", "footprint"],
@@ -2443,6 +2454,7 @@ function refreshAll() {
 
 let canvasClosedSide = false; // the canvas closed the sidebar: it opens again when the canvas closes
 async function init() {
+  installRouting(); // Bird local: in its mode, the page's /api/ calls go to the user's machine
   setHandlers({
     onConfirm: answerConfirm,
     onRegenerate: regenerate,
@@ -2451,6 +2463,11 @@ async function init() {
     onChange: (turn) => (updateTurn(turn), saveConv()),
     onOpenFootprint: () => showView("footprint"),
     onOpenSettings: () => showView("settings"),
+    onLocalOff: () => {
+      state.prefs.mode = "";
+      savePrefs();
+      refreshAll();
+    },
     onRetryStep: retryStep,
     onChartXlsx: chartXlsx,
     onExport: exportAnswer,
@@ -2563,6 +2580,15 @@ async function init() {
   renderChat();
   await loadHealth();
   renderChat();
+  // the page served by Bird local, opened without its code: ask for it once; the hosted page in Bird local mode:
+  // what the local Bird says about itself (model, measured energy), for the header and the footprint
+  if (state.health?.bird_local && !state.health.bird_local.paired && localPair.get()) {
+    await loadHealth(); // the first health call went without the code (the page did not know it was Bird local yet)
+    refreshAll();
+  }
+  if (state.health?.bird_local && !state.health.bird_local.paired)
+    openPairDialog(() => loadHealth().then(refreshAll));
+  else if (activeMode() === "local") refreshLocal().then(() => updateTop());
   autosize();
   scrollToEnd(true);
   document.body.classList.add("ready");
