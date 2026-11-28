@@ -356,3 +356,30 @@ def test_brought_reads_the_apps_flag_or_the_notes_of_earlier_messages():
     assert brought([{"name": "ventes.csv"}], hist) == []
     assert brought([{"name": "ventes.csv"}, {"name": "b.csv"}], hist) == ["b.csv"]
     assert brought([{"name": "ventes.csv"}], None) == ["ventes.csv"]
+
+
+@pytest.mark.parametrize("words", ["Par Produit", "By Produit", "par produit", "et par produit ?"])
+def test_a_par_category_chip_edits_the_category_and_keeps_the_analysis(frame, words):
+    # review 28/11/2026: « Par Produit » after a mean of Quantité by Région became a new template, sum of CA
+    prev = {"analysis": {"op": "aggregate", "measure": "Quantité", "agg": "mean", "by": "Région"}, "chart": "bar"}
+    got = P.rule_plan(frame, words, prev)
+    assert got["why"] == "revised" and got["query"]["by"] == "Produit"
+    assert got["query"]["measure"] == "Quantité" and got["query"]["agg"] == "mean"
+
+
+def test_a_par_category_edit_of_a_time_series_a_distribution_and_a_comparison(frame):
+    series = {"analysis": {"op": "aggregate", "measure": "CA (€)", "agg": "mean", "time": "Date", "period": "month"},
+              "chart": "line"}  # fmt: skip
+    got = P.rule_plan(frame, "Par Région", series)
+    assert got["query"] == {"op": "aggregate", "measure": "CA (€)", "agg": "mean", "by": "Région", "sort": "desc"}
+    assert got["chart"] == "bar"
+    got = P.rule_plan(frame, "Par Région", {"analysis": {"op": "describe", "measure": "Quantité"}, "chart": None})
+    assert got["query"]["measure"] == "Quantité" and got["query"]["by"] == "Région" and got["query"]["agg"] == "mean"
+    cmp_ = {"analysis": {"op": "compare", "measure": "CA (€)", "agg": "sum", "time": "Date", "years": [2024, 2025]},
+            "chart": "bar"}  # fmt: skip
+    got = P.rule_plan(frame, "Par Produit", cmp_)
+    assert got["query"]["op"] == "compare" and got["query"]["by"] == "Produit" and got["query"]["years"] == [2024, 2025]
+    # a question of its own is not an edit (« CA par région et par produit » names its measure), « par mois » a period
+    got = P.rule_plan(frame, "CA par région et par produit", series)
+    assert got["why"] == "template" and got["query"]["agg"] == "sum"
+    assert P.rule_plan(frame, "Par mois", series) is None or "by" not in P.rule_plan(frame, "Par mois", series)["query"]

@@ -930,6 +930,16 @@ DATA_NEGATIVES = [
     ("explique-moi ce que contient ce tableau", "explain what this table contains"),
     ("corrige l'orthographe des noms", "fix the spelling of the names"), ("merci !", "thanks!"),
 ]  # fmt: skip
+# the table is already in the conversation (an analysis was shown) and the message is about something else: null
+# (review 28/11/2026: the rules turned each of these into « sum of the main measure »)
+DATA_UNRELATED = [
+    ("quelle est la population de Canberra ?", "what is the population of Canberra?"),
+    ("combien font 17 x 23 ?", "what is 17 times 23?"),
+    ("quel temps fera-t-il demain à Lyon ?", "what will the weather be like in Lyon tomorrow?"),
+    ("combien coûte un abonnement Bird ?", "how much is a Bird subscription?"),
+    ("quelle est la meilleure façon de présenter ce fichier à mon chef ?", "what is the best way to present this file "
+     "to my boss?"),
+]  # fmt: skip
 
 
 def _short_col(name: str) -> str:
@@ -981,6 +991,26 @@ def data_plan_records(seed: int = 0, heldout=DATA_HELDOUT) -> dict:
                 out[split].append({"id": f"{SOURCE}-data-{split}-{tname}-{tid}-{lang}", "source": SOURCE,
                                    "license": LICENSE, "lang": lang, "task": "data_plan", "thinking": False,
                                    "messages": msgs, "template": f"data_{tid}"})  # fmt: skip
+        # follow-ups with the previous turn's spec: « par {d2} » edits the category, keeps measure and aggregation;
+        # an unrelated message computes nothing
+        m, d, d2 = nums[0], cats[0], cats[1]
+        prev = {"analysis": {"op": "aggregate", "measure": m, "agg": "mean", "by": d, "sort": "desc"}, "chart": "bar"}
+        follow = [("by", ("par " if lang == "fr" else "by ") + _short_col(d2), lang,
+                   {"analysis": {**prev["analysis"], "by": d2}, "chart": "bar"}) for lang in ("fr", "en")]
+        follow += [(f"unrelated{j}", words, lang, {"analysis": None, "chart": "auto"})
+                   for j, pair in enumerate(DATA_UNRELATED) for lang, words in zip(("fr", "en"), pair, strict=True)]
+        for fid, words, lang, answer in follow:
+            if answer["analysis"]:
+                plan, why = P.check(f, answer)
+                if why:
+                    raise SystemExit(f"data follow-up {fid} on {tname}: {why}")
+                run_query(f, plan["query"], lang)
+            msgs = P.messages(f, words, previous=prev, hints=P.rule_plan(f, words, prev), lang=lang)
+            msgs.append({"role": "assistant", "content": P._dump(answer)})
+            out["train"].append({"id": f"{SOURCE}-data-train-{tname}-follow-{fid}-{lang}", "source": SOURCE,
+                                 "license": LICENSE, "lang": lang, "task": "data_plan", "thinking": False,
+                                 "messages": msgs, "template": "data_none" if answer["analysis"] is None
+                                 else f"data_follow_{fid}"})  # fmt: skip
         for j, (fr, en) in enumerate(DATA_NEGATIVES):
             for lang, words in (("fr", fr), ("en", en)):
                 msgs = P.messages(f, words, hints=P.rule_plan(f, words), lang=lang)

@@ -311,6 +311,19 @@ def revise(f: Frame, previous: dict, words: str) -> dict | None:
         q["top"], changed = int(m.group(1) or m.group(2)), True
         q["sort"] = "asc" if re.search(r"moins|pires?|flop|bottom|worst|least", t) else "desc"
     dates = [c.name for c in f.columns if c.type == "date"]
+    col = _by_column(f, t)
+    if col is not None and col != q.get("by") and q.get("op") in ("aggregate", "compare", "describe"):
+        # « Par Produit » after « Quantité moyenne par région »: the same measure and aggregation, another category
+        if q["op"] == "describe":  # a distribution per category: its mean in each
+            q = {"op": "aggregate", "measure": q["measure"], "agg": "mean",
+                 **({"filters": q["filters"]} if q.get("filters") else {})}  # fmt: skip
+        if q["op"] == "aggregate":
+            for k in ("time", "period", "window", "change"):
+                q.pop(k, None)
+            chart = chart if chart in ("bar", "hbar", "donut") else "bar"
+        if q.get("pivot") == col:
+            q.pop("pivot")
+        q["by"], q["sort"], changed = col, "desc", True
     for period, pat in _PERIOD:
         if re.search(r"\b(?:par|by|per|en|au|a la)\b.*" + pat, t) and (q.get("time") or dates):
             if not q.get("time") and q.get("op") == "aggregate":  # « par mois » after « par région »: over time
@@ -343,6 +356,22 @@ def revise(f: Frame, previous: dict, words: str) -> dict | None:
         return {"query": normalize(f, q), "chart": chart, "why": "revised"}
     except QueryError:
         return None
+
+
+_BY = re.compile(r"\b(?:par|by|per|selon|pour chaque|for each)\s+(?:les?\s+|la\s+|l'|des\s+|the\s+|each\s+)?"
+                 r"([\w'-]+(?:\s+[\w'-]+)?)")  # fmt: skip
+
+
+def _by_column(f: Frame, t: str) -> str | None:
+    """The category column named after « par / by » in a short follow-up (``t`` is plain), or None (« par mois »)."""
+    from birds.harness.analysis.ask import _named, column_score, tokens
+
+    found = list(_BY.finditer(t))
+    words = set(tokens(t))
+    if len(found) != 1 or any(c.type == "number" and column_score(c, words) > 0.5 for c in f.columns):
+        return None  # « CA par région et par produit » is a question of its own, not an edit
+    c = _named(f, set(tokens(found[0].group(1))), ("category", "bool", "id", "text"))
+    return c.name if c else None
 
 
 def rule_plan(f: Frame, question: str, previous: dict | None = None) -> dict | None:

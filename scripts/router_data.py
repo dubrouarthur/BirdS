@@ -269,6 +269,8 @@ class Imitator:
 # "filter" = (column, value) of one filter). ``LIVE_8`` are the 8 prompts of the live before/after (docs/HARNESS.md).
 _PREV_REGION = {"analysis": {"op": "aggregate", "measure": "CA (€)", "agg": "sum", "by": "Région", "sort": "desc"},
                 "chart": "bar", "version": 1}  # fmt: skip
+_PREV_QTY = {"analysis": {"op": "aggregate", "measure": "Quantité", "agg": "mean", "by": "Région", "sort": "desc"},
+             "chart": "bar", "version": 1}  # fmt: skip
 DATA_PLAN = [
     ("units_seller", "Quel commercial a vendu le plus d'unités ?", None,
      {"op": "aggregate", "measure": "Quantité", "agg": "sum", "by": "Commercial"}, {"bar", "hbar", "auto"}),
@@ -302,6 +304,11 @@ DATA_PLAN = [
     ("en_monthly", "monthly revenue in 2025", None,
      {"op": "aggregate", "measure": "CA (€)", "time": "Date", "period": "month", "filter": ("Date", 2025)},
      {"line", "area", "bar", "combo", "auto"}),
+    # the « Par {colonne} » chip: the category changes, the measure and the aggregation stay
+    ("followup_by", "Par Produit", _PREV_QTY, {"op": "aggregate", "measure": "Quantité", "agg": "mean", "by": "Produit"},
+     {"bar", "hbar", "auto"}),
+    ("followup_by_en", "By Commercial", _PREV_QTY,
+     {"op": "aggregate", "measure": "Quantité", "agg": "mean", "by": "Commercial"}, {"bar", "hbar", "auto"}),
     # the table is already in the conversation (an analysis was shown) and the message is about something else: no
     # computation (review 28/11/2026: each of these became « Total CA (€) » and replaced the model's answer)
     ("earlier_canberra", "Quelle est la population de Canberra ?", _PREV_REGION, None, set()),

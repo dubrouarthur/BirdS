@@ -739,7 +739,10 @@ Code : `birds/harness/analysis/` (lecture `table.py`, profil `profile.py`, moteu
 **Faux déclenchements, tableau déjà dans la conversation (revue du 28/11/2026, hors ligne, mêmes jeux avant /
 après)** : famille `data_earlier` du banc de déclenchement (8 demandes sur le tableau, 12 sans rapport) **8/20 → 20/20**
 (12/12 tours sans rapport avec fiche et contrôle avant, 0/12 après ; les 8 demandes sur le tableau restent calculées) ;
-`DATA_PLAN` (règles, 6 cas négatifs ajoutés) **8/20 → 14/20** ; banc complet 1485/1485 → 1505/1505 (20 cas ajoutés).
+`DATA_PLAN` (règles, 6 cas négatifs ajoutés) **8/20 → 14/20**, puis 2 cas « Par Produit » / « By Commercial »
+après une moyenne de Quantité par région (le jeton « Par {colonne} » perdait mesure et agrégation : somme du CA)
+**0/2 → 2/2**, soit **16/22** ; enregistrements `data_plan` ajoutés (suite « par {catégorie} », 5 messages sans
+rapport avec un tableau déjà montré → `null`) ; banc complet 1485/1485 → 1505/1505 (20 cas ajoutés).
 En `hybrid`, un `null` du modèle sur ces 6 cas donnait avant le gabarit « somme du CA » (6/6) ; après, aucun calcul.
 
 **Mesure hors ligne (règles seules, 14 cas fixes de `DATA_PLAN` d'origine)** : 8/14 analyses justes (2/8 sur les 8 cas
