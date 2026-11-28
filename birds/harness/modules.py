@@ -318,7 +318,12 @@ def figures_from_text(text: str, lang: str = "fr") -> dict | None:
 def glossary_from_text(text: str, lang: str = "fr") -> dict | None:
     """« RGPD : règlement général sur la protection des données » one per line (or « ; »): the user's own terms."""
     words = str(text or "")
-    lines = [ln for ln in words.splitlines()[1:] if ln.strip()] if "\n" in words else re.split(r"\s*;\s*", words)
+    if "\n" in words:
+        lines = [ln for ln in words.splitlines()[1:] if ln.strip()]
+    else:  # one line: the ask (« Fais un glossaire : ») is not the first term
+        head = words.split(":", 1)
+        body = head[1] if len(head) == 2 and _GLOSSARY_ASK.search(head[0]) else words
+        lines = re.split(r"\s*;\s*", body)
     items = []
     for ln in lines:
         m = re.match(r"^\s*(?:[-*•–]\s*)?(?P<term>[^:=—–\n]{1,40}?)\s*(?::|=|—|–)\s*(?P<def>.{4,240})$", ln.strip())

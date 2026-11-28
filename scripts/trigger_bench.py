@@ -538,6 +538,8 @@ CARD_YES = [  # (ask with its data, the kind the parsers must hint)
     ("key figures: revenue: 3.4 M€; margin: 12 %; headcount: 80", "figures"),
     ("Fais un glossaire :\nRGPD : règlement général sur la protection des données\nDPO : délégué à la protection des "
      "données", "glossary"),
+    ("Fais un glossaire : RGPD : règlement général sur la protection des données ; CNIL : commission nationale",
+     "glossary"),
     ("mensualité d'un prêt de 200 000 € sur 20 ans à 3,5 %", "calc"),
     ("combien font 17 % de 3 450 € ?", "calc"),
     ("prix TTC de 1 200 € HT avec une TVA à 20 %", "calc"),

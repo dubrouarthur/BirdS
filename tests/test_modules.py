@@ -135,6 +135,9 @@ def test_pros_cons_key_figures_and_glossary_from_the_users_words():
     gl = m.card("glossary", "Fais un glossaire :\nRGPD : règlement général sur la protection des données\nDPO : "
                 "délégué à la protection des données")  # fmt: skip
     assert [x["term"] for x in gl["items"]] == ["DPO", "RGPD"]
+    one = "Fais un glossaire : RGPD : règlement général sur la protection des données ; CNIL : commission nationale"
+    assert [x["term"] for x in m.card("glossary", one)["items"]] == ["CNIL", "RGPD"]  # one line: the ask is no term
+    assert [w["type"] for w in m.cards(one, "fr")] == ["glossary"]
     assert m.source_cards([], "fr") is None and m.source_cards(["https://a.test"], "fr")["n"] == 1
     assert m.asked_kinds("donne-moi les sources de ta réponse") == ["sources"]
 
