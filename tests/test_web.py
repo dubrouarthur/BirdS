@@ -1488,3 +1488,47 @@ def test_windows_installer_is_served_and_keeps_secrets_off_command_lines():
     body = r.text
     assert "WSLENV" in body and "HF_TOKEN/u" in body and "HF_TOKEN='" not in body
     assert "127.0.0.1" in body and "0.0.0.0" not in body and "--no-browser" in body
+
+
+def test_installers_open_with_the_ascii_bird():
+    """Both installers greet with the same bird, in plain ASCII (any terminal, any code page), and the promise."""
+    import subprocess
+
+    with TestClient(create_app(settings())) as client:
+        sh, ps = client.get("/install.sh").text, client.get("/install.ps1").text
+    art = r"`-.     (o >    .-'"
+    assert art in sh and art in ps and "conçu en France" in sh and "conçu en France" in ps
+    # the banner runs alone: no colour codes when the output is not a terminal (logs, pipes)
+    fn = sh[sh.index("banner() {") : sh.index("\nbanner\n") + len("\nbanner\n")]
+    out = subprocess.run(["sh", "-c", fn], capture_output=True, text=True, check=True).stdout
+    assert art in out and "\033[" not in out and "Sans abonnement" in out
+    # PowerShell: the art sits in a verbatim here-string (no backtick escapes), closed at the start of a line
+    assert "$BirdArt = @'\n" in ps and "\n'@\n" in ps
+
+
+def test_installer_checks_disk_space_before_vllm_and_explains_a_full_disk():
+    """Production (Windows, WSL): « No space left on device » after minutes of download, then a PowerShell trace.
+    install.sh checks the free space first and names what to do (the C: drive in WSL); install.ps1 checks the
+    Windows drive that holds WSL and stops with one red line."""
+    import subprocess
+
+    with TestClient(create_app(settings())) as client:
+        sh, ps = client.get("/install.sh").text, client.get("/install.ps1").text
+    fns = sh[sh.index("say() {") : sh.index("# ---- 0.")] + sh[sh.index("# WSL : le disque") : sh.index("install_failed() {")]
+    run = subprocess.run(["sh", "-c", fns + 'need_space /tmp 999999 "vLLM et le modèle"'], capture_output=True, text=True)
+    assert run.returncode == 1 and "Il faut environ 999999 Go libres pour vLLM et le modèle" in run.stderr
+    assert subprocess.run(["sh", "-c", fns + "need_space /tmp 0 x"], capture_output=True).returncode == 0
+    # vLLM gets a Python it supports (uv, 3.12), no download cache, and a failed try gives its space back
+    assert "uv\" venv -q --python 3.12" in sh and "UV_NO_CACHE=1" in sh and 'rm -rf "$VLLM_VENV"' in sh
+    assert "huggingface_hub[cli]" not in sh  # the extra is gone: hf comes with huggingface_hub
+    assert "No space left" in sh and "disque C: de Windows" in sh
+    # PowerShell: the drive check before WSL, errors caught once (no stack trace), here-strings closed at column 0
+    assert "$drive.Free / 1GB" in ps and "try { Install-Bird } catch {" in ps and "throw $m" in ps
+    assert ps.count("Write-Host \"✗") == 1
+    lines = ps.split("\n")
+    for i, line in enumerate(lines):
+        if line.rstrip().endswith(('@"', "@'")):
+            close = next(j for j in range(i + 1, len(lines)) if lines[j].strip() in ('"@', "'@"))
+            assert lines[close] in ('"@', "'@"), f"here-string closed at column {len(lines[close]) - len(lines[close].lstrip())}"
+    code = "\n".join(line.split("#", 1)[0] if not line.lstrip().startswith(("'", '"', "`")) else "" for line in lines)
+    assert code.count("{") == code.count("}")
