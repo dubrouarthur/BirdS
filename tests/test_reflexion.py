@@ -104,7 +104,10 @@ def test_hint_level_is_only_a_fallback_cue():
     [("14,90 € × 24 = 357,60 €", 0), ("14,90 € × 24 = 375,60 €", 1), ("(3 + 4) × 2 = 14", 0),
      ("3 + 4 × 2 = 14", 0), ("1 200 € × 20 % = 240 €", 0), ("20 % de 1 200 € = 250 €", 1), ("7 x 8 = 54", 1),
      ("1 284,37 + 15,63 = 1 300", 0), ("12.5 x 4 = 50", 0), ("1 200 € + 20 % = 1 440 €", 0), ("≈ 33 %", 0),
-     ("69 ÷ 2 300 = 3 %", 0), ("81 ÷ 3 100 = 3,1 %", 1)],
+     ("69 ÷ 2 300 = 3 %", 0), ("81 ÷ 3 100 = 3,1 %", 1),
+     # « n × p % = q % »: compared in percent points, never « 0,10 (not 10) »
+     ("2 × 5 % = 10 %", 0), ("3 % × 4 = 12 %", 0), ("10 % ÷ 2 = 5 %", 0), ("2 × 5 % = 12 %", 1),
+     ("2 × 5 % = 0,10", 0)],
 )  # fmt: skip
 def test_calculations_are_recomputed(text, wrong):
     assert len(R.calc_errors(text)[1]) == wrong
@@ -114,6 +117,14 @@ def test_wrong_calc_names_the_right_figure():
     _, wrong = R.calc_errors("Total : 14,90 € × 24 = 375,60 €")
     assert wrong == [{"expr": "14,90 € × 24", "shown": "375,60", "right": "357,60"}]
     assert "14,90 € × 24 = 357,60 (not 375,60)" in R.nudge(R.Verdict(1, wrong))
+
+
+def test_a_percent_times_n_is_judged_in_percent_points(tmp_path):
+    assert R.calc_errors("2 × 5 % = 12 %")[1] == [{"expr": "2 × 5 %", "shown": "12", "right": "10"}]
+    llm = FakeClient(["<think>Deux hausses de 5 %.</think>La hausse cumulée simple est 2 × 5 % = 10 %."])
+    run = Agent(llm, Tok(), Config(workspace=tmp_path)).run("Deux hausses de 5 %, ça fait combien sans composer ?",
+                                                             lang="fr", reflexion="faucon")  # fmt: skip
+    assert len(llm.prompts) == 1 and not run.reflexion["corrected"] and run.answer.endswith("= 10 %.")
 
 
 def test_points_asked_are_checked_one_by_one():

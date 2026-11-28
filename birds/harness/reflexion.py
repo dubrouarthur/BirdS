@@ -448,8 +448,10 @@ def calc_errors(text: str, lang: str = "fr") -> tuple[int, list[dict]]:
         except (ValueError, SyntaxError, ZeroDivisionError, TypeError, RecursionError):
             continue
         shown = -shown if res.startswith("-") else shown
-        if "%" in (m.group("runit") or "") and "%" not in expr:
-            right, flat = right * 100, flat * 100  # « 69 ÷ 2 300 = 3 % »: a ratio written as a percentage
+        if "%" in (m.group("runit") or ""):
+            # a result in % is compared in percent points: « 69 ÷ 2 300 = 3 % » (a ratio written as a percentage)
+            # and « 2 × 5 % = 10 % » (a % operand was divided by 100 above, so the result goes back the same way)
+            right, flat = right * 100, flat * 100
         checked += 1
         tol = max(0.5 * 10 ** (-_decimals(res)) + 1e-9, abs(right) * 0.001)
         if abs(right - shown) > tol and abs(flat - shown) > tol:
