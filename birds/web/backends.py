@@ -2504,10 +2504,10 @@ class HarnessBackend:
                         else:
                             decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
                             if request.reflexion == "albatros" and decision.recipe is None and request.agent == "auto":
-                                # Albatros, Endurance: a request the team can take runs as a team (crew « on »)
-                                strong = crew_web.decide_for(request, words, len(names), len(image_texts), rl,
-                                                             mode="on")  # fmt: skip
-                                decision = strong if strong.recipe and not strong.no_deliverable else decision
+                                # Albatros, Endurance: a team task runs as a team; the router says which ones are
+                                strong = crew_web.albatros_decision(agent, request, words, len(names),
+                                                                    len(image_texts), rl, history=kept)  # fmt: skip
+                                decision = strong or decision
                             run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
                                                     system=system, lang=rl, names=names, workspace=workspace,
                                                     history=kept)  # fmt: skip
