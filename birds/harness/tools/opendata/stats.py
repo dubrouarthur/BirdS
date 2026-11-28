@@ -50,6 +50,14 @@ PRESETS: dict[str, dict] = {
         "wb_sub_fr": "en millions d'habitants", "wb_sub_en": "millions",
         "note_fr": "converti en millions par Bird", "note_en": "converted to millions by Bird", "since": 20,
     },
+    "birth_rate": {
+        "fr": "Taux de natalité", "en": "Birth rate", "unit": "‰", "wb": "SP.DYN.CBRT.IN",
+        "wb_sub_fr": "naissances pour 1 000 habitants", "wb_sub_en": "births per 1,000 people",
+    },
+    "fertility": {
+        "fr": "Indicateur de fécondité", "en": "Fertility rate", "unit": "", "wb": "SP.DYN.TFRT.IN",
+        "wb_sub_fr": "enfants par femme", "wb_sub_en": "births per woman",
+    },
     "electricity": {
         "fr": "Prix de l'électricité pour les entreprises", "en": "Electricity prices for businesses",
         "unit": "€/kWh", "sub_fr": "consommation 500-2 000 MWh (bande IC), hors TVA et taxes récupérables",
@@ -88,6 +96,8 @@ _IND_WORDS = [
         r"consumer\s+prices",
     ),
     ("gdp", r"\bpib\b|\bgdp\b|produit\s+int[ée]rieur\s+brut|gross\s+domestic\s+product"),
+    ("fertility", r"f[ée]condit[ée]|enfants?\s+par\s+femme|fertility|births?\s+per\s+woman"),
+    ("birth_rate", r"natalit[ée]|nombre\s+de\s+naissances|birth\s*rates?|number\s+of\s+births"),
     ("population", r"\bpopulation\b|nombre\s+d'habitants|habitants|inhabitants"),
     ("exports", r"exportations?|\bexports?\b"),
 ]
@@ -98,6 +108,7 @@ _IND_LOOSE = [
     ("electricity", r"[ée]lectricit[ée]|electricity"),
     ("creations", r"cr[ée]ations?|start-?ups?"),
     ("gdp_growth", r"croissance|growth"),
+    ("birth_rate", r"naissances?|births?"),
 ]
 
 
@@ -154,8 +165,8 @@ def get_statistics(args: dict, ctx) -> str:
         raise ToolError(f"at most {MAX_CHARTS} charts per request: answer the user now")
     key = indicator_of(str(args.get("indicator") or ""), loose=True)
     if key not in PRESETS:
-        raise ToolError("unknown indicator: use chômage, inflation, PIB, croissance, population, prix de "
-                        "l'électricité, exportations or créations d'entreprises")  # fmt: skip
+        raise ToolError("unknown indicator: use chômage, inflation, PIB, croissance, population, natalité, "
+                        "fécondité, prix de l'électricité, exportations or créations d'entreprises")  # fmt: skip
     p = PRESETS[key]
     names = _split_places(str(args.get("places") or "")) or ["France"]
     codes, towns = [], []

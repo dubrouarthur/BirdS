@@ -271,7 +271,10 @@ def lookup_entity(args: dict, ctx) -> str:
     if not _usable(summary):
         hits = [h for h in _search(ctx, name, lang) if not re.search(r"homonymie|disambiguation|Wikimedia",
                                                                        str(h.get("description", "")), re.I)]  # fmt: skip
-        fixed = "" if hits else _spelled(ctx, name, lang)
+        # no hit, or a hit that is not the name asked (« victor hugot » matched a surname item): Wikipedia's spelling
+        said = [str((h.get("match") or {}).get("text") or h.get("label") or "") for h in hits[:1]]
+        same = bool(said) and _fold(said[0]) == _fold(name)  # wbsearchentities matched this very label or alias
+        fixed = "" if same else _spelled(ctx, name, lang)
         if fixed:  # a typo: the card of the name Wikipedia suggests (the card shows its real title)
             summary = _summary(ctx, fixed, lang)
     if not _usable(summary):

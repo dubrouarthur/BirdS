@@ -147,7 +147,7 @@ MODULES: tuple[Module, ...] = (
     ),
     Module(
         "lookup_entity", PREFILL, "opendata",
-        "fiche Wikipédia d'une personne, organisation, ville ou lieu nommés (nom mal écrit : corrigé)",
+        "fiche Wikipédia d'une personne, organisation, ville ou lieu (nom mal écrit : corrigé)",
         "Wikipedia card of a named person, organisation, town or landmark (misspelt: corrected)",
         {"name": Arg("str", True, fr="nom propre", en="proper name")},
         (("c'est quoi Airbus ?", {"name": "Airbus"}), ("c'est qui marie curi ?", {"name": "Marie Curie"}),
@@ -158,7 +158,7 @@ MODULES: tuple[Module, ...] = (
         "courbe officielle (Eurostat, Banque mondiale, Insee)",
         "official series as a chart (Eurostat, World Bank, INSEE)",
         {"indicator": Arg("enum", True, ("unemployment", "inflation", "gdp", "gdp_growth", "population",
-                                         "electricity", "exports", "creations"), fr="indicateur", en="indicator"),
+                                         "birth_rate", "fertility", "electricity", "exports", "creations"), fr="indicateur", en="indicator"),
          "places": Arg("str", fr="pays ou communes, virgules", en="countries or French towns, commas"),
          "since": Arg("str", fr="année de départ", en="first year")},
         (("le chômage en France depuis 2010", {"indicator": "unemployment", "places": "France", "since": "2010"}),

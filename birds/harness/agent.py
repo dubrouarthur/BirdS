@@ -1002,7 +1002,7 @@ class Agent:
             budget, side_effects, bad_streak = st["budget"], st["side_effects"], st["bad_streak"]
             nudged = bool(st.get("nudged", False))
             promise_nudged = True  # a resumed run never re-nudges
-            refusal_nudged = True
+            refusal_nudged, spare = True, 0
             chartable = False
             file_nudged = bool(st.get("file_nudged", False))
             withdrawn = set(st.get("withdrawn", []))
@@ -1148,6 +1148,7 @@ class Agent:
                 )
             nudged, withdrawn, file_nudged = False, set(routed), False
             refusal_nudged = False  # one retry after an answer that refuses what a tool could do (refusal.py)
+            spare = 0  # generations granted past max_steps: the refusal retry's own (and a last answer after it)
             promise_nudged = False
             gen, ok, forced = 0, 0, None
             auto_calls = 0
@@ -1212,7 +1213,7 @@ class Agent:
 
         while True:
             if not queue:  # ---- ask the model
-                if gen >= cfg.max_steps:
+                if gen >= cfg.max_steps + spare:
                     run.stop_reason = "max_steps"
                     break
                 if time.monotonic() > deadline:
@@ -1367,8 +1368,7 @@ class Agent:
                         and not refusal_nudged
                         and not canvas
                         and refusal.refuses(content)
-                        and gen < cfg.max_steps - 1
-                        and time.monotonic() < deadline
+                        and time.monotonic() < deadline - 10
                     ):
                         # « je ne peux pas générer de graphique », « je n'ai pas accès à votre bureau / à Internet »
                         # while Bird has the tool: the tools able to do it are offered again (even if this turn's
@@ -1377,6 +1377,9 @@ class Agent:
                         hint = refusal.nudge(capable)
                         if hint:
                             refusal_nudged = file_nudged = True
+                            # live 28/11/2026: « fais un graphe de la natalité » spent its steps on searches, then
+                            # refused; the retry gets its own generations (a tool call and the answer after it)
+                            spare = max(0, gen + 2 - cfg.max_steps)
                             withdrawn -= capable
                             routed -= capable
                             run.refusal_retry = True

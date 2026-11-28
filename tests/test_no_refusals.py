@@ -213,3 +213,38 @@ def test_the_picture_subject_the_harness_searched_gates_the_pictures():
 
     src = Path(backends.__file__).read_text(encoding="utf-8")
     assert 'getattr(run, "picture_subject", "")' in src
+
+
+def test_a_hit_that_is_not_the_name_asked_still_tries_the_spelling(monkeypatch):
+    good = {"type": "standard", "title": "Victor Hugo", "wikibase_item": "Q535", "extract": "Écrivain français "
+            "né en 1802.", "content_urls": {"desktop": {"page": "https://fr.wikipedia.org/wiki/Victor_Hugo"}}}  # fmt: skip
+    monkeypatch.setattr(entity, "_summary", lambda ctx, title, lang: good if title == "Victor Hugo" else None)
+    monkeypatch.setattr(entity, "_search", lambda *a: [{"id": "Q999", "label": "Hugot", "description": "patronyme"}])
+    monkeypatch.setattr(entity, "_spelled", lambda ctx, name, lang: "Victor Hugo")
+    monkeypatch.setattr(entity, "_entities", lambda *a: {})
+    ctx = _ctx(Path(tempfile.gettempdir()))
+    assert "1802" in entity.lookup_entity({"name": "Victor Hugot"}, ctx) and ctx.step_info["found"] == 1
+
+
+def test_an_alias_matched_exactly_costs_no_spelling_lookup(monkeypatch):
+    monkeypatch.setattr(entity, "_summary", lambda *a: None)
+    monkeypatch.setattr(entity, "_search", lambda *a: [{"id": "Q41550", "label": "Organisation de coopération et de "
+                                                        "développement économiques", "match": {"text": "OCDE"}}])  # fmt: skip
+
+    def no_spelling(*a):
+        raise AssertionError("not needed")
+
+    monkeypatch.setattr(entity, "_spelled", no_spelling)
+    monkeypatch.setattr(entity, "_entities", lambda *a: {})
+    entity.lookup_entity({"name": "OCDE"}, _ctx(Path(tempfile.gettempdir())))
+
+
+def test_the_retry_has_its_own_generations_when_the_steps_are_spent(tmp_path):
+    # live: four searches, then « je ne peux pas générer de graphique »: the retry still gets its call and answer
+    outs = [call("web_search", query=f"natalité France {i}") for i in range(5)]
+    outs += ["Je ne peux pas générer de graphique, mais voici : 2023 1,68 ; 2024 1,62.",
+             call("make_chart", title="Natalité", columns=["Année", "ICF"], rows=[["2023", 1.68], ["2024", 1.62]]),
+             "Voici la courbe."]  # fmt: skip
+    agent, llm = make(tmp_path, outs)
+    run = agent.run("fais un graphe de l'évolution de la natalité")
+    assert run.refusal_retry and run.charts and run.answer == "Voici la courbe."

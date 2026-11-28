@@ -1,17 +1,15 @@
-"""Live evaluation of false refusals and asked images: 20 fixed prompts and short conversations on a running Bird.
+"""Live evaluation of false refusals (docs/HARNESS.md § 19): 20 fixed prompts on a running Bird.
 
-Each case is one POST /api/chat on a Bird server (the production app, or ``scripts/serve.py`` on the live endpoint):
-the history of a follow-up is written here (the user's words and a short assistant answer, with the memo the
-server would have written), so every case costs one turn and only the turn under test varies.
+Each case is one POST /api/chat on a Bird server (the production app, or ``scripts/serve.py`` on the live
+endpoint); a follow-up carries a short written history, so every case costs one turn.
 
-    .venv/bin/python scripts/refusal_eval.py --url https://<app> --json docs/measures/refusal-eval-before.json
-    .venv/bin/python scripts/refusal_eval.py --url http://127.0.0.1:8000 --only 'img_|fu_'
+    .venv/bin/python scripts/refusal_eval.py --url https://<app> --json docs/measures/refusal-eval-after.json
+    .venv/bin/python scripts/refusal_eval.py --url http://127.0.0.1:8000 --only 'typo_|img_'
 
-Scored per case: ``tool`` the expected tool ran (``images`` = a picture search whose pictures were shown),
-``refusal`` the answer claims Bird has no access to the internet, to its tools or to recent data, or sends the
-user elsewhere (``agent.NO_ACCESS``), ``licence`` every picture shown carries its licence and author, ``seconds``
-wall time to the answer event, ``team_note`` a « Rien à répartir » line was sent without the team being asked.
-Nothing is sent anywhere but ``--url``.
+Scored per case: ``ok`` the expected outcome (a chart shown, pictures shown, the tool ran and the answer holds the
+word asked, or for a negative no chart, no picture and no tool but the web), ``refusal`` the answer says Bird
+cannot do what a tool of the turn does (``refusal.REFUSAL``), ``seconds`` wall time to the answer event. The
+deployment allows 20 requests a minute: the cases are spaced. Nothing is sent anywhere but ``--url``.
 """
 
 from __future__ import annotations
@@ -48,7 +46,8 @@ MAIL = [{"name": "mail.txt", "content": MAIL_FR, "encoding": "text", "fresh": Tr
 MAIL_EN_FILE = [{"name": "email.txt", "content": MAIL_EN, "encoding": "text", "fresh": True}]
 
 # (id, history, message, expected, lang, attachments). expected: "chart" (a chart shown), "images" (pictures shown),
-# a tool name (that tool ran without error), "entity:<words>" (lookup_entity ran and the answer holds the words),
+# a tool name (that tool ran without error), "<tool>:<word>" (the tool ran and the answer holds the word; "entity"
+# is lookup_entity),
 # None (an ordinary answer: no chart, no tool)
 CASES = [
     ("chart_natalite", [], "fais un graphe de l'évolution de la natalité", "chart", "fr", []),
@@ -65,8 +64,9 @@ CASES = [
     ("typo_pompidou", [], "qui est georges pompidoo", "entity:1974", "fr", []),
     ("typo_macron", [], "qui est emanuel macron", "entity:1977", "fr", []),
     ("typo_hugo", [], "c'est qui victor hugot ?", "entity:1802", "fr", []),
-    ("attach_translate", [], "Traduis ce mail en anglais", "read_file", "fr", MAIL),
-    ("attach_translate_en", [], "Translate this email into French", "read_file", "en", MAIL_EN_FILE),
+    ("attach_translate", [], "Traduis ce mail en anglais", "read_file:Thursday", "fr", MAIL),
+    ("attach_translate_en", [], "Translate this email into French", "read_file:jeudi", "en",
+     MAIL_EN_FILE),
     ("img_horse", HORSE, "une image", "images", "fr", []),
     ("img_msm", MSM, "tu as une photo ?", "images", "fr", []),
     ("neg_haiku", [], "écris un haïku sur l'automne", None, "fr", []),
@@ -113,8 +113,9 @@ def run_case(client: httpx.Client, url: str, case, headers: dict) -> dict:
         ok = bool(charts)
     elif want == "images":
         ok = bool(imgs)
-    elif want and want.startswith("entity:"):
-        ok = "lookup_entity" in tools and want.split(":", 1)[1] in content
+    elif want and ":" in want:  # the tool ran and the answer holds the word (a fact of the card, the translation)
+        tool, word = want.split(":", 1)
+        ok = (tool if tool != "entity" else "lookup_entity") in tools and word in content
     elif want:
         ok = want in tools
     else:
