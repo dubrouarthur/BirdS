@@ -788,12 +788,16 @@ function renderEmail(turn) {
           // the addresses, then each name with its own « adresse à ajouter »: a name never reads as a real recipient
           // (it is not in the mailto: link); nobody at all reads « destinataire à ajouter »
           addresses.length || names.length
-            ? [...addresses, ...names].flatMap((who, i) => [
-                i ? ", " : null,
-                i < addresses.length
-                  ? who
-                  : h("span", { class: "email-name" }, who, " ", missingPill("email.to.noaddr")),
-              ])
+            ? [...addresses, ...names].flatMap((who, i, all) => {
+                // the comma stays with the recipient before it: a line never starts with « , »
+                const sep = i < all.length - 1 ? "," : "";
+                return [
+                  i ? " " : null,
+                  i < addresses.length
+                    ? h("span", { class: "email-addr" }, who + sep)
+                    : h("span", { class: "email-name" }, who, " ", missingPill("email.to.noaddr"), sep),
+                ];
+              })
             : missingPill("email.to.missing"),
         ),
       ),

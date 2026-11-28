@@ -189,6 +189,23 @@ async function scripted(page, events, ask) {
     if (Math.abs(lines.label - lines.first) > 4) problems.push(`${c.name}: « À » alone on its line (${lines.label} vs ${lines.first})`);
     if (lines.over > 1) problems.push(`${c.name}: recipient line overflows the card by ${lines.over} px`);
     if ((await longTo.locator(".email-missing").count()) !== 2) problems.push(`${c.name}: long line, not one hint per name`);
+    // the comma stays with the recipient before it: no line of the recipients starts with « , »
+    const commaStarts = await longTo.evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      const r = document.createRange();
+      const bad = [];
+      const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+        const i = n.textContent.indexOf(",");
+        if (i < 0) continue;
+        r.setStart(n, i);
+        r.setEnd(n, i + 1);
+        const rc = r.getClientRects()[0];
+        if (rc && rc.left - box.left < 3) bad.push(n.textContent);
+      }
+      return bad;
+    });
+    if (commaStarts.length) problems.push(`${c.name}: a recipient line starts with a comma (${commaStarts})`);
     await longTo.scrollIntoViewIfNeeded();
     await shot("mail-long");
 
