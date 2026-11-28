@@ -31,7 +31,7 @@ SPEC = {
     "deck": {
         "fr": (
             "[Canevas] Écris la présentation directement dans ta réponse, dans ce format (pas d'outil, pas de JSON) :\n"
-            "---\ntitle: <titre>\nsubtitle: <sous-titre court>\nimage: <2 à 4 mots pour la photo de couverture>\n---\n"
+            "---\ntitle: <titre>\nsubtitle: <sous-titre court>\nimage: <2 à 4 mots en anglais pour la photo de couverture>\n---\n"
             "# <titre de la diapositive>\n- point court\n- autre point\n\n"
             "Varie les diapositives : un bloc au plus par diapositive, choisi selon le contenu :\n"
             "::: kpi\n<chiffre> | <ce qu'il mesure>\n:::\n"
@@ -40,7 +40,7 @@ SPEC = {
             "::: steps\n<étape> : <ce qu'on y fait>\n:::\n"
             "::: compare\n<option A> | <option B>\n<point A> | <point B>\n:::\n"
             "::: cards\n<nom> : <description courte>\n:::\n"
-            '::: image query="<2 à 4 mots pour chercher une photo>"\n:::\n'
+            '::: image query="<2 à 4 mots en anglais pour chercher une photo>"\n:::\n'
             "> « citation » — auteur\n\n"
             "Une diapositive avec un titre seul ouvre une partie. "
             "Règles : 5 à 8 diapositives, 3 à 5 points courts par diapositive, une image sur 2 ou 3 diapositives "

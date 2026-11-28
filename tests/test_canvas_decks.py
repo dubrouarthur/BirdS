@@ -304,3 +304,11 @@ def test_a_list_beside_a_block_drawn_alone_gets_its_own_slide():
     assert len({b["id"] for b in d["blocks"]}) == 3
     bl = d["blocks"]
     assert [layouts.pick(b, k, 3) for k, b in enumerate(bl)] == ["bullets", "cards", "figure"]
+
+
+def test_relevance_needs_two_words_of_a_long_query():
+    """Live (deck-eval after3 #6): « night train europe luxury » gave a hotel photo tagged europe / luxury."""
+    assert not images.relevant("night train europe luxury", "DSC07503-Praha Hilton", ["europe"])
+    assert images.relevant("night train europe luxury", "Night train to Vienna", ["train"])
+    assert images.relevant("city streets with cyclists and pedestrians", "New York City street", [])
+    assert images.relevant("tramway", "Tramways de Lyon", [])

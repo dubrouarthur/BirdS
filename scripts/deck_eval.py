@@ -41,7 +41,8 @@ def words(text: str) -> set[str]:
 def relevant(query: str, title: str) -> bool:
     want, have = words(query), words(title)
     stems = {w[:5] for w in have}
-    return bool(want) and any(w in have or w[:5] in stems for w in want)
+    hits = sum(1 for w in want if w in have or w[:5] in stems)
+    return bool(want) and hits >= (1 if len(want) <= 2 else 2)  # the rule of birds/canvas/images.relevant
 
 
 def base_layout(b: dict) -> str:

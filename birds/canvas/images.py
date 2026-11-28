@@ -90,15 +90,17 @@ def _renamed(m: om.Media | None, mid: str) -> om.Media | None:
 
 
 def relevant(query: str, title: str, tags: list[str] | None = None) -> bool:
-    """Does a result speak of the query? At least one of the query's words (or its first 5 letters: « tramways »
-    ~ « tramway ») is in the title or the tags. A picture that matches nothing is not shown: no image rather than
+    """Does a result speak of the query? One of the query's words (two for a query of three words or more; a word
+    or its first 5 letters: « tramways » ~ « tramway ») is in the title or the tags. A picture that matches nothing is not shown: no image rather than
     a wrong one."""
     want = om.words(query)
     if not want:
         return False
     have = om.words(title + " " + " ".join(tags or []))
     stems = {w[:5] for w in have}
-    return any(w in have or w[:5] in stems for w in want)
+    hits = sum(1 for w in want if w in have or w[:5] in stems)
+    # one word of a short query; two of a longer one (« night train europe luxury » is not « Praha Hilton »)
+    return hits >= (1 if len(want) <= 2 else 2)
 
 
 def openverse_licence(r: dict) -> str | None:
@@ -221,6 +223,8 @@ def search_commons(query: str, fetch, exclude: list[str] | None = None, mid: str
         title = str(p.get("title") or "")
         if re.search(r"\.(svg|tiff?|pdf|djvu|gif)$", title, re.I):
             continue
+        if not relevant(q, re.sub(r"^File:|\.[a-z]{3,4}$", "", title).replace("_", " ")):
+            continue  # Commons full-text search also matches descriptions: « équipe en réunion » gave a calendar
         info = (p.get("imageinfo") or [{}])[0]
         lic = om.commons_licence(info)
         if not lic or not str(lic.get("thumb") or "").startswith("https://upload.wikimedia.org/"):
