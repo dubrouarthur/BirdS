@@ -382,3 +382,29 @@ def test_the_next_steps_call_counts_in_the_turns_energy(monkeypatch):
     first, last = [e for e in ev if e["type"] == "usage"]
     assert first["energy_wh"] is not None and last["energy_wh"] > first["energy_wh"]
     assert last["energy_kind"] == first["energy_kind"] == "estimated"
+
+
+def test_the_chip_outline_reads_as_a_button_in_both_themes():
+    """Issue: the chip border moved to --line (1.27:1 light, 1.33:1 dark): chips read as loose text on a phone."""
+    import re
+    from pathlib import Path
+
+    static = Path(__file__).resolve().parents[1] / "birds/web/static"
+    css, app = (static / "modules.css").read_text(), (static / "app.css").read_text()
+
+    def lum(h: str) -> float:
+        def f(c):
+            return c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
+
+        r, g, b = (int(h[i : i + 2], 16) / 255 for i in (1, 3, 5))
+        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+
+    def ratio(a: str, b: str) -> float:
+        x, y = sorted((lum(a), lum(b)), reverse=True)
+        return (x + 0.05) / (y + 0.05)
+
+    chip = re.findall(r"--chip-line: (#[0-9a-f]{6})", css)
+    bg = re.findall(r"--bg: (#[0-9a-f]{6})", app)
+    assert len(chip) == 3 and chip[1] == chip[2] and bg[1] == bg[2]  # light, dark (media), dark (data-theme)
+    assert ratio(chip[0], bg[0]) >= 3 and ratio(chip[1], bg[1]) >= 3
+    assert re.search(r"\.chips-row \.mchip \{[^}]*border-color: var\(--chip-line\)", css)

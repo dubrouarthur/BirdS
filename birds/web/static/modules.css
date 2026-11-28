@@ -614,10 +614,22 @@ a.rs-link {
   border-radius: 50%;
   background: var(--accent);
 }
-/* the next steps under an answer: quiet, like ChatGPT's; long labels wrap inside the chip at 360 px */
+/* the next steps under an answer: quiet, like ChatGPT's; long labels wrap inside the chip at 360 px. The outline
+   keeps 3:1 against the page (WCAG 1.4.11): on a phone a chip must read as a button, not as loose text */
+:root {
+  --chip-line: #8e8c84; /* 3.09:1 on --bg */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --chip-line: #5b6884; /* 3.35:1 on --bg */
+  }
+}
+:root[data-theme="dark"] {
+  --chip-line: #5b6884;
+}
 .chips-row .mchip {
   max-inline-size: 100%;
-  border-color: var(--line);
+  border-color: var(--chip-line);
   border-radius: 18px;
   background: transparent;
   color: var(--ink-2);
@@ -626,7 +638,7 @@ a.rs-link {
   white-space: normal;
 }
 .chips-row .mchip:hover {
-  border-color: var(--line-strong);
+  border-color: var(--muted);
   background: var(--surface-2);
   color: var(--ink);
 }
