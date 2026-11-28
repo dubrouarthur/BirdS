@@ -31,6 +31,11 @@ _CATEGORY = re.compile(
     re.I,
 )
 _NEAREST_LEAD = re.compile(r"^(?P<art>(?:the|a)\s+)?(?:nearest|closest)\s+", re.I)
+_RANK_LEAD = re.compile(
+    r"^(?:(?:les|des|the)\s+)?(?:\d+\s+)?(?P<rank>(?:meilleur(?:e?s)?|mieux\s+not[ée]e?s|best|top(?:[- ]rated)?|"
+    r"most\s+popular)\s+)?(?:\d+\s+)?",
+    re.I,
+)
 _NEAREST_TAIL = re.compile(
     r"\s+(?:(?:la|le|les)\s+plus\s+proches?|(?:à|a)\s+proximit[ée]|(?:tout\s+)?pr[èe]s\s+d'ici|"
     r"nearest|closest|near\s+(?:me|here|by)|around\s+here)$",
@@ -42,11 +47,15 @@ _ALIASES = re.compile(r"^(?:[ée]piceries?|sup[ée]rettes?|grocery stores?|groce
 _QUALIFIERS = (
     (re.compile(r"\bde garde\b|\bon duty\b|\bopen now\b|\bouverte?s? maintenant\b", re.I), "garde"),
     (re.compile(r"v[ée]g[ée]tarien|vegan|v[ée]g[ée]talien|vegetarian", re.I), "veg"),
+    # « les 3 meilleures pizzerias de Paris »: OpenStreetMap holds no ratings, it cannot rank
+    (re.compile(r"\bmeilleur|\bmieux not|\bbest\b|\btop\b|\btop[- ]rated|\bmost popular|\bpopulaires?\b", re.I), "rank"),
 )
 # a town, a district or a station: places of a kind are looked for within this many metres of it, then twice as far
 TOWN_KINDS = {"city", "town", "village", "municipality", "administrative", "suburb", "borough", "quarter",
               "neighbourhood", "hamlet", "city_district", "district", "census"}  # fmt: skip
-TOWN_RADII = (2500, 5000)
+# the nearest first: Nominatim returns the most relevant places of a box, not the nearest (a 2.5 km box around
+# Saint-Cloud gave Boulogne's restaurants at 1.2 km, while 40 are within 300 m), so the box starts small
+TOWN_RADII = (1000, 2500, 5000)
 SPOT_RADII = (500, 1500)
 # the words Nominatim reads as the category (its « special phrases »: « train station » finds nothing, « bank » finds
 # benches), and the OSM types kept for it (a fuzzy match is dropped). Measured on Nominatim, 28/11/2026.
@@ -80,16 +89,24 @@ def category(query: str) -> tuple[str, str] | None:
     # « la pharmacie la plus proche », « the nearest supermarket »: « near » is already the search, not a name
     q = _NEAREST_LEAD.sub(r"\g<art>", q)
     q = _NEAREST_TAIL.sub("", q).strip()
+    # « 3 meilleures pizzerias », « the best bakeries »: the ranking is a qualifier OSM cannot check
+    lead = _RANK_LEAD.match(q)
+    if lead and lead.group("rank"):
+        q = (q[lead.end():] + " les meilleures").strip()
     q = _ALIASES.sub(lambda m: "supermarché" + ("s" if m.group(0).lower().endswith(("s", "ies")) else ""), q)
     if not q:
         return None
     if q.lower() in _KIND_KEYS:
         return q.lower(), ""
+    key = next((k for k in sorted(_KIND_KEYS, key=len, reverse=True) if q.lower().startswith(k + " ")), None)
     m = _CATEGORY.match(q)
-    if not m:
+    if key is not None:  # the key and a qualifier (« pizza les meilleures », written by the argument repair)
+        kind, rest = key, q[len(key):].strip()
+    elif m:
+        kind = next(k for rx, k in KINDS if re.fullmatch(rx, m.group("kind"), re.I))
+        rest = m.group("rest").strip()
+    else:
         return None
-    kind = next(k for rx, k in KINDS if re.fullmatch(rx, m.group("kind"), re.I))
-    rest = m.group("rest").strip()
     if rest and not any(rx.search(rest) for rx, _ in _QUALIFIERS) and not re.match(
         r"^(?:de\s+(?:quartier|proximit[ée])|proches?|ouverte?s?|bio|pas chers?|cheap|nearby|local)\b", rest, re.I
     ):
@@ -101,18 +118,34 @@ def _radii(anchor: geo.Place) -> tuple[int, ...]:
     return TOWN_RADII if (anchor.kind or "").lower() in TOWN_KINDS else SPOT_RADII
 
 
-def _anchor(hits: list[geo.Place], lang: str) -> geo.Place | None:
+def _anchor(hits: list[geo.Place], lang: str, asked: str = "") -> geo.Place | None:
     """The place « near » means: the most important hit, but a hit in France for a French conversation when it is
     nearly as important (« Défense » is La Défense, not the Ministry of Defence in London)."""
     if not hits:
         return None
     hits = sorted(hits, key=lambda h: -(h.importance or 0.0))
     top = hits[0]
+    if asked and _fold(top.name) != (want := _fold(re.split(r"[,(]", asked)[0]).strip()):
+        # « Montreuil » is Montreuil (93), not Montreuil-sur-Mer; « Valence » in English is Valence, not Valencia:
+        # a hit that bears the very name asked, nearly as important, before a longer or translated name
+        same = [h for h in hits if _fold(h.name) == want and (h.importance or 0.0) >= 0.8 * (top.importance or 0.0)]
+        if same:
+            hits = same
+            top = hits[0]
     if lang == "fr" and top.country_code and top.country_code != "FR":
         home = next((h for h in hits if h.country_code == "FR"), None)
         if home is not None and (home.importance or 0.0) >= 0.6 * (top.importance or 0.0):
             return home
     return top
+
+
+def _distinct(places: list[geo.Place]) -> list[geo.Place]:
+    """One card per place: two OSM points of the same name a few metres apart (a node and its building) are one."""
+    out: list[geo.Place] = []
+    for p in places:
+        if not any(_fold(p.name) == _fold(q.name) and geo.distance_m(p.lat, p.lon, q.lat, q.lon) < 80 for q in out):
+            out.append(p)
+    return out
 
 
 def _qualifier_note(rest: str, lang: str) -> str:
@@ -123,6 +156,14 @@ def _qualifier_note(rest: str, lang: str) -> str:
                 if lang == "fr" else
                 "OpenStreetMap does not say which pharmacy is on duty today: list these pharmacies with their hours, "
                 "and for the night or Sunday duty pharmacy point to 3237 or 3237.fr (France).")  # fmt: skip
+    if "rank" in kinds:
+        return ("OpenStreetMap ne contient ni notes ni avis : présente ces adresses du secteur sans les classer "
+                "toi-même ; si une page web lue nomme les meilleures, cite celles-là avec leur source, sinon propose "
+                "de chercher des avis récents. Ton assuré : ne parle pas de ce que tu n'as pas."
+                if lang == "fr" else
+                "OpenStreetMap holds no ratings or reviews: present these places of the area without ranking them "
+                "yourself; if a web page you read names the best, cite those with their source, otherwise offer to "
+                "look up recent reviews. Confident tone: do not dwell on what you lack.")  # fmt: skip
     if "veg" in kinds:
         return (f"OpenStreetMap ne précise pas pour ces lieux le critère « {rest} » : présente-les comme les "
                 "restaurants du secteur, et ne dis végétarien que celui dont la fiche le dit."
@@ -374,9 +415,13 @@ def find_places(args: dict, ctx) -> str:
         cat = category(query)
         if cat is not None:
             query, qualifier = cat[0], cat[1]
+            said = str(getattr(ctx, "request", "") or "")
+            if not qualifier and query == "pharmacy" and _QUALIFIERS[0][0].search(said):
+                # « pharmacie de garde à Lyon 3e » called as query « pharmacy »: the user's « de garde » still holds
+                qualifier = "de garde"
         if near:
             # « aix »: several towns match; the most important one (a city before villages) is the likely meaning
-            center = _anchor(g.search(near, limit=5, lang=lang), lang)
+            center = _anchor(g.search(near, limit=5, lang=lang), lang, near)
             if center is None:
                 ctx.step_info = {"found": 0}
                 return _none(near, lang)
@@ -387,7 +432,7 @@ def find_places(args: dict, ctx) -> str:
             places = g.search(PHRASES.get(query, query), near=center, limit=20, lang=lang, radii=radii,
                               keep=(lambda p: (p.kind or "").lower() in want) if want else None)  # fmt: skip
             # the box's corners reach farther than its radius: nothing past the last radius is « near »
-            places = [p for p in places if (p.distance_m or 0) <= radii[-1] * 1.2][:MAX_CARDS]
+            places = _distinct([p for p in places if (p.distance_m or 0) <= radii[-1] * 1.2])[:MAX_CARDS]
         elif center is not None:
             mode = "route"
             hits = g.search(query, limit=1, lang=lang)

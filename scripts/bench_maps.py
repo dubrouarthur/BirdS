@@ -515,11 +515,17 @@ MAPS_CATEGORY: list[tuple[str, str, str, str]] = [
     ("écoles à Versailles", "school", "versailles", "écoles"),
     ("supermarkets in Lyon", "supermarket", "lyon", "supermarkets"),
     ("pharmacy near Montparnasse station", "pharmacy", "montparnasse station", "pharmacy"),
+    # « De Paris à pizzeria » (production, Chouette): a ranked category is the category, the rank a qualifier
+    ("Où se situent les 3 meilleures pizzerias de Paris", "pizza", "paris", "3 meilleures pizzerias"),
+    ("les meilleures boulangeries à Lyon", "bakery", "lyon", "meilleures boulangeries"),
+    ("best bakeries in Lyon", "bakery", "lyon", "the best bakeries"),
+    ("top 5 restaurants à Lille", "restaurant", "lille", "top 5 restaurants"),
 ]
 # names that start with a kind word: a name, never a category
 MAPS_CATEGORY_NO: list[str] = [
     "gare de Lyon", "école des Mines", "Hôtel de Ville", "Pharmacie Lafayette", "boulangerie Paul",
     "restaurant Le Train Bleu", "Carrefour Market", "tour Eiffel", "banque de France", "musée d'Orsay",
+    "Meilleurtaux", "Best Western", "Top Gun",
 ]  # fmt: skip
 
 

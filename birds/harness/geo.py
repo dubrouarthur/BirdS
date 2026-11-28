@@ -29,7 +29,7 @@ from urllib.parse import urlencode
 from birds.harness import guard
 from birds.harness.guard import ToolError
 
-MAX_LOOKUPS_PER_RUN = 4
+MAX_LOOKUPS_PER_RUN = 6
 TTL_HIT = 7 * 86400
 TTL_MISS = 86400
 MAX_WAIT = 3.0
@@ -418,12 +418,13 @@ class Geocoder:
                 dl = d / max(0.2, math.cos(math.radians(near.lat)))
                 box = (near.lon - dl, near.lat + d, near.lon + dl, near.lat - d)
                 try:
-                    out = self.nominatim(q, limit=max(limit, 8), viewbox=box, lang=lang)
-                    out = [p for p in out if keep(p)] if keep is not None else out  # the category asked only
+                    got = self.nominatim(q, limit=max(limit, 8), viewbox=box, lang=lang)
+                    got = [p for p in got if keep(p)] if keep is not None else got  # the category asked only
                     answered = True
                 except ToolError as e:
                     errors.append(e)
-                    out = []
+                    break  # a wider box that fails (busy, cap reached) keeps what the smaller one found
+                out = got if len(got) >= len(out) else out
                 if len(out) >= 3:
                     break
             if errors and not answered:

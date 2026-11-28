@@ -1056,3 +1056,28 @@ laisser duckduckgo mais pas seul, retirer `google cse` (quota épuisé) ; garder
 (offre gratuite) enregistrée comme secret réseau de l'environnement (`BIRD_BRAVE_API_KEY`) : avec SearXNG configuré,
 la chaîne devient SearXNG → Brave Search → Wikipédia (`make_search`). `/api/health` → `search.degraded` dit quand
 l'instance retombe sur ses moteurs de secours.
+
+**Vérification adverse avant fusion** (28/11/2026, même endpoint, `serve.py` local, 10 demandes hors du jeu fixe :
+homonymes, classement, anglais, nom de boutique ; détails : `adversarial_before` / `adversarial_after` et `verify12`
+dans `docs/measures/local-practical-2026-11-28.json`). Trouvé puis corrigé :
+
+| demande | avant correctif | après |
+| --- | --- | --- |
+| « Où se situent les 3 meilleures pizzerias de Paris » (signalement Chouette) | `query` « 3 meilleures pizzerias de Paris », mode « où est » → « Meilleurtaux Paris 16 », réponse « Je n'ai pas de données fiables » | `pizza les meilleures` autour de Paris (réparation des arguments + `category`), 8 pizzerias à 1 – 1,4 km, plus une recherche web ; note « OpenStreetMap ne contient ni notes ni avis » |
+| « restaurants à Saint-Cloud » | Boulogne-Billancourt à 1,2 km (Nominatim rend les plus pertinents d'une boîte de 2,5 km, pas les plus proches ; 40 restaurants à moins de 300 m) | rayons 1 km → 2,5 km → 5 km : Les Frères Dufour 116 m, Nino 155 m, Venise 176 m |
+| « quels supermarchés à Montreuil ? » | Montreuil-sur-Mer (Campigneulles, Attin) | Montreuil (93) : Naturalia 103 m, Biocoop 111 m — l'ancre préfère le nom exact demandé, s'il est presque aussi important |
+| « bakeries near Valence » (anglais) | Valencia (Espagne) | Valence (26000) |
+| « pharmacie de garde à Lyon 3e » (le modèle écrit `pharmacy`) | pas de 3237 ; une fois « le reste est fermé ce soir » | le « de garde » de l'utilisateur tient ; la ligne 3237 est ajoutée par le harnais quand la réponse ne l'a pas |
+| deux points OSM d'un même lieu (« A Tavola » ×2 à 9 m) | deux fiches | une fiche (même nom à moins de 80 m) |
+
+Contrôle final élargi (`check_places_answer`) : un élément de liste qui nomme un lieu absent des résultats (le cas
+« hôpital à Marseille » sous les pharmacies de Lyon) est retiré, la numérotation refaite ; un conseil sans lieu
+(« appelez le 3237 ») reste. Une boîte plus large qui échoue (« busy », plafond) garde ce que la plus petite a
+trouvé, au lieu de tout perdre ; plafond de requêtes de géocodage par réponse : 4 → 6 (ancre + 3 rayons).
+Jeu fixe de 12 rejoué après correctifs : 12/12 cartes, 0 lieu à plus de 6 km, 12/12 réponses qui s'appuient sur les
+lieux, 0 abandon ; médiane 11,3 s (9,2 s avant ces correctifs : réponses plus complètes, un rayon de plus quand la
+première boîte compte moins de 3 lieux). Recherche coupée (`--searxng` injoignable) : repli Wikipédia vérifié ; si
+Wikipédia limite aussi (HTTP 429), l'étape le dit et la réponse reste calme. Pas corrigé ici : « Saint-Germain »
+seul reste un village homonyme (Bayon, 54) — la réponse affiche le code postal ; « le magasin Supermarché à Berlin »
+est lu comme la catégorie (choix du modèle). Banc : `maps_category` 37/37 (+4 classements, +3 noms), total
+2 131/2 131.

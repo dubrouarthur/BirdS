@@ -216,21 +216,114 @@ def _searched_nothing(steps, lang: str) -> str:
             "widen the area, start from a precise address or look up a brand by name.")  # fmt: skip
 
 
+_GENERIC = re.compile(
+    r"^(?:pharmacie|boulangerie|supermarche|restaurant|parking|banque|gare|hotel|cafe|bar|ecole|hopital|clinique|"
+    r"station|poste|librairie|cinema|musee|pharmacy|bakery|supermarket|bank|station|school|hospital|market|marche|"
+    r"saint|sainte|grand|petit|centre|center|city|express|rue|avenue|place|boulevard)$"
+)
+
+
+def _names(name, text: str, towns=frozenset()) -> bool:
+    """The answer names this place: its full name, or a distinctive word of it (« Monoprix » for « Monoprix
+    Saint-Cloud »), never a generic word (« pharmacie ») nor the anchor's name (« Cloud »)."""
+    nm = _fold(name)
+    if len(nm) >= 3 and nm in text:
+        return True
+    words = [w for w in re.findall(r"[a-z0-9]+", nm) if len(w) >= 4 and not _GENERIC.match(w) and w not in towns]
+    return any(re.search(rf"\b{re.escape(w)}\b", text) for w in words)
+
+
+def _without_send_away(content: str) -> str:
+    """The answer without its sentences that send the user elsewhere (lines and list layout kept)."""
+    out = []
+    for line in content.split("\n"):
+        if SEND_AWAY.search(line):
+            parts = re.split(r"(?<=[.!?])\s+", line)
+            line = " ".join(x for x in parts if not SEND_AWAY.search(x)).rstrip()
+            if not line.strip():
+                continue
+        out.append(line)
+    return "\n".join(out).strip()
+
+
+_PLACEY = re.compile(r"\b\d+(?:[,.]\d+)?\s?(?:m|km)\b|\b\d{5}\b|\b(?:rue|avenue|bd|boulevard|place|cours|"
+                     r"chemin|quai|all[ée]e|street|road)\b", re.I)
+_ITEM = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+(?P<body>.+)$")
+
+
+def _item_name(body: str) -> str:
+    """The place an answer's list item is about: its bold part, else the words before the first separator."""
+    bold = re.search(r"\*\*(.+?)\*\*", body)
+    if bold:
+        return bold.group(1).strip()
+    return re.split(r"\s+[—–-]\s+|\s*[:(,]\s*", body, maxsplit=1)[0].strip()
+
+
+def _is_result(name: str, cards: list[dict], towns) -> bool:
+    nm = _fold(name)
+    for w in cards:
+        for p in w["places"]:
+            pn = _fold(p.get("name"))
+            if pn and (pn == nm or pn in nm or nm in pn or _names(p.get("name"), nm, towns) or _names(name, pn, towns)):
+                return True
+    return False
+
+
+def _drop_unknown_items(content: str, cards: list[dict], towns) -> tuple[str, int, int]:
+    """The answer without the list items about a place the tool did not return (« pharmacie de garde à Lyon 3e »
+    answered with a hospital in Marseille): (answer, items kept, items dropped). Numbering is redone."""
+    out, kept, dropped, n = [], 0, 0, 0
+    for line in content.split("\n"):
+        m = _ITEM.match(line)
+        if m:
+            body = m.group("body")
+            name = _item_name(body)
+            placey = "**" in body or _PLACEY.search(body)  # a place (bold, a distance, an address), not a tip
+            if placey and len(_fold(name)) >= 3 and not _is_result(name, cards, towns):
+                dropped += 1
+                continue
+            kept += 1
+            num = re.match(r"^(\s*)\d+([.)])\s+", line)
+            if num:
+                n += 1
+                line = f"{num.group(1)}{n}{num.group(2)} " + line[num.end():]
+        out.append(line)
+    return "\n".join(out), kept, dropped
+
+
 def check_places_answer(content: str, widgets: list[dict], steps, lang: str) -> str | None:
     """The answer rewritten from the places found when the model's answer contradicts them (gives up, or names none
-    of the places of a near card), else None (the model's answer stands). Nothing found: an answer that sends the
-    user elsewhere (« demandez à un voisin ») says instead what Bird searched and offers the next step."""
+    of the places of a near card), else None (the model's answer stands). An answer that names them loses only its
+    sentences sending the user elsewhere and its list items about a place not in the results, and gains the 3237
+    line of a duty pharmacy ask when it lacks it. Nothing found: an answer that sends the user elsewhere
+    (« demandez à un voisin ») says instead what Bird searched and offers the next step."""
     cards = [w for w in widgets or [] if w.get("type") == "places" and w.get("places")]
     if not content:
         return None
     if not cards:
         return (_searched_nothing(steps, lang) or None) if SEND_AWAY.search(content) else None
-    text = _fold(content)
-    names = [_fold(p.get("name")) for w in cards for p in w["places"] if p.get("name")]
-    named = any(nm and len(nm) >= 3 and nm in text for nm in names)
-    near = any(w.get("mode") == "near" for w in cards)
-    if not GIVE_UP.search(content) and (named or not near):
-        return None
     caveat = next((str((getattr(s, "info", None) or {}).get("caveat") or "") for s in steps or []
                    if getattr(s, "tool", "") == "find_places" and (getattr(s, "info", None) or {}).get("caveat")), "")
+    text = _fold(content)
+    towns = {t for w in cards for t in re.findall(r"[a-z0-9]+", _fold((w.get("center") or {}).get("name")))}
+    named = any(_names(p.get("name"), text, towns) for w in cards for p in w["places"] if p.get("name"))
+    near = any(w.get("mode") == "near" for w in cards)
+    if named:
+        # the answer uses the places found: it stands; only a sentence sending the user elsewhere, and a listed place
+        # the tool did not return, are dropped (« je ne peux pas savoir laquelle est de garde : appelez le 3237 » is
+        # a good answer, kept)
+        out = _without_send_away(content) if SEND_AWAY.search(content) else content
+        if near:
+            out, kept, dropped = _drop_unknown_items(out, cards, towns)
+            if dropped and not kept:
+                out = ""
+        line = _caveat_for_user(caveat, lang)
+        if out.strip() and line and "3237" in line and "3237" not in out:
+            out = out.rstrip() + "\n\n" + line  # the duty pharmacy: what OSM cannot say, said by the harness
+        if out.strip() and out != content:
+            return out
+        if out.strip():
+            return None
+    if not GIVE_UP.search(content) and not near:
+        return None
     return places_answer(cards, lang, caveat) or None

@@ -1109,5 +1109,1314 @@
    "seconds": 0.0,
    "answer": ""
   }
+ ],
+ "verify12": [
+  {
+   "prompt": "comment aller faire ses courses a saint cloud quels sont les supermarchés",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "supermarché",
+      "near": "Saint-Cloud"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2191 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "supermarket"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 6,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 14.0,
+   "answer": "Voici les supermarchés les plus proches de Saint-Cloud :\n\n1. **Lidl** — Rue du Docteur Desfossez, 92210 Saint-Cloud — 161 m — Mo-Sa 08:30-20:30 ; Su 08:30-12:30  \n2. **Biocoop** — Rue Alexandre Coutureau, 92210 Saint-Cloud — 414 m — Mo-Fr 10:00-20:00 ; Sa 09:00-20:00  \n3. **Naturalia** — Rue Émile Verhaeren, 92210 Saint-Cloud — 484 m — Mo-Sa 09:00-20:00 ; Su 09:00-12:45 ; PH fermé  \n4. **Aldi** — Boulevard de la République, 92210 Saint-Cloud — 522 m — Mo-Sa 08:30-20:30 ; Su 08:30-12:30  \n5. **Monoprix** — Avenue du Maréchal Foch, 92210 Saint-Cloud — 539 m — Mo-Su 07:30-21:30  \n\nSur la carte, le lien « Itinéraire » vous donnera l'accès aux modes de transport et aux parkings.  \nSource : [1]"
+  },
+  {
+   "prompt": "pharmacie de garde à Lyon 3e",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "pharmacy",
+      "near": "Lyon 3e"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2220 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "pharmacy"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 2,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 7.6,
+   "answer": "C'est samedi 28 novembre : la plupart des pharmacies sont fermées. Les rares ouverts ce jour sont :\n\n- Pharmacie de l'Isle, avenue Félix Faure, 426 m : 08:30-12:00, 14:30-19:00\n- Pharmacie de la Rize, rue Paul Bert, 462 m : 09:00-12:30\n\nLe reste est fermé ce soir. Pour un itinéraire, utilisez le lien « Itinéraire » sur la carte."
+  },
+  {
+   "prompt": "boulangerie près de la gare de Rennes",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "bakery",
+      "near": "gare de Rennes"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2091 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "bakery"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 5,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 14.1,
+   "answer": "Voici les boulangeries les plus proches de la gare de Rennes :\n\n1. **La boulangerie de Joseph**  \n   Adresse : Avenue Jean Janvier, 35000 Rennes  \n   Distance : 58 m  \n   Horaires : Mo-Fr 08:00–18:00\n\n2. **Ty Vorn Le Kiosque**  \n   Adresse : Place de la Gare, 35000 Rennes  \n   Distance : 80 m  \n   Horaires : Mo-Fr 06:00–19:30 ; Sa 06:30–19:30 ; Su, PH 08:30–19:30\n\n3. **Le Fournil de Broceliande**  \n   Adresse : 35000 Rennes  \n   Distance : 132 m  \n   Horaires : Mo-Fr 07:00–19:30 ; PH off\n\n4. **Ty Vorn**  \n   Adresse : Passerelle Anita Conti, 35000 Rennes  \n   Distance : 138 m  \n   Horaires : Mo, Fr 05:30–20:30 ; Tu–Th, Sa 05:30–20:00 ; Su 06:00–20:30 ; PH 07:00–20:00\n\n5. **Maison Coupel**  \n   Adresse : 21 Rue Saint-Hélier, 35000 Rennes  \n   Distance : 350 m  \n   Horaires : Tu-Sa 07:30–19:30\n\nSur la carte, le lien **Itinéraire** vous donnera l’accès aux détails de trajet.  \nSource : [1]"
+  },
+  {
+   "prompt": "parking près de l'hôpital de Nantes",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "parking",
+      "near": "hôpital de Nantes"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1987 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "parking"
+   ],
+   "n_places": 7,
+   "far": 0,
+   "duplicates": 0,
+   "named": 6,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 8.6,
+   "answer": "Voici les parkings les plus proches de l'hôpital de Nantes :\n\n1. **Visiteurs — parking**  \n   Rue Rita Levi-Montalcini, 44800 Saint-Herblain — à 191 m\n\n   Rue Rita Levi-Montalcini, 44800 Saint-Herblain — à 221 m\n\n   Rue Gertrude Belle Elion, 44800 Saint-Herblain — à 232 m\n\n   Rue Alain Bombard, 44800 Saint-Herblain — à 452 m\n\n   Rue des Piliers de la Chauvinière, 44800 Saint-Herblain — à 488 m\n\nLes horaires et tarifs ne sont pas disponibles. Pour accéder à ces parkings, utilisez le lien « Itinéraire » sur la carte."
+  },
+  {
+   "prompt": "restaurants végétariens à Bordeaux centre",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "restaurant végétarien",
+      "near": "Bordeaux centre"
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "Eriu Bordeaux végétarien"
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "Le Paradis du Fruit Bordeaux végétarien"
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "Anh Kha Bordeaux végétarien"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2114 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "error",
+     "Trop de recherches à la suite, réessayez dans un instant (Wikipédia)"
+    ],
+    [
+     "web_search",
+     "error",
+     "Trop de recherches à la suite, réessayez dans un instant (Wikipédia)"
+    ],
+    [
+     "web_search",
+     "error",
+     "Trop de recherches à la suite, réessayez dans un instant (Wikipédia)"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "restaurant"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 15.7,
+   "answer": "Voici les trois restaurants les plus proches du centre de Bordeaux, selon OpenStreetMap :\n\n1. **Eriu** — Rue Turenne, 33000 Bordeaux — à 303 m  \n2. **Le Paradis du Fruit** — 46 Place Gambetta, 33000 Bordeaux — à 353 m, ouvert Su-We 09:00-22:30, Th-Sa 09:00-23:30  \n3. **Anh Kha** — 48 Rue Saint-Sernin, 33000 Bordeaux — à 356 m  \n\nCes lieux sont signalés comme restaurants dans le secteur ; aucun ne est explicitement identifié comme végétarien dans les données disponibles. Pour vérifier leur carte végétarienne, consultez leur fiche sur la carte : le lien « Itinéraire » y donne l'accès."
+  },
+  {
+   "prompt": "distributeur près de la Défense",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "atm",
+      "near": "Défense"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1801 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "atm"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 2,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 6.6,
+   "answer": "Voici les distributeurs les plus proches de La Défense :\n\n1. **Gare Routière** — 77 m — 24/7  \n2. **La Banque Postale** — 193 m — 2 Passage Coupole, 92800 Puteaux  \n3. **SG** — 279 m — 24/7 — Le Parvis, 92800 Puteaux  \n\nSur la carte, cliquez sur « Itinéraire » pour accéder aux détails de trajet.  \nSource : [1]"
+  },
+  {
+   "prompt": "où trouver une station-service à Annecy ?",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "fuel",
+      "near": "Annecy"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1905 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "fuel"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 7,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 10.5,
+   "answer": "Voici les stations-service les plus proches d'Annecy :\n\n1. **Intermarché — fuel**  \n   4 Rue du Travail, 74000 Annecy — 859 m — ouvert 24/7\n\n2. **Eni**  \n   17 Avenue de Chambéry, 74000 Annecy — 956 m — ouvert 24/7\n\n3. **HYmpulsion**  \n   Chemin de la Prairie, 74000 Annecy — 1,4 km\n\n4. **TotalEnergies Access - Relais des Alluèges**  \n   18 Boulevard de la Rocade, 74000 Annecy — 1,4 km — ouvert 24/7\n\n5. **Esso Express**  \n   1 Avenue de la République, 74000 Annecy — 1,5 km — ouvert 24/7\n\nLa carte affiche ces lieux et un lien « Itinéraire » vous guide vers chacun."
+  },
+  {
+   "prompt": "bureau de poste à Vannes",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "post office",
+      "near": "Vannes"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1920 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "post office"
+   ],
+   "n_places": 6,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 11.4,
+   "answer": "Voici les trois bureaux de poste les plus proches de Vannes :\n\n1. **La Poste** — 25 Place de la République, 56000 Vannes — à 302 m  \n   Horaires : Mo-Fr 09:00-18:30 ; Sa 09:00-12:30 ; PH fermé.\n\n2. **Vannes Ménimur** — 7 Place Henri Auffret, 56000 Vannes — à 1,6 km  \n   Horaires : Mo, Me-Fr 09:00-12:00, 14:00-17:00 ; Tu 09:00-12:00, 14:30-17:00 ; Sa 09:00-12:00 ; PH fermé.\n\n3. **La Poste** — Esplanade Jean Bertho, 56000 Vannes — à 1,7 km  \n   Horaires : Mo, Me, Fr 09:00-12:00, 14:00-17:00 ; Tu 09:00-12:00, 14:30-17:00 ; Sa 09:00-12:00 ; PH fermé.\n\nPour l'accès, utilisez le lien « Itinéraire » sur la carte."
+  },
+  {
+   "prompt": "quels supermarchés à Montreuil ?",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "supermarket",
+      "near": "Montreuil"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2220 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "supermarket"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 6,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 14.0,
+   "answer": "Voici les supermarchés les plus proches de Montreuil :\n\n1. **Naturalia** — Place Jean Jaurès, 93100 Montreuil — 103 m  \n   Horaires : Mo-Sa 09:00-20:45 ; Su 09:00-12:45\n\n2. **Biocoop** — 6 Place Jean Jaurès, 93100 Montreuil — 111 m  \n   Horaires : Mo-Fr 10:00-20:00 ; Sa 09:00-20:00\n\n3. **Franklin Exotica** — Rue Franklin, 93100 Montreuil — 218 m\n\n4. **G20** — Boulevard Henri Barbusse, 93100 Montreuil — 377 m  \n   Horaires : Mo-Sa 08:30-22:00 ; Su 08:30-21:00\n\n5. **La Caravane** — 23 Rue Gaston Lauriau, 93100 Montreuil — 416 m  \n   Horaires : Mo-Tu 14:00-21:00 ; We-Fr 09:00-21:00 ; Sa 09:00-18:30\n\nPour l'accès, utilisez le lien « Itinéraire » sur la carte.  \nSource : [1]"
+  },
+  {
+   "prompt": "une banque à Saint-Malo",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "bank",
+      "near": "Saint-Malo"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1284 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "bank"
+   ],
+   "n_places": 3,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 10.2,
+   "answer": "Voici les trois banques les plus proches de Saint-Malo :\n\n1. **Société Générale**  \n   Place du Pilori, 35400 Saint-Malo — à 64 m\n\n2. **Banque populaire Grand Ouest**  \n   Rue Porcon de la Barbinais, 35400 Saint-Malo — à 78 m  \n   Horaires : Tu-We 09:00-12:30, 14:00-18:00 ; Th 09:00-12:30, 15:00-18:00 ; Fr 09:00-12:30, 14:00-18:00 ; Sa 09:00-12:30\n\n3. **Crédit Mutuel de Bretagne**  \n   Rue Saint-Vincent, 35400 Saint-Malo — à 206 m\n\nPour les itinéraires, utilisez le lien « Itinéraire » sur la carte.  \nSource : [1]"
+  },
+  {
+   "prompt": "écoles à Versailles",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "school",
+      "near": "Versailles"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1864 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "school"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 5,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 11.3,
+   "answer": "Voici les écoles les plus proches de Versailles, selon OpenStreetMap :\n\n1. **École Élémentaire Carnot** — Rue Carnot, 78000 Versailles — 388 m  \n2. **École Maternelle Les Marmousets** — Rue du Peintre Lebrun, 78000 Versailles — 425 m  \n3. **École maternelle Le Petit Prince** — Rue Baillet-Réviron, 78000 Versailles — 570 m  \n4. **École Élémentaire Privée Notre-Dame** — Boulevard de la Reine, 78000 Versailles — 619 m  \n5. **Lycée Saint-Vincent-de-Paul** — Avenue de Saint-Cloud, 78000 Versailles — 627 m  \n\nLes horaires, les transports et les parkings ne figurent pas dans les données disponibles. La carte fournie par la source permet d’obtenir un itinéraire.\n\nSource : [1] OpenStreetMap"
+  },
+  {
+   "prompt": "gare la plus proche de Chantilly",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "train station",
+      "near": "Chantilly"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1043 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "train station"
+   ],
+   "n_places": 2,
+   "far": 0,
+   "duplicates": 0,
+   "named": 2,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 8.1,
+   "answer": "La gare la plus proche de Chantilly est Chantilly – Gouvieux, à 725 m, rue d'Orgemont. La suivante est Saint-Leu-d'Esserent, à 4,1 km.\n\n[1] réponse de l'outil find_places"
+  }
+ ],
+ "adversarial_before": [
+  {
+   "prompt": "Où se situent les 3 meilleures pizzerias de Paris",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "3 meilleures pizzerias de Paris"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "624 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "where"
+   ],
+   "titles": [
+    "3 meilleures pizzerias de Paris"
+   ],
+   "n_places": 1,
+   "far": 0,
+   "duplicates": 0,
+   "named": 0,
+   "uses_results": false,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 6.9,
+   "answer": "Je n'ai pas de données fiables sur les meilleures pizzerias de Paris dans mon inventaire. Les résultats que j'ai consultés ne correspondent pas à ce que vous cherchez.\n\nJe peux chercher sur le web des listes ou des avis récents pour vous aider.",
+   "centers": [
+    null
+   ],
+   "placenames": [
+    "Meilleurtaux Paris 16"
+   ]
+  },
+  {
+   "prompt": "pharmacie de garde à Lyon 3e",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "pharmacy",
+      "near": "Lyon 3e"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2177 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "pharmacy"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 5,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 13.2,
+   "answer": "Les données disponibles ne précisent pas de pharmacie de garde à Lyon 3e ; voici les pharmacies les plus proches :\n\n- Pharmacie Aristide Briand — Cours Gambetta, 69003 Lyon — 963 m — Mo-Fr 08:30-19:30 ; Sa 09:00-12:30\n- Pharmacie Mathey-François — Cours Lafayette, 69003 Lyon — 1,0 km — Mo-Fr 08:30-19:00 ; Sa 09:00-12:30\n- Pharmacie des Charmettes — Rue Notre-Dame, 69006 Lyon — 1,0 km — Mo-Fr 08:30-13:00,14:00-19:30 ; Sa 09:00-12:30,15:00-19:00\n- Pharmacie des Maisons Neuves — Avenue Félix Faure, 69003 Lyon — 1,1 km — Mo-Fr 08:45-12:15,14:30-19:30 ; Sa 09:00-12:15\n- Pharmacie Récamier — Rue Juliette Récamier, 69006 Lyon — 1,2 km — Mo-Fr 08:30-13:30,14:30-19:00 ; Sa 09:00-12:30\n\nPour savoir si l'une d'elles est ouverte ce soir, appelez-les directement ; la carte indique aussi l'itinéraire.",
+   "centers": [
+    "Lyon 3e Arrondissement"
+   ],
+   "placenames": [
+    "Pharmacie Aristide Briand",
+    "Pharmacie Mathey-François",
+    "Pharmacie des Charmettes",
+    "Pharmacie des Maisons Neuves",
+    "Pharmacie Récamier",
+    "Aprium pharmacie des grandes avenues",
+    "Pharmacie du monde",
+    "Pharmacie Place Guichard"
+   ]
+  },
+  {
+   "prompt": "quels supermarchés à Montreuil ?",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "supermarket",
+      "near": "Montreuil"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1355 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "supermarket"
+   ],
+   "n_places": 3,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 9.5,
+   "answer": "Voici les trois supermarchés les plus proches de Montreuil-sur-Mer :\n\n1. **Carrefour Market Montreuil Campigneulles** — Rue de Paris, 62170 Campigneulles-les-Petites — 1,9 km — Mo-Sa 08:30-20:00 ; Su 08:30-12:30  \n2. **Aldi** — Route d'Étaples, 62170 Attin — 1,9 km — Mo-Sa 08:30-19:30 ; Su 08:30-12:30  \n3. **E.Leclerc** — Rue de la Briqueterie, 62170 Attin — 2,1 km — Mo-Th 08:00-19:30 ; Fr 08:00-20:00 ; Sa 08:00-19:30 ; Su 09:00-12:30  \n\nPour les itinéraires, utilisez le lien « Itinéraire » sur la carte.  \nSource : [1]",
+   "centers": [
+    "Montreuil-sur-Mer"
+   ],
+   "placenames": [
+    "Carrefour Market Montreuil Campigneulles",
+    "Aldi",
+    "E.Leclerc"
+   ]
+  },
+  {
+   "prompt": "boulangerie à Saint-Denis",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "bakery",
+      "near": "Saint-Denis"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1805 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "bakery"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 5,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 8.9,
+   "answer": "Voici les boulangeries les plus proches de Saint-Denis, du plus proche au plus loin :\n\n1. **Paul** — Passage de l'Ancienne Tannerie, 93200 Saint-Denis — 349 m  \n2. **Boulangerie de la Basilique** — Passage de l'Aqueduc, 93200 Saint-Denis — 358 m  \n3. **La Belle Moisson** — Rue de Strasbourg, 93200 Saint-Denis — 420 m  \n4. **Au Grand Jour** — 100 Rue Gabriel Péri, 93200 Saint-Denis — 445 m — horaires : Mo-Su 06:00-20:00  \n5. **Bäcker** — 38 Rue Auguste Poullain, 93200 Saint-Denis — 818 m  \n\nLes horaires et adresses proviennent d'OpenStreetMap. Pour les itinéraires, utilisez le lien « Itinéraire » sur la carte.",
+   "centers": [
+    "Saint-Denis"
+   ],
+   "placenames": [
+    "Paul",
+    "Boulangerie de la Basilique",
+    "La Belle Moisson",
+    "Au Grand Jour",
+    "Bäcker",
+    "L'Épi Denis",
+    "L'Ami du Pain",
+    "La Baguette Dorée"
+   ]
+  },
+  {
+   "prompt": "bakeries near Valence",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "bakery",
+      "near": "Valence"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1756 characters returned to the model"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "bakery"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 6.0,
+   "answer": "Three bakeries near Valence:\n\n1. Panaria — Plaça del Mercat, 46001 Valencia — 439 m  \n2. Horno de la Encarnación — Carrer dels Carnissers, 46001 Valencia — 771 m  \n3. El Horno Viejo — Carrer del Gravador Esteve, 46004 Valencia — 831 m; open Mo-Fr 07:15–20:00, Sa 07:30–14:30  \n\nUse the map's Directions link for each to see how to get there.",
+   "centers": [
+    "Valencia"
+   ],
+   "placenames": [
+    "Panaria",
+    "Horno de la Encarnación",
+    "El Horno Viejo",
+    "Panaderia Ciudadela",
+    "Levaduramadre",
+    "Montaner",
+    "Dulce de Leche - boutique",
+    "Amatud"
+   ]
+  },
+  {
+   "prompt": "pharmacies in Bordeaux",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "pharmacy",
+      "near": "Bordeaux"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2081 characters returned to the model"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "pharmacy"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 5,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 10.0,
+   "answer": "Pharmacies near Bordeaux (nearest first)\n1. Pharmacie Mériadeck — Rue Père Dieuzaide, 33000 Bordeaux — 383 m\n2. Pharmacie Saint-Seurin — 65 Place des Martyrs de la Résistance, 33000 Bordeaux — 529 m — Mo-Fr 09:00-13:00,14:00-20:00; Sa 09:00-13:00,15:00-19:00\n3. Centre médico dentaire — Rue Sainte-Catherine, 33000 Bordeaux — 701 m — Mo-Fr 08:30-19:30; Sa 09:00-17:00\n4. Pharmacie François — 70 Cours d'Alsace et Lorraine, 33000 Bordeaux — 781 m — Mo-Sa 09:00-19:30\n5. Pharmacie Paulin — 10 Rue Paulin, 33000 Bordeaux — 853 m — Mo-Fr 09:00-12:30,14:30-19:30; Sa 09:00-12:30,14:30-18:00\n\nUse the map's Directions link for each place to get turn-by-turn directions.",
+   "centers": [
+    "Bordeaux"
+   ],
+   "placenames": [
+    "Pharmacie Mériadeck",
+    "Pharmacie Saint-Seurin",
+    "Centre médico dentaire",
+    "Pharmacie François",
+    "Pharmacie Paulin",
+    "Pharmacie de la Bourse",
+    "Pharmacie de la Croix Blanche",
+    "Pharmacie La Flèche"
+   ]
+  },
+  {
+   "prompt": "le magasin Supermarché à Berlin, où est-il ?",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "supermarket",
+      "near": "Berlin"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1999 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "supermarket"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 4,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 6.1,
+   "answer": "Voici les trois supermarchés les plus proches de Berlin :\n\n1. **Aldi** — 149 Friedrichstraße, 10117 Berlin — à 513 m — ouvert Mo-Sa 07:00-22:00  \n2. **Atix** — 8 Neue Promenade, 10178 Berlin — à 705 m  \n3. **Alnatura Super Natur Markt** — 191 Friedrichstraße, 10117 Berlin — à 805 m — ouvert Mo-Sa 08:00-21:00  \n\nPour l'itinéraire, utilisez le lien « Itinéraire » sur la carte.",
+   "centers": [
+    "Berlin"
+   ],
+   "placenames": [
+    "Aldi",
+    "Atix",
+    "Alnatura Super Natur Markt",
+    "City Supermarkt",
+    "Edeka",
+    "Alnatura Super Natur Markt",
+    "Kauf Markt",
+    "Lidl"
+   ]
+  },
+  {
+   "prompt": "restaurants à Saint-Cloud",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "restaurant",
+      "near": "Saint-Cloud"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2051 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "restaurant"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 4,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 8.0,
+   "answer": "Voici les trois restaurants les plus proches de Saint-Cloud :\n\n1. **Mano**  \n   Rue de l'Ancienne Mairie, 92100 Boulogne-Billancourt — 1,2 km\n\n2. **Green gourmet**  \n   82 Rue des Tilleuls, 92100 Boulogne-Billancourt — 1,2 km  \n   Horaires : Mo-Fr 10:00–18:00 ; Sa,Su 11:00–16:00\n\n3. **A Tavola**  \n   23 Rue d'Aguesseau, 92100 Boulogne-Billancourt — 1,3 km\n\nJe peux vous préparer une carte avec ces trois lieux.",
+   "centers": [
+    "Saint-Cloud"
+   ],
+   "placenames": [
+    "Mano",
+    "Green gourmet",
+    "A Tavola",
+    "A Tavola",
+    "La Bulle",
+    "Baccano",
+    "Frères Panda",
+    "À Bicyclette"
+   ]
+  },
+  {
+   "prompt": "boulangerie à Saint-Germain",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "bakery",
+      "near": "Saint-Germain"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1040 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "bakery"
+   ],
+   "n_places": 2,
+   "far": 0,
+   "duplicates": 0,
+   "named": 2,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 8.4,
+   "answer": "Voici les deux boulangeries les plus proches de Saint-Germain (54290 Bayon) :\n\n1. **Les gourmands disent**  \n   — Grande Rue, 54290 Bayon  \n   — 5,1 km\n\n2. **Boulangerie Lilian Ceresero**  \n   — Rue de l'Ancienne Mairie, 54290 Bayon  \n   — 5,3 km\n\nLes horaires, prix et accès ne figurent pas dans les données. Sur la carte, le lien « Itinéraire » vous guide vers chaque lieu.  \nSource : [1]",
+   "centers": [
+    "Saint-Germain"
+   ],
+   "placenames": [
+    "Les gourmands disent",
+    "Boulangerie Lilian Ceresero"
+   ]
+  },
+  {
+   "prompt": "supermarket in Nice",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "supermarket",
+      "near": "Nice"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1921 characters returned to the model"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "supermarket"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 6,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 9.1,
+   "answer": "Here are the nearest supermarkets in Nice:\n\n1. **Intermarché** — Rue Deudon, 06000 Nice — 64 m — hours: Mo-Sa 08:00-20:00; Su 09:00-20:00  \n2. **Naturalia** — 1 Rue Voltaire, 06000 Nice — 217 m — hours: Mo-Sa 09:00-20:00; Su off  \n3. **Biocoop** — Place Grimaldi, 06000 Nice — 426 m — hours: Mo-Sa 09:00-20:00; Su 09:00-13:30  \n4. **Carrefour Express** — Avenue Malausséna, 06000 Nice — 925 m — hours: Mo-Sa 07:00-21:00; Su 08:00-21:00  \n5. **Promo Asie** — 19 Rue Miollis, 06000 Nice — 985 m — hours not listed\n\nUse the map's Directions link to get there.",
+   "centers": [
+    "Nice"
+   ],
+   "placenames": [
+    "Intermarché",
+    "Naturalia",
+    "Biocoop",
+    "Carrefour Express",
+    "Promo Asie",
+    "Intermarché Express",
+    "Intermarché Express",
+    "Naturalia"
+   ]
+  }
+ ],
+ "adversarial_after": [
+  {
+   "prompt": "Où se situent les 3 meilleures pizzerias de Paris",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "pizza les meilleures",
+      "near": "Paris"
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "meilleures pizzerias de Paris avis récents",
+      "max_results": 10
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2131 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "error",
+     "Trop de recherches à la suite, réessayez dans un instant (Wikipédia)"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "pizza"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 14.8,
+   "answer": "Les données disponibles ne me permettent pas de classer les pizzerias comme « meilleures ». OpenStreetMap liste plusieurs pizzerias à Paris, mais sans note ni avis. Les trois plus proches sont :\n\n- Pizzeria Luciana, Rue Saint-Jacques, 75005 Paris, à 1,0 km\n- Pizzeria Positano, Rue des Canettes, 75006 Paris, à 1,1 km\n- Arrivederci Pizzeria, Rue Gay-Lussac, 75005 Paris, à 1,4 km\n\nPour savoir lesquelles sont les meilleures, il faut consulter des avis récents sur place ou sur un site d'avis.",
+   "centers": [
+    "Paris"
+   ],
+   "placenames": [
+    "Pizzeria Luciana",
+    "Pizzeria Positano",
+    "Arrivederci Pizzeria",
+    "Pizzeria Lovine's",
+    "The Brooklyn Pizzeria",
+    "Antica Pizzeria Da Michele",
+    "Sorrento Pizzeria Napoletana",
+    "Pizzeria Scialla"
+   ]
+  },
+  {
+   "prompt": "pharmacie de garde à Lyon 3e",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "pharmacy",
+      "near": "Lyon 3e"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2220 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "pharmacy"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 2,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 7.8,
+   "answer": "C'est samedi 28 novembre : la plupart des pharmacies sont fermées. Les rares ouverts ce jour sont :\n\n- Pharmacie de l'Isle, avenue Félix Faure, 426 m : 08:30-12:00, 14:30-19:00\n- Pharmacie de la Rize, rue Paul Bert, 462 m : 09:00-12:30\n\nLe reste est fermé ce soir. Pour un itinéraire, utilisez le lien « Itinéraire » sur la carte.",
+   "centers": [
+    "Lyon 3e Arrondissement"
+   ],
+   "placenames": [
+    "Pharmacie Sainte-Anne",
+    "Pharmacie de Lyon",
+    "Pharmacie de l'Isle",
+    "Pharmacie de la Rize",
+    "Pharmacie Lacassagne",
+    "Pharmacie de la Roseraie",
+    "Pharmacie du Dauphin",
+    "Pharmacie Felix Faure"
+   ]
+  },
+  {
+   "prompt": "quels supermarchés à Montreuil ?",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "supermarket",
+      "near": "Montreuil"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2220 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "supermarket"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 6,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 14.3,
+   "answer": "Voici les supermarchés les plus proches de Montreuil :\n\n1. **Naturalia** — Place Jean Jaurès, 93100 Montreuil — 103 m  \n   Horaires : Mo-Sa 09:00-20:45 ; Su 09:00-12:45\n\n2. **Biocoop** — 6 Place Jean Jaurès, 93100 Montreuil — 111 m  \n   Horaires : Mo-Fr 10:00-20:00 ; Sa 09:00-20:00\n\n3. **Franklin Exotica** — Rue Franklin, 93100 Montreuil — 218 m\n\n4. **G20** — Boulevard Henri Barbusse, 93100 Montreuil — 377 m  \n   Horaires : Mo-Sa 08:30-22:00 ; Su 08:30-21:00\n\n5. **La Caravane** — 23 Rue Gaston Lauriau, 93100 Montreuil — 416 m  \n   Horaires : Mo-Tu 14:00-21:00 ; We-Fr 09:00-21:00 ; Sa 09:00-18:30\n\nPour l'accès, utilisez le lien « Itinéraire » sur la carte.  \nSource : [1]",
+   "centers": [
+    "Montreuil"
+   ],
+   "placenames": [
+    "Naturalia",
+    "Biocoop",
+    "Franklin Exotica",
+    "G20",
+    "La Caravane",
+    "Discount Marché",
+    "Monoprix",
+    "G20"
+   ]
+  },
+  {
+   "prompt": "bakeries near Valence",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "bakery",
+      "near": "Valence"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1952 characters returned to the model"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "bakery"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 6.9,
+   "answer": "Three bakeries near Valence:\n\n1. Maison Pascalis — Rue Madier de Montjau, 26000 Valence — 107 m — Mo-Sa 09:00-19:00\n2. Laurent Serre — 13 Grande Rue, 26000 Valence — 107 m\n3. La Mie Câline — Boulevard Général de Gaulle, 26000 Valence — 338 m — Mo-Sa 06:30-19:15; Su 07:00-19:00\n\nThe map shows the others and a Directions link for each.",
+   "centers": [
+    "Valence"
+   ],
+   "placenames": [
+    "Maison Pascalis",
+    "Laurent Serre",
+    "La Mie Câline",
+    "Autant de Pains",
+    "Maison Nivon",
+    "La Petite Valentine",
+    "Autant de Pains",
+    "Boulangerie Pâtisserie Vallon"
+   ]
+  },
+  {
+   "prompt": "restaurants à Saint-Cloud",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "restaurant",
+      "near": "Saint-Cloud"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "1916 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "restaurant"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 8.3,
+   "answer": "Voici les trois restaurants les plus proches de Saint-Cloud :\n\n1. **Les Frères Dufour**  \n   Rue de l'Église, 92210 Saint-Cloud — à 116 m\n\n2. **Nino**  \n   Rue Royale, 92210 Saint-Cloud — à 155 m\n\n3. **Venise**  \n   Rue Royale, 92210 Saint-Cloud — à 176 m\n\nSouhaitez-vous que je génère une carte avec ces trois lieux ?",
+   "centers": [
+    "Saint-Cloud"
+   ],
+   "placenames": [
+    "Les Frères Dufour",
+    "Nino",
+    "Venise",
+    "Osaka Royal",
+    "Bambou",
+    "EtniKahn",
+    "L'Auberge de la passerelle",
+    "La Vela"
+   ]
+  },
+  {
+   "prompt": "pharmacie de garde à Lyon 3e",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "pharmacy",
+      "near": "Lyon 3e"
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2413 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "pharmacy"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 5,
+   "uses_results": true,
+   "forbidden": false,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 16.1,
+   "answer": "Voici les pharmacies les plus proches du 3e arrondissement de Lyon, avec leurs horaires :\n\n1. **Pharmacie Sainte-Anne** — Rue Paul Bert, 69003 Lyon — 278 m  \n   Mo-Fr 08:30-12:30, 14:30-19:00 ; Sa 09:00-12:30, 14:30-19:00 ; Su, PH off\n\n2. **Pharmacie de Lyon** — Avenue Félix Faure, 69003 Lyon — 333 m  \n   Mo-Fr 08:00-19:00\n\n3. **Pharmacie de l'Isle** — Avenue Félix Faure, 69003 Lyon — 426 m  \n   Mo 14:30-19:00 ; Tu-Fr 08:30-12:00, 14:30-19:00 ; Sa 08:30-12:00\n\n4. **Pharmacie de la Rize** — Rue Paul Bert, 69003 Lyon — 462 m  \n   Mo-Fr 08:30-19:15 ; Sa 09:00-12:30\n\n5. **Pharmacie Lacassagne** — Avenue Lacassagne, 69003 Lyon — 562 m  \n   Mo-Sa 08:30-12:00 ; Mo-Fr 14:30-19:00\n\nPour la pharmacie de garde de nuit ou le dimanche, composez le **3237** ou visitez **3237.fr**.",
+   "centers": [
+    "Lyon 3e Arrondissement"
+   ],
+   "placenames": [
+    "Pharmacie Sainte-Anne",
+    "Pharmacie de Lyon",
+    "Pharmacie de l'Isle",
+    "Pharmacie de la Rize",
+    "Pharmacie Lacassagne",
+    "Pharmacie de la Roseraie",
+    "Pharmacie du Dauphin",
+    "Pharmacie Felix Faure"
+   ]
+  },
+  {
+   "prompt": "Où se situent les 3 meilleures pizzerias de Paris",
+   "tools": [
+    [
+     "find_places",
+     {
+      "query": "pizza les meilleures",
+      "near": "Paris"
+     }
+    ],
+    [
+     "web_search",
+     {
+      "query": "meilleures pizzerias de Paris avis récents",
+      "max_results": 10
+     }
+    ]
+   ],
+   "statuses": [
+    [
+     "find_places",
+     "done",
+     "2131 caractères rendus au modèle"
+    ],
+    [
+     "web_search",
+     "done",
+     "3896 caractères rendus au modèle"
+    ]
+   ],
+   "modes": [
+    "near"
+   ],
+   "titles": [
+    "pizza"
+   ],
+   "n_places": 8,
+   "far": 0,
+   "duplicates": 0,
+   "named": 3,
+   "uses_results": true,
+   "forbidden": true,
+   "crew": [],
+   "forced": false,
+   "chips": [],
+   "seconds": 17.3,
+   "answer": "Je ne peux pas garantir les trois meilleures pizzerias de Paris, car les avis varient et je n'ai pas accès à des données en temps réel. Les lieux les plus proches trouvés sont Pizzeria Luciana, Pizzeria Positano et Arrivederci Pizzeria. Pour un choix fiable, vérifiez les avis récents sur le web.",
+   "centers": [
+    "Paris"
+   ],
+   "placenames": [
+    "Pizzeria Luciana",
+    "Pizzeria Positano",
+    "Arrivederci Pizzeria",
+    "Pizzeria Lovine's",
+    "The Brooklyn Pizzeria",
+    "Antica Pizzeria Da Michele",
+    "Sorrento Pizzeria Napoletana",
+    "Pizzeria Scialla"
+   ]
+  }
  ]
 }
