@@ -781,6 +781,22 @@ ol.cv-list > li::before {
   padding: clamp(24px, 6%, 64px);
   background: var(--t-bg, #fff);
   color: var(--t-ink, #121a2e);
+  /* paper stays light in dark mode: the block tools on it use the light chrome tokens, not the dark theme's ink */
+  color-scheme: light;
+  --ink: #121a2e;
+  --ink-2: #39435c;
+  --muted: #586078;
+  --line: #dddbd1;
+  --line-strong: #bcbab0;
+  --control-line: #80848f;
+  --surface: #fdfcf9;
+  --surface-2: #eceae2;
+  --bg: #f6f5f0;
+  --accent: #1e5bd8;
+  --accent-strong: #174bb5;
+  --accent-ink: #ffffff;
+  --accent-soft: #e2e9f8;
+  --link: #1a50c4;
   border-radius: 6px;
   box-shadow:
     0 1px 2px rgb(18 26 46 / 0.08),
