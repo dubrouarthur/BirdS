@@ -1496,12 +1496,15 @@ def test_installers_open_with_the_ascii_bird():
 
     with TestClient(create_app(settings())) as client:
         sh, ps = client.get("/install.sh").text, client.get("/install.ps1").text
-    art = r"`-.     (o >    .-'"
-    assert art in sh and art in ps and "conçu en France" in sh and "conçu en France" in ps
-    # the banner runs alone: no colour codes when the output is not a terminal (logs, pipes)
+    logo, ascii_art = "▀████▄▄              ▄██", r"`-.     (o >    .-'"
+    assert logo in sh and logo in ps and ascii_art in sh and "conçu en France" in sh and "conçu en France" in ps
+    # the banner runs alone: the logo in a UTF-8 terminal, plain ASCII elsewhere, no colour codes in a pipe
     fn = sh[sh.index("banner() {") : sh.index("\nbanner\n") + len("\nbanner\n")]
-    out = subprocess.run(["sh", "-c", fn], capture_output=True, text=True, check=True).stdout
-    assert art in out and "\033[" not in out and "Sans abonnement" in out
+    run = lambda lang: subprocess.run(["sh", "-c", fn], capture_output=True, text=True, check=True,  # noqa: E731
+                                      env={"PATH": "/usr/bin:/bin", "LANG": lang}).stdout  # fmt: skip
+    utf, plain = run("C.UTF-8"), run("C")
+    assert logo in utf and ascii_art in plain and logo not in plain
+    assert "\033[" not in utf and "Sans abonnement" in utf
     # PowerShell: the art sits in a verbatim here-string (no backtick escapes), closed at the start of a line
     assert "$BirdArt = @'\n" in ps and "\n'@\n" in ps
 
@@ -1532,3 +1535,58 @@ def test_installer_checks_disk_space_before_vllm_and_explains_a_full_disk():
             assert lines[close] in ('"@', "'@"), f"here-string closed at column {len(lines[close]) - len(lines[close].lstrip())}"
     code = "\n".join(line.split("#", 1)[0] if not line.lstrip().startswith(("'", '"', "`")) else "" for line in lines)
     assert code.count("{") == code.count("}")
+
+
+def test_installer_follows_the_model_start_and_names_why_it_stopped(tmp_path):
+    """« bloqué sur Démarrage du modèle depuis 5 min » : the stages vLLM really goes through, read from its log, never
+    backwards; a stop names its cause in words (memory, Hugging Face access, disk, driver)."""
+    import subprocess
+
+    with TestClient(create_app(settings())) as client:
+        sh = client.get("/install.sh").text
+    fns = sh[sh.index("# WSL : le disque") : sh.index("install_failed() {")]
+    log = tmp_path / "vllm.log"
+
+    def run(script: str) -> str:
+        env = {"PATH": "/usr/bin:/bin", "LOGS": str(tmp_path)}
+        return subprocess.run(["sh", "-c", fns + script], capture_output=True, text=True, env=env).stdout.strip()
+
+    steps = [("", "5|Démarrage"), ("Fetching 6 files: 40%", "15|Téléchargement"),
+             ("INFO Starting to load model x", "45|Chargement"), ("INFO Loading weights took 2.1 s", "62|"),
+             ("INFO # GPU blocks: 9000", "72|"), ("INFO Capturing CUDA graph shapes", "85|"),
+             ("INFO Application startup complete.", "97|")]  # fmt: skip
+    text = ""
+    for line, want in steps:
+        text += line + "\n"
+        log.write_text(text)
+        assert run(f'stage "{log}"').startswith(want), (line, want)
+    for line, words in [("torch.OutOfMemoryError: CUDA out of memory", "mémoire de la carte"),
+                        ("401 Client Error. Access to model adubrou/Bird-S-4B is restricted", "Hugging Face"),
+                        ("OSError: [Errno 28] No space left on device", "disque plein"),
+                        ("RuntimeError: No CUDA GPUs are available", "pilote NVIDIA")]:  # fmt: skip
+        log.write_text("INFO x\n" + line + "\n")
+        assert words in run("vllm_reason"), line
+    out = run('bar 45 "Chargement sur la carte graphique" 75')
+    assert "45 %" in out and "1 min 15 s" in out and "\033[" not in out and "█" in out and "░" in out
+
+
+def test_installer_sizes_vllm_to_the_graphics_card(tmp_path):
+    """« le modèle utilise bien l'accélération du GPU ? » : the card is read with nvidia-smi (WSL path too); 8 Go loads
+    the weights in 8 bits, 12 Go shortens the context, no card installs no vLLM; energy is measured on the card."""
+    import subprocess
+
+    with TestClient(create_app(settings())) as client:
+        sh = client.get("/install.sh").text
+    fns = sh[sh.index("# gpu_detect") : sh.index("# ---- la barre")]
+    fake = tmp_path / "nvidia-smi"
+    fake.write_text('#!/bin/sh\necho "NVIDIA GeForce RTX 4060, 8188"\n')
+    fake.chmod(0o755)
+    out = subprocess.run(["sh", "-c", fns + 'gpu_detect; echo "$GPU_NAME|$GPU_MB"'], capture_output=True, text=True,
+                         env={"PATH": f"{tmp_path}:/usr/bin:/bin"}).stdout.strip()  # fmt: skip
+    assert out == "NVIDIA GeForce RTX 4060|8188"
+    none = subprocess.run(["sh", "-c", fns + 'gpu_detect; echo "[$GPU_NAME]"'], capture_output=True, text=True,
+                          env={"PATH": "/usr/bin:/bin"}).stdout.strip()  # fmt: skip
+    assert none == "[]"
+    assert '"$GPU_MB" -lt 11000' in sh and "--quantization fp8 --max-model-len 8192" in sh
+    assert "/usr/lib/wsl/lib/nvidia-smi" in sh and "--measure-gpu" in sh
+    assert "Aucune carte graphique NVIDIA détectée" in sh and "Accélération graphique active" in sh

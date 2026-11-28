@@ -11,6 +11,19 @@ La page qui s'ouvre (http://127.0.0.1:8765) marche tout de suite, **sans code**.
 bird-s.vercel.app, ouvrez le lien que la commande affiche (« Depuis bird-s.vercel.app, ouvrez : … ») : il est déjà
 appairé, rien à taper.
 
+**Carte graphique.** vLLM sert le modèle sur la carte NVIDIA (CUDA ; sous WSL, via le pilote NVIDIA de Windows, rien
+à installer de plus). Le script lit la carte (`nvidia-smi`) et règle vLLM sur sa mémoire : 8 Go → poids en 8 bits
+(`--quantization fp8`) et contexte de 8 192 jetons, 12 à 16 Go → contexte de 16 384, au-delà → réglages par défaut ;
+moins de 6 Go → il le dit et propose un serveur existant. Sans carte NVIDIA, il n'installe pas vLLM (qui ne
+démarrerait pas) et se branche sur LM Studio ou Ollama s'ils tournent. Une fois le modèle prêt, il vérifie que la
+mémoire de la carte est bien occupée (« Accélération graphique active ») et lance Bird avec `--measure-gpu` :
+l'empreinte de chaque réponse est mesurée sur votre carte.
+
+**Suivi du démarrage.** Environ 25 Go libres sont vérifiés avant tout téléchargement. Le modèle (~8 Go) se télécharge
+une seule fois, avec sa barre de progression, puis une barre suit les étapes réelles de vLLM lues dans son journal
+(chargement sur la carte, réservation de la mémoire, optimisation, ouverture). Un arrêt est expliqué en une phrase
+(mémoire de la carte, accès Hugging Face, disque plein, pilote). Journal : `~/.bird/logs/vllm.log`.
+
 Bird est léger : son modèle s'installe où vous voulez, y compris sur votre propre machine. **Bird local** fait tourner
 le harnais complet de Bird (routage, outils, modules, empreinte) chez vous, devant votre serveur vLLM, et vous l'utilisez
 soit depuis le chat hébergé (https://bird-s.vercel.app), soit directement dans votre navigateur
