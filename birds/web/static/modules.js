@@ -86,6 +86,17 @@ const FR = {
   "mod.tf.table": "En tableau",
   "mod.tf.list": "En liste",
   "mod.gloss": "Définition",
+  "mod.pc.pros": "Avantages",
+  "mod.pc.cons": "Inconvénients",
+  "mod.pc.user": "D'après vos points.",
+  "mod.fig.user": "D'après vos chiffres, tels que vous les avez écrits.",
+  "mod.gl.user": "D'après vos définitions.",
+  "mod.gl.filter": "Filtrer les termes",
+  "mod.gl.none": "Aucun terme ne correspond.",
+  "mod.sc.note": "Pages lues par Bird pour cette réponse.",
+  "mod.sc.open": "Ouvrir",
+  "mod.sc.cite": "Copier la référence",
+  "mod.sc.public": "Source publique",
 };
 const EN = {
   "mod.research.title": "Deep research",
@@ -154,6 +165,17 @@ const EN = {
   "mod.tf.table": "As a table",
   "mod.tf.list": "As a list",
   "mod.gloss": "Definition",
+  "mod.pc.pros": "Pros",
+  "mod.pc.cons": "Cons",
+  "mod.pc.user": "From your points.",
+  "mod.fig.user": "From your figures, as you wrote them.",
+  "mod.gl.user": "From your definitions.",
+  "mod.gl.filter": "Filter the terms",
+  "mod.gl.none": "No term matches.",
+  "mod.sc.note": "Pages Bird read for this answer.",
+  "mod.sc.open": "Open",
+  "mod.sc.cite": "Copy the reference",
+  "mod.sc.public": "Public source",
 };
 for (const [k, v] of Object.entries(FR)) STRINGS.fr[k] ??= v;
 for (const [k, v] of Object.entries(EN)) STRINGS.en[k] ??= v;
@@ -1337,7 +1359,119 @@ function renderChecklist(w, turn) {
 
 // ------------------------------------------------------------------ registry
 
+// ------------------------------------------------------------------ pros and cons, key figures, glossary, sources
+
+function renderProsCons(w) {
+  const col = (cls, label, items, mark) =>
+    h(
+      "div",
+      { class: `pc-col ${cls}` },
+      h("h4", { class: "pc-h" }, h("span", { class: "pc-mark", "aria-hidden": "true", text: mark }), label),
+      h("ul", { class: "pc-list" }, (items || []).map((x) => h("li", { text: String(x) }))),
+    );
+  if (!(w.pros || []).length || !(w.cons || []).length) return null;
+  return card(
+    "mod-proscons",
+    w.title || t("mod.pc.pros"),
+    "swap",
+    h("div", { class: "pc-grid" }, col("is-pro", t("mod.pc.pros"), w.pros, "+"), col("is-con", t("mod.pc.cons"), w.cons, "−")),
+    h("p", { class: "widget-source", text: t("mod.pc.user") }),
+  );
+}
+
+function renderFigures(w) {
+  const items = (w.items || []).filter((x) => x?.label && x?.value);
+  if (items.length < 2) return null;
+  return card(
+    "mod-figures",
+    w.title || "",
+    "make_chart",
+    h(
+      "ul",
+      { class: "fg-grid" },
+      items.map((x) =>
+        h("li", { class: "fg-tile" }, h("span", { class: "fg-v num", text: String(x.value) }), h("span", { class: "fg-l", text: String(x.label) })),
+      ),
+    ),
+    h("p", { class: "widget-source", text: t("mod.fig.user") }),
+  );
+}
+
+function renderGlossary(w) {
+  const items = (w.items || []).filter((x) => x?.term && x?.def);
+  if (items.length < 2) return null;
+  const rows = items.map((x) =>
+    h("div", { class: "gl-row", "data-term": String(x.term).toLowerCase() }, h("dt", { text: String(x.term) }), h("dd", { text: String(x.def) })),
+  );
+  const none = h("p", { class: "muted gl-none", hidden: true, text: t("mod.gl.none") });
+  const filter =
+    items.length > 6 &&
+    h("input", {
+      class: "gl-filter",
+      type: "search",
+      placeholder: t("mod.gl.filter"),
+      "aria-label": t("mod.gl.filter"),
+      oninput: (e) => {
+        const q = e.target.value.trim().toLowerCase();
+        let shown = 0;
+        for (const r of rows) {
+          const on = !q || r.dataset.term.includes(q) || r.textContent.toLowerCase().includes(q);
+          r.hidden = !on;
+          shown += on ? 1 : 0;
+        }
+        none.hidden = shown > 0;
+      },
+    });
+  return card("mod-glossary", w.title || t("mod.gloss"), "read_file", filter, h("dl", { class: "gl-list" }, rows), none, h("p", { class: "widget-source", text: t("mod.gl.user") }));
+}
+
+function renderSourceCards(w, turn) {
+  const sources = (turn?.answer?.sources || []).filter((s) => s?.url);
+  if (!sources.length) return null;
+  return card(
+    "mod-sourcecards",
+    w.title || t("sources.title"),
+    "read_page",
+    h(
+      "ol",
+      { class: "sc-grid" },
+      sources.slice(0, 12).map((s) => {
+        const url = safeUrl(s.url);
+        const domain = String(s.domain || "");
+        const n = Number(s.n) || 0;
+        return h(
+          "li",
+          { class: "sc-card", id: `src-${turn.id}-${n}`, tabindex: "-1" },
+          h(
+            "div",
+            { class: "sc-head" },
+            h("span", { class: "source-n num", text: String(n || "") }),
+            h("span", { class: `source-mono mono-${monoHue(domain || s.title)}`, "aria-hidden": "true", text: (domain || "?")[0].toUpperCase() }),
+            h("span", { class: "sc-d", text: domain }),
+            s.kind === "gov" && h("span", { class: "badge badge-gov", text: t("mod.sc.public") }),
+          ),
+          url
+            ? h("a", { class: "sc-t", href: url, target: "_blank", rel: "noopener noreferrer", referrerpolicy: "no-referrer", text: String(s.title || url) })
+            : h("span", { class: "sc-t", text: String(s.title || "") }),
+          s.snippet && h("p", { class: "sc-snip", text: String(s.snippet) }),
+          h(
+            "div",
+            { class: "sc-foot" },
+            s.date && h("span", { class: "muted num", text: String(s.date) }),
+            button("btn-quiet btn-small", "copy", t("mod.sc.cite"), () => copyText(`${s.title || domain} — ${s.url}`, t("mod.copied")), { "data-act": "sc-cite" }),
+          ),
+        );
+      }),
+    ),
+    h("p", { class: "widget-source", text: t("mod.sc.note") }),
+  );
+}
+
 export const MODULES = {
+  proscons: renderProsCons,
+  figures: renderFigures,
+  glossary: renderGlossary,
+  sourcecards: renderSourceCards,
   research: renderResearch,
   graph: renderGraph,
   timeline: renderTimeline,
@@ -1348,6 +1482,12 @@ export const MODULES = {
 
 /** The module as plain text (copy) or Markdown (export). */
 export function moduleText(w, turn, markdown = false) {
+  if (w.type === "proscons")
+    return [`${t("mod.pc.pros")} :`, ...(w.pros || []).map((x) => `+ ${x}`), `${t("mod.pc.cons")} :`, ...(w.cons || []).map((x) => `- ${x}`)].join("\n");
+  if (w.type === "figures") return (w.items || []).map((x) => `${x.label} : ${x.value}`).join("\n");
+  if (w.type === "glossary") return (w.items || []).map((x) => `${x.term} : ${x.def}`).join("\n");
+  if (w.type === "sourcecards")
+    return (turn?.answer?.sources || []).map((s) => `[${s.n}] ${s.title || ""} — ${s.url}`).join("\n");
   if (w.type === "calc")
     return [
       w.title,

@@ -517,6 +517,60 @@ def images(rng):
         )
 
 
+def cards(rng):
+    """The small modules (« card »): a positive only when the words hold the data; the same asks without data, and
+    questions about the topic, are negatives (nothing to build, the model answers)."""
+    def card(kind):
+        return _lab([_m("card", kind=kind)])
+
+    events = [("2015", "création à Lyon"), ("2017", "premier salarié"), ("2018", "premier client export"),
+              ("2021", "levée de fonds"), ("2023", "ouverture de Lille"), ("2024", "rachat d'un concurrent")]  # fmt: skip
+    for _ in range(6):
+        ev = sorted(rng.sample(events, rng.choice([3, 4])))
+        items = ", ".join(f"{y} {t}" for y, t in ev)
+        for tid, t in (("cd1", f"fais une frise chronologique : {items}"), ("cd2", f"frise : {items}"),
+                       ("cd3", f"mets ces dates sur une chronologie : {items}")):  # fmt: skip
+            yield tid, "fr", t, None, card("timeline")
+    for _ in range(3):
+        yield "cde1", "en", "make a timeline: 2016 founded, 2019 first export, 2023 Series A", None, card("timeline")
+    offers = [("Alpha", 120, 4), ("Beta", 95, 8), ("Gamma", 140, 2), ("Delta", 110, 6)]
+    for k in (2, 3, 4):
+        rows = "\n".join(f"| {a} | {p} € | {d} h |" for a, p, d in rng.sample(offers, k))
+        t = f"compare ces offres :\n| Offre | Prix | Délai |\n|---|---|---|\n{rows}"
+        yield "cd4", "fr", t, None, card("matrix")
+    tasks = ["appeler le fournisseur", "envoyer le devis", "relancer Paul", "réserver la salle", "commander le traiteur",
+             "mettre à jour le planning"]  # fmt: skip
+    for _ in range(6):
+        pick = rng.sample(tasks, rng.choice([3, 4]))
+        yield "cd5", "fr", "transforme en liste de tâches :\n" + "\n".join(f"- {x}" for x in pick), None, card("tasks")
+        yield "cd6", "fr", "fais une checklist : " + ", ".join(pick), None, card("tasks")
+    for topic, pros, cons in (("télétravail", ["moins de trajets", "plus de calme"], ["isolement", "réunions longues"]),
+                              ("la voiture électrique", ["silence", "coût au km"], ["prix d'achat", "autonomie"]),
+                              ("un CRM", ["suivi des clients", "relances"], ["coût", "formation"])):  # fmt: skip
+        t = f"pour et contre de {topic} : pour : {', '.join(pros)} ; contre : {', '.join(cons)}"
+        yield "cd7", "fr", t, None, card("proscons")
+        yield "cd8", "fr", f"avantages et inconvénients de {topic} : avantages : {', '.join(pros)} ; inconvénients : " \
+            f"{', '.join(cons)}", None, card("proscons")
+        yield "ng18", "fr", f"quels sont les avantages et inconvénients de {topic} ?", None, _lab()
+    for ca, mg, n in (("1,2 M€", "18 %", "45"), ("3,4 M€", "9 %", "120"), ("850 k€", "22 %", "12")):
+        yield "cd9", "fr", f"fais une fiche de chiffres clés : CA 2025 : {ca} ; marge : {mg} ; effectif : {n}", None, \
+            card("figures")
+        yield "cde2", "en", f"key figures: revenue: {ca}; margin: {mg}; headcount: {n}", None, card("figures")
+    yield "ng19", "fr", "quels sont les chiffres clés du marché du vélo en France ?", None, _lab(web=True, agent="auto")
+    yield "cd10", "fr", ("fais un glossaire :\nRGPD : règlement général sur la protection des données\nDPO : délégué à "
+                         "la protection des données\nCNIL : Commission nationale de l'informatique et des libertés"), \
+        None, card("glossary")
+    yield "ng20", "fr", "fais un glossaire du RGPD", None, _lab()
+    yield "ng20", "fr", "fais une frise de l'histoire de France", None, _lab()
+    for amount in ("1 200", "3 450", "980"):
+        yield "cd11", "fr", f"combien font 17 % de {amount} € ?", None, card("calc")
+        yield "cd12", "fr", f"prix TTC de {amount} € HT avec une TVA à 20 %", None, card("calc")
+    for p, y, r in (("200 000", 20, "3,5"), ("150 000", 15, "3,2"), ("300 000", 25, "3,9")):
+        yield "cd13", "fr", f"mensualité d'un prêt de {p} € sur {y} ans à {r} %", None, card("calc")
+    for t in ("donne-moi les sources de ta réponse", "montre-moi tes sources", "cite tes sources"):
+        yield "cd14", "fr", t, None, card("sources")
+
+
 def office(rng):
     for topic in TOPICS:
         n = rng.choice([3, 4, 5, 6, 8])
@@ -591,7 +645,7 @@ NEG_FR = [  # (template id, text, office kind or "", needs_web, agent)
     ("ng15", "Bonjour", "", False, "off"), ("ng15", "merci, c'est parfait !", "", False, "off"),
     ("ng15", "traduis ce texte en anglais", "", False, "off"), ("ng15", "résume ce document en 5 points", "", False, "off"),
     ("ng15", "écris une fonction Python qui trie une liste", "", False, "off"),
-    ("ng15", "Combien font 17 % de 3 450 € ?", "", False, "off"), ("ng15", "Explique la différence entre CDD et CDI", "", False, "off"),
+    ("ng15", "Explique la différence entre CDD et CDI", "", False, "off"),
     ("ng16", "c'est quoi un histogramme ?", "", False, "off"), ("ng16", "comment faire un graphique dans Excel ?", "", False, "off"),
     ("ng16", "quel graphique choisir pour montrer une répartition ?", "", False, "off"),
     ("ng17", "quelles sont les tendances du marketing digital en 2026 ?", "", True, "auto"),
@@ -774,6 +828,7 @@ FAMILIES = (
     charts,
     images,
     office,
+    cards,
     negatives,
     false_triggers,
     followups,
@@ -855,7 +910,7 @@ def native_record(text, lang, history, label, rid: str) -> dict | None:
 
 # share of the positive router records per family (the rest of the budget goes to negatives)
 FAMILY_SHARE = {"weather": 0.09, "places": 0.10, "company": 0.05, "fx": 0.08, "clock_items": 0.07, "events": 0.05,
-                "charts": 0.04, "images": 0.04, "office": 0.06, "followups": 0.06}  # fmt: skip
+                "charts": 0.04, "images": 0.04, "office": 0.06, "followups": 0.06, "cards": 0.05}  # fmt: skip
 
 
 def _negative(label: dict) -> bool:

@@ -186,11 +186,8 @@ def build_widgets(steps, request_text: str, lang: str, now: datetime, secret: by
         if hint:
             ev["weather"] = hint
         out.append(ev)
-    # small modules of the user's own message: timeline, comparison matrix, checklist (birds.harness.modules)
-    from birds.harness.modules import from_words
-
-    have = {w.get("type") for w in out}
-    out += [w for w in from_words(request_text, lang) if w["type"] not in have]
+    # the small modules of the user's own data are built by the agent (« card », decided by the router):
+    # they arrive in ``extra`` like the calculator
     kept, total = [], 0
     for w in out:  # caps of the history: each widget <= 8 KB (a list of places 16 KB), all <= 32 KB
         cap = MAX_LIST_BYTES if w.get("type") == "places" and w.get("mode") == "list" else MAX_WIDGET_BYTES

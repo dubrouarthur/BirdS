@@ -22,9 +22,12 @@ from dataclasses import dataclass, field
 # kind of execution, for the harness hook (router.Plan) and for the docs
 PREFILL = "prefill"  # a tool the harness calls itself before the first generation (same path as a model call)
 CARD = "card"  # a card the harness computes from the user's words, no tool (clock, event, pictures, chart)
-HINT = "hint"  # no call: only steers which trained tools are offered (office files, research, data, calculator)
+HINT = "hint"  # no call: only steers which trained tools are offered (office files, research, data)
 
 AGENT_MODES = ("off", "auto", "on")
+# the small modules of one « card » (birds.harness.modules.card): the harness builds it from the user's own data
+# (or the run's sources), never from the model's text; no data, no card
+CARD_KINDS = ("matrix", "proscons", "timeline", "figures", "tasks", "calc", "sources", "glossary")
 MAX_MODULES = 2  # like intents.detect: at most one prefilled call plus one offered tool
 MAX_STR = 80  # every string argument (a place, a company, a subject): longer is not a name, it is a paste
 
@@ -147,12 +150,15 @@ MODULES: tuple[Module, ...] = (
         available=False,  # run_python is off by default; enabled by router.available_modules(cfg)
     ),
     Module(
-        "calculator", HINT, "calc",
-        "calcul exact (pourcentages, TVA, sommes)",
-        "exact calculation (percentages, VAT, sums)",
-        {"expression": Arg("str", True, fr="expression", en="expression")},
-        (("combien font 17 % de 3 450 € ?", {"expression": "3450*0.17"}),),
-        available=False,  # no calculator tool in this build: described for the training data only
+        "card", CARD, "cards",
+        "fiche faite de ses données (comparatif, frise, tâches, calcul exact…)",
+        "card made of their data (comparison, timeline, tasks, exact calculation…)",
+        {"kind": Arg("enum", True, choices=CARD_KINDS, fr="type", en="kind")},
+        (("frise : 2019 création, 2022 export", {"kind": "timeline"}),
+         ("mensualité d'un prêt de 200 000 € sur 20 ans à 3,5 %", {"kind": "calc"}),
+         ("transforme en liste de tâches : appeler Paul, envoyer le devis, réserver la salle", {"kind": "tasks"}),
+         ("pour et contre du télétravail : pour : moins de trajets ; contre : isolement", {"kind": "proscons"}),
+         ("donne-moi les sources de ta réponse", {"kind": "sources"})),
     ),
 )  # fmt: skip
 

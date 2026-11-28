@@ -117,6 +117,8 @@ def items() -> list[dict]:
         tool = _REALISTIC.get(fam, fam)
         out.append(_item("realistic", q, "yes", [tool], {"tool": tool, "args": {}}))
     out += [_item("realistic", q, "no", RICH) for q in B.OFFICE_NO]
+    out += [_item("cards", q, "yes", ["card"], {"tool": "card", "args": {"kind": k}}) for q, k in B.CARD_YES]
+    out += [_item("cards", q, "no", ["card"]) for q in B.CARD_NO]
     out += [_item("pasted", q, "yes", [t], {"tool": t, "args": {}}) for q, t in PASTED_YES]
     out += [_item("pasted", q, "no", RICH) for q in PASTED_NO]
     for fam, yes, no in (("agent", B.AGENT_YES, B.AGENT_NO), ("office_agent", B.OFFICE_AGENT_YES, B.OFFICE_AGENT_NO),

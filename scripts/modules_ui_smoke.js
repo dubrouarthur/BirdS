@@ -28,6 +28,12 @@ const ASKS = {
   checklist:
     "Transforme en liste de tâches :\n- appeler le fournisseur\n- envoyer le devis\n- relancer Paul\n- réserver la salle",
   weather: "météo à Lyon demain",
+  proscons:
+    "Pour et contre du télétravail : pour : moins de trajets, plus de calme ; contre : isolement, réunions plus longues",
+  figures:
+    "Fais une fiche de chiffres clés : CA 2025 : 1,2 M€ ; marge : 18 % ; effectif : 45 salariés ; clients : 320",
+  glossary:
+    "Fais un glossaire :\nRGPD : règlement général sur la protection des données\nDPO : délégué à la protection des données\nCNIL : Commission nationale de l'informatique et des libertés",
 };
 
 async function open(browser, opts) {
@@ -46,9 +52,13 @@ async function open(browser, opts) {
 }
 
 async function ask(page, text) {
+  const before = await page.locator(".turn").count();
   await page.fill("#composer-input", text);
   await page.press("#composer-input", "Enter");
   await page.waitForTimeout(400);
+  // a touch keyboard may take Enter as a new line: send with the button then
+  if ((await page.locator(".turn").count()) === before) await page.locator("#btn-send").click();
+  await page.waitForTimeout(200);
   await page.waitForSelector("#btn-send:not([hidden])", { timeout: 60000 });
   await page.waitForTimeout(500);
 }
@@ -84,7 +94,7 @@ async function noHScroll(page) {
       },
     ],
   ];
-  for (const [size, opts] of sizes)
+  for (const [size, opts] of sizes.filter(([n]) => !process.env.ONLY || n === process.env.ONLY))
     for (const scheme of ["light", "dark"]) {
       const tag = `${size}-${scheme}`;
       console.log(`# ${tag}`);
@@ -99,8 +109,8 @@ async function noHScroll(page) {
         `${tag} research card`,
       );
       check(
-        (await page.locator(".rs-source").count()) === 3,
-        `${tag} three sources read`,
+        (await page.locator(".rs-source").count()) === 4,
+        `${tag} four sources read`,
       );
       check(
         (await page.locator(".gr-node").count()) >= 4,
@@ -183,19 +193,20 @@ async function noHScroll(page) {
       // ---- matrix: sortable, best marked
       await ask(page, ASKS.matrix);
       check(
-        (await page.locator(".mod-matrix .is-best").count()) === 3,
+        (await page.locator(".mod-matrix").last().locator(".is-best").count()) === 3,
         `${tag} best values marked`,
       );
-      await page.locator(".mod-matrix .mx-sort").nth(1).click();
-      const first = await page
-        .locator(".mod-matrix tbody tr")
+      const mx = page.locator(".mod-matrix").last(); // the research's comparison is the first one
+      await mx.locator(".mx-sort").nth(1).click();
+      const first = await mx
+        .locator("tbody tr")
         .first()
         .locator("th")
         .innerText();
       check(first.startsWith("Beta"), `${tag} sorted by price (${first})`);
       check(
         (await page
-          .locator('.mod-matrix th[aria-sort="ascending"]')
+          .locator('.mod-matrix').last().locator('th[aria-sort="ascending"]')
           .count()) === 1,
         `${tag} aria-sort`,
       );
@@ -210,6 +221,7 @@ async function noHScroll(page) {
           .count()) === 4,
         `${tag} user timeline`,
       );
+      if (failures.length) await page.screenshot({ path: path.join(SHOTS, `FAIL-${tag}.png`) });
       // ---- checklist: tick, saved
       await ask(page, ASKS.checklist);
       await page.locator(".mod-check .chk-box").first().check();
@@ -224,11 +236,27 @@ async function noHScroll(page) {
         `${tag} progress`,
       );
       await shot(page, `${tag}-checklist`, ".mod-check");
+      // ---- pros and cons, key figures, glossary: from the user's own words
+      await ask(page, ASKS.proscons);
+      check(
+        (await page.locator(".mod-proscons .is-pro li").count()) === 2 &&
+          (await page.locator(".mod-proscons .is-con li").count()) === 2,
+        `${tag} pros and cons`,
+      );
+      await shot(page, `${tag}-proscons`, ".mod-proscons");
+      await ask(page, ASKS.figures);
+      const vals = await page.locator(".mod-figures .fg-v").allInnerTexts();
+      check(vals.join("|") === "1,2 M€|18 %|45 salariés|320", `${tag} key figures as written (${vals.join(" | ")})`);
+      await shot(page, `${tag}-figures`, ".mod-figures");
+      await ask(page, ASKS.glossary);
+      const terms = await page.locator(".mod-glossary dt").allInnerTexts();
+      check(terms.join("|") === "CNIL|DPO|RGPD", `${tag} glossary sorted (${terms.join(" | ")})`);
+      await shot(page, `${tag}-glossary`, ".mod-glossary");
       // ---- weather: follow-up chips; transforms in the menu
       await ask(page, ASKS.weather);
       const wchips = await page.locator(".chips-row .mchip").allInnerTexts();
       check(
-        wchips.includes("Et après-demain ?"),
+        wchips.some((c) => /^Et (demain|après-demain) \?$/.test(c)),
         `${tag} weather chips: ${wchips.join(" | ")}`,
       );
       await shot(

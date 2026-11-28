@@ -1026,11 +1026,22 @@ class Agent:
                 # network); the model only puts them in a sentence
                 routed |= {"web_search", "read_page"}
                 messages[-1]["content"] += CLOCK_NOTE["en" if run.lang == "en" else "fr"].format(facts=facts)
+            # the small modules (« card »): the kinds the router decided, or the parsers' guess when it is off; each
+            # card is built from the user's own data only (birds.harness.modules), none when the data is missing
+            kinds = plan.cards()
+            cards_on = getattr(cfg, "widgets", True) and not attached and not prefill
             sums = (
                 ""
-                if prefill or facts or attached or not getattr(cfg, "widgets", True) or not plan.allows("calculator")
+                if not cards_on or facts or (kinds is not None and "calc" not in kinds)
                 else self._calc(req, run.lang, ctx)
             )
+            if cards_on:
+                from birds.harness import modules as small
+
+                have = {w.get("type") for w in ctx.widgets}
+                ctx.widgets += [w for w in small.cards(req, run.lang, [k for k in kinds if k not in ("calc", "sources")]
+                                                       if kinds is not None else None) if w["type"] not in have]  # fmt: skip
+                ctx.want_sources = "sources" in (kinds if kinds is not None else small.asked_kinds(req))
             if sums:
                 # « mensualité d'un prêt de 200 000 € sur 20 ans à 3,5 % »: the harness computes exactly (calc.py);
                 # the model only puts the results in a sentence (a 4B model gets compound interest wrong)
@@ -1474,6 +1485,12 @@ class Agent:
             run.answer = content or FALLBACK[run.lang]
         run.messages, run.sources, run.drafts, run.files = messages, ctx.sources, ctx.drafts, ctx.files
         run.charts, run.images, run.widgets = ctx.charts, ctx.images, ctx.widgets
+        if getattr(ctx, "want_sources", False):  # « donne-moi tes sources »: the pages read, as cards
+            from birds.harness import modules as small
+
+            got = small.source_cards(run.sources, run.lang)
+            if got:
+                run.widgets.append(got)
         run.report = meter.report(
             run.usage,
             wall_seconds=time.monotonic() - t0,

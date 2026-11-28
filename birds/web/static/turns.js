@@ -448,6 +448,8 @@ function monoHue(domain) {
 function renderSources(turn) {
   const sources = turn.answer?.sources || [];
   if (!sources.length) return null;
+  // « donne-moi tes sources »: the source cards module shows them (modules.js), with the same anchors
+  if ((turn.answer?.widgets || []).some((w) => w?.type === "sourcecards")) return null;
   return h(
     "section",
     { class: "sources", "aria-label": t("sources.title") },

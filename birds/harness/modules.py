@@ -225,16 +225,174 @@ def from_words(text: str, lang: str = "fr") -> list[dict]:
             if w:
                 out.append(w)
     if _CHECK_ASK.search(head):
-        items = []
-        for ln in words.splitlines()[1:] if "\n" in words else []:
-            m = _ITEM.match(ln)
-            if m:
-                items.append({"text": re.sub(r"^\[[ xX]?\]\s*", "", m["t"]).strip(), "done": bool(_DONE.match(ln))})
-        if not items:
-            m = re.search(r":\s*(.+)$", words.split("\n")[0])
-            parts = [p.strip(" .") for p in re.split(r"[;,]\s*|\s+(?:et|puis|and)\s+", m.group(1))] if m else []
-            items = [{"text": p} for p in parts if len(p) > 2]
-        w = checklist(items, title="Liste de tâches" if lang != "en" else "Task list", origin="user", lang=lang)
+        w = _tasks(words, lang)
         if w:
             out.append(w)
     return out
+
+
+def _tasks(words: str, lang: str) -> dict | None:
+    items = []
+    for ln in words.splitlines()[1:] if "\n" in words else []:
+        m = _ITEM.match(ln)
+        if m:
+            items.append({"text": re.sub(r"^\[[ xX]?\]\s*", "", m["t"]).strip(), "done": bool(_DONE.match(ln))})
+    if not items:
+        m = re.search(r":\s*(.+)$", words.split("\n")[0])
+        parts = [p.strip(" .") for p in re.split(r"[;,]\s*|\s+(?:et|puis|and)\s+", m.group(1))] if m else []
+        items = [{"text": p} for p in parts if len(p) > 2]
+    return checklist(items, title="Liste de tâches" if lang != "en" else "Task list", origin="user", lang=lang)
+
+
+# ------------------------------------------------------------------ pros and cons, key figures, glossary
+
+_PROS = re.compile(r"\b(?:avantages?|points? forts?|pour|atouts?|pros?|advantages?|upsides?|strengths?)\s*:", re.I)
+_CONS = re.compile(r"\b(?:inconv[ée]nients?|points? faibles?|contre|limites?|risques?|cons|disadvantages?|downsides?|"
+                   r"weaknesses?)\s*:", re.I)  # fmt: skip
+_PROSCONS_ASK = re.compile(r"\b(?:avantages?\s+et\s+inconv[ée]nients?|pour\s+et\s+(?:le\s+)?contre|pros?\s+(?:and|&)\s+"
+                           r"cons|points? forts? et (?:points? )?faibles?|forces et faiblesses)\b", re.I)  # fmt: skip
+_FIGURES_ASK = re.compile(r"\b(?:chiffres?[- ]cl[ée]s|indicateurs? cl[ée]s|kpis?|key figures|key metrics|tableau de "
+                          r"bord|fiche (?:de )?chiffres)\b", re.I)  # fmt: skip
+_GLOSSARY_ASK = re.compile(r"\b(?:glossaire|lexique|glossary|d[ée]finitions? des termes|vocabulaire)\b", re.I)
+
+
+def _items_of(text: str) -> list[str]:
+    """« a ; b ; c », « a, b et c » or one per line (bullets) -> the items."""
+    lines = [m["t"].strip(" .;") for ln in text.splitlines() if (m := _ITEM.match(ln))]
+    if len(lines) >= 1 and "\n" in text.strip():
+        return [x for x in lines if len(x) > 2][:10]
+    parts = re.split(r"\s*[;•]\s*|,\s*(?![^()]*\))|\s+(?:et|and)\s+(?=\S+\s)", text)
+    return [p.strip(" .") for p in parts if len(p.strip(" .")) > 2][:10]
+
+
+def proscons_from_text(text: str, lang: str = "fr") -> dict | None:
+    """« avantages : a, b ; inconvénients : c » (or « pour : … contre : … », or lines + / -): the user's points."""
+    words = str(text or "")
+    pro, con = _PROS.search(words), _CONS.search(words)
+    pros, cons = [], []
+    if pro and con:
+        if pro.start() < con.start():
+            pros, cons = _items_of(words[pro.end() : con.start()]), _items_of(words[con.end() :])
+        else:
+            cons, pros = _items_of(words[con.end() : pro.start()]), _items_of(words[pro.end() :])
+    else:
+        for ln in words.splitlines():
+            m = re.match(r"^\s*([+\-–])\s+(.{3,200})$", ln)
+            if m:
+                (pros if m.group(1) == "+" else cons).append(m.group(2).strip(" ."))
+    if not pros or not cons:
+        return None
+    fr = lang != "en"
+    w = {"type": "proscons", "v": 1, "title": "Avantages et inconvénients" if fr else "Pros and cons",
+         "pros": [p[:160] for p in pros[:8]], "cons": [c[:160] for c in cons[:8]], "origin": "user"}  # fmt: skip
+    return w if _size(w) <= CARD_BYTES else None
+
+
+_FIG_PAIR = re.compile(
+    r"(?P<label>[A-Za-zÀ-ÿ][\wÀ-ÿ'’ ./-]{1,50}?)\s*(?::|=|—|–)\s*(?P<value>[-+]?\d[\d   .,]*\s?(?:%|‰|€|\$|£|k€|M€|"
+    r"Md€|[A-Za-zÀ-ÿ€$%]{0,12})(?:\s?(?:HT|TTC|par an|/an|/mois|par mois))?)",
+)
+
+
+def figures_from_text(text: str, lang: str = "fr") -> dict | None:
+    """« CA 2025 : 1,2 M€ ; marge : 18 % ; effectif : 45 »: each label and value as the user wrote them."""
+    words = str(text or "")
+    head = words.split(":", 1)
+    body = head[1] if len(head) == 2 and _FIGURES_ASK.search(head[0]) else words
+    items, seen = [], set()
+    for m in _FIG_PAIR.finditer(body):
+        label = " ".join(m["label"].split()).strip(" .-")
+        label = re.sub(r"^(?:et|and|puis|avec)\s+", "", label, flags=re.I)
+        value = " ".join(m["value"].split()).strip(" ,.")
+        if len(label) < 2 or cc.fold(label) in seen or _FIGURES_ASK.fullmatch(label):
+            continue
+        seen.add(cc.fold(label))
+        items.append({"label": label[:60], "value": value[:30]})
+    if len(items) < 2:
+        return None
+    w = {"type": "figures", "v": 1, "title": "Chiffres clés" if lang != "en" else "Key figures", "items": items[:8],
+         "origin": "user"}  # fmt: skip
+    return w if _size(w) <= CARD_BYTES else None
+
+
+def glossary_from_text(text: str, lang: str = "fr") -> dict | None:
+    """« RGPD : règlement général sur la protection des données » one per line (or « ; »): the user's own terms."""
+    words = str(text or "")
+    lines = [ln for ln in words.splitlines()[1:] if ln.strip()] if "\n" in words else re.split(r"\s*;\s*", words)
+    items = []
+    for ln in lines:
+        m = re.match(r"^\s*(?:[-*•–]\s*)?(?P<term>[^:=—–\n]{1,40}?)\s*(?::|=|—|–)\s*(?P<def>.{4,240})$", ln.strip())
+        if m and not _GLOSSARY_ASK.search(m["term"]):
+            items.append({"term": m["term"].strip(" ."), "def": m["def"].strip()})
+    if len(items) < 2:
+        return None
+    items.sort(key=lambda x: cc.fold(x["term"]))
+    w = {"type": "glossary", "v": 1, "title": "Glossaire" if lang != "en" else "Glossary", "items": items[:20],
+         "origin": "user"}  # fmt: skip
+    while _size(w) > CARD_BYTES and len(w["items"]) > 2:
+        w["items"] = w["items"][:-1]
+    return w
+
+
+# ------------------------------------------------------------------ the « card » module (the router decides)
+
+ASKS = {"timeline": _TIMELINE_ASK, "matrix": _MATRIX_ASK, "tasks": _CHECK_ASK, "proscons": _PROSCONS_ASK,
+        "figures": _FIGURES_ASK, "glossary": _GLOSSARY_ASK}  # fmt: skip
+_SOURCES_ASK = re.compile(r"\b(?:(?:tes|vos|les|des|with|your|the)\s+sources|sources?\s+(?:de ta|de votre|of your)|"
+                          r"cite\s+(?:tes|vos)\s+sources|liens? vers les sources|show (?:me )?(?:the )?sources)\b",
+                          re.I)  # fmt: skip
+
+
+def asked_kinds(text: str) -> list[str]:
+    """The parsers' guess of the cards the words ask for (hints for the router, its fallback when it is off)."""
+    from birds.harness import calc
+
+    head = str(text or "")[:300]
+    out = [k for k, rx in ASKS.items() if rx.search(head)]
+    if calc.detect(text or "") is not None:
+        out.append("calc")
+    if _SOURCES_ASK.search(head):
+        out.append("sources")
+    return out
+
+
+def card(kind: str, text: str, lang: str = "fr") -> dict | None:
+    """The card of one kind from the user's own data, or None when their message does not hold it (nothing is
+    invented: the router may decide a timeline, three dates are still needed). ``calc`` and ``sources`` are built
+    by the agent (birds.harness.calc, the run's sources)."""
+    words = str(text or "")
+    if len(words) > 20_000:
+        return None
+    if kind == "timeline":
+        return timeline_from_text(words, lang)
+    if kind == "matrix":
+        got = table_in(words)
+        return matrix(got[0], got[1], title="Comparaison" if lang != "en" else "Comparison", lang=lang) if got else None
+    if kind == "tasks":
+        return _tasks(words, lang)
+    if kind == "proscons":
+        return proscons_from_text(words, lang)
+    if kind == "figures":
+        return figures_from_text(words, lang)
+    if kind == "glossary":
+        return glossary_from_text(words, lang)
+    return None
+
+
+def cards(text: str, lang: str = "fr", kinds: list[str] | None = None) -> list[dict]:
+    """The cards of the user's message: ``kinds`` as the router decided them, or (router off) the parsers' guess."""
+    want = asked_kinds(text) if kinds is None else list(kinds)
+    out = []
+    for k in dict.fromkeys(want):
+        w = card(k, text, lang)
+        if w and w["type"] not in {x["type"] for x in out}:
+            out.append(w)
+    return out
+
+
+def source_cards(sources: list[str], lang: str = "fr") -> dict | None:
+    """« donne-moi tes sources »: the pages this answer read, as cards (the browser fills them from the answer's
+    sources: title, site, snippet, date). Nothing without a source read."""
+    if not sources:
+        return None
+    return {"type": "sourcecards", "v": 1, "title": "Sources" if lang != "en" else "Sources", "n": len(sources[:12])}

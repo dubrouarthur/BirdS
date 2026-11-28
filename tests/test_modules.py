@@ -71,6 +71,77 @@ def test_no_module_without_the_users_data(q):
     assert m.from_words(q) == []
 
 
-def test_build_widgets_adds_the_users_modules():
-    got = build_widgets([], TABLE, "fr", NOW, b"x")
-    assert [w["type"] for w in got] == ["matrix"]
+# ------------------------------------------------------------------ the « card » module: the router decides
+
+
+class _Once:
+    def __init__(self, text):
+        self.text, self.prompts = text, []
+
+    def generate(self, prompt, max_tokens, stop, **_):
+        self.prompts.append(prompt)
+        return {"text": self.text, "prompt_tokens": 10, "completion_tokens": 10, "seconds": 0.01}
+
+
+def _run(tmp_path, monkeypatch, words, decision):
+    """One agent turn with the router's decision forced (None: the router is off and the parsers decide)."""
+    from test_calc import Tok
+
+    from birds.harness import Agent, Config
+    from birds.harness import router as R
+    from birds.harness.agent import Hooks
+
+    monkeypatch.setattr(R, "plan_turn", lambda *a, **k: R.Plan(decision))
+    a = Agent(_Once("Voilà."), Tok(), Config(workspace=tmp_path, audit_file=None), hooks=Hooks())
+    run = a.run(words, lang="fr")
+    return [w["type"] for w in build_widgets(run.steps, "", "fr", NOW, b"x", extra=run.widgets)]
+
+
+def _decided(*kinds):
+    from birds.harness import router as R
+
+    return R.Decision([R.Call("card", {"kind": k}) for k in kinds], "off", False, "model")
+
+
+TIMELINE = "Fais une frise chronologique : 2015 création à Lyon, 2018 premier client export, 2021 levée de fonds"
+
+
+def test_the_router_decides_the_card_and_the_user_data_fills_it(tmp_path, monkeypatch):
+    assert _run(tmp_path, monkeypatch, TABLE, _decided("matrix")) == ["matrix"]
+    assert _run(tmp_path, monkeypatch, TIMELINE, _decided("timeline")) == ["timeline"]
+    # the parsers would build a matrix here, but the router decided none: no card
+    assert _run(tmp_path, monkeypatch, TABLE, _decided()) == []
+    # the router decides a timeline, the words hold no three dates: nothing is invented
+    assert _run(tmp_path, monkeypatch, "fais une frise de l'histoire de France", _decided("timeline")) == []
+    # the router off: the parsers' guess is the fallback (as before the router)
+    assert _run(tmp_path, monkeypatch, TABLE, None) == ["matrix"]
+    loan = "mensualité d'un prêt de 200 000 € sur 20 ans à 3,5 %"
+    assert _run(tmp_path, monkeypatch, loan, _decided("calc")) == ["calc"]
+    assert _run(tmp_path, monkeypatch, loan, _decided()) == []
+    assert _run(tmp_path, monkeypatch, loan, None) == ["calc"]
+
+
+def test_pros_cons_key_figures_and_glossary_from_the_users_words():
+    pc = m.card("proscons", "Pour et contre du télétravail : pour : moins de trajets, plus de calme ; contre : "
+                "isolement, réunions plus longues")  # fmt: skip
+    assert pc["pros"] == ["moins de trajets", "plus de calme"] and pc["cons"] == ["isolement", "réunions plus longues"]
+    assert m.card("proscons", "les avantages du vélo") is None  # no listed points: no card
+    pc2 = m.card("proscons", "Avantages et inconvénients :\n+ rapide\n+ pas cher\n- fragile")
+    assert pc2["pros"] == ["rapide", "pas cher"] and pc2["cons"] == ["fragile"]
+    fig = m.card("figures", "Fais une fiche de chiffres clés : CA 2025 : 1,2 M€ ; marge : 18 % ; effectif : 45 salariés")
+    assert [(x["label"], x["value"]) for x in fig["items"]] == [("CA 2025", "1,2 M€"), ("marge", "18 %"),
+                                                                ("effectif", "45 salariés")]  # fmt: skip
+    assert m.card("figures", "quels sont les chiffres clés du marché ?") is None  # the market's: a search, not a card
+    gl = m.card("glossary", "Fais un glossaire :\nRGPD : règlement général sur la protection des données\nDPO : "
+                "délégué à la protection des données")  # fmt: skip
+    assert [x["term"] for x in gl["items"]] == ["DPO", "RGPD"]
+    assert m.source_cards([], "fr") is None and m.source_cards(["https://a.test"], "fr")["n"] == 1
+    assert m.asked_kinds("donne-moi les sources de ta réponse") == ["sources"]
+
+
+def test_the_parsers_hint_a_card_only_with_the_data():
+    from birds.harness import router as R
+
+    assert R.regex_decision(TIMELINE).get("card").args == {"kind": "timeline"}
+    assert R.regex_decision("fais une frise de l'histoire de France").get("card") is None
+    assert R.regex_decision("rédige un mail à Paul pour la réunion de lundi").get("card") is None

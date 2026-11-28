@@ -523,6 +523,46 @@ OFFICE_AGENT_NO = [
     "Rédige un mail à Sophie pour lui envoyer le compte rendu\nPrésents : Marie Dupont, Julien Martin",
     "Traduis ce texte en anglais\nDevis 1 – Alpha : 12 000 €\nDevis 2 – Beta : 10 500 €",
 ]
+# ---------------------------------------------------------------- small modules (« card »): the user's own data
+CARD_YES = [  # (ask with its data, the kind the parsers must hint)
+    ("Fais une frise chronologique : 2015 création à Lyon, 2018 premier client export, 2021 levée de fonds", "timeline"),
+    ("frise : 2019 création, 2021 levée de fonds, 2024 ouverture de Lille", "timeline"),
+    ("Make a timeline: 2016 founded, 2019 first export, 2023 Series A", "timeline"),
+    ("Compare ces offres :\n| Offre | Prix | Délai |\n|---|---|---|\n| A | 120 € | 4 h |\n| B | 95 € | 8 h |", "matrix"),
+    ("Transforme en liste de tâches :\n- appeler le fournisseur\n- envoyer le devis\n- relancer Paul", "tasks"),
+    ("fais une checklist : réserver la salle, envoyer l'invitation, commander le traiteur", "tasks"),
+    ("Pour et contre du télétravail : pour : moins de trajets, plus de calme ; contre : isolement, réunions longues",
+     "proscons"),
+    ("avantages et inconvénients :\n+ rapide\n+ pas cher\n- fragile\n- bruyant", "proscons"),
+    ("Fais une fiche de chiffres clés : CA 2025 : 1,2 M€ ; marge : 18 % ; effectif : 45 salariés", "figures"),
+    ("key figures: revenue: 3.4 M€; margin: 12 %; headcount: 80", "figures"),
+    ("Fais un glossaire :\nRGPD : règlement général sur la protection des données\nDPO : délégué à la protection des "
+     "données", "glossary"),
+    ("mensualité d'un prêt de 200 000 € sur 20 ans à 3,5 %", "calc"),
+    ("combien font 17 % de 3 450 € ?", "calc"),
+    ("prix TTC de 1 200 € HT avec une TVA à 20 %", "calc"),
+    ("calcule la marge sur un produit vendu 120 € acheté 80 €", "calc"),
+    ("donne-moi les sources de ta réponse", "sources"),
+]
+CARD_NO = [  # the words of a card without its data, or another request: no card
+    "quels sont les avantages du vélo électrique ?",
+    "fais une frise de l'histoire de France",
+    "quels sont les chiffres clés du marché du vélo en France ?",
+    "compare l'iPhone 16 et le Pixel 9",
+    "fais un glossaire du RGPD",
+    "rédige un mail à Paul pour la réunion de lundi",
+    "résume ce document en 5 points",
+    "fais une présentation de 6 diapos sur le télétravail",
+    "explique la différence entre CDD et CDI",
+    "quelles sont les tâches d'un chef de projet ?",
+    "le pour et le contre de la semaine de quatre jours ?",
+    "Bonjour",
+    "écris une fonction Python qui trie une liste",
+    "what are the pros and cons of remote work?",
+    "c'est quoi un glossaire ?",
+]
+
+
 # ---------------------------------------------------------------- follow-ups, pictures, and realistic phrasings
 # a short follow-up re-asks the previous turn's rich result (its context comes from the server memo, followup.py)
 _W = {"tool": "get_weather", "args": {"place": "Lyon", "day": "demain"}}
@@ -1018,6 +1058,15 @@ def canvas_edited(item) -> bool:
     return canvas_intents.edit_ask(q, "deck", shown=shown)
 
 
+def card_kind(q):
+    """The parsers' hint for the small modules (router.regex_decision), with the data there."""
+    from birds.harness import router
+
+    q, kind = q if isinstance(q, tuple) else (q, None)
+    got = router.regex_decision(q).get("card")
+    return bool(got) and (kind is None or got.args["kind"] == kind)
+
+
 def bench(name: str, yes: list[str], no: list[str], fn, touched=None) -> tuple[int, int]:
     miss = [q for q in yes if not fn(q)]
     false = [q for q in no if (touched or fn)(q)]
@@ -1052,6 +1101,7 @@ if __name__ == "__main__":
         ("maps_heldout", bench_maps.MAPS_HELDOUT, bench_maps.MAPS_HELDOUT_NO, bench_maps.correct, bench_maps.detected),
         ("canvas", CANVAS_YES + CANVAS_CODE_FROM_OFFICE, CANVAS_NO + CANVAS_OFFICE_NO, canvas_opened, canvas_touched),
         ("canvas_edit", CANVAS_EDIT_YES, CANVAS_EDIT_NO, canvas_edited),
+        ("cards", CARD_YES, CARD_NO, card_kind),
     ):
         ok, n = bench(*args)
         total[0] += ok

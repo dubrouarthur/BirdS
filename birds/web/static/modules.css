@@ -632,6 +632,182 @@ a.rs-link {
   font-size: 0.8rem;
   color: var(--ink-2);
 }
+/* ---------------------------------------------------------------- pros and cons */
+.pc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 10px;
+}
+.pc-col {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+.pc-col.is-pro {
+  border-block-start: 3px solid var(--eco);
+}
+.pc-col.is-con {
+  border-block-start: 3px solid var(--danger-ink);
+}
+.pc-h {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+.pc-mark {
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: var(--surface);
+}
+.is-pro .pc-mark {
+  background: var(--eco);
+}
+.is-con .pc-mark {
+  background: var(--danger-ink);
+}
+.pc-list {
+  margin: 0;
+  padding-inline-start: 1.1em;
+  display: grid;
+  gap: 4px;
+  font-size: 0.92rem;
+}
+
+/* ---------------------------------------------------------------- key figures */
+.fg-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr));
+  gap: 8px;
+}
+.fg-tile {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+}
+.fg-v {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.fg-l {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* ---------------------------------------------------------------- glossary */
+.gl-filter {
+  inline-size: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.gl-list {
+  margin: 0;
+  display: grid;
+  gap: 0;
+}
+.gl-row {
+  display: grid;
+  grid-template-columns: minmax(80px, max-content) 1fr;
+  gap: 4px 14px;
+  padding: 8px 0;
+  border-block-end: 1px solid var(--line);
+}
+.gl-row:last-child {
+  border-block-end: 0;
+}
+.gl-row dt {
+  font-weight: 650;
+}
+.gl-row dd {
+  margin: 0;
+  color: var(--ink-2);
+}
+.gl-none {
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- source cards */
+.sc-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 8px;
+}
+.sc-card {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  min-inline-size: 0;
+}
+.sc-card:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.sc-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--ink-2);
+  min-inline-size: 0;
+}
+.sc-d {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sc-t {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--link);
+  overflow-wrap: anywhere;
+}
+.sc-snip {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+.sc-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+@media (max-width: 520px) {
+  .gl-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* the graph while the research runs (liveGraph): no controls, the new nodes fade in */
 .gr-live {
   display: grid;

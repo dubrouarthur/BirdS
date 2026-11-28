@@ -139,6 +139,14 @@ def regex_decision(
     if retype or ("make_chart" not in A.route(text, attached) and (A.chart_ask(text) or A.trend_ask(text))):
         kind = next((k for k, rx in A._KIND_ASKED if rx.search(text)), "")
         mods.append(Call("make_chart", {"type": kind} if kind else {}))
+    if len(mods) < catalog.MAX_MODULES and not attached:
+        # the small modules of the user's own data (birds.harness.modules): a hint only, and only when the data is
+        # there too (« fais une frise » with three dates); the router decides
+        from birds.harness import modules as M
+
+        kind = next((k for k in M.asked_kinds(text) if k in ("calc", "sources") or M.card(k, text, lang)), None)
+        if kind and catalog.BY_NAME.get("card"):
+            mods.append(Call("card", {"kind": kind}))
     office = A._FILE_ASK.search(text)
     if office and len(mods) < catalog.MAX_MODULES:
         word = office.group(0).lower()
@@ -913,6 +921,12 @@ class Plan:
         elif d.get("office"):
             out |= {"web_search", "read_page"}
         return out
+
+    def cards(self) -> list[str] | None:
+        """The small modules' kinds the router decided (« card »), or None when it is off: the parsers decide."""
+        if not self.active:
+            return None
+        return [c.args["kind"] for c in self.decision.modules if c.tool == "card" and c.args.get("kind")]
 
     def chart(self, chartable: bool) -> bool:
         return chartable if not self.active else self.decision.get("make_chart") is not None

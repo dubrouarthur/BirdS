@@ -257,14 +257,16 @@ def demo_calc(run) -> None:
 def modules_match(text: str, request) -> list[dict]:
     if request.images:
         return []
-    return modules.from_words(text, "en" if request.lang == "en" else "fr")
+    return modules.cards(text, "en" if request.lang == "en" else "fr")  # the parsers' guess: the demo has no router
 
 
 def demo_modules(run, found: list[dict]) -> None:
     kinds = {w["type"] for w in found}
     names = {"timeline": run.t("la frise", "the timeline"), "matrix": run.t("le tableau comparatif", "the comparison"),
-             "checklist": run.t("la liste de tâches", "the task list")}  # fmt: skip
-    what = ", ".join(names[k] for k in ("timeline", "matrix", "checklist") if k in kinds)
+             "checklist": run.t("la liste de tâches", "the task list"),
+             "proscons": run.t("les avantages et inconvénients", "the pros and cons"),
+             "figures": run.t("les chiffres clés", "the key figures"), "glossary": run.t("le glossaire", "the glossary")}  # fmt: skip
+    what = ", ".join(names[k] for k in names if k in kinds)
     time.sleep(0)
     run.finish(run.t(f"**Scénario de démonstration** : voici {what}, construit(e) à partir de vos données "
                      "uniquement.", f"**Demo scenario**: here is {what}, built from your data only."), widgets=found)  # fmt: skip
