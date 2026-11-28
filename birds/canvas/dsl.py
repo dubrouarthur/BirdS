@@ -523,8 +523,26 @@ def _list_item(line: str) -> str:
 # ------------------------------------------------------------------ the free content of a block
 
 
+_PLACEHOLDER = re.compile(
+    r"^\s*(?:[-*•+]\s+|\d+[.)]\s+)?[\[(]\s*(photo|image|illustration|visuel|picture|img|pictogramme|icône|icone)s?"
+    r"\s*(?:[:：–—-]|d['’]un[e]?|de)\s*(.+?)\s*[\])]\s*\.?\s*$",
+    re.I,
+)
+
+
 def _content_parts(lines: list[str], repairs: list[str]) -> list[dict]:
     """Paragraphs, lists, tables, quotes, code fences, Markdown images and sub-headings of a block's free text."""
+    # « [Photo : chaton heureux] » written as text or as a bullet is a picture the model meant, never words to print:
+    # it becomes an image search (the same path as « ::: image query=… », licence checked, credit shown)
+    fixed = []
+    for line in lines:
+        ph = _PLACEHOLDER.match(line)
+        if ph and ph.group(2).strip():
+            repairs.append("image placeholder written as text became an image search")
+            fixed.append(f"![{ph.group(2).strip()}](placeholder)")
+        else:
+            fixed.append(line)
+    lines = fixed
     parts: list[dict] = []
     i, n = 0, len(lines)
     para: list[str] = []

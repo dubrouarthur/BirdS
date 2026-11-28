@@ -86,6 +86,11 @@ class SearxngBackend:
     def search(self, query: str, n: int, lang: str | None = None) -> list[dict]:
         params = {"q": query, "format": "json", **({"language": lang} if lang else {})}
         r = self.http.get(self.url, params=params, timeout=self.timeout)
+        data = _json(r, self.label)
+        if not data.get("results") and data.get("unresponsive_engines"):
+            # HTTP 200 with nothing found because its engines refused (CAPTCHA, suspended): an outage, not an answer
+            dead = ", ".join(str(e[0]) for e in data["unresponsive_engines"] if e)
+            raise SearchError("search_unavailable", f"{self.label}: no engine answered ({dead})")
         return [
             {
                 "title": x.get("title") or "",
@@ -93,7 +98,7 @@ class SearxngBackend:
                 "snippet": x.get("content") or "",
                 **_image(x.get("thumbnail") or x.get("img_src")),
             }
-            for x in (_json(r, self.label).get("results") or [])[:n]
+            for x in (data.get("results") or [])[:n]
         ]
 
 
@@ -276,9 +281,11 @@ class FallbackSearch:
         except Exception as e:  # noqa: BLE001 - any failure of the keyed backend: try the free one
             code = e.code if isinstance(e, SearchError) else "search_failed"
             results = self.fallback.search(query, n, lang=lang)
+            inner = getattr(self.fallback, "last", None) or {}  # a chain: the backend that really answered
             self.last = {
-                "backend": self.fallback.name,
-                "label": self.fallback.label_for(lang) if hasattr(self.fallback, "label_for") else self.fallback.label,
+                "backend": inner.get("backend") or self.fallback.name,
+                "label": inner.get("label")
+                or (self.fallback.label_for(lang) if hasattr(self.fallback, "label_for") else self.fallback.label),
                 "fallback_from": self.primary.label,
                 "fallback_code": code,
             }
@@ -286,21 +293,21 @@ class FallbackSearch:
 
 
 def make_search(cfg, http):
-    """The backend the configuration asks for (SearXNG > Brave > Tavily > Wikipedia), or None when search is off.
-
-    A keyed backend falls back to Wikipedia on failure unless ``search_default="none"``.
-    """
+    """The search chain the configuration gives: SearXNG first (the default), then Brave, then Tavily, each one
+    the backup of the one before, and the no-key Wikipedia search last (unless ``search_default="none"``).
+    None when search is off."""
     contact = getattr(cfg, "search_contact", None)
     wiki = (
         WikipediaBackend(http, contact=contact) if getattr(cfg, "search_default", "wikipedia") == "wikipedia" else None
     )
-    primary = None
+    chain = []
     if getattr(cfg, "searxng_url", None):
-        primary = SearxngBackend(cfg.searxng_url, http)
-    elif getattr(cfg, "brave_api_key", None):
-        primary = BraveBackend(cfg.brave_api_key, http)
-    elif getattr(cfg, "tavily_api_key", None):
-        primary = TavilyBackend(cfg.tavily_api_key, http)
-    if primary is None:
-        return wiki
-    return FallbackSearch(primary, wiki) if wiki else primary
+        chain.append(SearxngBackend(cfg.searxng_url, http))
+    if getattr(cfg, "brave_api_key", None):
+        chain.append(BraveBackend(cfg.brave_api_key, http))
+    if getattr(cfg, "tavily_api_key", None):
+        chain.append(TavilyBackend(cfg.tavily_api_key, http))
+    tail = wiki
+    for backend in reversed(chain):
+        tail = FallbackSearch(backend, tail) if tail else backend
+    return tail

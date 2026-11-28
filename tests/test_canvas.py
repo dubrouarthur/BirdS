@@ -1173,3 +1173,18 @@ def test_a_mail_to_improve_with_a_deck_shown_is_answered_in_the_chat(monkeypatch
                                "pour la facture de mars.", canvas=_canvas_body(dsl.parse(DECK, "deck")))  # fmt: skip
     assert not [e for e in events if e["type"] == "canvas"]
     assert "facture de mars" in next(e for e in events if e["type"] == "answer")["content"]
+
+
+def test_a_photo_placeholder_written_as_a_bullet_becomes_an_image_search():
+    """« [Photo : chaton heureux] » is a picture the model meant: an image search, never words printed on a slide."""
+    from birds.canvas import dsl
+
+    repairs: list[str] = []
+    parts = dsl._content_parts(
+        ["- [Photo : chaton dans un foyer stable]", "- [Image: happy kitten]", "(Illustration : un refuge)", "- Un vrai point"],
+        repairs,
+    )
+    images = [p["query"] for p in parts if p["t"] == "image"]
+    assert images == ["chaton dans un foyer stable", "happy kitten", "un refuge"]
+    assert {"t": "list", "items": ["Un vrai point"], "ordered": False} in parts
+    assert not any("[Photo" in str(p) for p in parts) and len(repairs) == 3

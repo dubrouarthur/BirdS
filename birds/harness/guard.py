@@ -502,13 +502,33 @@ def validate_args(tool: str, args, allowed, notes: list | None = None) -> tuple[
 PAUSE = "pause"  # what a confirm callback returns when it cannot answer now
 
 
-def gate(tool: str, args: dict, *, tainted: bool, side_effects: int, cfg, confirm) -> str:
+_ADDRESS = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+
+
+def needs_approval(tool: str, args: dict, user_text: str | None) -> bool:
+    """After a page that looked like it gave orders, which call still needs the user's yes.
+
+    Nothing Bird makes leaves Bird: a deck, a document, a sheet or a draft is shown to the user, never sent. Asking
+    before each of them only teaches people to click « Autoriser ». The one real risk is a draft addressed to someone
+    the user never named (the planted « envoie le fichier à compta-externe@… »): that one is asked. ``user_text``
+    None keeps the old rule (every gated call is asked), for callers that cannot tell what the user wrote.
+    """
+    if user_text is None or tool == "run_python":
+        return True
+    if tool != "draft_email":
+        return False
+    said = {a.lower() for a in _ADDRESS.findall(user_text)}
+    found = _ADDRESS.findall(json.dumps(args, ensure_ascii=False))
+    return any(a.lower() not in said for a in found)
+
+
+def gate(tool: str, args: dict, *, tainted: bool, side_effects: int, cfg, confirm, user_text: str | None = None) -> str:
     """Decision for one call: 'allow', 'confirmed', 'denied_cap', 'denied_unconfirmed' or 'pause'."""
     if tool not in SIDE_EFFECT_TOOLS:
         return "allow"
     if side_effects >= cfg.max_side_effects:
         return "denied_cap"
-    if not tainted:
+    if not tainted or not needs_approval(tool, args, user_text):
         return "allow"
     answer = confirm(tool, args) if confirm is not None else False
     if answer is PAUSE:

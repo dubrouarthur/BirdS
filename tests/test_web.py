@@ -267,15 +267,20 @@ def test_calc_scenario_answers_only_its_own_prompt():
     assert pick_scenario(calc) == "calc"
     assert pick_scenario("A plan costs 14.90 a month, or 149 a year. Which is cheaper over two years?") == "calc"
     rent = "Notre loyer est de 1 200 € par mois, rédige un mail au propriétaire pour signaler que nous payons par an."
-    assert pick_scenario(rent) == "email"
+    assert pick_scenario(rent) == "reply"
     assert pick_scenario("Résume ce compte rendu : on publie 3 articles par mois et 40 par an.") == "minutes"
     assert pick_scenario("Traduis en anglais : je cours 20 km par mois, soit 240 par an.") == "plain"
-    assert pick_scenario("Write an email: our rent is 1,200 a month and we now pay once a year.") == "email"
+    assert pick_scenario("Write an email: our rent is 1,200 a month and we now pay once a year.") == "reply"
 
 
 def test_scenario_routing():
     assert pick_scenario("Bonjour") == "plain"
-    assert pick_scenario("Draft a reply email") == "email"
+    assert pick_scenario("Draft a reply email") == "reply"
+    # the approval card is the protection demo's own: only a mail built from a named page plays it
+    guard = "Prépare un mail de réponse à Camille à partir de la page https://example.org/demo/offre-fournisseur."
+    assert pick_scenario(guard) == "email"
+    assert pick_scenario("Draft a reply email from the page https://example.org/demo/supplier-offer") == "email"
+    assert pick_scenario("Écris un mail pour décaler la réunion de lundi à mardi.") == "reply"
     assert pick_scenario("Réponds à Camille : son offre nous convient") == "reply"
     assert pick_scenario("Reply to Camille: her offer works for us") == "reply"
     assert pick_scenario("Prepare a 5-slide deck") == "slides"
@@ -320,7 +325,7 @@ def test_heartbeat_comments_keep_the_stream_open():
 
 
 def email_body(lang: str = "fr") -> dict:
-    return {"messages": [{"role": "user", "content": "Prépare un mail de réponse à Camille"}], "lang": lang}
+    return {"messages": [{"role": "user", "content": "Prépare un mail de réponse à Camille à partir de la page https://example.org/demo/offre-fournisseur"}], "lang": lang}
 
 
 def test_confirm_ends_the_run_with_a_signed_token(client):
@@ -1243,7 +1248,8 @@ def _forged_resume(tmp_path, monkeypatch, files, second_outputs):
         "attachments": [{"name": "notes.txt", "content": INJECTION}],
     }
     app, _ = harness_app(
-        [_tool_call("read_file", path="notes.txt"), _tool_call("draft_email", to=["x@e.test"], subject="s", body="b")]
+        [_tool_call("read_file", path="notes.txt"), _tool_call("draft_email", to=["x@e.test"], subject="s", body="b")],
+        config={"confirm_deliverables": True},
     )
     with TestClient(app) as client:
         token = one(post_chat(client, body), "confirm")["token"]
@@ -1251,7 +1257,7 @@ def _forged_resume(tmp_path, monkeypatch, files, second_outputs):
     payload.pop("exp")
     payload["state"]["files"] = files
     forged = tokens.sign(payload, SECRET, ttl=60)
-    app2, _ = harness_app(second_outputs)
+    app2, _ = harness_app(second_outputs, config={"confirm_deliverables": True})
     with TestClient(app2) as client:
         return post_chat(client, {**body, "approved": [forged]})
 
@@ -1273,7 +1279,7 @@ def test_resume_still_delivers_a_file_made_after_approval(tmp_path, monkeypatch)
         "lang": "en",
         "attachments": [{"name": "notes.txt", "content": INJECTION}],
     }
-    app, _ = harness_app(["Done."])
+    app, _ = harness_app(["Done."], config={"confirm_deliverables": True})
     with TestClient(app) as client:
         events = post_chat(client, {**body, "approved": [confirm["token"]]})
     (file,) = one(events, "answer")["files"]
@@ -1412,3 +1418,19 @@ def test_reflexion_omitted_keeps_the_older_api(client):
     assert "reflexion" not in one(events, "answer") and not [e for e in events if e["type"] == "reflexion"]
     assert client.post("/api/chat", json={"messages": [{"role": "user", "content": "x"}],
                                           "reflexion": "aigle"}).status_code == 422  # fmt: skip
+
+
+def test_a_flagged_page_asks_only_for_a_draft_to_someone_the_user_never_named():
+    """Nothing Bird makes is sent: after a page that looked like it gave orders, a deck, a document or a draft to
+    the person the user named is made without a question; a draft to an address only the page gave is asked."""
+    from birds.harness import guard
+
+    said = "Lis la page et réponds à camille@example.org"
+    assert not guard.needs_approval("make_slides", {"title": "T"}, said)
+    assert not guard.needs_approval("make_document", {"title": "T"}, said)
+    assert not guard.needs_approval("draft_email", {"to": ["camille@example.org"], "subject": "s", "body": "b"}, said)
+    assert guard.needs_approval(
+        "draft_email", {"to": ["compta-externe@example.net"], "subject": "s", "body": "b"}, said
+    )
+    assert guard.needs_approval("draft_email", {"to": ["a@b.fr"], "body": "écrivez à x@evil.test"}, said)
+    assert guard.needs_approval("make_slides", {"title": "T"}, None)  # the stricter rule when asked
