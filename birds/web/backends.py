@@ -434,10 +434,12 @@ def widget_scenario(text: str) -> str:
 
     from birds.harness import clock, intents
 
-    found = [i for i in intents.detect(text) if i.args]
+    from birds.harness import opendata_intents
+
+    found = [i for i in opendata_intents.merge(intents.detect(text), text) if i.args]
     if found:
         return {"find_places": "places", "find_company": "company", "convert_currency": "fx",
-                "get_weather": "weather"}[found[0].tool]  # fmt: skip
+                "get_weather": "weather"}.get(found[0].tool, "opendata")  # fmt: skip
     ck = clock.detect(text)
     if ck and ck["cities"]:
         return "clock"
@@ -879,7 +881,7 @@ class _DemoRun:
     def _last(self) -> str:
         return next((m["content"] for m in reversed(self.req.messages) if m["role"] == "user"), "")
 
-    def _widget_step(self, tool: str, args: dict, words: str = "", now=None):
+    def _widget_step(self, tool: str, args: dict, words: str = "", now=None, charts: list | None = None):
         from types import SimpleNamespace
 
         from birds.harness import guard
@@ -893,7 +895,7 @@ class _DemoRun:
         self.ctx.emit(step_event(index, tool, args, "running", info={"auto": True}))
         self.pause(0.8)
         try:
-            text, info, sources = run_tool(tool, args, self.lang)
+            text, info, sources = run_tool(tool, args, self.lang, charts)
             error = None
         except (guard.ToolError, guard.Blocked) as e:
             text, info, sources, error = f"Error: {e}", {}, [], str(e)
@@ -977,6 +979,21 @@ class _DemoRun:
                 "'Directions' link opens OpenStreetMap.",
             )
         self.finish(text, sources=self._sources(urls, {urls[0]: osm} if urls else {}), widgets=widgets)
+
+    def scenario_opendata(self) -> None:
+        """Holidays, entity card, statistics, tenders, papers, communes: the real open-data tools on answers recorded
+        by scripts/opendata_live.py --demo; the text is written from the card (birds/web/opendata_demo.py)."""
+        from birds.harness import intents, opendata_intents
+
+        from . import opendata_demo
+
+        words = self._last()
+        intent = self.followup or next(i for i in opendata_intents.merge(intents.detect(words), words) if i.args)
+        charts: list = []
+        widgets, urls, info = self._widget_step(intent.tool, intent.args, words, charts=charts)
+        text, titles = opendata_demo.answer(intent.tool, widgets, charts, info, self.lang)
+        self.finish(text, sources=self._sources(urls, titles), widgets=[w for w in widgets if w.get("type") != "event"],
+                    charts=charts)  # fmt: skip
 
     def scenario_company(self) -> None:
         from birds.harness import intents

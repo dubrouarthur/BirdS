@@ -8988,6 +8988,39 @@ ol.a4-list > li::before {
     block-size: 1.9rem;
   }
 }
+/* next asks under a card (« Pour continuer »): quiet pills, one tap sends the ask */
+.od-next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+.od-next-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-inline-size: 100%;
+  min-block-size: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: start;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+.od-next-chip span {
+  overflow-wrap: anywhere;
+}
+.od-next-chip:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
 /* ==================================================================== end open data ===================== */
 .place-copy {
   padding: 0;

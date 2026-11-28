@@ -686,10 +686,12 @@ def test_static_payload_budget():
     # and its wave 2 (plan card, live activity, « Vérifications faites », « Livrables »), the footprint module (~65 kB),
     # the task plan checklist, the map card of lists (groups, full screen, visit order, distances),
     # the office engine (pictures, charts and tables in the previews, the deck/document editor)
-    # and the canvas (decks, documents, code preview, mini-sheet, flowcharts: +126 kB raw, +34 kB gzipped)
-    assert total < 1_070_000, f"static payload is {total} bytes"  # about 310 kB once gzipped
+    # and the canvas (decks, documents, code preview, mini-sheet, flowcharts: +126 kB raw, +34 kB gzipped),
+    # the open-data cards (holidays, entity, tenders, papers, communes, chart source line: +44 kB raw, ~9 kB gzipped)
+    assert total < 1_110_000, f"static payload is {total} bytes"  # about 320 kB once gzipped
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
-    assert demo < 520_000, f"demo maps weigh {demo} bytes"  # + the maps of the scripted lists of places
+    # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
+    assert demo < 580_000, f"demo maps weigh {demo} bytes"
 
 
 def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():

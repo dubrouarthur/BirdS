@@ -85,7 +85,9 @@ def ground(call, text: str, context: str) -> str:
 
 # writing or the user's own data: the open-data words are context there, never a card
 _OWN_DATA = re.compile(r"\b(?:nos|notre|mes|mon|ma|our|my)\s+(?:chiffres|ventes|clients?|fichier|donn[ée]es|"
-                       r"équipe|equipe|publications?|sales|figures|data|team|churn)\b", re.I)  # fmt: skip
+                       r"[ée]quipe|publications?|campagne|cible|entreprise|soci[ée]t[ée]|bo[iî]te|site|appli\w*|"
+                       r"sales|figures|data|team|churn|campaign|company)\b|\bpopulation\s+cible|"
+                       r"\btarget\s+(?:audience|population)", re.I)  # fmt: skip
 
 
 # the family's own vocabulary: a module whose words are absent from the request is a made-up trigger

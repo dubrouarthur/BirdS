@@ -12,7 +12,7 @@ const IMG_SRC = /^\/api\/img\?u=[^"'\s<>]+$/;
 const MAP_SRC =
   /^(\/api\/map\?t=[A-Za-z0-9_\-.]+|\/static\/demo\/[0-9a-f]{16}\.webp)$/;
 
-const S = {
+export const OPENDATA_STRINGS = {
   fr: {
     data: "Données",
     "cal.title": "Calendrier",
@@ -78,6 +78,21 @@ const S = {
     "com.inh": "{n} hab.",
     "map.alt": "Carte de {name}",
     "chart.data": "Données : {label}",
+    next: "Pour continuer",
+    "ask.hol.year": "Jours fériés {year}{zone}",
+    "ask.work.month": "Combien de jours ouvrés en {month} ?",
+    "ask.ent.map": "Où se trouve {name} ?",
+    "ask.ent.company": "Fiche entreprise {name}",
+    "ask.ent.gdp": "PIB : {name}, depuis 2010",
+    "ask.ent.news": "Actualités récentes sur {name}",
+    "ask.ten.week": "Appels d'offres {query} publiés cette semaine",
+    "ask.ten.today": "Appels d'offres {query} publiés aujourd'hui",
+    "ask.ten.france": "Appels d'offres {query} dans toute la France",
+    "ask.pap.cited": "Articles les plus cités sur {query}",
+    "ask.pap.recent": "Publications récentes sur {query}",
+    "ask.com.pop": "Évolution de la population de {name}",
+    "ask.com.weather": "Météo à {name} demain",
+    "ask.com.near": "Restaurants près du {address}",
     "chart.updated": "mise à jour {date}",
   },
   en: {
@@ -145,12 +160,27 @@ const S = {
     "com.inh": "{n}",
     "map.alt": "Map of {name}",
     "chart.data": "Data: {label}",
+    next: "Next steps",
+    "ask.hol.year": "Public holidays {year}{zone}",
+    "ask.work.month": "How many working days in {month}?",
+    "ask.ent.map": "Where is {name}?",
+    "ask.ent.company": "Look up the company {name}",
+    "ask.ent.gdp": "GDP of {name} since 2010",
+    "ask.ent.news": "Recent news about {name}",
+    "ask.ten.week": "Public tenders for {query} published this week",
+    "ask.ten.today": "Public tenders for {query} published today",
+    "ask.ten.france": "Public tenders for {query} across France",
+    "ask.pap.cited": "Most cited papers on {query}",
+    "ask.pap.recent": "Recent papers on {query}",
+    "ask.com.pop": "Population of {name} since 1968",
+    "ask.com.weather": "Weather in {name} tomorrow",
+    "ask.com.near": "Restaurants near {address}",
     "chart.updated": "updated {date}",
   },
 };
 
 export function tt(key, vars) {
-  let s = S[lang()][key] ?? S.fr[key] ?? key;
+  let s = OPENDATA_STRINGS[lang()][key] ?? OPENDATA_STRINGS.fr[key] ?? key;
   for (const [k, v] of Object.entries(vars || {}))
     s = s.replaceAll(`{${k}}`, String(v));
   return s;
@@ -200,6 +230,60 @@ function dataFooter(w, ...extra) {
     w.license?.label && [" · ", ext(w.license.url, w.license.label)],
     ...extra.filter(Boolean).map((x) => [" · ", x]),
   );
+}
+
+/** 2 or 3 next asks for this card, as buttons: a click sends the ask (app.js listens to « bird:ask »). Each ask is
+ * built from the card's own fields (tool results), never from the model's text. */
+function nextSteps(asks) {
+  const list = [...new Set(asks.filter(Boolean))].slice(0, 3);
+  if (!list.length) return null;
+  return h(
+    "div",
+    { class: "od-next", role: "group", "aria-label": tt("next") },
+    list.map((q) =>
+      h(
+        "button",
+        {
+          type: "button",
+          class: "od-next-chip",
+          onclick: () =>
+            document.dispatchEvent(new CustomEvent("bird:ask", { detail: q })),
+        },
+        h("span", { text: q }),
+      ),
+    ),
+  );
+}
+
+const monthName = (y, m) =>
+  new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(locale(), {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+
+export function calendarAsks(w) {
+  const zone =
+    w.zone?.code && !/^metropole$/.test(w.zone.code) && w.zone.label
+      ? ` ${lang() === "en" ? "in" : "—"} ${w.zone.label}`.replace(" — ", " ")
+      : "";
+  const y = Number(w.year) || new Date().getFullYear();
+  if (w.mode === "year") {
+    const first = (w.holidays || [])[0];
+    const m = first ? Number(String(first.d).slice(5, 7)) : 5;
+    return [
+      tt("ask.hol.year", { year: y + 1, zone }),
+      tt("ask.work.month", { month: monthName(y, m) }),
+    ];
+  }
+  const m = Number(w.month) || 1;
+  const [ny, nm] = m === 12 ? [y + 1, 1] : [y, m + 1];
+  return [
+    tt("ask.hol.year", { year: y, zone }),
+    tt("ask.work.month", {
+      month: monthName(w.mode === "month" ? ny : y, w.mode === "month" ? nm : m),
+    }),
+  ];
 }
 
 const iso = (s) =>
@@ -475,6 +559,7 @@ function renderCalendar(w) {
     ...body,
     hasRegional &&
       h("p", { class: "widget-note", text: tt("cal.regional.note") }),
+    nextSteps(calendarAsks(w)),
     dataFooter(w),
   );
 }
@@ -556,6 +641,14 @@ function renderEntity(w) {
       ),
     ),
     kv,
+    w.title &&
+      nextSteps([
+        w.kind === "company" && tt("ask.ent.company", { name: w.title }),
+        w.kind === "country" && tt("ask.ent.gdp", { name: w.title }),
+        (w.kind === "city" || w.kind === "other") &&
+          tt("ask.ent.map", { name: w.title }),
+        tt("ask.ent.news", { name: w.title }),
+      ]),
     h(
       "footer",
       { class: "widget-source od-source" },
@@ -576,7 +669,7 @@ function renderEntity(w) {
 
 // ------------------------------------------------------------------ tenders
 
-function daysLeft(deadline, today = new Date()) {
+export function daysLeft(deadline, today = new Date()) {
   const d = iso(deadline);
   if (!d) return null;
   const end = Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10));
@@ -666,7 +759,21 @@ function renderTenders(w) {
         }),
       )
     : null;
-  return section("tenders", tt("ten.title"), head, list, dataFooter(w));
+  const asks = w.query
+    ? [
+        Number(w.days) > 7 && tt("ask.ten.week", { query: w.query }),
+        Number(w.days) > 1 && tt("ask.ten.today", { query: w.query }),
+        w.where && tt("ask.ten.france", { query: w.query }),
+      ]
+    : [];
+  return section(
+    "tenders",
+    tt("ten.title"),
+    head,
+    list,
+    nextSteps(asks),
+    dataFooter(w),
+  );
 }
 
 // ------------------------------------------------------------------ papers
@@ -748,6 +855,12 @@ function renderPapers(w) {
       !w.found &&
       h("p", { class: "widget-note", text: tt("pap.doi.ko.note") }),
     list || (!doi && h("p", { class: "widget-note", text: tt("pap.none") })),
+    !doi &&
+      w.query &&
+      nextSteps([
+        w.order !== "cited" && tt("ask.pap.cited", { query: w.query }),
+        w.order !== "recent" && tt("ask.pap.recent", { query: w.query }),
+      ]),
     dataFooter(w),
   );
 }
@@ -840,6 +953,11 @@ function renderCommune(w) {
           copyText(text),
         ),
       ),
+      a.line1 &&
+        nextSteps([
+          tt("ask.com.near", { address: `${a.line1} ${a.line2 || ""}`.trim() }),
+          rows[0]?.name && tt("ask.com.weather", { name: rows[0].name }),
+        ]),
       dataFooter(w),
     );
   }
@@ -917,6 +1035,10 @@ function renderCommune(w) {
     ),
     communeKv(c),
     mapOf(w, c.lat, c.lon, c.name),
+    nextSteps([
+      tt("ask.com.pop", { name: c.name }),
+      tt("ask.com.weather", { name: c.name }),
+    ]),
     dataFooter(w),
   );
 }

@@ -2427,6 +2427,11 @@ async function init() {
     },
     testEndpoint,
   });
+  // a card's next ask (opendata.js « Pour continuer »): sent like a typed message, never while a turn runs
+  document.addEventListener("bird:ask", (e) => {
+    const text = typeof e.detail === "string" ? e.detail.trim() : "";
+    if (text && text.length <= 300 && !state.busy && !pendingConfirm()) send(text);
+  });
   state.convs = store.json("bird.convs", []).filter((c) => c && c.id);
   const current = store.get("bird.current");
   state.conv = (current && loadConv(current)) || newConv();

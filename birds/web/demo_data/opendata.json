@@ -1,0 +1,3714 @@
+{
+"https://api.crossref.org/works/10.1038/nature14539": {
+"message": {
+"DOI": "10.1038/nature14539",
+"URL": "https://doi.org/10.1038/nature14539",
+"author": [
+{
+"affiliation": [],
+"family": "LeCun",
+"given": "Yann",
+"role": [
+{
+"role": "author",
+"vocabulary": "crossref"
+}
+],
+"sequence": "first"
+},
+{
+"affiliation": [],
+"family": "Bengio",
+"given": "Yoshua",
+"role": [
+{
+"role": "author",
+"vocabulary": "crossref"
+}
+],
+"sequence": "additional"
+},
+{
+"affiliation": [],
+"family": "Hinton",
+"given": "Geoffrey",
+"role": [
+{
+"role": "author",
+"vocabulary": "crossref"
+}
+],
+"sequence": "additional"
+}
+],
+"container-title": [
+"Nature"
+],
+"is-referenced-by-count": 79903,
+"issued": {
+"date-parts": [
+[
+2015,
+5,
+27
+]
+]
+},
+"published": {
+"date-parts": [
+[
+2015,
+5,
+27
+]
+]
+},
+"publisher": "Springer Science and Business Media LLC",
+"title": [
+"Deep learning"
+],
+"type": "journal-article"
+},
+"message-type": "work",
+"message-version": "1.0.0",
+"status": "ok"
+},
+"https://api.insee.fr/melodi/data/DS_POPULATIONS_HISTORIQUES?GEO=COM-59512&maxResult=100": {
+"identifier": "DS_POPULATIONS_HISTORIQUES",
+"observations": [
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2023"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 98286.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2015"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 96077.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2009"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 95028.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2018"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 98089.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2021"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 98892.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2019"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 98828.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2016"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 96412.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2022"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 99507.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2020"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 98066.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2011"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 94186.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2012"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 94536.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2007"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 97423.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2010"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 94713.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2014"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 95600.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2017"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 96990.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2013"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 95866.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2006"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 97952.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PMUN",
+"TIME_PERIOD": "2008"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 95893.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PSDC",
+"TIME_PERIOD": "1982"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 101602.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PSDC",
+"TIME_PERIOD": "1990"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 97746.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PSDC",
+"TIME_PERIOD": "1975"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 109553.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PSDC",
+"TIME_PERIOD": "1968"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 114547.0
+}
+}
+},
+{
+"dimensions": {
+"FREQ": "A",
+"GEO": "2025-COM-59512",
+"POPREF_MEASURE": "PSDC",
+"TIME_PERIOD": "1999"
+},
+"measures": {
+"OBS_VALUE_NIVEAU": {
+"value": 96984.0
+}
+}
+}
+],
+"paging": {
+"first": "https://api.insee.fr/melodi/data/DS_POPULATIONS_HISTORIQUES?GEO=COM-59512&maxResult=100&page=1"
+},
+"publisher": {
+"id": "INSEE",
+"label": [
+{
+"content": "Institut national de la statistique et des etudes economiques (INSEE)",
+"lang": "fr"
+},
+{
+"content": "National Institute of Statistics and Economic Studies",
+"lang": "en"
+}
+]
+},
+"title": {
+"en": "Municipal populations from 1968 to 2023",
+"fr": "Populations municipales de 1968 à 2023"
+}
+},
+"https://api.openalex.org/works?search=batteries+sodium-ion&per_page=25&select=id%2Cdoi%2Cdisplay_name%2Cpublication_year%2Ccited_by_count%2Cauthorships%2Cprimary_location%2Copen_access%2Ctype": {
+"group_by": [],
+"meta": {
+"cost_usd": 0.001,
+"count": 169221,
+"db_response_time_ms": 170,
+"groups_count": null,
+"page": 1,
+"per_page": 25,
+"x_query": {
+"oql": "get works with (batteries sodium-ion) in the title, abstract, or full text",
+"oqo": {
+"filter_rows": [
+{
+"column_id": "fulltext.search",
+"operator": "has",
+"value": "batteries sodium-ion"
+}
+],
+"get_rows": "works"
+},
+"order": "best matches first",
+"order_default": true,
+"url": "/works?filter=fulltext.search:batteries sodium-ion&per_page=25",
+"x_new_oql": "get works with (batteries sodium-ion) in the title, abstract, or full text"
+}
+},
+"results": [
+{
+"authorships": [
+{
+"author": {
+"display_name": "Ting‐Feng Yi"
+}
+},
+{
+"author": {
+"display_name": "Hirbod Maleki Kheimeh Sari"
+}
+},
+{
+"author": {
+"display_name": "Xuezhong Li"
+}
+},
+{
+"author": {
+"display_name": "Fanfan Wang"
+}
+},
+{
+"author": {
+"display_name": "Yan‐Rong Zhu"
+}
+},
+{
+"author": {
+"display_name": "Junhua Hu"
+}
+},
+{
+"author": {
+"display_name": "Jiujun Zhang"
+}
+},
+{
+"author": {
+"display_name": "Xifei Li"
+}
+}
+],
+"cited_by_count": 294,
+"display_name": "A review of niobium oxides based nanocomposites for lithium-ion batteries, sodium-ion batteries and supercapacitors",
+"doi": "https://doi.org/10.1016/j.nanoen.2021.105955",
+"id": "https://openalex.org/W3133690271",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Nano Energy"
+}
+},
+"publication_year": 2021,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Hanyu Bai"
+}
+},
+{
+"author": {
+"display_name": "Ziyou Song"
+}
+}
+],
+"cited_by_count": 120,
+"display_name": "Lithium-ion battery, sodium-ion battery, or redox-flow battery: A comprehensive comparison in renewable energy systems",
+"doi": "https://doi.org/10.1016/j.jpowsour.2023.233426",
+"id": "https://openalex.org/W4385436855",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Journal of Power Sources"
+}
+},
+"publication_year": 2023,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Qin Yang"
+}
+},
+{
+"author": {
+"display_name": "Wei Wang"
+}
+},
+{
+"author": {
+"display_name": "Hai Li"
+}
+},
+{
+"author": {
+"display_name": "Juan Zhang"
+}
+},
+{
+"author": {
+"display_name": "Feiyu Kang"
+}
+},
+{
+"author": {
+"display_name": "Baohua Li"
+}
+}
+],
+"cited_by_count": 40,
+"display_name": "Investigation of iron hexacyanoferrate as a high rate cathode for aqueous batteries: Sodium-ion batteries and lithium-ion batteries",
+"doi": "https://doi.org/10.1016/j.electacta.2018.02.171",
+"id": "https://openalex.org/W2789779104",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Electrochimica Acta"
+}
+},
+"publication_year": 2018,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Lei Wang"
+}
+},
+{
+"author": {
+"display_name": "Chenglong Yang"
+}
+},
+{
+"author": {
+"display_name": "Shuo Dou"
+}
+},
+{
+"author": {
+"display_name": "Shuangyin Wang"
+}
+},
+{
+"author": {
+"display_name": "Jintao Zhang"
+}
+},
+{
+"author": {
+"display_name": "Xian Gao"
+}
+},
+{
+"author": {
+"display_name": "Jianmin Ma"
+}
+},
+{
+"author": {
+"display_name": "Yan Mei Yu"
+}
+}
+],
+"cited_by_count": 170,
+"display_name": "Nitrogen-doped hierarchically porous carbon networks: synthesis and applications in lithium-ion battery, sodium-ion battery and zinc-air battery",
+"doi": "https://doi.org/10.1016/j.electacta.2016.10.050",
+"id": "https://openalex.org/W2529881717",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Electrochimica Acta"
+}
+},
+"publication_year": 2016,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Michael D. Slater"
+}
+},
+{
+"author": {
+"display_name": "Donghan Kim"
+}
+},
+{
+"author": {
+"display_name": "Eungje Lee"
+}
+},
+{
+"author": {
+"display_name": "Christopher S. Johnson"
+}
+}
+],
+"cited_by_count": 4795,
+"display_name": "Sodium‐Ion Batteries",
+"doi": "https://doi.org/10.1002/adfm.201200691",
+"id": "https://openalex.org/W2060543343",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Advanced Functional Materials"
+}
+},
+"publication_year": 2012,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Gustav Åvall"
+}
+},
+{
+"author": {
+"display_name": "Jonas Mindemark"
+}
+},
+{
+"author": {
+"display_name": "Daniel Brandell"
+}
+},
+{
+"author": {
+"display_name": "Patrik Johansson"
+}
+}
+],
+"cited_by_count": 5,
+"display_name": "Sodium‐Ion Batteries: Sodium‐Ion Battery Electrolytes: Modeling and Simulations (Adv. Energy Mater. 17/2018)",
+"doi": "https://doi.org/10.1002/aenm.201870081",
+"id": "https://openalex.org/W2808031000",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": true,
+"oa_status": "bronze",
+"oa_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/aenm.201870081"
+},
+"primary_location": {
+"source": {
+"display_name": "Advanced Energy Materials"
+}
+},
+"publication_year": 2018,
+"type": "paratext"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Nour Daher"
+}
+}
+],
+"cited_by_count": 1,
+"display_name": "Synthèses de carbones durs comme électrode négative de batteries sodium-ion",
+"doi": "https://doi.org/10.70675/fbc47f2fz43e4z47f4z9590z257fc875d512",
+"id": "https://openalex.org/W7149457821",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "theses.fr (ABES)"
+}
+},
+"publication_year": 2020,
+"type": "dissertation"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Brian L. Ellis"
+}
+},
+{
+"author": {
+"display_name": "Linda F. Nazar"
+}
+}
+],
+"cited_by_count": 1645,
+"display_name": "Sodium and sodium-ion energy storage batteries",
+"doi": "https://doi.org/10.1016/j.cossms.2012.04.002",
+"id": "https://openalex.org/W2053142613",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Current Opinion in Solid State and Materials Science"
+}
+},
+"publication_year": 2012,
+"type": "review"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Hayley S. Hirsh"
+}
+},
+{
+"author": {
+"display_name": "Yixuan Li"
+}
+},
+{
+"author": {
+"display_name": "Darren H. S. Tan"
+}
+},
+{
+"author": {
+"display_name": "Minghao Zhang"
+}
+},
+{
+"author": {
+"display_name": "Enyue Zhao"
+}
+},
+{
+"author": {
+"display_name": "Ying Shirley Meng"
+}
+}
+],
+"cited_by_count": 18,
+"display_name": "Na‐Ion Batteries: Sodium‐Ion Batteries Paving the Way for Grid Energy Storage (Adv. Energy Mater. 32/2020)",
+"doi": "https://doi.org/10.1002/aenm.202070134",
+"id": "https://openalex.org/W3081222685",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": true,
+"oa_status": "bronze",
+"oa_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/aenm.202070134"
+},
+"primary_location": {
+"source": {
+"display_name": "Advanced Energy Materials"
+}
+},
+"publication_year": 2020,
+"type": "paratext"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Jang‐Yeon Hwang"
+}
+},
+{
+"author": {
+"display_name": "Seung‐Taek Myung"
+}
+},
+{
+"author": {
+"display_name": "Yang-Kook Sun"
+}
+}
+],
+"cited_by_count": 5640,
+"display_name": "Sodium-ion batteries: present and future",
+"doi": "https://doi.org/10.1039/c6cs00776g",
+"id": "https://openalex.org/W2603442821",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": true,
+"oa_status": "hybrid",
+"oa_url": "https://pubs.rsc.org/en/content/articlepdf/2017/cs/c6cs00776g"
+},
+"primary_location": {
+"source": {
+"display_name": "Chemical Society Reviews"
+}
+},
+"publication_year": 2017,
+"type": "review"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Claude Delmas"
+}
+}
+],
+"cited_by_count": 1426,
+"display_name": "Sodium and Sodium‐Ion Batteries: 50 Years of Research",
+"doi": "https://doi.org/10.1002/aenm.201703137",
+"id": "https://openalex.org/W2794234906",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Advanced Energy Materials"
+}
+},
+"publication_year": 2018,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Ying Zhe Xiao"
+}
+},
+{
+"author": {
+"display_name": "Seon Hwa Lee"
+}
+},
+{
+"author": {
+"display_name": "Yang‐Kook Sun"
+}
+}
+],
+"cited_by_count": 618,
+"display_name": "The Application of Metal Sulfides in Sodium Ion Batteries",
+"doi": "https://doi.org/10.1002/aenm.201601329",
+"id": "https://openalex.org/W2547559399",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Advanced Energy Materials"
+}
+},
+"publication_year": 2016,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Yun Zhao"
+}
+},
+{
+"author": {
+"display_name": "Yuqiong Kang"
+}
+},
+{
+"author": {
+"display_name": "John Wozny"
+}
+},
+{
+"author": {
+"display_name": "Jian Lu"
+}
+},
+{
+"author": {
+"display_name": "Hao Du"
+}
+},
+{
+"author": {
+"display_name": "Chenglei Li"
+}
+},
+{
+"author": {
+"display_name": "Tao Li"
+}
+},
+{
+"author": {
+"display_name": "Feiyu Kang"
+}
+},
+{
+"author": {
+"display_name": "Naser Tavajohi"
+}
+},
+{
+"author": {
+"display_name": "Baohua Li"
+}
+}
+],
+"cited_by_count": 519,
+"display_name": "Recycling of sodium-ion batteries",
+"doi": "https://doi.org/10.1038/s41578-023-00574-w",
+"id": "https://openalex.org/W4384823739",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Nature Reviews Materials"
+}
+},
+"publication_year": 2023,
+"type": "review"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Junhua Song"
+}
+},
+{
+"author": {
+"display_name": "Biwei Xiao"
+}
+},
+{
+"author": {
+"display_name": "Yuehe Lin"
+}
+},
+{
+"author": {
+"display_name": "Kang Xu"
+}
+},
+{
+"author": {
+"display_name": "Xiaolin Li"
+}
+}
+],
+"cited_by_count": 413,
+"display_name": "Interphases in Sodium‐Ion Batteries",
+"doi": "https://doi.org/10.1002/aenm.201703082",
+"id": "https://openalex.org/W2792703066",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Advanced Energy Materials"
+}
+},
+"publication_year": 2018,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Yongjin Fang"
+}
+},
+{
+"author": {
+"display_name": "Lifen Xiao"
+}
+},
+{
+"author": {
+"display_name": "Zhongxue Chen"
+}
+},
+{
+"author": {
+"display_name": "Xinping Ai"
+}
+},
+{
+"author": {
+"display_name": "Yuliang Cao"
+}
+},
+{
+"author": {
+"display_name": "Hanxi Yang"
+}
+}
+],
+"cited_by_count": 393,
+"display_name": "Recent Advances in Sodium-Ion Battery Materials",
+"doi": "https://doi.org/10.1007/s41918-018-0008-x",
+"id": "https://openalex.org/W2807893522",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Electrochemical Energy Reviews"
+}
+},
+"publication_year": 2018,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Yaru Liang"
+}
+},
+{
+"author": {
+"display_name": "Wei‐Hong Lai"
+}
+},
+{
+"author": {
+"display_name": "Zongcheng Miao"
+}
+},
+{
+"author": {
+"display_name": "Shulei Chou"
+}
+}
+],
+"cited_by_count": 307,
+"display_name": "Nanocomposite Materials for the Sodium–Ion Battery: A Review",
+"doi": "https://doi.org/10.1002/smll.201702514",
+"id": "https://openalex.org/W2777959702",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Small"
+}
+},
+"publication_year": 2017,
+"type": "review"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Christoph Vaalma"
+}
+},
+{
+"author": {
+"display_name": "Daniel Buchholz"
+}
+},
+{
+"author": {
+"display_name": "Marcel Weil"
+}
+},
+{
+"author": {
+"display_name": "Stefano Passerini"
+}
+}
+],
+"cited_by_count": 2709,
+"display_name": "A cost and resource analysis of sodium-ion batteries",
+"doi": "https://doi.org/10.1038/natrevmats.2018.13",
+"id": "https://openalex.org/W2789575335",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Nature Reviews Materials"
+}
+},
+"publication_year": 2018,
+"type": "review"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Jiangfeng Qian"
+}
+},
+{
+"author": {
+"display_name": "Chen Wu"
+}
+},
+{
+"author": {
+"display_name": "Yuliang Cao"
+}
+},
+{
+"author": {
+"display_name": "Zi‐Feng Ma"
+}
+},
+{
+"author": {
+"display_name": "Yunhui Huang"
+}
+},
+{
+"author": {
+"display_name": "Xinping Ai"
+}
+},
+{
+"author": {
+"display_name": "Hanxi Yang"
+}
+}
+],
+"cited_by_count": 951,
+"display_name": "Prussian Blue Cathode Materials for Sodium‐Ion Batteries and Other Ion Batteries",
+"doi": "https://doi.org/10.1002/aenm.201702619",
+"id": "https://openalex.org/W2792557135",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Advanced Energy Materials"
+}
+},
+"publication_year": 2018,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Nuria Tapia‐Ruiz"
+}
+},
+{
+"author": {
+"display_name": "Anthony Robert Armstrong"
+}
+},
+{
+"author": {
+"display_name": "Hande Alptekin"
+}
+},
+{
+"author": {
+"display_name": "Marco Amores"
+}
+},
+{
+"author": {
+"display_name": "Heather Au"
+}
+},
+{
+"author": {
+"display_name": "J. Barker"
+}
+},
+{
+"author": {
+"display_name": "Rebecca Boston"
+}
+},
+{
+"author": {
+"display_name": "William Robert Brant"
+}
+},
+{
+"author": {
+"display_name": "Jake M. Brittain"
+}
+},
+{
+"author": {
+"display_name": "Yue Chen"
+}
+},
+{
+"author": {
+"display_name": "Manish Chhowalla"
+}
+},
+{
+"author": {
+"display_name": "Yong‐Seok Choi"
+}
+},
+{
+"author": {
+"display_name": "Sara I R Costa"
+}
+},
+{
+"author": {
+"display_name": "Maria Crespo Ribadeneyra"
+}
+},
+{
+"author": {
+"display_name": "Serena A. Cussen"
+}
+},
+{
+"author": {
+"display_name": "Edmund J. Cussen"
+}
+},
+{
+"author": {
+"display_name": "William I. F. David"
+}
+},
+{
+"author": {
+"display_name": "Aamod V. Desai"
+}
+},
+{
+"author": {
+"display_name": "Stewart A M Dickson"
+}
+},
+{
+"author": {
+"display_name": "E.I. Eweka"
+}
+},
+{
+"author": {
+"display_name": "Juan Forero‐Saboya"
+}
+},
+{
+"author": {
+"display_name": "Clare P. Grey"
+}
+},
+{
+"author": {
+"display_name": "John M. Griffin"
+}
+},
+{
+"author": {
+"display_name": "Peter Gross"
+}
+},
+{
+"author": {
+"display_name": "Xiao Hua"
+}
+},
+{
+"author": {
+"display_name": "John T. S. Irvine"
+}
+},
+{
+"author": {
+"display_name": "Patrik Johansson"
+}
+},
+{
+"author": {
+"display_name": "Martin O. Jones"
+}
+},
+{
+"author": {
+"display_name": "Martin Karlsmo"
+}
+},
+{
+"author": {
+"display_name": "Emma Kendrick"
+}
+},
+{
+"author": {
+"display_name": "Eun Jeong Kim"
+}
+},
+{
+"author": {
+"display_name": "Oleg Victor Kolosov"
+}
+},
+{
+"author": {
+"display_name": "Zhuangnan Li"
+}
+},
+{
+"author": {
+"display_name": "Stijn F. L. Mertens"
+}
+},
+{
+"author": {
+"display_name": "Ronnie Mogensen"
+}
+},
+{
+"author": {
+"display_name": "Laure Monconduit"
+}
+},
+{
+"author": {
+"display_name": "Russell E. Morris"
+}
+},
+{
+"author": {
+"display_name": "Andrew J. Naylor"
+}
+},
+{
+"author": {
+"display_name": "Shahin Nikman"
+}
+},
+{
+"author": {
+"display_name": "Christopher A. O’Keefe"
+}
+},
+{
+"author": {
+"display_name": "Darren M. C. Ould"
+}
+},
+{
+"author": {
+"display_name": "Robert G. Palgrave"
+}
+},
+{
+"author": {
+"display_name": "Philippe Poizot"
+}
+},
+{
+"author": {
+"display_name": "Alexandre Ponrouch"
+}
+},
+{
+"author": {
+"display_name": "Stéven Renault"
+}
+},
+{
+"author": {
+"display_name": "Emily Reynolds"
+}
+},
+{
+"author": {
+"display_name": "Ashish Rudola"
+}
+},
+{
+"author": {
+"display_name": "Ruth Sayers"
+}
+},
+{
+"author": {
+"display_name": "David O. Scanlon"
+}
+},
+{
+"author": {
+"display_name": "Sudeshna Sen"
+}
+},
+{
+"author": {
+"display_name": "Valerie R. Seymour"
+}
+},
+{
+"author": {
+"display_name": "Begoña Silván"
+}
+},
+{
+"author": {
+"display_name": "Moulay Tahar Sougrati"
+}
+},
+{
+"author": {
+"display_name": "Lorenzo Stievano"
+}
+},
+{
+"author": {
+"display_name": "Grant S Stone"
+}
+},
+{
+"author": {
+"display_name": "Christopher Ian Thomas"
+}
+},
+{
+"author": {
+"display_name": "Maria‐Magdalena Titirici"
+}
+},
+{
+"author": {
+"display_name": "Jincheng Tong"
+}
+},
+{
+"author": {
+"display_name": "Thomas J. Wood"
+}
+},
+{
+"author": {
+"display_name": "Dominic S. Wright"
+}
+},
+{
+"author": {
+"display_name": "Reza Younesi"
+}
+}
+],
+"cited_by_count": 335,
+"display_name": "2021 roadmap for sodium-ion batteries",
+"doi": "https://doi.org/10.1088/2515-7655/ac01ef",
+"id": "https://openalex.org/W3183732257",
+"open_access": {
+"any_repository_has_fulltext": true,
+"is_oa": true,
+"oa_status": "gold",
+"oa_url": "https://iopscience.iop.org/article/10.1088/2515-7655/ac01ef/pdf"
+},
+"primary_location": {
+"source": {
+"display_name": "Journal of Physics Energy"
+}
+},
+"publication_year": 2021,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Yuying Shan"
+}
+},
+{
+"author": {
+"display_name": "Yan Li"
+}
+},
+{
+"author": {
+"display_name": "Huan Pang"
+}
+}
+],
+"cited_by_count": 223,
+"display_name": "Applications of Tin Sulfide‐Based Materials in Lithium‐Ion Batteries and Sodium‐Ion Batteries",
+"doi": "https://doi.org/10.1002/adfm.202001298",
+"id": "https://openalex.org/W3011322503",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Advanced Functional Materials"
+}
+},
+"publication_year": 2020,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Houssam Rabab"
+}
+},
+{
+"author": {
+"display_name": "Nicolas Damay"
+}
+},
+{
+"author": {
+"display_name": "Christophe Forgez"
+}
+},
+{
+"author": {
+"display_name": "Asmae El Mejdoubi"
+}
+}
+],
+"cited_by_count": 0,
+"display_name": "Modélisation des effets de diffusion des batteries sodium-ion dans un circuit électrique équivalent",
+"doi": null,
+"id": "https://openalex.org/W4392149482",
+"open_access": {
+"any_repository_has_fulltext": true,
+"is_oa": true,
+"oa_status": "green",
+"oa_url": "https://hal.science/hal-04161117v1/file/Mod%C3%A9lisation%20des%20effets%20de%20diffusion%20des%20batteries%20sodium%20ion%20dans%20un%20circuit%20%C3%A9lectrique%20%C3%A9quivalent.pdf"
+},
+"primary_location": {
+"source": {
+"display_name": "HAL"
+}
+},
+"publication_year": 2023,
+"type": "conference-paper"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Lupeng Zhang"
+}
+},
+{
+"author": {
+"display_name": "Xinle Li"
+}
+},
+{
+"author": {
+"display_name": "Mingrui Yang"
+}
+},
+{
+"author": {
+"display_name": "Weihua Chen"
+}
+}
+],
+"cited_by_count": 607,
+"display_name": "High-safety separators for lithium-ion batteries and sodium-ion batteries: advances and perspective",
+"doi": "https://doi.org/10.1016/j.ensm.2021.06.033",
+"id": "https://openalex.org/W3174890719",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Energy storage materials"
+}
+},
+"publication_year": 2021,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Franziska Klein"
+}
+},
+{
+"author": {
+"display_name": "Birte Jache"
+}
+},
+{
+"author": {
+"display_name": "Amrtha Bhide"
+}
+},
+{
+"author": {
+"display_name": "Philipp Adelhelm"
+}
+}
+],
+"cited_by_count": 404,
+"display_name": "Conversion reactions for sodium-ion batteries",
+"doi": "https://doi.org/10.1039/c3cp52125g",
+"id": "https://openalex.org/W2006596215",
+"open_access": {
+"any_repository_has_fulltext": true,
+"is_oa": true,
+"oa_status": "green",
+"oa_url": "https://doi.org/10.22029/jlupub-15748"
+},
+"primary_location": {
+"source": {
+"display_name": "Physical Chemistry Chemical Physics"
+}
+},
+"publication_year": 2013,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Prasant Kumar Nayak"
+}
+},
+{
+"author": {
+"display_name": "Liangtao Yang"
+}
+},
+{
+"author": {
+"display_name": "Wolfgang Brehm"
+}
+},
+{
+"author": {
+"display_name": "Philipp Adelhelm"
+}
+}
+],
+"cited_by_count": 2804,
+"display_name": "From Lithium‐Ion to Sodium‐Ion Batteries: Advantages, Challenges, and Surprises",
+"doi": "https://doi.org/10.1002/anie.201703772",
+"id": "https://openalex.org/W2636773388",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Angewandte Chemie International Edition"
+}
+},
+"publication_year": 2017,
+"type": "review"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Alexander M. Skundin"
+}
+},
+{
+"author": {
+"display_name": "Tatiana L. Kulova"
+}
+},
+{
+"author": {
+"display_name": "A. B. Yaroslavtsev"
+}
+}
+],
+"cited_by_count": 143,
+"display_name": "Sodium-Ion Batteries (a Review)",
+"doi": "https://doi.org/10.1134/s1023193518020076",
+"id": "https://openalex.org/W2793978450",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Russian Journal of Electrochemistry"
+}
+},
+"publication_year": 2018,
+"type": "article"
+}
+]
+},
+"https://api.openalex.org/works?search=batteries+sodium-ion&per_page=6&select=id%2Cdoi%2Cdisplay_name%2Cpublication_year%2Ccited_by_count%2Cauthorships%2Cprimary_location%2Copen_access%2Ctype": {
+"group_by": [],
+"meta": {
+"cost_usd": 0.001,
+"count": 169221,
+"db_response_time_ms": 391,
+"groups_count": null,
+"page": 1,
+"per_page": 6,
+"x_query": {
+"oql": "get works with (batteries sodium-ion) in the title, abstract, or full text",
+"oqo": {
+"filter_rows": [
+{
+"column_id": "fulltext.search",
+"operator": "has",
+"value": "batteries sodium-ion"
+}
+],
+"get_rows": "works"
+},
+"order": "best matches first",
+"order_default": true,
+"url": "/works?filter=fulltext.search:batteries sodium-ion&per_page=6",
+"x_new_oql": "get works with (batteries sodium-ion) in the title, abstract, or full text"
+}
+},
+"results": [
+{
+"authorships": [
+{
+"author": {
+"display_name": "Ting‐Feng Yi"
+}
+},
+{
+"author": {
+"display_name": "Hirbod Maleki Kheimeh Sari"
+}
+},
+{
+"author": {
+"display_name": "Xuezhong Li"
+}
+},
+{
+"author": {
+"display_name": "Fanfan Wang"
+}
+},
+{
+"author": {
+"display_name": "Yan‐Rong Zhu"
+}
+},
+{
+"author": {
+"display_name": "Junhua Hu"
+}
+},
+{
+"author": {
+"display_name": "Jiujun Zhang"
+}
+},
+{
+"author": {
+"display_name": "Xifei Li"
+}
+}
+],
+"cited_by_count": 294,
+"display_name": "A review of niobium oxides based nanocomposites for lithium-ion batteries, sodium-ion batteries and supercapacitors",
+"doi": "https://doi.org/10.1016/j.nanoen.2021.105955",
+"id": "https://openalex.org/W3133690271",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Nano Energy"
+}
+},
+"publication_year": 2021,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Hanyu Bai"
+}
+},
+{
+"author": {
+"display_name": "Ziyou Song"
+}
+}
+],
+"cited_by_count": 120,
+"display_name": "Lithium-ion battery, sodium-ion battery, or redox-flow battery: A comprehensive comparison in renewable energy systems",
+"doi": "https://doi.org/10.1016/j.jpowsour.2023.233426",
+"id": "https://openalex.org/W4385436855",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Journal of Power Sources"
+}
+},
+"publication_year": 2023,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Qin Yang"
+}
+},
+{
+"author": {
+"display_name": "Wei Wang"
+}
+},
+{
+"author": {
+"display_name": "Hai Li"
+}
+},
+{
+"author": {
+"display_name": "Juan Zhang"
+}
+},
+{
+"author": {
+"display_name": "Feiyu Kang"
+}
+},
+{
+"author": {
+"display_name": "Baohua Li"
+}
+}
+],
+"cited_by_count": 40,
+"display_name": "Investigation of iron hexacyanoferrate as a high rate cathode for aqueous batteries: Sodium-ion batteries and lithium-ion batteries",
+"doi": "https://doi.org/10.1016/j.electacta.2018.02.171",
+"id": "https://openalex.org/W2789779104",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Electrochimica Acta"
+}
+},
+"publication_year": 2018,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Lei Wang"
+}
+},
+{
+"author": {
+"display_name": "Chenglong Yang"
+}
+},
+{
+"author": {
+"display_name": "Shuo Dou"
+}
+},
+{
+"author": {
+"display_name": "Shuangyin Wang"
+}
+},
+{
+"author": {
+"display_name": "Jintao Zhang"
+}
+},
+{
+"author": {
+"display_name": "Xian Gao"
+}
+},
+{
+"author": {
+"display_name": "Jianmin Ma"
+}
+},
+{
+"author": {
+"display_name": "Yan Mei Yu"
+}
+}
+],
+"cited_by_count": 170,
+"display_name": "Nitrogen-doped hierarchically porous carbon networks: synthesis and applications in lithium-ion battery, sodium-ion battery and zinc-air battery",
+"doi": "https://doi.org/10.1016/j.electacta.2016.10.050",
+"id": "https://openalex.org/W2529881717",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Electrochimica Acta"
+}
+},
+"publication_year": 2016,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Michael D. Slater"
+}
+},
+{
+"author": {
+"display_name": "Donghan Kim"
+}
+},
+{
+"author": {
+"display_name": "Eungje Lee"
+}
+},
+{
+"author": {
+"display_name": "Christopher S. Johnson"
+}
+}
+],
+"cited_by_count": 4795,
+"display_name": "Sodium‐Ion Batteries",
+"doi": "https://doi.org/10.1002/adfm.201200691",
+"id": "https://openalex.org/W2060543343",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Advanced Functional Materials"
+}
+},
+"publication_year": 2012,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Gustav Åvall"
+}
+},
+{
+"author": {
+"display_name": "Jonas Mindemark"
+}
+},
+{
+"author": {
+"display_name": "Daniel Brandell"
+}
+},
+{
+"author": {
+"display_name": "Patrik Johansson"
+}
+}
+],
+"cited_by_count": 5,
+"display_name": "Sodium‐Ion Batteries: Sodium‐Ion Battery Electrolytes: Modeling and Simulations (Adv. Energy Mater. 17/2018)",
+"doi": "https://doi.org/10.1002/aenm.201870081",
+"id": "https://openalex.org/W2808031000",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": true,
+"oa_status": "bronze",
+"oa_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/aenm.201870081"
+},
+"primary_location": {
+"source": {
+"display_name": "Advanced Energy Materials"
+}
+},
+"publication_year": 2018,
+"type": "paratext"
+}
+]
+},
+"https://api.openalex.org/works?search=batteries+sodium-ion&per_page=6&select=id%2Cdoi%2Cdisplay_name%2Cpublication_year%2Ccited_by_count%2Cauthorships%2Cprimary_location%2Copen_access%2Ctype&filter=from_publication_date%3ADATE": {
+"group_by": [],
+"meta": {
+"cost_usd": 0.001,
+"count": 74957,
+"db_response_time_ms": 70,
+"groups_count": null,
+"page": 1,
+"per_page": 6,
+"x_query": {
+"oql": "get works since 2023-01-01 with (batteries sodium-ion) in the title, abstract, or full text",
+"oqo": {
+"filter_rows": [
+{
+"column_id": "from_publication_date",
+"value": "2023-01-01"
+},
+{
+"column_id": "fulltext.search",
+"operator": "has",
+"value": "batteries sodium-ion"
+}
+],
+"get_rows": "works"
+},
+"order": "best matches first",
+"order_default": true,
+"url": "/works?filter=from_publication_date:2023-01-01,fulltext.search:batteries sodium-ion&per_page=6",
+"x_new_oql": "get works since 2023-01-01 with (batteries sodium-ion) in the title, abstract, or full text"
+}
+},
+"results": [
+{
+"authorships": [
+{
+"author": {
+"display_name": "Hanyu Bai"
+}
+},
+{
+"author": {
+"display_name": "Ziyou Song"
+}
+}
+],
+"cited_by_count": 120,
+"display_name": "Lithium-ion battery, sodium-ion battery, or redox-flow battery: A comprehensive comparison in renewable energy systems",
+"doi": "https://doi.org/10.1016/j.jpowsour.2023.233426",
+"id": "https://openalex.org/W4385436855",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Journal of Power Sources"
+}
+},
+"publication_year": 2023,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Yun Zhao"
+}
+},
+{
+"author": {
+"display_name": "Yuqiong Kang"
+}
+},
+{
+"author": {
+"display_name": "John Wozny"
+}
+},
+{
+"author": {
+"display_name": "Jian Lu"
+}
+},
+{
+"author": {
+"display_name": "Hao Du"
+}
+},
+{
+"author": {
+"display_name": "Chenglei Li"
+}
+},
+{
+"author": {
+"display_name": "Tao Li"
+}
+},
+{
+"author": {
+"display_name": "Feiyu Kang"
+}
+},
+{
+"author": {
+"display_name": "Naser Tavajohi"
+}
+},
+{
+"author": {
+"display_name": "Baohua Li"
+}
+}
+],
+"cited_by_count": 519,
+"display_name": "Recycling of sodium-ion batteries",
+"doi": "https://doi.org/10.1038/s41578-023-00574-w",
+"id": "https://openalex.org/W4384823739",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Nature Reviews Materials"
+}
+},
+"publication_year": 2023,
+"type": "review"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Houssam Rabab"
+}
+},
+{
+"author": {
+"display_name": "Nicolas Damay"
+}
+},
+{
+"author": {
+"display_name": "Christophe Forgez"
+}
+},
+{
+"author": {
+"display_name": "Asmae El Mejdoubi"
+}
+}
+],
+"cited_by_count": 0,
+"display_name": "Modélisation des effets de diffusion des batteries sodium-ion dans un circuit électrique équivalent",
+"doi": null,
+"id": "https://openalex.org/W4392149482",
+"open_access": {
+"any_repository_has_fulltext": true,
+"is_oa": true,
+"oa_status": "green",
+"oa_url": "https://hal.science/hal-04161117v1/file/Mod%C3%A9lisation%20des%20effets%20de%20diffusion%20des%20batteries%20sodium%20ion%20dans%20un%20circuit%20%C3%A9lectrique%20%C3%A9quivalent.pdf"
+},
+"primary_location": {
+"source": {
+"display_name": "HAL"
+}
+},
+"publication_year": 2023,
+"type": "conference-paper"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Yun Gao"
+}
+},
+{
+"author": {
+"display_name": "Hang Zhang"
+}
+},
+{
+"author": {
+"display_name": "Jian Peng"
+}
+},
+{
+"author": {
+"display_name": "Lin Li"
+}
+},
+{
+"author": {
+"display_name": "Yao Xiao"
+}
+},
+{
+"author": {
+"display_name": "Li Li"
+}
+},
+{
+"author": {
+"display_name": "Yang Liu"
+}
+},
+{
+"author": {
+"display_name": "Yun Qiao"
+}
+},
+{
+"author": {
+"display_name": "Shulei Chou"
+}
+}
+],
+"cited_by_count": 384,
+"display_name": "A 30‐year overview of sodium‐ion batteries",
+"doi": "https://doi.org/10.1002/cey2.464",
+"id": "https://openalex.org/W4392234005",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": true,
+"oa_status": "gold",
+"oa_url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1002/cey2.464"
+},
+"primary_location": {
+"source": {
+"display_name": "Carbon Energy"
+}
+},
+"publication_year": 2024,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Yuejing Zeng"
+}
+},
+{
+"author": {
+"display_name": "Jin Yang"
+}
+},
+{
+"author": {
+"display_name": "Huiya Yang"
+}
+},
+{
+"author": {
+"display_name": "Yang Yang"
+}
+},
+{
+"author": {
+"display_name": "Jinbao Zhao"
+}
+}
+],
+"cited_by_count": 308,
+"display_name": "Bridging Microstructure and Sodium-Ion Storage Mechanism in Hard Carbon for Sodium Ion Batteries",
+"doi": "https://doi.org/10.1021/acsenergylett.3c02751",
+"id": "https://openalex.org/W4392166850",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "ACS Energy Letters"
+}
+},
+"publication_year": 2024,
+"type": "article"
+},
+{
+"authorships": [
+{
+"author": {
+"display_name": "Xiaosheng Cai"
+}
+},
+{
+"author": {
+"display_name": "Yingying Yue"
+}
+},
+{
+"author": {
+"display_name": "Yi Zheng"
+}
+},
+{
+"author": {
+"display_name": "Junfei Liu"
+}
+},
+{
+"author": {
+"display_name": "Yangping Sheng"
+}
+},
+{
+"author": {
+"display_name": "Yuhao Lu"
+}
+}
+],
+"cited_by_count": 388,
+"display_name": "Challenges and industrial perspectives on the development of sodium ion batteries",
+"doi": "https://doi.org/10.1016/j.nanoen.2024.110052",
+"id": "https://openalex.org/W4401019124",
+"open_access": {
+"any_repository_has_fulltext": false,
+"is_oa": false,
+"oa_status": "closed",
+"oa_url": null
+},
+"primary_location": {
+"source": {
+"display_name": "Nano Energy"
+}
+},
+"publication_year": 2024,
+"type": "article"
+}
+]
+},
+"https://api.worldbank.org/v2/country/FRA;JPN/indicator/NY.GDP.MKTP.CD?format=json&per_page=1000&date=2010%3A2026": [
+{
+"lastupdated": "2026-11-11",
+"page": 1,
+"pages": 1,
+"per_page": 1000,
+"sourceid": "2",
+"total": 32
+},
+[
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2025",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 3366315927447.33
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2024",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 3160442622465.08
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2023",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 3056250648138.29
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2022",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2794788137066.94
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2021",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2966433692008.09
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2020",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2647926055110.05
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2019",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2722793515171.76
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2018",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2781576320884.39
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2017",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2588868323334.71
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2016",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2470407619777.13
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2015",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2442483452642.5
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2014",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2861236112552.42
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2013",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2816077607875.26
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2012",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2683007095787.23
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2011",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2870408553990.28
+},
+{
+"country": {
+"id": "FR",
+"value": "France"
+},
+"countryiso3code": "FRA",
+"date": "2010",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 2646230027988.34
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2025",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 4435162999976.94
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2024",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 4190008188358.57
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2023",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 4384854269961.93
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2022",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 4447976207314.78
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2021",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 5225933520753.1
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2020",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 5189197543645.38
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2019",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 5245755000479.03
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2018",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 5154293721629.56
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2017",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 5038231631660.71
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2016",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 5110357383254.44
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2015",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 4534438580494.94
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2014",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 4985763289560.81
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2013",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 5272297037396.96
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2012",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 6333803928787.76
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2011",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 6279422550218.7
+},
+{
+"country": {
+"id": "JP",
+"value": "Japan"
+},
+"countryiso3code": "JPN",
+"date": "2010",
+"decimal": 0,
+"indicator": {
+"id": "NY.GDP.MKTP.CD",
+"value": "GDP (current US$)"
+},
+"obs_status": "",
+"unit": "",
+"value": 5811578109447.07
+}
+]
+],
+"https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/records?select=idweb%2Cobjet%2Cnomacheteur%2Ccode_departement%2Cdateparution%2Cdatelimitereponse%2Cnature_libelle%2Ctype_marche%2Cprocedure_libelle%2Curl_avis&where=search%28objet%2C%22maintenance+informatique%22%29+and+nature%3D%22APPEL_OFFRE%22+and+dateparution%3E%3Ddate%27DATE%27&order_by=dateparution+desc&limit=8": {
+"results": [
+{
+"code_departement": [
+"69"
+],
+"datelimitereponse": "2026-12-15T12:00:00+00:00",
+"dateparution": "2026-11-26",
+"idweb": "26-114649",
+"nature_libelle": "Avis de marché",
+"nomacheteur": "Ville de Meyzieu",
+"objet": "Maintenance du matériel informatique des groupes scolaires de la ville de Meyzieu",
+"procedure_libelle": "Procédure Ouverte",
+"type_marche": [
+"SERVICES"
+],
+"url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-114649"
+},
+{
+"code_departement": [
+"20A"
+],
+"datelimitereponse": "2026-12-17T12:00:00+00:00",
+"dateparution": "2026-11-24",
+"idweb": "26-113937",
+"nature_libelle": "Avis de marché",
+"nomacheteur": "Ametarra spl",
+"objet": "Marché de service pour l'exécution de la mission de Maintenance Informatique - Fourniture de Logiciel",
+"procedure_libelle": "Procédure Adaptée",
+"type_marche": [
+"SERVICES"
+],
+"url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-113937"
+},
+{
+"code_departement": [
+"66"
+],
+"datelimitereponse": "2026-12-21T12:00:00+00:00",
+"dateparution": "2026-11-23",
+"idweb": "26-113496",
+"nature_libelle": "Avis de marché",
+"nomacheteur": "Mairie de Thuir",
+"objet": "Maintenance informatique du parc de la Ville de Thuir",
+"procedure_libelle": "Procédure Ouverte",
+"type_marche": [
+"SERVICES"
+],
+"url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-113496"
+},
+{
+"code_departement": [
+"12"
+],
+"datelimitereponse": "2026-12-21T10:00:00+00:00",
+"dateparution": "2026-11-22",
+"idweb": "26-112965",
+"nature_libelle": "Avis de marché",
+"nomacheteur": "DEPARTEMENT DE L'AVEYRON",
+"objet": "GESTION et MAINTENANCE des SYSTEMES d'INFORMATION des COLLEGES PUBLICS de l'AVEYRON",
+"procedure_libelle": "Procédure Ouverte",
+"type_marche": [
+"SERVICES"
+],
+"url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-112965"
+}
+],
+"total_count": 4
+},
+"https://calendrier.api.gouv.fr/jours-feries/metropole/2027.json": {
+"2027-01-01": "1er janvier",
+"2027-03-29": "Lundi de Pâques",
+"2027-05-01": "1er mai",
+"2027-05-06": "Ascension",
+"2027-05-08": "8 mai",
+"2027-05-17": "Lundi de Pentecôte",
+"2027-07-14": "14 juillet",
+"2027-08-15": "Assomption",
+"2027-11-01": "Toussaint",
+"2027-11-11": "11 novembre",
+"2027-12-25": "Jour de Noël"
+},
+"https://calendrier.api.gouv.fr/jours-feries/metropole/2028.json": {
+"2028-01-01": "1er janvier",
+"2028-04-17": "Lundi de Pâques",
+"2028-05-01": "1er mai",
+"2028-05-08": "8 mai",
+"2028-05-25": "Ascension",
+"2028-06-05": "Lundi de Pentecôte",
+"2028-07-14": "14 juillet",
+"2028-08-15": "Assomption",
+"2028-11-01": "Toussaint",
+"2028-11-11": "11 novembre",
+"2028-12-25": "Jour de Noël"
+},
+"https://data.geopf.fr/geocodage/search?q=20+av+de+segur+paris&limit=1&index=address": {
+"features": [
+{
+"geometry": {
+"coordinates": [
+2.308628,
+48.850699
+],
+"type": "Point"
+},
+"properties": {
+"_type": "address",
+"banId": "c575af14-f697-464c-b70b-914cedb239a4",
+"city": "Paris",
+"citycode": "75107",
+"context": "75, Paris, Île-de-France",
+"depcode": "75",
+"district": "Paris 7e Arrondissement",
+"housenumber": "20",
+"id": "75107_8909_00020",
+"importance": 0.68791,
+"label": "20 Avenue de Ségur 75007 Paris",
+"name": "20 Avenue de Ségur",
+"postcode": "75007",
+"score": 0.6761736363636364,
+"street": "Avenue de Ségur",
+"type": "housenumber",
+"x": 649266.35,
+"y": 6861406.23
+},
+"type": "Feature"
+}
+],
+"query": "20 av de segur paris",
+"type": "FeatureCollection"
+},
+"https://date.nager.at/api/v3/PublicHolidays/2027/DE": [
+{
+"counties": null,
+"countryCode": "DE",
+"date": "2027-01-01",
+"fixed": false,
+"global": true,
+"launchYear": null,
+"localName": "Neujahr",
+"name": "New Year's Day",
+"types": [
+"Public"
+]
+},
+{
+"counties": [
+"DE-BW",
+"DE-BY",
+"DE-ST"
+],
+"countryCode": "DE",
+"date": "2027-01-06",
+"fixed": false,
+"global": false,
+"launchYear": null,
+"localName": "Heilige Drei Könige",
+"name": "Epiphany",
+"types": [
+"Public"
+]
+},
+{
+"counties": [
+"DE-BE",
+"DE-MV"
+],
+"countryCode": "DE",
+"date": "2027-03-08",
+"fixed": false,
+"global": false,
+"launchYear": null,
+"localName": "Internationaler Frauentag",
+"name": "International Women's Day",
+"types": [
+"Public"
+]
+},
+{
+"counties": null,
+"countryCode": "DE",
+"date": "2027-03-26",
+"fixed": false,
+"global": true,
+"launchYear": null,
+"localName": "Karfreitag",
+"name": "Good Friday",
+"types": [
+"Public"
+]
+},
+{
+"counties": [
+"DE-BB"
+],
+"countryCode": "DE",
+"date": "2027-03-28",
+"fixed": false,
+"global": false,
+"launchYear": null,
+"localName": "Ostersonntag",
+"name": "Easter Sunday",
+"types": [
+"Public"
+]
+},
+{
+"counties": null,
+"countryCode": "DE",
+"date": "2027-03-29",
+"fixed": false,
+"global": true,
+"launchYear": null,
+"localName": "Ostermontag",
+"name": "Easter Monday",
+"types": [
+"Public"
+]
+},
+{
+"counties": null,
+"countryCode": "DE",
+"date": "2027-05-01",
+"fixed": false,
+"global": true,
+"launchYear": null,
+"localName": "Tag der Arbeit",
+"name": "Labour Day",
+"types": [
+"Public"
+]
+},
+{
+"counties": null,
+"countryCode": "DE",
+"date": "2027-05-06",
+"fixed": false,
+"global": true,
+"launchYear": null,
+"localName": "Christi Himmelfahrt",
+"name": "Ascension Day",
+"types": [
+"Public"
+]
+},
+{
+"counties": [
+"DE-BB"
+],
+"countryCode": "DE",
+"date": "2027-05-16",
+"fixed": false,
+"global": false,
+"launchYear": null,
+"localName": "Pfingstsonntag",
+"name": "Pentecost",
+"types": [
+"Public"
+]
+},
+{
+"counties": null,
+"countryCode": "DE",
+"date": "2027-05-17",
+"fixed": false,
+"global": true,
+"launchYear": null,
+"localName": "Pfingstmontag",
+"name": "Whit Monday",
+"types": [
+"Public"
+]
+},
+{
+"counties": [
+"DE-BW",
+"DE-BY",
+"DE-HE",
+"DE-NW",
+"DE-RP",
+"DE-SL"
+],
+"countryCode": "DE",
+"date": "2027-05-27",
+"fixed": false,
+"global": false,
+"launchYear": null,
+"localName": "Fronleichnam",
+"name": "Corpus Christi",
+"types": [
+"Public"
+]
+},
+{
+"counties": [
+"DE-SL"
+],
+"countryCode": "DE",
+"date": "2027-08-15",
+"fixed": false,
+"global": false,
+"launchYear": null,
+"localName": "Mariä Himmelfahrt",
+"name": "Assumption Day",
+"types": [
+"Public"
+]
+},
+{
+"counties": [
+"DE-TH"
+],
+"countryCode": "DE",
+"date": "2027-09-20",
+"fixed": false,
+"global": false,
+"launchYear": null,
+"localName": "Weltkindertag",
+"name": "World Children's Day",
+"types": [
+"Public"
+]
+},
+{
+"counties": null,
+"countryCode": "DE",
+"date": "2027-10-03",
+"fixed": false,
+"global": true,
+"launchYear": null,
+"localName": "Tag der Deutschen Einheit",
+"name": "German Unity Day",
+"types": [
+"Public"
+]
+},
+{
+"counties": [
+"DE-BB",
+"DE-MV",
+"DE-SN",
+"DE-ST",
+"DE-TH",
+"DE-HB",
+"DE-HH",
+"DE-NI",
+"DE-SH"
+],
+"countryCode": "DE",
+"date": "2027-10-31",
+"fixed": false,
+"global": false,
+"launchYear": null,
+"localName": "Reformationstag",
+"name": "Reformation Day",
+"types": [
+"Public"
+]
+},
+{
+"counties": [
+"DE-BW",
+"DE-BY",
+"DE-NW",
+"DE-RP",
+"DE-SL"
+],
+"countryCode": "DE",
+"date": "2027-11-01",
+"fixed": false,
+"global": false,
+"launchYear": null,
+"localName": "Allerheiligen",
+"name": "All Saints' Day",
+"types": [
+"Public"
+]
+},
+{
+"counties": [
+"DE-SN"
+],
+"countryCode": "DE",
+"date": "2027-11-17",
+"fixed": false,
+"global": false,
+"launchYear": null,
+"localName": "Buß- und Bettag",
+"name": "Repentance and Prayer Day",
+"types": [
+"Public"
+]
+},
+{
+"counties": null,
+"countryCode": "DE",
+"date": "2027-12-25",
+"fixed": false,
+"global": true,
+"launchYear": null,
+"localName": "Erster Weihnachtstag",
+"name": "Christmas Day",
+"types": [
+"Public"
+]
+},
+{
+"counties": null,
+"countryCode": "DE",
+"date": "2027-12-26",
+"fixed": false,
+"global": true,
+"launchYear": null,
+"localName": "Zweiter Weihnachtstag",
+"name": "St. Stephen's Day",
+"types": [
+"Public"
+]
+}
+],
+"https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/une_rt_a?sex=T&age=Y15-74&unit=PC_ACT&geo=FR&geo=DE&sinceTimePeriod=2015&lang=FR": {
+"class": "dataset",
+"dimension": {
+"age": {
+"category": {
+"index": {
+"Y15-74": 0
+},
+"label": {
+"Y15-74": "De 15 à 74 ans"
+}
+},
+"label": "Classe d'âge"
+},
+"freq": {
+"category": {
+"index": {
+"A": 0
+},
+"label": {
+"A": "Annuel"
+}
+},
+"label": "Fréquence (relative au temps)"
+},
+"geo": {
+"category": {
+"index": {
+"DE": 0,
+"FR": 1
+},
+"label": {
+"DE": "Allemagne",
+"FR": "France"
+}
+},
+"label": "Entité géopolitique (déclarante)"
+},
+"sex": {
+"category": {
+"index": {
+"T": 0
+},
+"label": {
+"T": "Total"
+}
+},
+"label": "Sexe"
+},
+"time": {
+"category": {
+"index": {
+"2015": 0,
+"2016": 1,
+"2017": 2,
+"2018": 3,
+"2019": 4,
+"2020": 5,
+"2021": 6,
+"2022": 7,
+"2023": 8,
+"2024": 9,
+"2025": 10
+},
+"label": {
+"2015": "2015",
+"2016": "2016",
+"2017": "2017",
+"2018": "2018",
+"2019": "2019",
+"2020": "2020",
+"2021": "2021",
+"2022": "2022",
+"2023": "2023",
+"2024": "2024",
+"2025": "2025"
+}
+},
+"label": "Temps"
+},
+"unit": {
+"category": {
+"index": {
+"PC_ACT": 0
+},
+"label": {
+"PC_ACT": "Pourcentage de la population active"
+}
+},
+"label": "Unité de mesure"
+}
+},
+"extension": {
+"agencyId": "ESTAT",
+"annotation": [
+{
+"date": "2021-07-14T12:27:40+0200",
+"type": "CREATED"
+},
+{
+"title": "<adms:identifier xmlns:adms=\"http://www.w3.org/ns/adms#\" xmlns:skos=\"http://www.w3.org/2004/02/skos/core.html\" xmlns:dct=\"http://purl.org/dc/terms/\" xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"><adms:Identifier rdf:about=\"https://doi.org/10.2908/UNE_RT_A\"><skos:notation rdf:datatype=\"http://purl.org/spar/datacite/doi\">10.2908/UNE_RT_A</skos:notation><dct:creator rdf:resource=\"http://publications.europa.eu/resource/authority/corporate-body/ESTAT\"/><dct:issued rdf:datatype=\"http://www.w3.org/2001/XMLSchema#date\">2023-01-23</dct:issued></adms:Identifier></adms:identifier>",
+"type": "DISSEMINATION_DOI_XML"
+},
+{
+"href": "https://ec.europa.eu/eurostat/databrowser-backend/api/public/explanatory-notes/get/Info_note_LFSQ_20240604.pdf",
+"title": "text-category",
+"type": "DISSEMINATION_EXPLANATORY_LINK"
+},
+{
+"href": "https://ec.europa.eu/eurostat/databrowser-backend/api/public/explanatory-notes/get/Info_note_LFSQ_20240604.pdf",
+"text": "Note d'information",
+"title": "text-category",
+"type": "DISSEMINATION_EXPLANATORY_LINK"
+},
+{
+"href": "https://ec.europa.eu/eurostat/databrowser-backend/api/public/explanatory-notes/get/Info_note_LFSQ_20240604.pdf",
+"title": "text-category",
+"type": "DISSEMINATION_EXPLANATORY_LINK"
+},
+{
+"title": "DATASET",
+"type": "DISSEMINATION_OBJECT_TYPE"
+},
+{
+"date": "2026-11-06T23:00:00+0100",
+"type": "DISSEMINATION_TIMESTAMP_DATA"
+},
+{
+"date": "2026-11-13T11:00:00+0100",
+"type": "DISSEMINATION_TIMESTAMP_GLOBAL"
+},
+{
+"date": "2026-11-13T11:00:00+0100",
+"type": "DISSEMINATION_TIMESTAMP_PLANNED"
+},
+{
+"href": "https://ec.europa.eu/eurostat/cache/metadata/en/lfsi_esms.htm",
+"title": "Explanatory texts (metadata)",
+"type": "ESMS_HTML"
+},
+{
+"href": "https://ec.europa.eu/eurostat/api/dissemination/files?file=metadata/lfsi_esms.sdmx.zip",
+"title": "Explanatory texts (metadata)",
+"type": "ESMS_SDMX"
+},
+{
+"title": "38655",
+"type": "OBS_COUNT"
+},
+{
+"title": "2025",
+"type": "OBS_PERIOD_OVERALL_LATEST"
+},
+{
+"title": "2003",
+"type": "OBS_PERIOD_OVERALL_OLDEST"
+},
+{
+"text": "Eurostat",
+"type": "SOURCE_INSTITUTIONS"
+},
+{
+"date": "2026-11-06T23:00:00+0100",
+"type": "UPDATE_DATA"
+},
+{
+"date": "2026-11-06T23:00:00+0100",
+"type": "UPDATE_STRUCTURE"
+}
+],
+"datastructure": {
+"agencyId": "ESTAT",
+"id": "UNE_RT_A",
+"version": "50.0"
+},
+"id": "UNE_RT_A",
+"lang": "FR",
+"positions-with-no-data": {
+"age": [],
+"freq": [],
+"geo": [],
+"sex": [],
+"time": [],
+"unit": []
+},
+"status": {
+"label": {
+"b": "rupture de série",
+"d": "définition différente (voir métadonnées)"
+}
+},
+"version": "1.0"
+},
+"id": [
+"freq",
+"age",
+"unit",
+"sex",
+"geo",
+"time"
+],
+"label": "Chômage par sexe et âge - données annuelles",
+"size": [
+1,
+1,
+1,
+1,
+2,
+11
+],
+"source": "ESTAT",
+"status": {
+"17": "d",
+"18": "d",
+"19": "d",
+"20": "d",
+"21": "d",
+"5": "b"
+},
+"updated": "2026-11-06T23:00:00+0100",
+"value": {
+"0": 4.4,
+"1": 3.9,
+"10": 3.8,
+"11": 10.4,
+"12": 10.1,
+"13": 9.4,
+"14": 9.1,
+"15": 8.5,
+"16": 8.1,
+"17": 7.9,
+"18": 7.3,
+"19": 7.4,
+"2": 3.5,
+"20": 7.4,
+"21": 7.7,
+"3": 3.2,
+"4": 2.9,
+"5": 3.6,
+"6": 3.6,
+"7": 3.1,
+"8": 3.1,
+"9": 3.5
+},
+"version": "2.0"
+},
+"https://geo.api.gouv.fr/communes/75107?fields=nom%2Ccode%2CcodesPostaux%2Cpopulation%2Csurface%2Ccentre%2Cdepartement%2Cregion": {
+"centre": {
+"coordinates": [
+2.3115,
+48.8548
+],
+"type": "Point"
+},
+"code": "75107",
+"codesPostaux": [
+"75007"
+],
+"departement": {
+"code": "75",
+"nom": "Paris"
+},
+"nom": "Paris 7e Arrondissement",
+"population": 48015,
+"region": {
+"code": "11",
+"nom": "Île-de-France"
+},
+"surface": 408.5
+},
+"https://geo.api.gouv.fr/communes?nom=Roubaix&fields=nom%2Ccode%2CcodesPostaux%2Cpopulation%2Csurface%2Ccentre%2Cdepartement%2Cregion&boost=population&limit=20": [
+{
+"_score": 1.98286,
+"centre": {
+"coordinates": [
+3.1843,
+50.6887
+],
+"type": "Point"
+},
+"code": "59512",
+"codesPostaux": [
+"59100"
+],
+"departement": {
+"code": "59",
+"nom": "Nord"
+},
+"nom": "Roubaix",
+"population": 98286,
+"region": {
+"code": "32",
+"nom": "Hauts-de-France"
+},
+"surface": 1311.77
+}
+],
+"https://geo.api.gouv.fr/communes?nom=Roubaix&fields=nom%2Ccode%2CcodesPostaux%2Cpopulation%2Csurface%2Ccentre%2Cdepartement%2Cregion&boost=population&limit=8": [
+{
+"_score": 1.98286,
+"centre": {
+"coordinates": [
+3.1843,
+50.6887
+],
+"type": "Point"
+},
+"code": "59512",
+"codesPostaux": [
+"59100"
+],
+"departement": {
+"code": "59",
+"nom": "Nord"
+},
+"nom": "Roubaix",
+"population": 98286,
+"region": {
+"code": "32",
+"nom": "Hauts-de-France"
+},
+"surface": 1311.77
+}
+]
+}

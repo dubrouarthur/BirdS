@@ -31,6 +31,8 @@ DEMOS = [
     ("find_places", {"query": "Lyon ; Grenoble ; Annecy ; Chambéry"}),
     ("find_places", {"query": "Paris ; Lyon ; Marseille ; Bordeaux ; Nantes ; Lille ; Strasbourg ; Toulouse ; Nice ; Rennes"}),
     ("find_company", {"name": "Airbus"}),
+    ("find_commune", {"name": "Roubaix"}),  # open data: the commune card and the normalised address
+    ("find_commune", {"name": "20 av de segur paris"}),
 ]
 
 

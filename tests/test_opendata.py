@@ -1,0 +1,277 @@
+"""Open-data tools (birds/harness/tools/opendata), their routing (catalogue, grounding, veto, parsers) and cards.
+
+The tools run on provider answers recorded live by ``scripts/opendata_live.py --demo`` (birds/web/demo_data/
+opendata.json): no network here. The HTTP path is checked with a fake ``guard.fetch_bytes``.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+import tempfile
+from datetime import date
+from pathlib import Path
+
+import pytest
+
+from birds.harness import Config, Context, catalog, guard, opendata_intents, opendata_route
+from birds.harness import router as R
+from birds.harness.guard import Blocked, ToolError
+from birds.harness.tools.opendata import OPENDATA_TOOLS
+from birds.harness.tools.opendata import http as odhttp
+from birds.web import demo_widgets, opendata_demo, opendata_widgets
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import bench_opendata as OD  # noqa: E402
+
+
+def _ctx(lang="fr", today=None):
+    ctx = Context(config=Config(workspace=Path(tempfile.gettempdir()), audit_file=None), http=None, lang=lang)
+    ctx.recorded = demo_widgets.recorded
+    if today:
+        ctx.today = today
+    return ctx
+
+
+def _run(tool, args, lang="fr", today=None):
+    ctx = _ctx(lang, today)
+    text = OPENDATA_TOOLS[tool](dict(args), ctx)
+    return text, ctx
+
+
+def _ask(q, lang="fr"):
+    got = next(i for i in opendata_intents.detect(q, False, lang) if i.args)
+    return got.tool, got.args
+
+
+# ---------------------------------------------------------------- tools on recorded answers
+
+
+def test_month_of_holidays_and_working_days_from_calendrier_api_gouv():
+    text, ctx = _run(*_ask("jours fériés de mai 2027"))
+    w = ctx.step_info["widget"]
+    assert w["type"] == "calendar" and w["mode"] == "month" and w["year"] == 2027 and w["month"] == 5
+    assert [h["name"] for h in w["holidays"]] == ["1er mai", "Ascension", "8 mai", "Lundi de Pentecôte"]
+    assert w["counts"]["workdays"] == 19 and w["counts"]["workable"] == 22
+    assert "calendrier.api.gouv.fr" in w["source"]["url"] and w["license"]["label"]
+    assert "19 jours ouvrés" in text
+
+
+def test_a_country_s_holidays_come_from_nager_date():
+    _, ctx = _run(*_ask("public holidays in Germany in 2027", "en"), lang="en")
+    w = ctx.step_info["widget"]
+    assert w["zone"]["code"] == "DE" and w["mode"] == "year" and len(w["holidays"]) >= 9
+    assert "nager" in w["source"]["url"].lower()
+
+
+@pytest.mark.parametrize(
+    "ask,label,series",
+    [
+        ("le chômage en France et en Allemagne depuis 2015", "Eurostat", ["France", "Allemagne"]),
+        ("PIB de la France et du Japon depuis 2010", "Banque mondiale", ["France", "Japon"]),
+        ("population de Roubaix depuis 1968", "Insee", ["Roubaix"]),
+    ],
+)
+def test_official_series_are_drawn_with_their_source_dataset_and_licence(ask, label, series):
+    text, ctx = _run(*_ask(ask))
+    (spec,) = ctx.charts
+    assert spec["source"] == "data" and spec["type"] == "line" and spec["columns"][1:] == series
+    src = spec["data_source"]
+    assert label.lower() in src["label"].lower() and src["url"].startswith("https://") and src["license"]
+    assert len(spec["rows"]) >= 8 and all(isinstance(v, (int, float)) or v is None for r in spec["rows"] for v in r[1:])
+    assert "Ne redessine pas le graphique" in text  # the model comments the trend, the chart is already drawn
+
+
+def test_tenders_scholarly_works_and_a_doi():
+    _, ctx = _run(*_ask("appels d'offres maintenance informatique"))
+    w = ctx.step_info["widget"]
+    assert w["type"] == "tenders" and w["items"] and all(i["url"].startswith("https://") for i in w["items"])
+    assert "BOAMP" in w["source"]["label"] and w["license"]["url"].startswith("https://")
+    _, ctx = _run(*_ask("articles scientifiques sur les batteries sodium-ion"))
+    w = ctx.step_info["widget"]
+    assert w["type"] == "papers" and w["source"]["label"] == "OpenAlex" and len(w["items"]) == 6
+    assert all(i["title"] and i["year"] for i in w["items"])
+    _, ctx = _run(*_ask("vérifie ce DOI 10.1038/nature14539"))
+    w = ctx.step_info["widget"]
+    assert w["mode"] == "doi" and w["found"] and w["items"][0]["title"] == "Deep learning"
+
+
+def test_a_commune_and_a_normalised_address():
+    _, ctx = _run(*_ask("code postal de Roubaix"))
+    c = ctx.step_info["widget"]["communes"][0]
+    assert c["name"] == "Roubaix" and c["code"] == "59512" and "59100" in c["postcodes"]
+    _, ctx = _run(*_ask("normalise cette adresse : 20 av de segur paris"))
+    w = ctx.step_info["widget"]
+    assert w["mode"] == "address" and "Ségur" in w["address"]["line1"] and "75007" in w["address"]["line2"]
+
+
+def test_an_entity_not_recorded_is_a_missing_page_never_invented():
+    text, ctx = _run("lookup_entity", {"name": "Zorglub Industries"})
+    assert ctx.step_info == {"found": 0} and "n'invente rien" in text
+
+
+# ---------------------------------------------------------------- the HTTP path: hosts, cap, cache, retries
+
+
+class _Fetch:
+    def __init__(self, answers):
+        self.answers, self.calls = list(answers), []
+
+    def __call__(self, http, cfg, url, **kw):
+        self.calls.append(url)
+        a = self.answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        body, hdrs = a
+        return 200, "application/json", json.dumps(body).encode(), hdrs
+
+
+@pytest.fixture
+def live_ctx(monkeypatch):
+    from birds.harness import geo
+
+    monkeypatch.setattr(geo.POLICY, "wait_turn", lambda host: None)
+    monkeypatch.setattr(geo.POLICY, "sleep", lambda s: None)
+    geo.POLICY.clear() if hasattr(geo.POLICY, "clear") else None
+    return Context(config=Config(workspace=Path(tempfile.gettempdir()), audit_file=None, geo_cache_dir=None),
+                   http=object(), lang="fr")  # fmt: skip
+
+
+def test_only_the_listed_hosts_are_reachable(live_ctx):
+    with pytest.raises(Blocked):
+        odhttp.get(live_ctx, "https://evil.example.org/x.json")
+
+
+def test_a_429_is_retried_once_then_a_calm_error(monkeypatch, live_ctx):
+    f = _Fetch([ToolError("HTTP 429"), ToolError("HTTP 429")])
+    monkeypatch.setattr(guard, "fetch_bytes", f)
+    with pytest.raises(ToolError, match="busy"):
+        odhttp.get(live_ctx, "https://api.openalex.org/works?search=retry-test-1")
+    assert len(f.calls) == 2
+
+
+def test_answers_are_cached_except_no_store_and_calls_are_capped(monkeypatch, live_ctx):
+    f = _Fetch([({"a": 1}, {}), ({"b": 2}, {"Cache-Control": "no-store"}), ({"b": 3}, {})] + [({"c": i}, {})
+                                                                                         for i in range(10)])  # fmt: skip
+    monkeypatch.setattr(guard, "fetch_bytes", f)
+    u1, u2 = "https://api.openalex.org/works?search=cache-test-a", "https://api.openalex.org/works?search=cache-test-b"
+    assert odhttp.get(live_ctx, u1) == {"a": 1} and odhttp.get(live_ctx, u1) == {"a": 1}
+    assert odhttp.get(live_ctx, u2) == {"b": 2} and odhttp.get(live_ctx, u2) == {"b": 3}  # no-store: asked again
+    assert len(f.calls) == 3
+    with pytest.raises(ToolError, match="limit"):
+        for i in range(odhttp.MAX_CALLS + 1):
+            odhttp.get(live_ctx, f"https://api.openalex.org/works?search=cap-test-{i}")
+    assert len(f.calls) == odhttp.MAX_CALLS
+
+
+# ---------------------------------------------------------------- routing: catalogue, grounding, veto, parsers
+
+
+def test_the_catalogue_offers_the_six_open_data_modules_with_valid_grounded_examples():
+    names = {m.name for m in catalog.MODULES if m.family == "opendata"}
+    assert names == set(OPENDATA_TOOLS)
+    for n in names:
+        assert f"- {n}(" in catalog.text("fr") and f"- {n}(" in catalog.text("en")
+    assert names <= R.available_names(Config(workspace=Path(".")))
+    assert not names & R.available_names(Config(workspace=Path("."), allowed_tools=("web_search",)))
+
+
+@pytest.mark.parametrize(
+    "tool,args,text,why",
+    [
+        ("work_calendar", {"period": "2031"}, "jours fériés en 2027", "year"),
+        ("work_calendar", {"period": "2027", "zone": "IT"}, "jours fériés en 2027", "zone"),
+        ("lookup_entity", {"name": "Zorglub"}, "c'est quoi Airbus ?", "name"),
+        ("get_statistics", {"indicator": "gdp", "places": "Japon"}, "PIB de la France depuis 2010", "place"),
+        ("find_tenders", {"query": "voirie"}, "appels d'offres nettoyage de locaux", "query"),
+        ("find_papers", {"query": "10.1000/xyz"}, "vérifie ce DOI 10.1038/nature14539", "DOI"),
+    ],
+)
+def test_arguments_the_user_did_not_write_are_refused(tool, args, text, why):
+    assert why in opendata_route.ground(R.Call(tool, args), text, "")
+
+
+def test_country_names_ground_across_languages():
+    assert opendata_route.ground(R.Call("get_statistics", {"indicator": "gdp", "places": "Allemagne"}),
+                                 "GDP of Germany since 2000", "") == ""  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    "tool,args,text",
+    [
+        ("lookup_entity", {"name": "KPI"}, "c'est quoi un KPI ?"),
+        ("get_statistics", {"indicator": "inflation"}, "rédige un article de blog sur l'inflation"),
+        ("work_calendar", {"period": "2027"}, "summarize this paper for me"),
+        ("find_tenders", {"query": "nettoyage"}, "comment répondre à un appel d'offres de nettoyage ?"),
+        ("get_statistics", {"indicator": "population"}, "la population cible de notre campagne marketing"),
+    ],
+)
+def test_the_veto_blocks_known_false_triggers(tool, args, text):
+    assert opendata_route.veto_reason(R.Call(tool, args), text)
+
+
+def test_the_veto_never_blocks_what_the_parser_itself_starts():
+    for q, tool, args in OD.OPENDATA_YES:
+        got = [i for i in opendata_intents.detect(q, False, "fr", today=OD.TODAY) if i.args]
+        assert opendata_route.veto_reason(R.Call(got[0].tool, dict(got[0].args)), q) == "", q
+
+
+def test_router_only_asks_pass_grounding_and_veto_with_their_labels():
+    for q, tool, args in OD.OPENDATA_ROUTER_YES:
+        clean, why = catalog.check_args(tool, args)
+        assert clean is not None, (q, why)
+        call = R.Call(tool, clean)
+        assert R.ground(call, q, "") == "" and R.veto_reason(call, q) == "", q
+
+
+def test_the_bench_families_pass():
+    assert all(OD.started(it) for it in OD.OPENDATA_YES)
+    assert not any(OD.touched(q) for q in OD.OPENDATA_NO)
+
+
+def test_hints_and_fallback_include_the_open_data_parsers():
+    d = R.regex_decision("jours fériés de mai 2027")
+    assert d.get("work_calendar") is not None and d.get("work_calendar").args["period"] == "2027-05"
+    # « bank holidays in the UK »: the holiday words win over the map's « bank »
+    d = R.regex_decision("bank holidays in the UK in 2027", lang="en")
+    assert d.tools()[:1] == ["work_calendar"]
+
+
+def test_the_agent_withdraws_make_chart_when_statistics_are_drawn():
+    pre = opendata_intents.Intent("get_statistics", {"indicator": "gdp"})
+    assert opendata_intents.withdraw(pre) == {"make_chart"} and opendata_intents.own(pre)
+
+
+# ---------------------------------------------------------------- cards: server-side finishing, demo text
+
+
+def test_entity_pictures_are_signed_same_origin_only_with_a_licence():
+    w = {"type": "entity", "image": {"src": "https://upload.wikimedia.org/a.jpg", "license": "CC BY-SA 4.0"}}
+    out = opendata_widgets.prepare(dict(w), b"k" * 32)
+    assert out["image"]["src"].startswith("/api/img?")
+    for bad in ({"src": "https://evil.org/a.jpg", "license": "CC0"}, {"src": "https://upload.wikimedia.org/a.jpg"}):
+        assert opendata_widgets.prepare({"type": "entity", "image": bad}, b"k" * 32)["image"] is None
+
+
+def test_the_demo_routes_open_data_asks_and_writes_from_the_card():
+    from birds.web.backends import widget_scenario
+
+    for q in ("jours fériés de mai 2027", "code postal de Roubaix", "appels d'offres maintenance informatique"):
+        assert widget_scenario(q) == "opendata", q
+    assert widget_scenario("météo à Lyon demain") == "weather"
+    _, ctx = _run(*_ask("jours fériés de mai 2027"))
+    text, titles = opendata_demo.answer("work_calendar", [ctx.step_info["widget"]], [], {}, "fr")
+    assert "19 jours ouvrés" in text and "[1]" in text and titles
+    _, ctx = _run(*_ask("population de Roubaix depuis 1968"))
+    text, titles = opendata_demo.answer("get_statistics", [], ctx.charts, {}, "fr")
+    assert "Roubaix" in text and "[1]" in text
+    text, _ = opendata_demo.answer("lookup_entity", [], [], {}, "en")
+    assert "not part of the demo recording" in text
+
+
+def test_recorded_dates_are_normalised_so_replays_match_any_day():
+    assert demo_widgets.opendata_key("https://x/y?d=2026-10-29&e=2027-01-01") == "https://x/y?d=DATE&e=DATE"
+    _, ctx = _run(*_ask("appels d'offres maintenance informatique"), today=date(2027, 3, 1))
+    assert ctx.step_info["widget"]["items"]

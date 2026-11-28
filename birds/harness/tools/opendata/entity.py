@@ -228,7 +228,10 @@ def lookup_entity(args: dict, ctx) -> str:
                               "description": http.clean(((ent.get("descriptions") or {}).get(lang) or {}).get("value"))}  # fmt: skip
     else:
         qid = str(summary["wikibase_item"])
-        ent = _entities(ctx, [qid], "claims|labels|descriptions", lang).get(qid) or {}
+        try:
+            ent = _entities(ctx, [qid], "claims|labels|descriptions", lang).get(qid) or {}
+        except ToolError:  # Wikidata busy (429) or down: the Wikipedia summary alone still makes a card
+            ent = {}
     kind = _kind(ent) if ent else "other"
     ids = []
     for prop, *_rest in FACTS[kind]:
@@ -236,7 +239,10 @@ def lookup_entity(args: dict, ctx) -> str:
             v = ((c.get("mainsnak") or {}).get("datavalue") or {}).get("value")
             if isinstance(v, dict) and v.get("id"):
                 ids.append(v["id"])
-    labels = {k: _label(v, lang) for k, v in _entities(ctx, list(dict.fromkeys(ids)), "labels", lang).items()}
+    try:
+        labels = {k: _label(v, lang) for k, v in _entities(ctx, list(dict.fromkeys(ids)), "labels", lang).items()}
+    except ToolError:
+        labels, ent = {}, {}
     facts = facts_of(ent, kind, lang, labels) if ent else []
     page = str(((summary.get("content_urls") or {}).get("desktop") or {}).get("page") or "")
     if not page.startswith(f"https://{lang}.wikipedia.org/"):

@@ -33,6 +33,7 @@ HOSTS: dict[str, tuple[float, float]] = {
     "fr.wikipedia.org": (0.2, DAY),
     "en.wikipedia.org": (0.2, DAY),
     "www.wikidata.org": (0.2, DAY),
+    "commons.wikimedia.org": (0.2, 7 * DAY),  # picture licence and author (extmetadata)
     "ec.europa.eu": (0.3, DAY),  # Eurostat dissemination API
     "api.worldbank.org": (0.3, DAY),
     "api.insee.fr": (2.1, DAY),  # Melodi anonymous quota: about 30 requests a minute
