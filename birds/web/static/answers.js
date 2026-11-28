@@ -5,7 +5,7 @@
 // self-hosted KaTeX (static/vendor/katex, MIT, licence in « À propos ») the first time an answer has one, renders
 // every placeholder in place and keeps the source for copying. The page's CSP forbids inline style attributes, so
 // KaTeX's are moved to data-kx-style and applied through the CSSOM. Nothing is fetched from a third party.
-import { copyText, t } from "./core.js";
+import { copyText, icon, t, toast } from "./core.js";
 
 export const KATEX = "/static/vendor/katex/katex.min.js";
 export const KATEX_CSS = "/static/vendor/katex/katex.min.css";
@@ -114,6 +114,197 @@ function onClick(e) {
   if (!btn) return;
   const el = btn.closest(".md-math");
   if (el) copyText(texOf(el), t("md.math.copied"));
+}
+
+// ------------------------------------------------------------------ rich copy (text/html + text/plain)
+// « Copier » puts the answer on the clipboard twice: as HTML (headings, bold, lists and real tables land as such in
+// Word, Outlook or Google Docs) and as plain text (Markdown-like, tables as | a | b |). Built from the rendered answer
+// with an allow-list of tags: no class, no script, no style of ours; the formulas as their TeX, [n] as text.
+
+const CHROME = /(?:^|\s)(?:code-head|code-more|md-more|md-chip-copy|md-math-copy|md-math-out|sr-only|cite-bubble|tplan-head-icon)(?:\s|$)/;
+const KEEP = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "li", "table", "thead", "tbody", "tr", "th",
+  "td", "pre", "code", "blockquote", "strong", "em", "a", "br", "hr", "del", "dl", "dt", "dd"]);
+const ALIAS = { b: "strong", i: "em", s: "del" };
+const BLOCK = new Set(["h1", "h2", "h3", "h4", "h5", "h6", "p", "ul", "ol", "li", "table", "tr", "pre", "blockquote", "hr",
+  "dl", "dt", "dd", "div", "section", "figure", "figcaption", "details", "summary", "aside"]);
+
+/** A plain tree of the rendered answer ({tag, attrs, children} or {text}), without the interface's chrome. */
+export function treeOf(node) {
+  if (node.nodeType === 3) return { text: node.nodeValue };
+  if (node.nodeType !== 1) return null;
+  const tag = node.tagName.toLowerCase();
+  const cls = node.getAttribute("class") || "";
+  if (["svg", "script", "style", "template", "img"].includes(tag) || CHROME.test(cls)) return null;
+  if (node.getAttribute("aria-hidden") === "true") return null;
+  if (/(?:^|\s)md-math(?:\s|$)/.test(cls)) return { text: texOf(node) };
+  if (tag === "sup" && /(?:^|\s)cite(?:\s|$)/.test(cls)) return { text: `[${node.textContent.trim()}]` };
+  if (tag === "figure" && /code-block/.test(cls)) {
+    const code = (node.querySelector("pre code")?.textContent || "").replace(/\n$/, "");
+    return { tag: "pre", attrs: {}, children: [{ tag: "code", attrs: {}, children: [{ text: code }] }] };
+  }
+  if (tag === "input") return node.type === "checkbox" ? { text: node.checked ? "☑ " : "☐ " } : null;
+  const attrs = {};
+  if (tag === "a" && /^https?:\/\//i.test(node.getAttribute("href") || "")) attrs.href = node.getAttribute("href");
+  if (tag === "ol" && node.getAttribute("start")) attrs.start = node.getAttribute("start");
+  if ((tag === "td" || tag === "th") && /\b(?:md-num|al-right)\b/.test(cls)) attrs.align = "right";
+  return { tag, attrs, children: [...node.childNodes].map(treeOf).filter(Boolean) };
+}
+
+const esc = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+function htmlOf(n) {
+  if (n.text !== undefined) return esc(n.text);
+  const inner = n.children.map(htmlOf).join("");
+  const tag = ALIAS[n.tag] || n.tag;
+  if (!KEEP.has(tag)) return BLOCK.has(tag) && !inner.trim().startsWith("<") ? `<p>${inner}</p>` : inner;
+  if (tag === "br" || tag === "hr") return `<${tag}>`;
+  if (tag === "a") return n.attrs.href ? `<a href="${esc(n.attrs.href)}">${inner}</a>` : inner;
+  // presentational attributes, not style="": the browser sanitises the copied HTML under the page's CSP (no inline
+  // style), and Word, Outlook and Google Docs read border / cellpadding / align / bgcolor
+  if (tag === "table") return `<table border="1" cellspacing="0" cellpadding="6">${inner}</table>`;
+  if (tag === "th") return `<th align="left" valign="top" bgcolor="#eceae2">${inner}</th>`;
+  if (tag === "td") return `<td valign="top"${n.attrs.align ? ' align="right"' : ""}>${inner}</td>`;
+  if (tag === "ol" && n.attrs.start) return `<ol start="${esc(n.attrs.start)}">${inner}</ol>`;
+  return `<${tag}>${inner}</${tag}>`;
+}
+
+const flat = (n) => (n.text !== undefined ? n.text : n.children.map(flat).join(""));
+const oneLine = (s) => s.replace(/\s+/g, " ").trim();
+
+function textOf(n, out, depth = 0) {
+  if (n.text !== undefined) {
+    out.push({ inline: n.text });
+    return;
+  }
+  const tag = ALIAS[n.tag] || n.tag;
+  if (tag === "br") return void out.push({ inline: "\n" });
+  if (tag === "hr") return void out.push({ block: "---" });
+  if (tag === "pre") return void out.push({ block: flat(n) });
+  if (tag === "table") {
+    const rows = [];
+    const walk = (x) => (x.tag === "tr" ? rows.push(x) : (x.children || []).forEach(walk));
+    walk(n);
+    const lines = rows.map((r) => `| ${r.children.filter((c) => c.tag === "th" || c.tag === "td").map((c) => oneLine(flat(c)).replace(/\|/g, "\\|")).join(" | ")} |`);
+    if (rows[0]?.children.some((c) => c.tag === "th")) {
+      const cols = rows[0].children.filter((c) => c.tag === "th").length;
+      lines.splice(1, 0, `| ${Array(cols).fill("---").join(" | ")} |`);
+    }
+    return void out.push({ block: lines.join("\n") });
+  }
+  if (tag === "ul" || tag === "ol") {
+    let k = Number(n.attrs.start || 1);
+    const items = n.children.filter((c) => c.tag === "li");
+    const lines = items.map((li) => {
+      const sub = [];
+      for (const c of li.children) textOf(c, sub, depth + 1);
+      const body = join(sub).replace(/\n(?!\s*$)/g, "\n  ");
+      return `${"  ".repeat(depth)}${tag === "ol" ? `${k++}.` : "-"} ${body}`;
+    });
+    return void out.push({ block: lines.join("\n") });
+  }
+  const sub = [];
+  for (const c of n.children) textOf(c, sub, depth);
+  if (BLOCK.has(tag) || KEEP.has(tag) && /^h\d$/.test(tag)) out.push({ block: join(sub) });
+  else out.push(...sub);
+}
+
+function join(parts) {
+  let text = "";
+  let pending = "";
+  for (const p of parts) {
+    if (p.block !== undefined) {
+      const b = p.block.trim();
+      if (!b) continue;
+      text = `${text.trimEnd()}${text.trim() ? "\n\n" : ""}${b}`;
+      pending = "\n\n";
+    } else {
+      text += pending && p.inline.trim() ? pending : "";
+      pending = "";
+      text += p.inline;
+    }
+  }
+  return text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+/** {html, text} of a plain tree: the two flavours « Copier » writes. */
+export function serialize(tree) {
+  const out = [];
+  for (const c of tree.children || [tree]) textOf(c, out);
+  const body = (tree.children || [tree]).map(htmlOf).join("");
+  return { html: `<meta charset="utf-8">${body}`, text: join(out) };
+}
+
+/** Write both flavours; true when the clipboard took them (ClipboardItem, else plain text, else execCommand). */
+export async function writeRich({ html, text }) {
+  try {
+    if (globalThis.ClipboardItem && navigator.clipboard?.write) {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": new Blob([html], { type: "text/html" }),
+          "text/plain": new Blob([text], { type: "text/plain" }),
+        }),
+      ]);
+      return true;
+    }
+  } catch {
+    /* refused (permissions, an iframe): the plain way below */
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    /* no async clipboard: the selection way */
+  }
+  const box = document.createElement("div");
+  box.className = "md-copy-box";
+  box.setAttribute("contenteditable", "true");
+  box.innerHTML = html; // our own allow-listed markup, built above from escaped text
+  document.body.append(box);
+  const range = document.createRange();
+  range.selectNodeContents(box);
+  const sel = getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  let ok = false;
+  try {
+    ok = document.execCommand("copy") === true;
+  } catch {
+    ok = false;
+  }
+  sel.removeAllRanges();
+  box.remove();
+  return ok;
+}
+
+/**
+ * The copy button's answer: the icon turns into a check for 2 s and a screen reader hears « Copié »; when the copy
+ * failed, a toast says how to copy by hand. Returns whether it worked.
+ */
+export async function copyAnswer(button, payload) {
+  const ok = await writeRich(payload);
+  if (!ok) {
+    toast(t("toast.copy.failed"), "error");
+    return false;
+  }
+  if (button) {
+    if (!button._resting) button._resting = { kids: [...button.childNodes], label: button.getAttribute("aria-label") };
+    button.classList.add("is-copied");
+    button.replaceChildren(icon("check"));
+    button.setAttribute("aria-label", t("act.copied"));
+    button.title = t("act.copied");
+    const live = document.getElementById("live");
+    if (live) live.textContent = t("act.copied");
+    clearTimeout(button._copiedTimer);
+    button._copiedTimer = setTimeout(() => {
+      const { kids, label } = button._resting;
+      button.classList.remove("is-copied");
+      button.replaceChildren(...kids);
+      button.setAttribute("aria-label", label);
+      button.title = label;
+      button._resting = null;
+    }, 2000);
+  }
+  return true;
 }
 
 // ------------------------------------------------------------------ citations: the bubble and the sources panel

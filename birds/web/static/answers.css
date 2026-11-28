@@ -93,17 +93,6 @@
     padding-right: 3rem;
   }
 }
-/* copying the answer (turns.plainText) gives the TeX as written, never KaTeX's glyphs */
-.md-copying .md-math[data-typeset="1"] > .md-math-src {
-  display: inline;
-}
-.md-copying .md-math--block[data-typeset="1"] > .md-math-src {
-  display: block;
-}
-.md-copying .md-math-out,
-.md-copying .md-math-copy {
-  display: none;
-}
 .md-copy-box {
   position: fixed;
   left: -10000px;

@@ -96,3 +96,35 @@ test("the citation bubble reads the source card, never the model's text", async 
     snippet: "Mission habitée autour de la Lune.",
   });
 });
+
+test("rich copy: real headings, lists and one table with its header row; no interface chrome; plain text alongside", async () => {
+  const { serialize } = await import("../../birds/web/static/answers.js");
+  const T = (text) => ({ text });
+  const E = (tag, children = [], attrs = {}) => ({ tag, attrs, children });
+  // the shape treeOf() gives for a rendered answer (sortable header buttons unwrapped, chrome already dropped)
+  const tree = E("div", [
+    E("h3", [T("Les 3 plus grandes villes")]),
+    E("p", [T("Paris est "), E("strong", [T("la plus peuplée")]), T(" [1].")]),
+    E("div", [E("table", [
+      E("thead", [E("tr", [E("th", [E("button", [T("Ville")])]), E("th", [E("button", [T("Population")])], { align: "right" })])]),
+      E("tbody", [E("tr", [E("td", [T("Paris")]), E("td", [T("2 102 650")], { align: "right" })]),
+        E("tr", [E("td", [T("Marseille")]), E("td", [T("877 215")], { align: "right" })])]),
+    ])]),
+    E("ul", [E("li", [T("un")]), E("li", [T("deux "), E("code", [T("x<y")])])]),
+    E("pre", [E("code", [T("print('ok')\nprint(2)")])]),
+  ]);
+  const { html, text } = serialize(tree);
+  assert.match(html, /^<meta charset="utf-8"><h3>Les 3 plus grandes villes<\/h3><p>Paris est <strong>la plus peuplée<\/strong> \[1\]\.<\/p>/);
+  assert.match(html, /<table border="1"[^>]*><thead><tr><th align="left"[^>]*>Ville<\/th><th align="left"[^>]*>Population<\/th><\/tr><\/thead>/);
+  assert.match(html, /<td valign="top" align="right">2 102 650<\/td>/);
+  assert.doesNotMatch(html, /style=/); // the page's CSP would strip it on copy
+  assert.equal((html.match(/<table/g) || []).length, 1);
+  assert.doesNotMatch(html, /<button|<div|class=|<script|onerror/);
+  assert.match(html, /<code>x&lt;y<\/code>/);
+  assert.equal(
+    text,
+    "Les 3 plus grandes villes\n\nParis est la plus peuplée [1].\n\n| Ville | Population |\n| --- | --- |\n| Paris | 2 102 650 |\n| Marseille | 877 215 |\n\n- un\n- deux x<y\n\nprint('ok')\nprint(2)",
+  );
+  // a link keeps only an http(s) address
+  assert.equal(serialize(E("div", [E("p", [E("a", [T("x")], { href: "https://e.org/a" })])])).html, '<meta charset="utf-8"><p><a href="https://e.org/a">x</a></p>');
+});

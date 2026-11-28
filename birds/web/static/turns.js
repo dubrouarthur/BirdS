@@ -36,7 +36,7 @@ import { canvasCard } from "./canvas.js";
 import { enhanceAnswer } from "./modules.js";
 import { renderChips, transforms } from "./followups.js";
 import { flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
-import { setSourcesOpen, typeset } from "./answers.js"; // math, citations, rich copy, feedback (chat audit C2)
+import { copyAnswer, serialize, setSourcesOpen, treeOf, typeset } from "./answers.js"; // math, citations, rich copy, feedback (chat audit C2)
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1161,22 +1161,21 @@ function mdLabels() {
   };
 }
 
-export function plainText(turn) {
+/** The answer as the clipboard takes it: HTML (real headings, lists, tables) and plain text (answers.js). */
+export function richCopy(turn) {
   const md = cache.get(turn.id)?.md;
-  if (!md) return String(turn.answer?.content || "");
-  // the code heads (language, Copy…), the fold buttons and the formula copy icons are not part of the answer
-  const heads = [...md.querySelectorAll(".code-head, .code-more, .md-more, .md-chip-copy")];
-  const folded = [...md.querySelectorAll(".md-fold li[hidden]")]; // folded items are copied too
-  for (const el of heads) el.hidden = true;
-  for (const el of folded) el.hidden = false;
-  md.classList.add("md-copying"); // code lines back inline, so innerText keeps one newline per line
-  const text = md.innerText.trim();
-  md.classList.remove("md-copying");
-  for (const el of heads) el.hidden = false;
-  for (const el of folded) el.hidden = true;
+  const out = md
+    ? serialize(treeOf(md))
+    : { text: String(turn.answer?.content || ""), html: `<meta charset="utf-8"><p>${escapeText(turn.answer?.content || "")}</p>` };
   const extra = widgetsText(turn);
-  return extra ? `${text}\n\n${extra}` : text;
+  if (extra) {
+    out.text = `${out.text}\n\n${extra}`;
+    out.html += extra.split("\n").filter(Boolean).map((line) => `<p>${escapeText(line)}</p>`).join("");
+  }
+  return out;
 }
+
+const escapeText = (v) => String(v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 function renderActions(turn, isLast) {
   if (turn.status === "running" || turn.status === "confirm" || !turn.answer)
@@ -1193,7 +1192,7 @@ function renderActions(turn, isLast) {
       "btn-quiet btn-icon btn-small",
       "copy",
       t("act.copy"),
-      () => copyText(plainText(turn)),
+      (e) => copyAnswer(e.currentTarget, richCopy(turn)), // text/html + text/plain; the icon says « Copié »
       { "data-act": "copy" },
     ),
     isLast &&

@@ -720,7 +720,7 @@ def test_static_payload_budget():
     # and the quote card (finance.js/.css: +17 kB raw, ~4 kB gzipped)
     # then the answer content of the chat audit (math placeholders and the KaTeX loader, citation bubbles, rich copy,
     # thumbs-down reasons, the work line: answers.js/.css/-i18n.js; KaTeX itself has its own budget below)
-    assert total < 1_560_000, f"static payload is {total} bytes"  # measured 1 545 026 (+ quote card + math, R9)
+    assert total < 1_585_000, f"static payload is {total} bytes"  # measured 1 563 502 (+ math, citations, rich copy)
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"

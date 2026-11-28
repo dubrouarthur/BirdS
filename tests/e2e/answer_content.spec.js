@@ -78,7 +78,7 @@ async function shot(page, el, file) {
     await page.waitForTimeout(1200);
     await page.evaluate(() => document.querySelector("dialog[open]")?.close());
     const n = await birds(page).count();
-    check(n === 6, `${name}: ${n} answers drawn`);
+    check(n === 7, `${name}: ${n} answers drawn`);
 
     // ---- R9 math: the photosynthesis answer (third), typeset; no raw \[ left; copy gives the TeX
     const photo = birds(page).nth(2);
@@ -145,6 +145,65 @@ async function shot(page, el, file) {
       await page.waitForTimeout(150);
       check((await page.locator(".cite-bubble").count()) === 0, `${name}: Escape did not close the bubble`);
     }
+
+    // ---- R11 rich copy: the Révolution answer (headings, a table, code) as text/html with one real table
+    const revo = birds(page).nth(6);
+    const copyBtn = revo.locator('[data-act="copy"]');
+    await copyBtn.scrollIntoViewIfNeeded();
+    await copyBtn.click();
+    await page.waitForTimeout(300);
+    const flavours = await page.evaluate(async () => {
+      try {
+        const items = await navigator.clipboard.read();
+        const out = {};
+        for (const type of items[0].types) out[type] = await (await items[0].getType(type)).text();
+        return out;
+      } catch (e) {
+        return { error: String(e) };
+      }
+    });
+    const html = flavours["text/html"] || "";
+    check((html.match(/<table/g) || []).length === 1 && /<thead><tr><th[^>]*>[^<]+<\/th><th/.test(html), `${name}: copied HTML has no real table (${html.slice(0, 80)})`);
+    check(/<h\d>/.test(html) && !/<button|class=|<svg/.test(html), `${name}: copied HTML keeps chrome or lost headings`);
+    check(/\| --- \|/.test(flavours["text/plain"] || ""), `${name}: plain text has no table`);
+    check(!/Copier|Télécharger|Retour à la ligne/.test(flavours["text/plain"] || ""), `${name}: plain text carries buttons' words`);
+    check(await copyBtn.evaluate((b) => b.classList.contains("is-copied") && b.getAttribute("aria-label") === "Copié"), `${name}: copy button did not say « Copié »`);
+    check((await page.locator(".toast", { hasText: /^Copié$/ }).count()) === 0, `${name}: a toast instead of the icon`);
+    await shot(page, revo.locator(".actions-row"), `copied-${name}.png`);
+    await page.waitForTimeout(2200);
+    check(!(await copyBtn.evaluate((b) => b.classList.contains("is-copied"))), `${name}: « Copié » did not go back after 2 s`);
+
+    // ---- R8: the code badge says what was checked
+    const badge = revo.locator(".code-check--ok").first();
+    check((await badge.count()) === 1 && (await badge.innerText()).trim() === "Syntaxe Python valide", `${name}: badge « ${await badge.innerText().catch(() => "")} »`);
+    if (await badge.count()) await shot(page, badge.locator("xpath=ancestor::figure[1]").locator(".code-head"), `badge-${name}.png`);
+
+    // ---- R10: human tool labels, no tick on « 0 sur 2 faites »
+    const names = await page.locator(".steps-names").allInnerTexts();
+    check(!names.some((x) => /\b[a-z]+_[a-z_]+\b/.test(x)), `${name}: tool id in the steps line: ${names.join(" / ")}`);
+    check(names.some((x) => /Fiche encyclopédique/.test(x)), `${name}: no « Fiche encyclopédique » label`);
+    const failed = birds(page).nth(3).locator(".tplan").first();
+    if (await failed.count()) {
+      check(/0 sur 2 faites/.test(await failed.innerText()), `${name}: plan count`);
+      const tick = await failed.locator(":scope > summary .tplan-head-icon").evaluate((el) => el.closest("summary") && el.innerHTML).catch(() => "");
+      check(!/M4\.5 10\.5l3\.5 3\.5/.test(tick || ""), `${name}: green check on « 0 sur 2 faites »`);
+      await shot(page, failed, `plan-${name}.png`);
+    }
+
+    // ---- R7: the entity picture the proxy refused leaves no broken image, no alt text, no credit
+    const ent = birds(page).nth(1).locator(".od-ent");
+    if (await ent.count()) {
+      await ent.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(600);
+      check((await ent.locator("img").count()) === 0 && (await ent.getAttribute("data-img")) === "failed", `${name}: broken entity picture still shown`);
+      check((await birds(page).nth(1).locator(".od-credit").count()) === 0, `${name}: credit of a picture not shown`);
+      await shot(page, ent.locator("xpath=ancestor::section[1]"), `entity-${name}.png`);
+    }
+
+    // ---- R20: the mail card's « À » is empty with the designed hint
+    const mail = birds(page).nth(5).locator(".email-card");
+    check((await mail.locator(".email-missing").count()) === 1 && !/@/.test(await mail.locator(".card-meta").innerText()), `${name}: mail recipient`);
+    await shot(page, mail.locator(".card-head"), `mail-${name}.png`);
 
     const [sw, cw] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
     check(sw <= cw + 1, `${name}: horizontal scroll ${sw} > ${cw}`);

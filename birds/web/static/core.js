@@ -362,9 +362,12 @@ export function toast(text, kind = "info", { action, ms } = {}) {
   return el;
 }
 
+/** Copy plain text; « Copié » only when the copy worked, else a way to do it by hand. Returns whether it worked. */
 export async function copyText(text, message) {
+  let ok = false;
   try {
     await navigator.clipboard.writeText(text);
+    ok = true;
   } catch {
     const area = h("textarea", {
       class: "sr-only",
@@ -375,13 +378,15 @@ export async function copyText(text, message) {
     document.body.append(area);
     area.select();
     try {
-      document.execCommand("copy");
+      ok = document.execCommand("copy") === true;
     } catch {
-      /* nothing else to try */
+      ok = false;
     }
     area.remove();
   }
-  toast(message || t("toast.copied"), "ok");
+  if (ok) toast(message || t("toast.copied"), "ok");
+  else toast(t("toast.copy.failed"), "error");
+  return ok;
 }
 
 /** Offer bytes as a download through a Blob URL (no server round trip, nothing leaves the browser). */

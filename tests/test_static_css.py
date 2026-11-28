@@ -41,7 +41,6 @@ SHARED = {
     "icon", "btn", "is-on", "is-done", "is-full", "is-open", "is-active", "is-failed", "is-todo", "is-unavailable",
     "is-busy", "is-error", "is-hidden", "is-current", "is-selected", "is-new", "sr-only", "visually-hidden",
     "is-part", "is-bad", "is-ok", "is-low",
-    "md-copying",  # the answer's « being copied » state (turns.plainText): each module hides its own chrome in it
     "sources", "cite",  # the answer's sources and [n] marks, that answers.css extends (pill, tap area, open state)
     # app components that agents.css / canvas.css extend on purpose (the composer, the modal, buttons)
     "agent-pill", "btn-stop", "composer-row", "modal", "switch-label", "btn-label",
