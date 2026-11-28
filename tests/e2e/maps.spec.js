@@ -161,7 +161,7 @@ async function send(page, text) {
       await page.screenshot({ path: path.join(OUT, `maps-${id}-${name}.png`) });
       await page.setViewportSize(vp);
       await page.waitForTimeout(150);
-      if (id === "ten") {
+      if (id === "ten" || id === "addresses") {
         // full screen: the map and its list fill the window; Escape closes and gives the focus back
         const inertBefore = await page.locator("[inert]").count(); // the closed drawer on a phone
         await card.locator(".map-full").click();
@@ -173,8 +173,20 @@ async function send(page, text) {
         if (pos !== "fixed")
           problems.push(`${name}/${id}: full screen is not fixed (position ${pos})`);
         await page.screenshot({
-          path: path.join(OUT, `maps-full-${name}.png`),
+          path: path.join(OUT, `maps-full-${id}-${name}.png`),
         });
+        // the missing-address line stays a line: the list, not the warning, takes the free height
+        const miss = await card.evaluate((s) => {
+          const m = s.querySelector(".place-missing");
+          const l = s.querySelector(".place-sheet");
+          return m && l
+            ? { m: m.getBoundingClientRect().height, l: l.getBoundingClientRect().height }
+            : null;
+        });
+        if (miss && (miss.m > 90 || miss.l < miss.m))
+          problems.push(
+            `${name}/${id}: full screen warning ${Math.round(miss.m)}px tall, list ${Math.round(miss.l)}px`,
+          );
         // a modal: Tab never leaves it (focus trap, the page behind is inert)
         const stops = await card.evaluate(
           (s) => s.querySelectorAll("a[href],button:not([disabled])").length,
