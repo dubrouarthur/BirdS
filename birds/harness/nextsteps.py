@@ -26,7 +26,7 @@ import unicodedata
 MAX_TOKENS = 200  # three suggestions, compact JSON: ≈ 150 tokens measured
 BUDGET_S = 6.0  # beyond it no chips from the model: the widget chips of followups.js stay
 LABEL_MAX = 42  # what the guide asks for
-LABEL_HARD = 48  # the schema's bound: a label that reaches it was cut by the endpoint, and is dropped
+LABEL_HARD = 60  # the schema's bound: a label that reaches it was cut by the endpoint, and is dropped
 PROMPT_MAX = 160
 MAX_ITEMS = 3
 MAX_REQUEST_CHARS = 400
@@ -131,10 +131,21 @@ _GUIDE = {
         "l'impératif et au tutoiement (« Ajoute… », « Compare… », « Rédige… », « Traduis… »), jamais avec la voix de "
         "Bird (pas de « je », pas de « vous », pas de « Souhaitez-vous »).\n"
         "Concrète et propre à cette réponse : reprends ses sujets, ses noms, ses chiffres.\n"
+        "Faisable avec ce que la conversation contient déjà : n'invente ni lieu de départ, ni hypothèse, ni chiffre, "
+        "ni fait sur l'utilisateur (ses réalisations, ses objectifs, ses prix, ses dates). Si Bird vient de demander "
+        "une information ou un document à l'utilisateur, aucune suggestion ne s'en sert : seulement ce que Bird peut "
+        "faire sans, ou rien.\n"
+        "Pas de suite passe-partout : « Traduis », « Raccourcis », « Résume » seulement pour un texte que "
+        "l'utilisateur va envoyer ou diffuser (mail, courrier, note, document), jamais après une météo, une carte, un "
+        "calcul ou une réponse courte.\n"
+        "Météo : prévision de quelques jours d'une ville, ni historique ni carte météo. Lieux : Bird trouve des lieux "
+        "et donne des distances à vol d'oiseau, pas d'itinéraire, de temps de trajet, de prix ni d'avis.\n"
         "Si la réponse finit par une question qui propose des choix, les suggestions sont ces choix, écrits comme "
         "la réponse de l'utilisateur (« Souhaitez-vous une version courte ou détaillée ? » → « Fais la version "
         "courte », « Fais la version détaillée »). Jamais « Oui » ni « Non ».\n"
-        "label : 42 caractères au plus, commence par le verbe. prompt : la demande complète, une phrase.\n"
+        "label : 42 caractères au plus, commence par le verbe, garde le complément qui dit ce qu'on change "
+        "(« Prévois les ventes de mai », pas « Prévois mai ») ; en français correct (« diapositive », pas « slide »). "
+        "prompt : la même demande, complète, en une phrase.\n"
         "needs : la capacité de Bird que la demande utilise, parmi : {caps}. Seulement ce que Bird sait faire ici ; "
         "jamais une suggestion « user » ou « none ». {cant}\n"
         'Aucune suggestion ({{"suggestions":[]}}) après une salutation, un remerciement, une réponse courte qui ne '
@@ -148,10 +159,18 @@ _GUIDE = {
         '("Add…", "Compare…", "Draft…", "Translate…"), never in Bird\'s voice (no "I can", no "Would you '
         'like").\n'
         "Concrete and specific to this answer: reuse its subjects, names and figures.\n"
+        "Doable with what the conversation already holds: never invent a starting point, an assumption, a figure "
+        "or a fact about the user (their achievements, goals, prices, dates). If Bird just asked the user for "
+        "information or a document, no suggestion uses it: only what Bird can do without it, or nothing.\n"
+        'No generic step: "Translate", "Shorten", "Summarize" only for a text the user will send or share (email, '
+        "letter, note, document), never after a weather forecast, a map, a calculation or a short answer.\n"
+        "Weather: a few days' forecast for a city, no history, no weather map. Places: Bird finds places and gives "
+        "straight-line distances, no directions, travel times, prices or reviews.\n"
         "If the answer ends with a question offering options, the suggestions are those options written as the "
         'user\'s answer ("Would you like a short or a detailed version?" → "Write the short version", "Write the '
         'detailed version"). Never "Yes" or "No".\n'
-        "label: 42 characters at most, starts with the verb. prompt: the full request, one sentence.\n"
+        "label: 42 characters at most, starts with the verb, keeps the object that says what changes (\"Forecast "
+        'May sales", not "Forecast May"). prompt: the same request, complete, one sentence.\n'
         "needs: the capability of Bird the request uses, among: {caps}. Only what Bird can do here; never a "
         '"user" or "none" suggestion. {cant}\n'
         'No suggestion ({{"suggestions":[]}}) after a greeting, thanks, or a short answer that needs nothing more.\n'
@@ -185,6 +204,30 @@ _SHOTS = {  # (request, answer, [(needs, label, prompt)])
                 ("write", "Traduis-le en anglais", "Traduis ce mail de relance en anglais."),
             ],
         ),
+        (
+            "quel temps fera-t-il à Nantes samedi ?",
+            "Samedi à Nantes : averses le matin, 11 °C au plus, vent d'ouest à 30 km/h. Dimanche s'annonce sec.",
+            [
+                ("get_weather", "Donne la météo de dimanche à Nantes",
+                 "Donne le détail heure par heure de la météo de dimanche à Nantes."),
+                ("get_weather", "Compare avec Rennes samedi", "Compare la météo de samedi à Nantes et à Rennes."),
+            ],
+        ),
+        (
+            "trouve des cafés près de la gare de Lille-Flandres",
+            "Voici 6 cafés à moins de 500 m de la gare de Lille-Flandres : Le Moderne (120 m), Café Gare (180 m)…",
+            [
+                ("find_places", "Garde ceux à moins de 200 m",
+                 "Garde seulement les cafés à moins de 200 m de la gare de Lille-Flandres."),
+                ("find_places", "Trouve aussi des boulangeries",
+                 "Trouve des boulangeries près de la gare de Lille-Flandres."),
+            ],
+        ),
+        (
+            "aide-moi à préparer mon bilan de mi-année",
+            "Avec plaisir. Pour commencer, quelles ont été vos trois principales réalisations depuis janvier ?",
+            [],
+        ),
         ("merci, c'est parfait", "Avec plaisir ! Bonne journée.", []),
     ),
     "en": (
@@ -197,6 +240,17 @@ _SHOTS = {  # (request, answer, [(needs, label, prompt)])
                  "Estimate a budget per person for each of the three offsite ideas."),
                 ("write", "Draft a sample agenda", "Draft a one-day sample agenda for the offsite."),
             ],
+        ),
+        (
+            "what's the weather in Leeds tomorrow?",
+            "Tomorrow in Leeds: light rain in the morning, 9 °C at most, wind 20 km/h.",
+            [("get_weather", "Get the weekend forecast for Leeds", "Give the weekend forecast for Leeds.")],
+        ),
+        (
+            "draft an email to our supplier about the late delivery",
+            "Which order is late, and by how many days? I need them to write the email.",
+            [("office", "Draft it with blanks for the details",
+              "Draft the email to the supplier with the order number and delay left blank.")],
         ),
         ("thanks, that's all", "You're welcome! Have a great day.", []),
     ),
@@ -270,8 +324,13 @@ _CANT_DO = re.compile(
     r"\b(?:envoie|envoyer|exp[ée]die|send|r[ée]serve|r[ée]server|book (?:a|an|the|my)|paie|payer|"
     r"pay (?:the|my|this|it)|appelle|appeler|call (?:him|her|them|me|my|the client|the supplier)|"
     r"l'envoi|the sending)\b|"
+    # directions and travel times: find_places gives straight-line distances and a link (live run of 28/11: « Fais
+    # un itinéraire de marche vers Yoru », « Compare le temps de trajet en métro, en bus et en voiture »)
+    r"^(?:fais|donne|calcule|trace|pr[ée]pare|make|give|get|plan)(?:-moi| me)? (?:un |une |l'|le |la |the |a )?"
+    r"(?:itin[ée]raire|trajet|route|directions)\b|\btemps de trajet\b|\btravel times?\b|"
+    r"\bitin[ée]raire (?:de (?:m[ée]tro|bus|marche|voiture)|en (?:m[ée]tro|bus|voiture|transports?)|à pied)\b|"
     # a reminder, an account, a mailbox or a calendar of the user's (the .ics card is the « event » module)
-    r"\b(?:mets|programme|cr[ée]e|ajoute|planifie|set|create|add|schedule) (?:un |une |a |me )?(?:rappel|"
+    r"\b(?:mets|programme|cr[ée]e|planifie|set|create|schedule) (?:un |une |a |me )?(?:rappel|"
     r"reminder|alarme|alarm)\b|\brappelle-moi\b|\bremind me\b|"
     r"\b(?:ouvre|consulte|lis|v[ée]rifie|regarde|open|check|read) (?:mon|ma|mes|my)\b|"
     r"\b(?:mon|ma|mes|my) (?:solde|compte bancaire|relev[ée]s? bancaires?|bank balance|bank account|"
@@ -281,8 +340,10 @@ _CANT_DO = re.compile(
     # étapes clés », « Provide three examples », « Confirme les chiffres avec un calcul » are requests to Bird
     r"^(?:valide|validez|confirme|fournis|fournissez|indique|indiquez|donne|pr[ée]cise|partage|transmets-moi|"
     r"provide|share|give|tell|confirm|enter|saisis)(?:-moi| moi| me)? (?:(?:mon|ma|mes|notre|nos|my|our)\b|"
-    r"(?:l'adresse|le nom|la date|le num[ée]ro|un document|un fichier|un lien|the (?:client|customer|supplier)'s|"
-    r"the (?:name|address|date|number|email)|a (?:document|file|link))\b)|"
+    r"(?:un document|un fichier|un lien|the (?:client|customer|supplier)'s|a (?:document|file|link))\b)|"
+    # facts only the user has, asked of Bird (« Liste mes accomplissements » after Bird asked for them)
+    r"^(?:liste|[ée]num[èe]re|r[ée]capitule|list|enumerate) (?:mes|my) (?:accomplissements|r[ée]alisations|"
+    r"objectifs|t[âa]ches|r[ée]ussites|achievements|accomplishments|goals|tasks)\b|"
     r"^(?:upload|joins|attach|t[ée]l[ée]verse)\b",
     re.I,
 )

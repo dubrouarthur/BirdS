@@ -472,6 +472,20 @@ NEXTSTEPS_CASES = [
      "Here is a one-day outline: morning workshop, lunch, afternoon hike. Would you like a budget or a "
      "sample invitation?",
      {"words": ["budget", "invitation"]}),
+    # the review of the 28/11 live set: user facts, invented origins or assumptions, routes, generic steps
+    ("facts_asked", "fr", "aide-moi à préparer mon entretien de fin d'année",
+     "Bien sûr. Pour commencer, pouvez-vous me donner vos principales réalisations de l'année et vos objectifs ?",
+     {"not": r"(?i)\b(?:liste|donne|indique|rappelle)[- ]?(?:moi )?mes (?:r[ée]alisations|accomplissements|objectifs)"}),
+    ("map_museum", "fr", "où se trouve le musée des Confluences ?",
+     "Le musée des Confluences est au 86 quai Perrache, 69002 Lyon. Le lien « Itinéraire » de la carte donne "
+     "l'accès.",
+     {"not": r"(?i)itin[ée]raire|trajet|m[ée]tro|bus|tram|tarif|prix|avis|depuis la gare|traduis"}),
+    ("weather_city", "fr", "quel temps à Toulouse demain ?",
+     "Demain à Toulouse : ensoleillé, 6 à 15 °C, pas de pluie, vent faible.",
+     {"not": r"(?i)traduis|anglais|carte|semaine derni[èe]re|hier|raccourcis|r[ée]sum"}),
+    ("sales_trend", "fr", "nos ventes : T1 80, T2 95, T3 90. Quelle tendance ?",
+     "Les ventes montent de T1 à T2 (+18,8 %) puis reculent légèrement au T3 (-5,3 %).",
+     {"not": r"(?i)en supposant|hypoth[èe]se|si les ventes (?:baissent|montent)|\d+ ?% de (?:baisse|hausse)"}),
 ]  # fmt: skip
 
 

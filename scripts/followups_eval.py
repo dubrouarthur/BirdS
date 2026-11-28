@@ -145,6 +145,47 @@ def record(out: Path, max_gens: int, only: set[str] | None) -> None:
     print(json.dumps({"rows": len(rows), "generations": gens["n"]}))
 
 
+# ---------------------------------------------------------------- 1b. replay (live, one generation per row)
+
+
+def replay(src: Path, out: Path, only: set[str] | None) -> None:
+    """The next-steps call alone on the SAME recorded answers (request + answer of ``src``), with today's prompt:
+    one generation per row, so a prompt change is measured on a fixed set. Raw output and validation are kept."""
+    from birds.harness import catalog
+    from birds.harness import nextsteps as N
+    from birds.harness.llm import CompletionsClient
+    from birds.harness.template import TemplateTokenizer
+
+    if not os.environ.get("BIRD_BASE_URL"):
+        sys.exit("BIRD_BASE_URL is required (the key comes from BIRD_API_KEY, never the command line)")
+    llm = CompletionsClient(os.environ["BIRD_BASE_URL"], os.environ.get("BIRD_MODEL", "adubrou/Bird-S-4B"),
+                            os.environ.get("BIRD_API_KEY"))  # fmt: skip
+    names = {m.name for m in catalog.MODULES if m.available}
+    tools = names | {"web_search", "read_page", "draft_email"}
+    raw: list = []
+    real_validate = N.validate
+
+    def keep_raw(obj, **kw):
+        raw.append(obj)
+        return real_validate(obj, **kw)
+
+    N.validate = keep_raw
+    rows = []
+    for r in json.loads(src.read_text()):
+        if only and r["id"] not in only or not (r.get("answer") or {}).get("content"):
+            continue
+        raw.clear()
+        got = N.generate(llm, TemplateTokenizer(), r["prompt"], r["answer"]["content"], lang=r["lang"], names=names,
+                         tools=tools, budget=30)  # fmt: skip
+        rows.append({k: r[k] for k in ("id", "family", "lang", "prompt", "answer")} | {
+            "suggestions": got["items"], "raw": raw[-1] if raw else None, "next_seconds": got["seconds"],
+            "next_why": got.get("why"), "next_dropped": got.get("dropped"), "usage": got.get("usage")})  # fmt: skip
+        out.write_text(json.dumps(rows, ensure_ascii=False, indent=1))
+        print(f"{r['id']}: {got['seconds']}s {[x['label'] for x in got['items']]} dropped {got.get('dropped')}",
+              file=sys.stderr)  # fmt: skip
+    N.validate = real_validate
+
+
 # ---------------------------------------------------------------- 2. score
 
 
@@ -251,6 +292,41 @@ def score(path: Path, base: str, tools: set[str]) -> dict:
     return {"table": table, "latency": lat, "rows": len(rows), "old": old, "arms": arms}
 
 
+def strict(before: Path, after: Path, judged: Path) -> dict:
+    """The strict re-score (review of 28/11): « faisable » judged by hand against what Bird's tools do with what
+    the conversation holds (no invented origin, assumption or user fact), not by the patterns. Three arms on the
+    same 20 recorded answers: « livré » (the chips the first run showed), « avant » (that prompt's raw output
+    under today's validation) and « après » (today's prompt, replayed live, today's validation).
+    ``judged``: {arm: {"<id>|<label>": "F" not doable, "G" generic / redundant / near duplicate, "W" badly worded}};
+    a chip not listed was read and passes all three."""
+    from birds.harness import catalog
+    from birds.harness import nextsteps as N
+
+    tools = {m.name for m in catalog.MODULES} | {"web_search", "read_page", "draft_email"}
+    marks = json.loads(judged.read_text())
+    b, a = json.loads(before.read_text()), json.loads(after.read_text())
+    arms = {
+        "livré": {r["id"]: r.get("suggestions") or [] for r in b},
+        "avant": {r["id"]: N.validate(r.get("raw") or {}, lang=r["lang"], available=tools)[0] for r in b},
+        "après": {r["id"]: N.validate(r.get("raw") or {}, lang=r["lang"], available=tools)[0] for r in a},
+    }
+    table = {}
+    for arm, by in arms.items():
+        n = bad = gen = worded = turns_bad = 0
+        for pid, chips in by.items():
+            flags = [marks.get(arm, {}).get(f"{pid}|{c['label']}", "") for c in chips]
+            n += len(chips)
+            bad += sum("F" in f for f in flags)
+            gen += sum("G" in f for f in flags)
+            worded += sum("W" in f for f in flags)
+            turns_bad += any("F" in f for f in flags)
+        table[arm] = {"puces": n, "faisable": round(1 - bad / n, 2), "utile": round(1 - gen / n, 2),
+                      "bien formulée": round(1 - worded / n, 2), "irréprochables": round(
+                          sum(not marks.get(arm, {}).get(f"{p}|{c['label']}") for p, cs in by.items() for c in cs) / n, 2),
+                      "tours avec une puce infaisable": f"{turns_bad}/{len(by)}"}  # fmt: skip
+    return table
+
+
 def cases(base: str, live: bool) -> dict:
     """router_data.NEXTSTEPS_CASES: the old chips (offline, no model) and, with ``live``, Bird's next steps (one
     generation per case on BIRD_BASE_URL), each judged by router_data.nextsteps_ok."""
@@ -284,6 +360,10 @@ def main(argv=None) -> int:
     ap.add_argument("--score", type=Path)
     ap.add_argument("--base", default="941cfc9")
     ap.add_argument("--max-gens", type=int, default=60)
+    ap.add_argument("--replay", type=Path, help="with --out: today's prompt on the recorded answers of this file")
+    ap.add_argument("--out", type=Path)
+    ap.add_argument("--strict", nargs=3, type=Path, metavar=("BEFORE", "AFTER", "JUDGED"),
+                    help="the strict hand re-score of three arms (docs/HARNESS.md § 17)")
     ap.add_argument("--only", default="")
     ap.add_argument("--dump", action="store_true", help="print every chip of each arm (for the hand judgement)")
     ap.add_argument("--cases", action="store_true", help="router_data.NEXTSTEPS_CASES: old chips offline")
@@ -291,6 +371,10 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.record:
         record(a.record, a.max_gens, set(filter(None, a.only.split(","))) or None)
+    if a.strict:
+        print(json.dumps(strict(*a.strict), ensure_ascii=False, indent=1))
+    if a.replay:
+        replay(a.replay, a.out, set(filter(None, a.only.split(","))) or None)
     if a.cases:
         print(json.dumps(cases(a.base, a.live), ensure_ascii=False, indent=1))
     if a.score:

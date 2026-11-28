@@ -77,7 +77,7 @@ def test_user_voice_is_kept_and_birds_question_fragments_are_dropped():
 
 
 def test_lengths_language_duplicates_and_three_at_most():
-    long = "Compare les trois offres sur le prix et la durée d'engagement"
+    long = "Compare les trois offres sur le prix, la durée d'engagement et le préavis"
     kept, dropped = N.validate(obj(
         (long, "Compare les trois offres sur le prix et la durée."),
         ("compare les offres", "Compare les offres."),
@@ -118,7 +118,7 @@ def test_a_cut_label_drops_the_chip_it_is_never_trimmed():
     title = ("Change le titre en « Formation continue »", "Change le titre de la présentation en « Formation continue ».")
     assert N.validate(obj(title))[0] == [{"label": title[0], "prompt": title[1]}]
     for label in ("Ajoute une diapositive sur les modalités d", "Change le titre en « Formation continue",
-                  "Compare le temps de trajet en métro, en bus et en voi", "Ajoute une section sur la", "Résume…"):
+                  "Compare la durée, le prix et le confort du train et de l'avi", "Ajoute une section sur la", "Résume…"):
         assert N.validate(obj((label, "Ajoute une diapositive sur les modalités d'inscription.")))[1] == [
             (label, "cut")], label
     assert N.validate(obj(("Raccourcis le texte.", "Raccourcis le texte")))[0] == [
@@ -148,8 +148,11 @@ def test_vetoes_aim_at_the_actor_and_the_capability_not_at_a_word():
                  "Ajoute des images illustrant les trois parcours à la diapositive."):  # the prompt's own example
         assert N.validate(obj((_label(text), text)), available=set())[0], text
     # the actor is the user: still dropped
+    for text in ("Donne l'adresse du musée d'Orsay.", "Ajoute un rappel sur les clés au mail."):  # live, 28/11
+        assert N.validate(obj((_label(text), text)))[0], text
     for text, lang in (("Provide the client's email address.", "en"), ("Fournis un document sur le marché.", "fr"),
-                       ("Donne mes objectifs de l'année.", "fr")):
+                       ("Donne mes objectifs de l'année.", "fr"),
+                       ("Liste mes accomplissements pour l'entretien annuel.", "fr")):
         assert N.validate(obj((_label(text), text)), lang=lang)[0] == [], text
     # a module that is off, named without doubt: still dropped without a label
     for text in ("Donne la météo de Paris demain.", "Convertis 100 € en dollars.",
@@ -193,7 +196,9 @@ def test_the_models_capability_label_vetoes_what_bird_cannot_do_here():
                  "Planifie la réunion du 12 dans mon agenda.", "Ajoute la réunion du 12 à mon calendrier.",
                  "Mets un rappel vendredi pour relancer Martin.", "Imprime le document en deux exemplaires.",
                  "Télécharge le rapport complet en PDF.", "Commande les fournitures pour le bureau.",
-                 "Donne mon solde bancaire actuel."):  # fmt: skip
+                 "Donne mon solde bancaire actuel.", "Fais un itinéraire de marche vers Yoru, avenue du Maine.",
+                 "Compare le temps de trajet en métro, en bus et en voiture jusqu'au musée.",
+                 "Donne l'itinéraire de métro depuis la gare Montparnasse."):  # fmt: skip
         # no label at all (an endpoint without structured outputs): the net catches them
         assert N.validate(obj((text[:40], text)), lang="fr", available=av)[0] == [], text
     # the .ics card makes « à mon calendrier » doable where the event module is on
@@ -408,3 +413,19 @@ def test_the_chip_outline_reads_as_a_button_in_both_themes():
     assert len(chip) == 3 and chip[1] == chip[2] and bg[1] == bg[2]  # light, dark (media), dark (data-theme)
     assert ratio(chip[0], bg[0]) >= 3 and ratio(chip[1], bg[1]) >= 3
     assert re.search(r"\.chips-row \.mchip \{[^}]*border-color: var\(--chip-line\)", css)
+
+
+def test_the_guide_asks_for_doable_specific_steps_and_its_examples_pass_the_validation():
+    """Issue: invented origins and assumptions, routes, user facts, generic « Traduis en anglais » under a
+    forecast. The guide says so, with a weather, a places and an « information asked » example."""
+    fr = N.messages("q", "a", "fr", N.capabilities("fr", None, None))[0]["content"]
+    en = N.messages("q", "a", "en", N.capabilities("en", None, None))[0]["content"]
+    assert "n'invente ni lieu de départ, ni hypothèse" in fr and "pas d'itinéraire, de temps de trajet" in fr
+    assert "Pas de suite passe-partout" in fr and "« Prévois les ventes de mai », pas « Prévois mai »" in fr
+    assert "never invent a starting point" in en and "no directions, travel times" in en
+    assert "trouve des cafés près de la gare de Lille-Flandres" in fr and "bilan de mi-année" in fr
+    every = set(N.all_ids()) | {"web_search"}
+    for lang in ("fr", "en"):
+        for _, _, items in N._SHOTS[lang]:
+            got = {"suggestions": [{"needs": n, "label": a, "prompt": b} for n, a, b in items]}
+            assert N.validate(got, lang=lang, available=every) == ([{"label": a, "prompt": b} for _, a, b in items], [])

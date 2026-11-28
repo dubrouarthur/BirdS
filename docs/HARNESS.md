@@ -995,7 +995,7 @@ elle donnait « Vous aide à intégrer des images spécifiques » et « À struc
 morceaux de la phrase de Bird, dans sa voix, pas des demandes de l'utilisateur.
 
 **Ce qui change.** Après la réponse et son reçu, **un** appel court (≤ 200 jetons, température 0, schéma
-`{"suggestions":[{label ≤ 42, prompt}] ≤ 3}` imposé quand l'endpoint le permet, même détection que le routeur ;
+`{"suggestions":[{needs, label ≤ 42 (borne 60), prompt}] ≤ 3}` imposé quand l'endpoint le permet, même détection que le routeur ;
 invite statique en préfixe avec les capacités du déploiement, réutilisée par le cache) renvoie 0 à 3 suites :
 une demande que l'utilisateur taperait (« Ajoute une diapositive sur les outils numériques… »), propre à la
 réponse, les choix d'une question de Bird réécrits comme ses réponses, rien après une salutation. L'appel ne lit
@@ -1004,8 +1004,9 @@ que la demande de l'utilisateur et la réponse, jamais une page ni un résultat 
 doublons, voix de Bird (« Vous aide… », « Souhaitez-vous… », « Oui »), liens, adresses et consignes (« ignore… »),
 actions impossibles (« envoie », « réserve », ce que l'utilisateur fait lui-même : « Valide le mail », « Provide
 the client's email address »), et un module éteint sur le déploiement (météo, carte, recherche web…). Les
-expressions régulières ne décident pas : elles filtrent la sortie du modèle. L'événement SSE `suggestions` part
-après `answer` et `usage` : la réponse n'attend jamais. L'interface met les suites de Bird en premier, puis les
+expressions régulières ne décident pas : elles filtrent la sortie du modèle. Le tour se termine pour
+l'utilisateur à l'événement `final` (après `answer` et `usage`) ; `suggestions` arrive ensuite sur le même flux, puis
+un second `usage` qui compte l'appel en plus (voir la revue ci-dessous). L'interface met les suites de Bird en premier, puis les
 puces des widgets jusqu'à trois, sans doublon ; `clarifyOptions` est supprimée. Rien d'envoyé si l'appel échoue
 (les puces des widgets restent). `BIRD_NEXTSTEPS=off` coupe l'appel. Démo : suites scriptées selon ce qu'est la
 réponse (brouillon, présentation, document, question à choix), passées par la même validation.
@@ -1063,3 +1064,71 @@ tiers, aucune erreur CSP, pas de défilement horizontal.
 toutes les capacités) et le JSON des suites comme seul tour à apprendre, 10 gabarits FR/EN (questions à choix,
 mail, présentation, information manquante, salutations sans suite) ; chaque cible passe la validation ; les
 demandes de `NEXTSTEPS_CASES` n'entrent jamais en train.
+
+### 17.1 Revue du 28/11 : suites faisables, tour libéré, consommation complète
+
+**Le tour n'attend plus les suites.** L'appel en plus tournait avant `done` : pendant 2 à 6 s la réponse finie
+restait « occupée » (ni actions, ni reçu, ni puces, bouton Stop), et un Stop à ce moment marquait « Réponse
+interrompue » une réponse livrée. Le serveur envoie maintenant `{"type":"final","pending":["suggestions"]}` juste
+après la réponse et son reçu ; le client y termine le tour (Envoyer revient, actions, registre) et lit les
+événements tardifs du même flux (`readLate`) ; un nouveau message coupe l'attente. Reproduction (suites lentes de
+5 s) : Envoyer revient à 0,96 s au lieu de 5,9 s, puces à 5,8 s, plus de Stop sur une réponse livrée. Démo : pause
+de 1,2 s avant les suites scriptées, pour voir le même ordre qu'en réel (`tests/e2e/nextsteps.spec.js` le vérifie).
+
+**La consommation compte l'appel.** Un second `usage` suit les suites avec leurs jetons et l'énergie réestimée
+(jetons ou puissance × temps) ; le client garde le dernier et compte le tour une fois. Reproduction : 93 + 19
+jetons affichés avant, 993 + 99 après (l'appel en plus : 900 + 80).
+
+**Le modèle dit ce que la suite demande.** Chaque suggestion porte `needs` (énumération du schéma, en premier) :
+`write`, `office`, `calc`, les modules du catalogue allumés, `web`, ou `user` / `none`. La validation retire
+`user`, `none` et tout module éteint ; les filets sous ce champ ne visent que l'acteur et les cas sans doute
+possible : l'utilisateur qui donne ses propres faits (« Provide the client's email address », « Liste mes
+accomplissements »), les actions que le guide déclare impossibles (transmets, publie, imprime, commande, télécharge,
+mets un rappel, mon solde bancaire, itinéraire et temps de trajet), un module nommé sans ambiguïté (météo, 100 € en
+dollars, restaurants près de…). Ne sont plus rejetés : « Indique les étapes clés », « Provide three examples »,
+« Convertis le tableau en liste », « Ajoute les sources de chaque chiffre », l'exemple de l'invite sans recherche
+web. Aussi : la langue se lit sur deux mots (« Shorten it » sous une réponse française est retiré), un domaine nu
+ou un lien court (« bit.ly/… », « exemple-promo.fr ») rend la puce dangereuse, une étiquette coupée (borne du
+schéma, article final, guillemet ouvert) fait retirer la puce au lieu de la raccourcir.
+
+**Invite.** Règles ajoutées : faisable avec ce que la conversation contient (ni départ, ni hypothèse, ni fait
+inventé sur l'utilisateur ; rien qui se serve d'une information ou d'un document que Bird vient de demander) ; pas
+de suite passe-partout (traduire, raccourcir, résumer seulement un texte que l'utilisateur va diffuser) ; météo et
+lieux : ce que les modules font vraiment ; une étiquette avec son complément, en français correct. Exemples
+ajoutés : une météo, une liste de lieux, une demande d'informations sans suite (FR), une météo et un mail en
+attente d'informations (EN). Invite : ≈ 1 700 jetons (préfixe statique), sortie ≈ 90 jetons.
+
+**Mesure, notée sévèrement.** La note « faisable 0,96 » du § 17 surestimait : elle venait des motifs du code. Ici
+chaque puce est relue à la main contre ce que les outils de Bird font avec ce que la conversation contient
+(`docs/measures/followups-2026-11-28-strict.json` ; F = infaisable, G = passe-partout, redondante ou quasi doublon,
+W = mal formulée). Trois bras sur les **mêmes 20 réponses** enregistrées : « livré » (ce que le premier passage
+affichait), « avant » (sortie brute de l'ancienne invite, validation d'aujourd'hui), « après » (nouvelle invite
+rejouée en réel sur l'endpoint, un appel par réponse, température 0 :
+`scripts/followups_eval.py --replay docs/measures/followups-2026-11-28.json --out
+docs/measures/followups-2026-11-28-replay.json`, puis `--strict … …-replay.json …-strict.json`).
+
+| bras | puces | faisable | utile | bien formulée | irréprochables | tours avec une puce infaisable |
+| --- | --- | --- | --- | --- | --- | --- |
+| livré (28/11, premier passage) | 56 | 0,73 | 0,91 | 0,93 | 0,62 | 9/20 |
+| avant (ancienne invite, validation actuelle) | 46 | 0,87 | 0,93 | 0,96 | 0,78 | 6/20 |
+| **après (nouvelle invite)** | 44 | **0,91** | **0,95** | **1,00** | **0,86** | **2/20** |
+
+Latence de l'appel (20 appels) : p50 1,9 s, p95 2,7 s, désormais hors du tour. Ce qui a disparu : les trois
+« Fais un itinéraire vers… », l'itinéraire de métro depuis une gare jamais citée, le parking « avec son tarif »,
+« Prévois mai » avec une baisse supposée, la carte météo, la comparaison avec la semaine dernière, « Traduis en
+anglais » sous une météo ou une recherche, « Raccourcis la diapo de 2 slides » ; « Liste mes accomplissements »
+est encore écrit par le modèle et retiré par le filet. Ce qui reste (lecture franche) : `mail_reply` — Bird dit ne
+pas avoir le catalogue et propose de le reformater si on le colle, le modèle propose quand même trois actions sur
+ce catalogue (`needs: write`, non vu par le code) ; « Ajoute une diapositive sur les tarifs » suppose des prix que
+l'utilisateur n'a pas donnés ; deux puces peu utiles (l'adresse déjà donnée, un second graphique). Le modèle ne
+choisit jamais `user` ni `none` sur ce jeu : le champ sert surtout à vérifier un module éteint ; les actions de
+l'utilisateur restent tenues par l'invite et le filet. La règle « une information demandée n'est pas utilisée » a
+été ajoutée après un premier rejeu (faisable 0,89, 3/20) : le second rejeu (tableau) est donc réglé sur ce jeu.
+
+Cas fixes `NEXTSTEPS_CASES` (12, dont 4 nouveaux : faits demandés à l'utilisateur, musée sur la carte, météo,
+tendance de ventes), en réel : 11/12 avec l'attente d'origine du cas `map_museum`, qui interdisait « horaires » ;
+les horaires d'ouverture viennent d'OpenStreetMap dans la fiche lieux, l'attente a été corrigée après lecture
+(12/12 sur la même sortie). L'ancien code passe 11/12 hors ligne, mais seulement parce qu'il ne propose aucune puce
+sur les 4 nouveaux cas. Entraînement : `build_tools_mix.py` apprend le champ `needs` et 3 gabarits de plus
+(météo, lieux, informations demandées sans suite).
+

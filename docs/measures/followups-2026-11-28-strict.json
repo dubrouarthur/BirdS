@@ -1,0 +1,45 @@
+{
+ "livré": {
+  "mail_move|Valide le mail": "F",
+  "mail_en|Provide the client's email address": "F",
+  "mail_en|Provide the proposed new date": "F",
+  "deck_training|Ajoute une diapositive sur les modalités d": "W",
+  "deck_training|Raccourcis la diapo de 2 slides": "W",
+  "deck_training|Change le titre en « Formation continue": "W",
+  "res_aiact|Fais un résumé plus court": "G",
+  "res_aiact|Traduis en anglais": "G",
+  "res_heatpump|Fournis un document sur le marché": "F",
+  "wx_lyon|Fais une carte de la météo": "F",
+  "wx_bdx|Compare avec la semaine dernière": "F",
+  "wx_bdx|Traduis en anglais": "G",
+  "map_resto|Fais un itinéraire vers Yoru": "F",
+  "map_resto|Fais un itinéraire vers Café Jeannette": "FG",
+  "map_resto|Fais un itinéraire vers PNY Burger": "FG",
+  "map_orsay|Donne l'itinéraire de métro": "F",
+  "map_orsay|Trouve un parking proche": "F",
+  "map_orsay|Compare les transports": "F",
+  "data_sales|Prévois mai": "FW",
+  "ask_review|Liste mes accomplissements": "F",
+  "ask_review|Fais un brouillon de mail": "F"
+ },
+ "avant": {
+  "mail_en|Provide the proposed new date": "F",
+  "deck_training|Raccourcis la diapo de 2 slides": "W",
+  "res_aiact|Fais un résumé plus court": "G",
+  "res_aiact|Traduis en anglais": "G",
+  "wx_lyon|Fais une carte de la météo": "F",
+  "wx_bdx|Compare avec la semaine dernière": "F",
+  "wx_bdx|Traduis en anglais": "G",
+  "map_orsay|Trouve un parking proche": "F",
+  "data_sales|Prévois mai": "FW",
+  "ask_review|Fais un brouillon de mail": "F"
+ },
+ "après": {
+  "mail_reply|Résume le catalogue en une page": "F",
+  "mail_reply|Traduis le catalogue en anglais": "F",
+  "mail_reply|Fais une liste des nouveautés": "F",
+  "deck_training|Ajoute une diapositive sur les tarifs": "F",
+  "map_orsay|Donne l'adresse du musée d'Orsay": "G",
+  "data_sales|Fais un graphique en courbe": "G"
+ }
+}

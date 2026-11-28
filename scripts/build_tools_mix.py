@@ -1433,6 +1433,16 @@ NS_TEMPLATES = [  # (template id, lang, request, answer, [(needs, label, prompt)
     ("ns_info", "fr", "écris un mail à {qui} pour {objet}",
      "Il me manque l'adresse et la date. Pouvez-vous me les donner ?",
      [("office", "Rédige-le avec des champs à compléter", "Rédige le mail à {qui} avec l'adresse et la date à compléter.")]),
+    ("ns_weather", "fr", "quel temps à {ville} {jour} ?",
+     "{Jour} à {ville} : éclaircies, 4 à 12 °C, faible risque de pluie.",
+     [("get_weather", "Donne la météo du lendemain", "Donne la météo à {ville} le lendemain de {jour}."),
+      ("get_weather", "Compare avec {ville2}", "Compare la météo de {jour} à {ville} et à {ville2}.")]),
+    ("ns_places", "fr", "trouve {lieux} près de {repere}",
+     "Voici 5 adresses à moins de 600 m de {repere}, la plus proche à 150 m.",
+     [("find_places", "Garde les plus proches", "Garde seulement {lieux} à moins de 300 m de {repere}."),
+      ("find_places", "Trouve aussi des pharmacies", "Trouve des pharmacies près de {repere}.")]),
+    ("ns_facts", "fr", "aide-moi à préparer {bilan}",
+     "Volontiers. Quels sont vos principaux résultats et vos objectifs pour l'an prochain ?", []),
     ("ns_hello", "fr", "{salut}", "Bonjour ! Comment puis-je vous aider ?", []),
     ("ns_thanks", "fr", "{merci}", "Avec plaisir ! Bonne journée.", []),
     ("ns_ask_en", "en", "help me prepare {topic_en}",
@@ -1449,6 +1459,10 @@ NS_SLOTS = {
     "qui": ["le comité de direction", "l'équipe", "nos clients", "le conseil d'administration"],
     "notion": ["la TVA intracommunautaire", "l'amortissement", "le BFR", "la marge brute"],
     "objet": ["décaler la réunion à jeudi", "relancer le devis de mars", "remercier pour le rendez-vous"],
+    "ville": ["Rennes", "Dijon", "Grenoble", "Brest"], "ville2": ["Tours", "Metz", "Annecy"],
+    "jour": ["demain", "samedi", "dimanche"], "lieux": ["des boulangeries", "des cafés", "des librairies"],
+    "repere": ["la gare de Rennes", "la place Stanislas", "l'hôtel de ville de Tours"],
+    "bilan": ["mon bilan annuel", "mon entretien de mi-parcours", "ma revue de performance"],
     "salut": ["bonjour", "salut !", "coucou Bird"], "merci": ["merci !", "super, merci", "parfait, merci beaucoup"],
     "topic_en": ["a client workshop", "our quarterly review", "a product launch"],
     "who": ["John", "the team", "a supplier"], "task": ["move the meeting to Friday", "confirm the order"],
@@ -1467,6 +1481,7 @@ def nextsteps_records(seed: int = 0, heldout_share: float = 0.12) -> dict:
     held = {t for t, *_ in NS_TEMPLATES if int(hashlib.sha1(f"{seed}{t}".encode()).hexdigest(), 16) % 1000
             < heldout_share * 1000 * 2}  # fmt: skip
     caps = {lg: N.capabilities(lg, None, None) for lg in ("fr", "en")}
+    everything = set(N.all_ids()) | {"web_search"}  # every module on, as in the prompt the records teach
     out, seen = {"train": [], "eval": [], "held": sorted(held)}, set()
 
     def fill(text: str, pick: dict) -> str:
@@ -1487,7 +1502,7 @@ def nextsteps_records(seed: int = 0, heldout_share: float = 0.12) -> dict:
                 continue
             seen.add(k)
             target = [{"needs": n, "label": x, "prompt": y} for n, x, y in items]
-            kept, dropped = N.validate({"suggestions": target}, lang=lang, available=set())
+            kept, dropped = N.validate({"suggestions": target}, lang=lang, available=everything)
             assert not dropped and len(kept) == len(target), (tid, dropped)  # it passes the live validation
             split = "eval" if tid in held else "train"
             msgs = N.messages(r, a, lang, caps[lang]) + [

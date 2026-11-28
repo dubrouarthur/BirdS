@@ -140,7 +140,7 @@ export function suggestions(answer) {
   return out;
 }
 
-const LABEL_MAX = 48; // nextsteps.LABEL_HARD: a longer label was cut, its chip is dropped (never trimmed)
+const LABEL_MAX = 60; // nextsteps.LABEL_HARD: a longer label was cut, its chip is dropped (never trimmed)
 const PROMPT_MAX = 200;
 const fold = (x) =>
   String(x || "")
