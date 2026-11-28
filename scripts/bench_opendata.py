@@ -139,6 +139,14 @@ OPENDATA_NO = [
     "how many working days of leave do I have left?",
     "combien de jours ouvrés dans mon contrat ?",
     "Combien de jours ouvrés reste-t-il avant la fin du projet ?",
+    # a task on the user's text (translate, summarise, proofread, lay out): the data words are content
+    "Translate into French: public holidays in Germany in 2027",
+    "Traduis en anglais : jours fériés en Espagne 2027",
+    "Translate this: unemployment in Spain since 2010",
+    "Summarize: inflation in the euro area since 2020",
+    "Corrige l'orthographe : l'inflation en France depuis 2020 a ete forte",
+    "Mets en forme : PIB de la France et du Japon depuis 2000",
+    "Proofread: GDP of Germany since 2000",
 ]
 
 # clear asks the parsers miss: router-only (router_data family "opendata_router"), never on the regex bench

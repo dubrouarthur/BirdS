@@ -113,7 +113,9 @@ _CUES = {
 }
 _HOWTO = re.compile(r"\b(?:comment|how\s+(?:do|to|can|should)|pourquoi|why|explique\w*|explain|qu'est-ce\s+qu|"
                     r"c'est\s+quoi|what\s+is|what's|que\s+signifie|define|d[ée]finition)\b", re.I)
-_TEXT_TASK = re.compile(r"\b(?:summari[sz]\w*|translate|rewrite|proofread|paraphrase)\b", re.I)
+_TEXT_TASK = re.compile(r"\b(?:summari[sz]\w*|translat\w*|rewrit\w*|proofread\w*|paraphras\w*|rephras\w*|"
+                        r"tradui[rst]e?|traduisez|r[ée]sume[sz]?|reformule[sz]?|corrige[sz]?|orthographe|relis|"
+                        r"mets\s+en\s+forme)\b", re.I)  # fmt: skip
 
 
 def veto_reason(call, text: str) -> str:
@@ -123,7 +125,10 @@ def veto_reason(call, text: str) -> str:
     t = text or ""
     if O.own_data(call.tool, t):
         return "open data false trigger (own data)"  # even when a parser fires: the card would stand in for it
-    if any(i.tool == call.tool and i.args for i in O.detect(t)):
+    fires = any(i.tool == call.tool and i.args for i in O.detect(t))
+    if _TEXT_TASK.search(t) and not (fires and call.tool == "find_commune"):
+        return "open data false trigger (a task on the user's text)"  # « Translate into French: … » (not an address)
+    if fires:
         return ""  # the family's own parser starts it too
     if not _CUES[call.tool].search(t):
         return "open data: none of the family's words"

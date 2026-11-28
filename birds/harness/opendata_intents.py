@@ -43,7 +43,10 @@ _DELIVERABLE = re.compile(
     r"r[ée]sum\w*|pr[ée]sentation|diapo\w*|slides?|pptx|powerpoint|deck|document|docx|rapport|report|note de|"
     r"tableur|excel|xlsx|spreadsheet|feuille de calcul|draft|write|compose|programme\w*|fonction|script|"
     r"code(?!\s+(?:postal|insee|naf|ape|commune))|python|"
-    r"javascript|sql|formule|formula|macro|vba|api\b|tableau|table)\b",
+    r"javascript|sql|formule|formula|macro|vba|api\b|tableau|table|"
+    # a task on the user's text (« Translate into French: … », « Corrige l'orthographe : … », « Mets en forme : … »)
+    r"translat\w*|summari[sz]\w*|proofread\w*|rewrit\w*|rephras\w*|paraphras\w*|corrige[sz]?|corriger|"
+    r"orthographe|relis|relire|mets\s+en\s+forme|mettre\s+en\s+forme)\b",
     re.I,
 )
 _HOWTO = re.compile(

@@ -250,6 +250,28 @@ def test_the_user_s_leave_contract_or_project_is_not_a_holiday_calendar(ask):
     assert opendata_route.veto_reason(R.Call("work_calendar", {"period": "2026"}), ask)
 
 
+@pytest.mark.parametrize("ask,tool", [
+    ("Translate into French: public holidays in Germany in 2027", "work_calendar"),
+    ("Translate this: unemployment in Spain since 2010", "get_statistics"),
+    ("Summarize: inflation in the euro area since 2020", "get_statistics"),
+    ("Corrige l'orthographe : l'inflation en France depuis 2020 a ete forte", "get_statistics"),
+    ("Mets en forme : PIB de la France et du Japon depuis 2000", "get_statistics"),
+])  # fmt: skip
+def test_a_task_on_the_user_s_text_never_starts_a_card_even_in_fallback(ask, tool):
+    """The parser fallback (demo, router off, router timeout) and the veto both leave a text task alone."""
+    assert not any(i.args for i in opendata_intents.detect(ask, today=OD.TODAY))
+    assert R.regex_decision(ask).get(tool) is None
+    assert opendata_route.veto_reason(R.Call(tool, {"indicator": "gdp", "period": "2027"}), ask)
+
+
+def test_correcting_an_address_is_still_a_lookup():
+    ask = "vérifie l'adresse 8 bd du port 95000 cergy"
+    call = R.Call("find_commune", dict(_ask(ask)[1]))
+    assert opendata_route.veto_reason(call, ask) == ""
+    ask = "corrige cette adresse : 8 bd du port 95000 cergy"
+    assert opendata_route.veto_reason(R.Call("find_commune", dict(_ask(ask)[1])), ask) == ""
+
+
 def test_the_veto_never_blocks_what_the_parser_itself_starts():
     for q, _tool, _args in OD.OPENDATA_YES:
         got = [i for i in opendata_intents.detect(q, False, "fr", today=OD.TODAY) if i.args]
