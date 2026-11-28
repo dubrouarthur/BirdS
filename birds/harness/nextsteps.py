@@ -386,11 +386,12 @@ def generate(llm, tok, request: str, answer: str, *, lang: str = "fr", names: se
     except Exception as e:  # noqa: BLE001 - a client bug must never break the turn
         return {**out_meta, "seconds": round(time.monotonic() - t0, 3), "why": type(e).__name__}
     seconds = round(time.monotonic() - t0, 3)
+    # what the call cost, kept on every outcome: the turn's receipt counts it (HarnessBackend.run)
+    usage = {k: out.get(k) for k in ("prompt_tokens", "completion_tokens", "cached_tokens") if k in out}
     obj = parse(out.get("text") or "", "" if kind else PREFIX)
     if obj is None:
-        return {**out_meta, "seconds": seconds, "why": "invalid_json"}
+        return {**out_meta, "seconds": seconds, "why": "invalid_json", "usage": usage}
     items, dropped = validate(obj, lang=lang, available=available)
-    usage = {k: out.get(k) for k in ("prompt_tokens", "completion_tokens", "cached_tokens") if k in out}
     return {"items": items, "source": "model", "seconds": seconds, "dropped": dropped, "why": "", "usage": usage}
 
 

@@ -2638,16 +2638,22 @@ class HarnessBackend:
                 tout += int(u.get("completion_tokens") or 0)
                 cached += min(int(u.get("cached_tokens") or 0), int(u.get("prompt_tokens") or 0))
                 busy += float(u.get("busy_seconds") or 0.0)
-            est = None
-            if image_usage and energy_method == "power_time" and cfg.gpu_watts:
-                est = estimate_power_time(cfg.gpu_watts, busy, pue=cfg.pue, label=cfg.gpu_label)
-            elif image_usage and energy_method == "tokens":  # the reading calls' tokens count like the others
-                o = energy_options(cfg)
-                est = estimate_tokens(tin, tout, cached=cached, wh_per_1k_in=o["wh_per_1k_in"] or 0.0,
-                                      wh_per_1k_out=o["wh_per_1k_out"] or 0.0, in_range=o["wh_per_1k_in_range"],
-                                      out_range=o["wh_per_1k_out_range"], cached_share=o["cached_input_share"],
-                                      serving_overhead=o["serving_overhead"],
-                                      exact=bool(report.get("tokens_exact", True)))  # fmt: skip
+
+            def estimate(tin: int, tout: int, cached: int, busy: float) -> dict | None:
+                """The energy of the turn's calls when it is estimated (tokens, or power x time); None: measured."""
+                if energy_method == "power_time" and cfg.gpu_watts:
+                    return estimate_power_time(cfg.gpu_watts, busy, pue=cfg.pue, label=cfg.gpu_label)
+                if energy_method == "tokens":
+                    o = energy_options(cfg)
+                    return estimate_tokens(tin, tout, cached=cached, wh_per_1k_in=o["wh_per_1k_in"] or 0.0,
+                                           wh_per_1k_out=o["wh_per_1k_out"] or 0.0, in_range=o["wh_per_1k_in_range"],
+                                           out_range=o["wh_per_1k_out_range"], cached_share=o["cached_input_share"],
+                                           serving_overhead=o["serving_overhead"],
+                                           exact=bool(report.get("tokens_exact", True)))  # fmt: skip
+                return None
+
+            # the reading calls' tokens count like the others
+            est = estimate(tin, tout, cached, busy) if image_usage else None
             if est is not None:
                 energy, energy_source, energy_basis = est["energy_wh"], est["energy_source"], est["energy_basis"]
             if energy_kind == "measured" and carry.get("energy_wh") is not None:
@@ -2761,29 +2767,34 @@ class HarnessBackend:
                 }
             )
             rlv = (getattr(run, "reflexion", None) or {}).get("level")
-            ctx.emit(
-                crew_web.usage_extra(report)
-                | usage_event(
-                    model=self.model,
-                    thinking=request.thinking if rlv is None else rlv != "colibri",
-                    prompt_tokens=tin,
-                    completion_tokens=tout,
-                    cached_tokens=cached,
-                    seconds=seconds,
-                    tool_calls=(report.get("tool_calls") or len(run.steps)) + len(image_usage),
-                    bytes_fetched=report.get("bytes_fetched") or 0,
-                    energy_wh=energy,
-                    energy_kind=energy_kind,
-                    energy_source=energy_source,
-                    tokens_kind="counted" if report.get("tokens_exact", True) else "estimated",
-                    energy_method=energy_method,
-                    energy_basis=energy_basis,
-                    busy_seconds=busy or None,
-                    first_token_seconds=(image_usage[0].get("first_token_seconds") if image_usage else None)
-                    or report.get("first_token_seconds"),
-                    history=hist_stats,
+
+            def receipt(tin: int, tout: int, cached: int, busy: float, energy, energy_source, energy_basis, **more):
+                return (
+                    crew_web.usage_extra(report)
+                    | usage_event(
+                        model=self.model,
+                        thinking=request.thinking if rlv is None else rlv != "colibri",
+                        prompt_tokens=tin,
+                        completion_tokens=tout,
+                        cached_tokens=cached,
+                        seconds=seconds,
+                        tool_calls=(report.get("tool_calls") or len(run.steps)) + len(image_usage),
+                        bytes_fetched=report.get("bytes_fetched") or 0,
+                        energy_wh=energy,
+                        energy_kind=energy_kind,
+                        energy_source=energy_source,
+                        tokens_kind="counted" if report.get("tokens_exact", True) else "estimated",
+                        energy_method=energy_method,
+                        energy_basis=energy_basis,
+                        busy_seconds=busy or None,
+                        first_token_seconds=(image_usage[0].get("first_token_seconds") if image_usage else None)
+                        or report.get("first_token_seconds"),
+                        history=hist_stats,
+                    )
+                    | more
                 )
-            )
+
+            ctx.emit(receipt(tin, tout, cached, busy, energy, energy_source, energy_basis))
             # after the answer and its receipt, never before: the turn is over for the user (``final``: Send is
             # back, the actions and the receipt show, a Stop is no longer an interruption); then Bird writes the
             # next steps the user may want (birds/harness/nextsteps.py), from the request and the answer only, as
@@ -2791,7 +2802,22 @@ class HarnessBackend:
             later = stop_reason == "answer" and bool(content.strip()) and self._suggest_on(ctx)
             ctx.emit(final_event(["suggestions"] if later else []))
             if later:
-                self._suggest(agent, cfg, request_words, content, run.lang or lang, ctx)
+                got = self._suggest(agent, cfg, request_words, content, run.lang or lang, ctx)
+                used = (got or {}).get("usage") or {}
+                if used.get("prompt_tokens") or used.get("completion_tokens"):
+                    # the receipt again, with the next-steps call in it: the Consommation panel and the ledger
+                    # count every generation of the turn (the client keeps the last usage event of the stream)
+                    n_in, n_out = int(used.get("prompt_tokens") or 0), int(used.get("completion_tokens") or 0)
+                    n_cached = min(int(used.get("cached_tokens") or 0), n_in)
+                    t_in, t_out, t_cached = tin + n_in, tout + n_out, cached + n_cached
+                    t_busy = busy + float(got.get("seconds") or 0.0)
+                    e, e_source, e_basis = energy, energy_source, energy_basis
+                    est2 = estimate(t_in, t_out, t_cached, t_busy)
+                    if est2 is not None:
+                        e, e_source, e_basis = est2["energy_wh"], est2["energy_source"], est2["energy_basis"]
+                    nxt = {"prompt_tokens": n_in, "completion_tokens": n_out, "seconds": got.get("seconds")}
+                    if not ctx.cancel.is_set():
+                        ctx.emit(receipt(t_in, t_out, t_cached, t_busy, e, e_source, e_basis, nextsteps=nxt))
         finally:
             if ephemeral:
                 shutil.rmtree(workspace, ignore_errors=True)
@@ -2807,7 +2833,7 @@ class HarnessBackend:
         return not off and ctx.seconds_left() - 1.0 >= 2.0 and not ctx.cancel.is_set()
 
     @staticmethod
-    def _suggest(agent, cfg, request_words: str, content: str, lang: str, ctx: RunContext) -> None:
+    def _suggest(agent, cfg, request_words: str, content: str, lang: str, ctx: RunContext) -> dict | None:
         """The ``suggestions`` event: 0-3 next steps written by the model, validated (nextsteps.validate). Sent
         only when the model answered; nothing on a failure (the client keeps its widget chips). Never raises."""
         import logging
@@ -2816,7 +2842,7 @@ class HarnessBackend:
 
         left = ctx.seconds_left() - 1.0
         if not HarnessBackend._suggest_on(ctx):
-            return
+            return None
         try:
             names = router.available_names(cfg, agent)
             tools = set(agent._allowed())
@@ -2824,12 +2850,13 @@ class HarnessBackend:
                                      tools=tools, budget=min(nextsteps.BUDGET_S, left),
                                      cache_salt=cfg.cache_salt)  # fmt: skip
         except Exception:  # noqa: BLE001 - next steps are optional: never lose the turn for them
-            return
+            return None
         logging.getLogger("bird.nextsteps").info(json.dumps({
             "event": "nextsteps", "source": got["source"], "n": len(got["items"]), "seconds": got["seconds"],
             "dropped": [why for _, why in got.get("dropped", [])], "why": got.get("why", "")}))  # fmt: skip
         if got["source"] == "model" and not ctx.cancel.is_set():
             ctx.emit({"type": "suggestions", "items": got["items"], "source": "model"})
+        return got
 
     # ---- rich results independent of the model (birds/web/rescue.py)
     @staticmethod

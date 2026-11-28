@@ -197,9 +197,16 @@ def test_suggestions_event_comes_after_the_answer_and_its_receipt(monkeypatch):
     kinds = [e["type"] for e in ev]
     # the turn ends for the user at « final » (Send back, actions, a Stop is no interruption); the next steps
     # come after it, as a late event of the same stream
-    assert kinds[-4:] == ["usage", "final", "suggestions", "done"] and kinds.index("answer") < kinds.index("final")
-    assert ev[-3] == {"type": "final", "pending": ["suggestions"]}
-    sug = ev[-2]
+    assert kinds[-5:] == ["usage", "final", "suggestions", "usage", "done"]
+    assert kinds.index("answer") < kinds.index("final")
+    assert ev[-4] == {"type": "final", "pending": ["suggestions"]}
+    # the receipt again with the next-steps call in it (900 + 80 tokens of Probeable): the panel and the ledger
+    # count every generation of the turn
+    first, last = ev[-5], ev[-2]
+    assert last["prompt_tokens"] == first["prompt_tokens"] + 900
+    assert last["completion_tokens"] == first["completion_tokens"] + 80
+    assert last["nextsteps"] == {"prompt_tokens": 900, "completion_tokens": 80, "seconds": last["nextsteps"]["seconds"]}
+    sug = ev[-3]
     assert sug == {
         "type": "suggestions",
         "source": "model",
@@ -270,3 +277,16 @@ def test_demo_scripts_its_next_steps_from_what_the_answer_is():
         assert sug["source"] == "demo" and sug["items"][0]["label"] == "Rends le ton plus chaleureux"
         for it in sug["items"]:
             assert N.validate({"suggestions": [it]})[0], it  # the scripted ones pass the same validation
+
+
+def test_the_next_steps_call_counts_in_the_turns_energy(monkeypatch):
+    """Energy estimated from tokens: the second receipt adds the next-steps tokens to the turn's estimate."""
+    monkeypatch.setenv("BIRD_ROUTER", "regex")
+    llm = Probeable(["Voici le plan."], nexts=json.dumps(obj(("Détaille le budget", "Détaille le budget."))))
+    cfg = {"energy_method": "tokens", "wh_per_1k_in": 0.01, "wh_per_1k_out": 0.1}
+    app = create_app(Settings(rate_limit=0), server_backend=HarnessBackend(llm, Tok(), config=cfg))
+    with TestClient(app) as c:
+        ev = _events(c.post("/api/chat", json={"messages": [{"role": "user", "content": "un séminaire"}]}))
+    first, last = [e for e in ev if e["type"] == "usage"]
+    assert first["energy_wh"] is not None and last["energy_wh"] > first["energy_wh"]
+    assert last["energy_kind"] == first["energy_kind"] == "estimated"
