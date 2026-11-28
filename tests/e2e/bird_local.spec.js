@@ -253,6 +253,39 @@ async function send(page, text) {
       await b.ctx.close();
     }
 
+    // ---- B2. a new tab where the code was kept for one tab only: still the machine, never the hosted server
+    for (const cfg of CONFIGS) {
+      const { ctx, page, apiCalls } = await newPage(browser, cfg, { script: setStorage, arg: [prefs({ mode: "local" }), null] });
+      await page.goto(HOSTED, { waitUntil: "networkidle" });
+      await send(page, "Bonjour, sans code");
+      const leaked = apiCalls.filter((u) => u.startsWith(HOSTED) && !u.includes("/api/health"));
+      if (leaked.length) problems.push(`${cfg.name}: no code, the hosted server saw ${leaked.join(", ")}`);
+      const text = await page.locator(".turn-bird").last().innerText();
+      if (!/code d'appairage/.test(text)) problems.push(`${cfg.name}: no code, turn says « ${text.slice(0, 120)} »`);
+      await ctx.close();
+    }
+
+    // ---- B3. the model server (vLLM) stopped while Bird local runs: the vllm command, never a hosted sentence
+    stop(fake);
+    await waitDown("http://127.0.0.1:8399/v1/models");
+    for (const cfg of CONFIGS) {
+      const { ctx, page } = await newPage(browser, cfg, { script: setStorage, arg: [prefs({ mode: "local" }), CODE] });
+      await page.goto(HOSTED, { waitUntil: "networkidle" });
+      await send(page, "Bonjour");
+      const card = page.locator('.turn-bird [data-local="model-down"]').last();
+      if (!(await card.count())) {
+        problems.push(`${cfg.name}: no « le modèle ne répond pas » card`);
+        await shot(page, `FAIL-local-model-down-${cfg.name}.png`);
+      } else {
+        const text = await card.innerText();
+        if (!/vllm serve adubrou\/Bird-S-4B/.test(text) || /Vérifiez l'adresse|HTTP \d/.test(text))
+          problems.push(`${cfg.name}: model-down card « ${text.slice(0, 160)} »`);
+        await noHScroll(page, cfg.name, "model-down card");
+        await shot(page, `local-model-down-${cfg.name}.png`, card);
+      }
+      await ctx.close();
+    }
+
     // ---- C. Bird local stopped mid-conversation: the card in the turn, never a raw error
     stop(local);
     await waitDown(`${LOCAL}/api/health`);

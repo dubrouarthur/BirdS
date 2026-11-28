@@ -1458,4 +1458,6 @@ def test_install_script_is_served_as_plain_text_and_binds_locally():
     body = r.text
     assert body.startswith("#!/bin/sh") and "set -eu" in body
     assert "--host 127.0.0.1" in body and "0.0.0.0" not in body
+    # the logs hold the pairing code printed by scripts/bird_local.py: other users of the machine cannot read them
+    assert 'chmod 700 "$LOGS"' in body
     assert "HF_TOKEN=" not in body.replace("HF_TOKEN        jeton", "")

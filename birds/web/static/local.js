@@ -115,12 +115,33 @@ export function unreachableCard({ onRetry, onOff, port = localPort(), compact = 
       step(3, t("local.step3")),
     ),
     h("p", { class: "local-perm", text: t("local.perm") }),
+    // Safari never reaches the loopback from an https page: say where to go instead of three steps that cannot help
+    L.isSafari(globalThis.navigator?.userAgent) && h("p", { class: "local-perm", "data-local": "safari", text: t("local.safari") }),
+    localActions(onRetry, onOff),
+  );
+}
+
+const localActions = (onRetry, onOff) =>
+  h(
+    "div",
+    { class: "local-actions" },
+    onRetry && button("btn-primary btn-small", "retry", t("local.retry"), onRetry, { "data-act": "local-retry" }),
+    onOff && button("btn-outline btn-small", null, t("local.disconnect"), onOff, { "data-act": "local-off" }),
+  );
+
+/** Bird local answers but its model server (vLLM) does not: the one command to start it again, never a raw error. */
+export function modelDownCard({ onRetry, onOff } = {}) {
+  return h(
+    "div",
+    { class: "local-down local-compact", role: "status", "data-local": "model-down" },
     h(
       "div",
-      { class: "local-actions" },
-      onRetry && button("btn-primary btn-small", "retry", t("local.retry"), onRetry, { "data-act": "local-retry" }),
-      onOff && button("btn-outline btn-small", null, t("local.disconnect"), onOff, { "data-act": "local-off" }),
+      { class: "local-down-head" },
+      icon("monitor"),
+      h("div", null, h("strong", { text: t("local.model.title") }), h("p", { text: t("local.model.p") })),
     ),
+    commandRow(LOCAL_CMDS.vllm),
+    localActions(onRetry, onOff),
   );
 }
 
@@ -259,7 +280,7 @@ export function localPanel({ onPrefs }) {
     } else box.replaceChildren(unreachableCard({ onRetry: search }));
   };
 
-  if (activeMode() === "local") connected();
+  if (activeMode() === "local" && localPair.get()) connected();
   else queueMicrotask(search);
   return box;
 }

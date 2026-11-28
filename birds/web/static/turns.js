@@ -27,7 +27,8 @@ import { wrapPref } from "./richcode.js";
 import { docCard, imageCard, kindOf, middle } from "./attach.js";
 import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 import { openEditor } from "./editor.js";
-import { unreachableCard } from "./local.js";
+import { modelDownCard, unreachableCard } from "./local.js";
+import { MODEL_DOWN } from "./local-data.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { moveFull, renderWidgets, widgetsText } from "./widgets.js";
 import { renderAgents, renderChecks } from "./agents.js";
@@ -1330,6 +1331,12 @@ function renderError(turn, isLast) {
     // Bird local did not answer: the three steps to start it, never a raw network error
     return unreachableCard({
       compact: true,
+      onRetry: isLast && !state.busy ? () => handlers.onRetry() : null,
+      onOff: isLast && handlers.onLocalOff ? () => handlers.onLocalOff() : null,
+    });
+  if (turn.mode === "local" && MODEL_DOWN.has(code))
+    // Bird local answered, its model server (vLLM) did not: the command to start it, not a hosted-endpoint sentence
+    return modelDownCard({
       onRetry: isLast && !state.busy ? () => handlers.onRetry() : null,
       onOff: isLast && handlers.onLocalOff ? () => handlers.onLocalOff() : null,
     });

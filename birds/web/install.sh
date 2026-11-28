@@ -47,6 +47,7 @@ for p in python3.13 python3.12 python3.11 python3.10 python3; do
 done
 [ -n "$PY" ] || die "Python 3.10 ou plus est requis (https://www.python.org)."
 mkdir -p "$BIRD_HOME" "$LOGS"
+chmod 700 "$LOGS" # bird.log holds the pairing code of Bird local: this user only
 ok "Prérequis : $($PY --version), git, curl"
 
 # ---- 2. Bird
