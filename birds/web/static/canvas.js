@@ -2989,18 +2989,19 @@ function previewPane(a, doc, lang, files, open) {
     pane.append(md);
     return pane;
   }
-  // a file still being written is left out: the preview refreshes when a file is complete
-  const b = cc.bundle(doc, {
-    skip: open ? new Set([open]) : null,
-    partial: !!a.draft,
-    missing: (name) => t("cv.missing", { name }),
-  });
-  view.pending = { html: b.previewable ? b.html : "", files, writing: open };
+  // while Bird writes, the preview never shows a half page (bare HTML before its CSS and script): the last finished
+  // version stays on screen, or, for a first version, an animated « Bird code… » until the code is complete
+  const done = a.draft ? a.versions[a.cur]?.doc || null : doc;
+  const b = done?.kind === "code" || done?.code
+    ? cc.bundle(done, { missing: (name) => t("cv.missing", { name }) })
+    : { previewable: false, html: "" };
+  view.pending = { html: b.previewable ? b.html : "", files, writing: a.draft ? open || entry?.name || "" : "", building: !!a.draft };
   pane.append(
     h("div", { class: "cv-stage-slot" }),
     h("p", {
       class: "cv-muted cv-sandbox",
-      text: open ? t("cv.writing.file", { name: open }) : t("cv.sandbox"),
+      // the building card already says which file Bird writes: the note keeps its one job
+      text: t("cv.sandbox"),
       "data-k": "sandbox-note",
     }),
     consoleBox(),
@@ -3036,13 +3037,35 @@ function syncStage() {
   const empty = st.querySelector(".cv-stage-empty");
   empty.hidden = !!p.html;
   if (!p.html) {
+    empty.classList.toggle("is-building", !!p.building);
     empty.replaceChildren(
-      h("span", { class: "cv-build-dot", "aria-hidden": "true" }),
-      h("span", {
-        text: p.writing
-          ? t("cv.writing.file", { name: p.writing })
-          : t("cv.preview.none"),
-      }),
+      ...(p.building
+        ? [
+            // a first version being written: Bird codes, the page appears once it is whole
+            h(
+              "div",
+              { class: "cv-build", "aria-hidden": "true" },
+              h("span", { class: "cv-build-mark", text: "</>" }),
+              h(
+                "span",
+                { class: "cv-build-lines" },
+                h("i"),
+                h("i"),
+                h("i"),
+                h("i"),
+              ),
+            ),
+            h("strong", { class: "cv-build-title", text: t("cv.build.title") }),
+            h("span", {
+              class: "cv-build-sub",
+              role: "status",
+              text: p.writing ? t("cv.writing.file", { name: p.writing }) : t("cv.build.sub"),
+            }),
+          ]
+        : [
+            h("span", { class: "cv-build-dot", "aria-hidden": "true" }),
+            h("span", { text: t("cv.preview.none") }),
+          ]),
     );
   }
   if (p.html && p.html !== view.stageHtml) {

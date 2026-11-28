@@ -86,8 +86,8 @@ def ref(run) -> dict | None:
 
         out.update(kind="code", hints=codefiles.hints(codefiles.files_of(doc)))
     if c.get("adopted"):
-        # a document opens in the canvas at once (one deliverable, one card); a deck or a sheet is offered
-        out.update(doc=public(doc), kind=doc.get("kind"), open=doc.get("kind") == "doc")
+        # a document or a deck opens in the canvas at once (one deliverable, one card); a sheet is offered
+        out.update(doc=public(doc), kind=doc.get("kind"), open=doc.get("kind") in ("doc", "deck", "code"))
         if c.get("files"):
             out["files"] = list(c["files"])  # the file cards this artifact replaces in the chat
     if doc.get("kind") == "doc":
@@ -384,12 +384,15 @@ def _adopt(run, ctx, lang: str, words: str = "") -> None:
             turn.finish_doc(doc, kind, (words or "") + " " + (doc.get("title") or ""),
                             lang, repairs)  # fmt: skip
         p = turn.Plan("create", kind, turn.new_aid())
-        # no event of its own: the document travels with the answer. A Word-like document opens in the canvas
-        # and its card replaces the file card (and the « Fichier : x.docx » line of the answer); a deck or a sheet
-        # keeps its file card, with « Ouvrir dans le canevas »
+        # no event of its own: the document travels with the answer. A Word-like document or a deck opens in the
+        # canvas and its card replaces the file card (and the « Fichier : x.docx / x.pptx » line of the answer); a
+        # sheet keeps its file card, with « Ouvrir dans le canevas »
         run.canvas = {"aid": p.aid, "version": 1, "doc": doc, "adopted": True, "repairs": repairs}
-        if kind == "doc":
-            names = [str(f) for f in getattr(run, "files", []) or [] if str(f).lower().endswith(".docx")]
+        if kind in ("doc", "deck", "code"):
+            # one deliverable, one card: a deck or a document the model made with its trained tool (« un ppt sur… »,
+            # « un powerpoint », « une prez ») opens in the canvas like one made there; the canvas card downloads it
+            ext = ".pptx" if kind == "deck" else ".docx"  # code the model wrote as a document came as a .docx
+            names = [str(f) for f in getattr(run, "files", []) or [] if str(f).lower().endswith(ext)]
             run.canvas["files"] = [n.rsplit("/", 1)[-1] for n in names]
             if hasattr(run, "answer"):
                 run.answer = strip_file_lines(str(run.answer or ""), run.canvas["files"])
@@ -398,8 +401,7 @@ def _adopt(run, ctx, lang: str, words: str = "") -> None:
 
 _FILE_LINE = re.compile(
     r"(?im)^[ \t>*_-]*(?:\*\*|__)?(?:fichier|file|document|t[ée]l[ée]chargement|download)\s*(?:\*\*|__)?\s*:"
-    r"(?:\*\*|__)?\s*`?[^\n`]*\.docx`?\s*\.?[ \t]*$\n?"
-)
+    r"(?:\*\*|__)?\s*`?[^\n`]*\.(?:docx|pptx)`?\s*\.?[ \t]*$\n?")
 
 
 def strip_file_lines(text: str, names: list[str]) -> str:
