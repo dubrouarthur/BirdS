@@ -35,12 +35,21 @@ from .settings import ENERGY_SOURCES, Settings
 STATIC_DIR = Path(__file__).parent / "static"
 SITE_DIR = Path(__file__).resolve().parents[2] / "site"  # corporate site, served under /a-propos/
 
-CSP = (
-    "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:; font-src 'self'; connect-src 'self'; "
-    "frame-src 'self'; "  # only the canvas preview frame (/canvas/frame, sandboxed, no network: see canvas_web)
-    
-    "manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-)
+
+
+def csp_for(local_port: int | None) -> str:
+    """The app's CSP. The one exception to « no other origin »: Bird local, the user's own machine, on its exact
+    loopback origins (connect for the API, img for its signed pictures); nothing wider, no other port."""
+    local = f" http://127.0.0.1:{local_port} http://localhost:{local_port}" if local_port else ""
+    return (
+        f"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob:{local}; font-src 'self'; "
+        f"connect-src 'self'{local}; "
+        "frame-src 'self'; "  # only the canvas preview frame (/canvas/frame, sandboxed, no network: see canvas_web)
+        "manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    )
+
+
+CSP = csp_for(8765)  # the default deployment (Settings.local_bird_port)
 SECURITY_HEADERS = {
     "Content-Security-Policy": CSP,
     "X-Content-Type-Options": "nosniff",
@@ -504,6 +513,7 @@ def create_app(
     app.state.settings, app.state.demo, app.state.server_backend = s, demo, server
     # upstream client for /api/img: a fresh one per image (no cookie jar survives); tests swap in a mock transport
     app.state.image_client = lambda: image_client(s)
+    app_csp = csp_for(s.local_bird_port)
 
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
@@ -515,6 +525,7 @@ def create_app(
             response = await call_next(request)
         for key, value in SECURITY_HEADERS.items():
             response.headers[key] = value
+        response.headers["Content-Security-Policy"] = app_csp
         path = request.url.path
         if path.startswith("/static/"):
             # browsers revalidate; a CDN in front may keep a copy until the next deployment
@@ -539,6 +550,8 @@ def create_app(
         return peer_ip(request, settings.trusted_proxies)
 
     def same_origin(request: Request) -> None:
+        if getattr(request.state, "bird_local_cross", False):
+            return  # Bird local: the guard (birds.web.local) accepted this origin and its pairing code
         origin = request.headers.get("origin")
         if origin:
             host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
@@ -610,9 +623,13 @@ def create_app(
     # ------------------------------------------------------------------ API
 
     @app.get("/api/health")
-    def health() -> dict:
+    def health(request: Request) -> dict:
         shown = server if server is not None else demo
+        local = getattr(app.state, "bird_local", None)  # this process IS a Bird local (scripts/bird_local.py)
         return {
+            **({"bird_local": local.public(bool(getattr(request.state, "bird_local_paired", False)))} if local else {}),
+            # where the hosted page looks for a Bird local (« Se connecter au Bird local »); None: not offered
+            "local_bird": {"port": s.local_bird_port} if s.local_bird_port and not local else None,
             "model": shown.model,
             "model_label": s.model_label,
             "backend": shown.kind,

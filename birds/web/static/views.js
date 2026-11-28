@@ -23,6 +23,7 @@ import {
   modelLabel,
 } from "./core.js";
 import { mountFootprintPage, recordFootprint } from "./footprint.js";
+import { footprintNote, localOffered, localPanel } from "./local.js";
 
 let hooks = {};
 // replaceChildren would print null/false as text: drop them first
@@ -661,6 +662,12 @@ function savings(usages, s, scripted = false) {
 }
 
 let scope = "conv";
+/** Bird local: under the scope switch, one line on where the energy of these answers is measured or estimated. */
+function localNote(body) {
+  const note = footprintNote();
+  if (note) (body.querySelector(".segs") || body.firstChild)?.after(note);
+}
+
 export function renderFootprint() {
   const body = $("view-footprint-body");
   const usages = scope === "all" ? ledgerAll() : convUsages(state.conv);
@@ -736,6 +743,7 @@ export function renderFootprint() {
       h("p", { class: "hint", text: t("fp.note") }),
     );
     mountFootprintPage(body, { scope, usages, rerender: renderFootprint }); // ---- footprint.js hook
+  localNote(body);
     return;
   }
   const energyStat = s.energyN
@@ -847,6 +855,7 @@ export function renderFootprint() {
       }),
   );
   mountFootprintPage(body, { scope, usages, rerender: renderFootprint }); // ---- footprint.js hook
+  localNote(body);
 }
 
 // ------------------------------------------------------------------ settings
@@ -931,6 +940,8 @@ export function renderSettings() {
   const hl = state.health || {};
   const modes = hl.modes || { demo: true };
   const mode = activeMode();
+  // the choice shown: « Bird local » opens its connect flow before it becomes the mode (once paired)
+  const shown = state.localPanel && localOffered() ? "local" : mode;
   const select = (id, value, options, onchange) =>
     h(
       "select",
@@ -944,15 +955,24 @@ export function renderSettings() {
     h(
       "label",
       {
-        class: `mode${mode === value ? " is-on" : ""}${enabled ? "" : " is-off"}`,
+        class: `mode${shown === value ? " is-on" : ""}${enabled ? "" : " is-off"}${value === "local" ? " mode-local" : ""}`,
       },
       h("input", {
         type: "radio",
         name: "mode",
         value,
-        checked: mode === value,
+        checked: shown === value,
         disabled: !enabled,
-        onchange: () => apply({ mode: value, demoChosen: value === "demo" }),
+        onchange: () => {
+          if (value === "local") {
+            state.localPanel = true; // the connect flow; the mode changes once the code is accepted
+            renderSettings();
+            document.querySelector('input[name="mode"][value="local"]')?.focus();
+            return;
+          }
+          state.localPanel = false;
+          apply({ mode: value, demoChosen: value === "demo" });
+        },
       }),
       h(
         "span",
@@ -1173,12 +1193,16 @@ export function renderSettings() {
           modes.user ? t("set.mode.user.hint") : t("set.mode.user.off"),
           !!modes.user,
         ),
+        localOffered() && modeCard("local", t("local.mode"), t("local.mode.hint"), true),
       ),
+      shown === "local" && localPanel({ onPrefs: () => hooks.onPrefs() }),
+      hl.bird_local && h("p", { class: "tradeoff" }, icon("monitor"), h("span", { text: t("local.here") })),
       modes.user &&
-        mode !== "user" &&
+        shown !== "user" &&
+        shown !== "local" &&
         h("p", { class: "hint endpoint-off", text: t("set.endpoint.choose") }),
       modes.user &&
-        mode === "user" &&
+        shown === "user" &&
         h(
           "fieldset",
           { class: "endpoint" },
@@ -1203,21 +1227,22 @@ export function renderSettings() {
           ),
         ),
       modes.user &&
-        mode === "user" &&
+        shown === "user" &&
         h(
           "p",
           { class: "tradeoff" },
           icon("info"),
           h("span", { text: t("set.endpoint.tradeoff") }),
         ),
-      (hl.access_required || p.access) &&
+      shown !== "local" &&
+        (hl.access_required || p.access) &&
         field(
           "set-access",
           t("set.access"),
           t(hl.access_required ? "set.access.needed" : "set.access.hint"),
           accessInput,
         ),
-      mode !== "demo" && h("div", { class: "test-row" }, testBtn, result),
+      shown !== "demo" && shown !== "local" && h("div", { class: "test-row" }, testBtn, result),
     ),
     toolsPanel(),
     h(
