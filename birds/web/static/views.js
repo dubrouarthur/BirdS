@@ -1309,6 +1309,31 @@ export function renderAbout() {
       ),
     ),
     block(t("about.meter"), h("p", { text: t("about.meter.p") })),
+    // the free software Bird serves itself, each with its licence (served from this site, never a third party)
+    block(
+      t("about.oss"),
+      h("p", { text: t("about.oss.p") }),
+      h(
+        "ul",
+        { class: "data-list oss-list" },
+        [
+          ["about.oss.katex", "/static/vendor/katex/LICENSE.txt"],
+          ["about.oss.carlito", "/static/fonts/OFL.txt"],
+        ].map(([key, href]) =>
+          h(
+            "li",
+            null,
+            icon("file"),
+            h(
+              "span",
+              null,
+              `${t(key)} · `,
+              h("a", { href, target: "_blank", rel: "noopener", text: t("about.oss.licence") }),
+            ),
+          ),
+        ),
+      ),
+    ),
     block(
       t("ex.guard.title"),
       h("p", { text: t("ex.guard.p") }),

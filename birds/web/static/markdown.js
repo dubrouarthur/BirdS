@@ -139,6 +139,55 @@ function codeSpan(code, ctx, mode) {
   return `<code${code.length > 60 ? ' class="md-long"' : ""}>${escapeHtml(code)}</code>`;
 }
 
+// ------------------------------------------------------------------ math (typeset by answers.js with KaTeX)
+
+// \(…\) inline; \[…\] and $$…$$ display; $…$ inline when TeX is inside (checked by the caller). One line each.
+const RE_MATH_INLINE =
+  /\\\((.+?)\\\)|\\\[(.+?)\\\]|\$\$(.+?)\$\$|(?<![\w$\\])\$([^\s$](?:[^$\n]{0,198}?[^\s$\\])?)\$(?![\w$])/g;
+const RE_MATH_OPEN = /^\s{0,3}(\\\[|\$\$)\s*(.*)$/;
+
+/**
+ * A formula placeholder: its TeX in data-tex, its source as written (with delimiters) shown until answers.js
+ * typesets it, and kept for copying. Display formulas get a « copy the TeX » button.
+ */
+function mathHtml(tex, display, raw, ctx, pending = false) {
+  const src = `<span class="md-math-src">${escapeHtml(raw)}</span>`;
+  const attrs = `data-tex="${escapeHtml(String(tex).trim())}"${display ? " data-display" : ""}${pending ? " data-pending" : ""}`;
+  if (!display || !ctx.block) return `<span class="md-math${display ? " md-math--display" : ""}" ${attrs}>${src}</span>`;
+  const label = escapeHtml(ctx.labels.copyTex);
+  return (
+    `<div class="md-math md-math--block" ${attrs}>${src}` +
+    `<button type="button" class="md-math-copy" data-copy-tex aria-label="${label}" title="${label}"${pending ? " disabled" : ""}>${ICON.copy}</button></div>`
+  );
+}
+
+/** A display formula on its own lines (\[ … \] or $$ … $$): {html, next} or null (then it is ordinary text). */
+function mathBlock(lines, i, ctx) {
+  const open = lines[i].match(RE_MATH_OPEN);
+  if (!open) return null;
+  const close = open[1] === "$$" ? "$$" : "\\]";
+  const body = [];
+  let rest = open[2];
+  for (let j = i; j < lines.length && j - i < 80; j += 1) {
+    if (j > i) rest = lines[j];
+    const k = rest.indexOf(close);
+    if (k >= 0) {
+      body.push(rest.slice(0, k));
+      if (rest.slice(k + close.length).trim()) return null; // text after the formula: the paragraph handles it
+      const tex = body.join("\n");
+      if (!tex.trim()) return null;
+      const raw = lines.slice(i, j + 1).join("\n").trim();
+      return { html: mathHtml(tex, true, raw, { ...ctx, block: true }), next: j + 1 };
+    }
+    body.push(rest);
+  }
+  // still streaming: the formula shows as written, typeset once it closes; a final answer without the closing
+  // delimiter is plain text
+  if (ctx.final || lines.length - i > 80) return null;
+  const raw = lines.slice(i).join("\n").trim();
+  return { html: mathHtml(body.join("\n"), true, raw, { ...ctx, block: true }, true), next: lines.length };
+}
+
 function inline(raw, ctx, mode = {}) {
   const stash = [];
   const keep = (html) => `\u0000${stash.push(html) - 1}\u0000`;
@@ -146,6 +195,12 @@ function inline(raw, ctx, mode = {}) {
   let text = String(raw).replace(/`([^`\n]+)`/g, (_, code) =>
     keep(codeSpan(code, ctx, mode)),
   );
+  if (ctx.rich) text = text.replace(RE_MATH_INLINE, (whole, a, b, c, d) => {
+    const tex = a ?? b ?? c ?? d;
+    // a lone $…$ is math only with TeX inside (x^2, \alpha, a_{n}, a single letter): « 5 $ et 10 $ » stays text
+    if (d !== undefined && !/[\\^_{}]|^[A-Za-z]$/.test(d)) return whole;
+    return keep(mathHtml(tex, a === undefined && d === undefined, whole, ctx));
+  });
   text = escapeHtml(text);
   // a formula shown on its own line takes the punctuation that follows it, so no line starts with "."
   text = text.replace(/\u0000(\d+)\u0000([.,;])(?=\s|$)/g, (whole, k, p) => {
@@ -931,6 +986,12 @@ function blockList(lines, ctx, depth) {
       });
       continue;
     }
+    const math = ctx.rich ? mathBlock(lines, i, ctx) : null;
+    if (math) {
+      push({ kind: "math", html: math.html });
+      i = math.next;
+      continue;
+    }
     const heading = line.match(RE_HEADING);
     if (heading) {
       const level = Math.min(Math.max(heading[1].length + 1, 3), 5);
@@ -1049,7 +1110,8 @@ function blockList(lines, ctx, depth) {
       !RE_HR.test(lines[i]) &&
       !RE_ITEM.test(lines[i]) &&
       !RE_QUOTE.test(lines[i]) &&
-      !isTableStart(lines, i)
+      !isTableStart(lines, i) &&
+      !(ctx.rich && RE_MATH_OPEN.test(lines[i]) && mathBlock(lines, i, ctx)) // a display formula ends the paragraph
     )
       para.push(lines[i++]);
     // "Fichier : `backup.sh`" right above a fence names the block: it moves into the code head
@@ -1125,6 +1187,7 @@ const LABELS = {
   checkErr: "Syntaxe à vérifier, ligne {line}",
   checkExcerpt: "Extrait",
   copyFormula: "Copier la formule",
+  copyTex: "Copier la formule (TeX)",
   copied: "Formule copiée.",
   listMore: "Afficher les {n} autres",
   callout: {

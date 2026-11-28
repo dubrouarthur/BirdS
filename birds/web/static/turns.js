@@ -36,6 +36,7 @@ import { canvasCard } from "./canvas.js";
 import { enhanceAnswer } from "./modules.js";
 import { renderChips, transforms } from "./followups.js";
 import { flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
+import { typeset } from "./answers.js"; // math, citations, rich copy, feedback (chat audit C2)
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1108,6 +1109,7 @@ function paintMarkdown(turn, entry) {
     md.insertAdjacentHTML("beforeend", blocks.slice(first).join(""));
   entry.blocks = blocks;
   md.classList.toggle("streaming", streaming);
+  if (md.querySelector(".md-math")) typeset(md); // self-hosted KaTeX, loaded the first time a formula shows
   if (turn.answer) enhanceAnswer(md, turn); // task boxes, sortable tables, glossary (modules.js)
 }
 
@@ -1125,6 +1127,7 @@ function mdLabels() {
     checkErr: t("code.check.err"),
     checkExcerpt: t("code.check.excerpt"),
     copyFormula: t("code.copy.formula"),
+    copyTex: t("md.math.copy"),
     copied: t("code.copied.formula"),
     listMore: t("md.more"),
     callout: { note: t("md.callout.note"), tip: t("md.callout.tip"), important: t("md.callout.important"), warn: t("md.callout.warn") },

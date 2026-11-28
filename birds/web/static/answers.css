@@ -12,3 +12,101 @@
   font-style: italic;
   line-height: 1.5;
 }
+
+/* ---------------------------------------------------------------- math (KaTeX, self-hosted) */
+/* until KaTeX is there (first formula, offline), the source shows as written, quietly */
+.md-math-src {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.md-math[data-typeset="1"] > .md-math-src {
+  display: none;
+}
+.md-math .katex {
+  font-size: 1.08em;
+  color: var(--ink);
+}
+.md-math--block {
+  position: relative;
+  margin: 0.9rem 0;
+  padding: 0.55rem 2.5rem 0.55rem 0.75rem;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+/* a long formula scrolls inside its box, never under the copy button and never the page */
+.md-math--block > .md-math-out {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+@media (max-width: 600px) {
+  .md-math--block .katex {
+    font-size: 1em;
+  }
+}
+.md-math--block > .md-math-src {
+  display: block;
+  white-space: pre-wrap;
+}
+.md-math--block .katex-display {
+  margin: 0.15rem 0;
+}
+.md-math-copy {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.md-math-copy:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.md-math-copy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.md-math-copy .icon {
+  width: 1rem;
+  height: 1rem;
+}
+@media (pointer: coarse) {
+  .md-math-copy {
+    width: 2.75rem;
+    height: 2.75rem;
+    top: 0;
+    right: 0;
+  }
+  .md-math--block {
+    padding-right: 3rem;
+  }
+}
+/* copying the answer (turns.plainText) gives the TeX as written, never KaTeX's glyphs */
+.md-copying .md-math[data-typeset="1"] > .md-math-src {
+  display: inline;
+}
+.md-copying .md-math--block[data-typeset="1"] > .md-math-src {
+  display: block;
+}
+.md-copying .md-math-out,
+.md-copying .md-math-copy {
+  display: none;
+}
+.md-copy-box {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  white-space: pre-wrap;
+}

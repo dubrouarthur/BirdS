@@ -694,7 +694,11 @@ def test_static_payload_budget():
     # the pre-rendered maps of the scripted demo (static/demo/) are only loaded by demo answers: not app payload
     files = [p for p in STATIC_DIR.rglob("*") if p.is_file() and "demo" not in p.relative_to(STATIC_DIR).parts]
     fonts = STATIC_DIR / "fonts"
-    total = sum(p.stat().st_size for p in files if fonts not in p.parents)
+    vendor = STATIC_DIR / "vendor"
+    total = sum(p.stat().st_size for p in files if fonts not in p.parents and vendor not in p.parents)
+    # the self-hosted KaTeX (vendor/katex: script, stylesheet, woff2 fonts, licence) loads only when an answer holds a
+    # formula, then stays cached: its own budget, outside the page's
+    assert sum(p.stat().st_size for p in vendor.rglob("*") if p.is_file()) < 600_000
     # Carlito (regular + bold, unmodified woff2) is fetched only when a file preview is drawn, then cached: its own
     # budget, outside the page's
     assert sum(p.stat().st_size for p in fonts.iterdir()) < 400_000
@@ -713,7 +717,9 @@ def test_static_payload_budget():
     # and Word-like documents in the canvas (canvas-doc.js, A4 pages, variants: +47 kB raw, +12 kB gzipped)
     # then the canvas code mode (several files, preview by device, console with file:line, per-file versions, zip:
     # +37 kB raw, +11 kB gzipped)
-    assert total < 1_520_000, f"static payload is {total} bytes"  # measured 1 509 029 (decks + documents + code)
+    # then the answer content of the chat audit (math placeholders and the KaTeX loader, citation bubbles, rich copy,
+    # thumbs-down reasons, the work line: answers.js/.css/-i18n.js; KaTeX itself has its own budget below)
+    assert total < 1_560_000, f"static payload is {total} bytes"  # measured 1 526 177 after math (R9)
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"
