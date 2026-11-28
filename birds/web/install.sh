@@ -33,15 +33,36 @@ APP="$BIRD_HOME/app"
 VENV="$BIRD_HOME/venv"
 LOGS="$BIRD_HOME/logs"
 
-say() { printf '\033[1;34m›\033[0m %s\n' "$*"; }
-ok() { printf '\033[1;32m✓\033[0m %s\n' "$*"; }
-die() { printf '\033[1;31m✗\033[0m %s\n' "$*" >&2; exit 1; }
+# couleurs dans un terminal seulement (jamais de codes dans un journal), et jamais avec NO_COLOR
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then C_B='\033[1;34m'; C_G='\033[1;32m'; C_R='\033[1;31m'; C_0='\033[0m'
+else C_B=''; C_G=''; C_R=''; C_0=''; fi
+say() { printf "${C_B}›${C_0} %s\n" "$*"; }
+ok() { printf "${C_G}✓${C_0} %s\n" "$*"; }
+die() { printf "${C_R}✗${C_0} %s\n" "$*" >&2; exit 1; }
 
-# ---- 0. l'oiseau (couleur seulement dans un terminal, jamais avec NO_COLOR)
+# ---- 0. l'oiseau : le logo de Bird en blocs (UTF-8), ou en ASCII simple ; couleur seulement dans un terminal
 banner() {
   if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then b='\033[1;34m'; d='\033[2m'; r='\033[0m'; else b=''; d=''; r=''; fi
   printf '\n%b' "$b"
-  cat <<'BIRD'
+  case "${LC_ALL:-${LC_CTYPE:-${LANG:-}}}" in
+    *UTF-8* | *utf8* | *UTF8* | *utf-8*) cat <<'BIRD'
+       ▀█▄▄                    ▄
+        ▀████▄▄              ▄██
+         ▀██████▄           ████
+          ████████▄        █████
+           █████████▄     ██████
+           ▀█████████▄    █████
+            ██████████▄  ██████
+             ██████████▄▄███████▄▄▄▄
+              ███████████████████▀
+               ▀███████████████▀
+              ▄▄█████████████▀
+          ▄▄████████████▀▀▀
+     ▄▄▄█████████▀▀▀▀
+   ▀▀▀▀▀▀▀▀▀
+BIRD
+      ;;
+    *) cat <<'BIRD'
         __                       __
         \ `-.__            __.-' /
          `-.   `-.__  __.-'   .-'
@@ -49,8 +70,10 @@ banner() {
                `-.__/  \__.-'
                     \__/
 BIRD
-  printf '%b\n          B I R D   %b·  conçu en France%b\n' "$r" "$d" "$r"
-  printf '%b     Votre IA, chez vous. Sans abonnement.%b\n\n' "$d" "$r"
+      ;;
+  esac
+  printf '%b\n   Bird  %b·  conçu en France%b\n' "$r" "$d" "$r"
+  printf '%b   Votre IA, chez vous. Sans abonnement.%b\n\n' "$d" "$r"
 }
 banner
 
@@ -97,6 +120,61 @@ need_space() {
   free_gb=$((free_kb / 1048576))
   [ "$free_gb" -ge "$2" ] || die "Il faut environ $2 Go libres pour $3 ; il en reste $free_gb. $(space_hint)"
 }
+# gpu_detect : nom et mémoire (Mo) de la première carte NVIDIA, vides sans carte (sous WSL, nvidia-smi est dans /usr/lib/wsl/lib)
+gpu_detect() {
+  GPU_NAME=""; GPU_MB=0; NVSMI=""
+  for c in nvidia-smi /usr/lib/wsl/lib/nvidia-smi; do
+    if command -v "$c" >/dev/null 2>&1; then NVSMI="$c"; break; fi
+  done
+  [ -n "$NVSMI" ] || return 0
+  line="$("$NVSMI" --query-gpu=name,memory.total --format=csv,noheader,nounits 2>/dev/null | head -n 1)"
+  GPU_NAME="$(printf '%s' "$line" | cut -d, -f1 | sed 's/^ *//; s/ *$//')"
+  GPU_MB="$(printf '%s' "$line" | cut -d, -f2 | tr -dc 0-9)"
+  [ -n "$GPU_MB" ] || GPU_MB=0
+}
+
+# ---- la barre de suivi du démarrage : les étapes réelles de vLLM, lues dans son journal
+# stage LOG -> "pourcentage|libellé" de l'étape la plus avancée atteinte (jamais en arrière)
+stage() {
+  if grep -qiE "Application startup complete|Starting vLLM API server|Uvicorn running" "$1"; then echo "97|Ouverture du serveur"
+  elif grep -qiE "Capturing (CUDA )?graph|cuda ?graph|torch\.compile|Compiling" "$1"; then echo "85|Optimisation pour votre carte"
+  elif grep -qiE "KV cache|GPU blocks|Memory profiling|memory profiling" "$1"; then echo "72|Réservation de la mémoire"
+  elif grep -qiE "Loading weights took|Model loading took|Loading safetensors.*100%" "$1"; then echo "62|Modèle chargé sur la carte"
+  elif grep -qiE "Loading safetensors|Starting to load model|Loading model" "$1"; then echo "45|Chargement sur la carte graphique"
+  elif grep -qiE "Downloading|Fetching [0-9]+ files|\.safetensors.*[0-9]+%" "$1"; then echo "15|Téléchargement du modèle (la première fois)"
+  else echo "5|Démarrage de vLLM"; fi
+}
+bar() {  # bar POURCENT LIBELLÉ SECONDES
+  w=28; f=$(($1 * w / 100)); e=$((w - f))
+  full=$(printf '%*s' "$f" '' | sed 's/ /█/g'); empty=$(printf '%*s' "$e" '' | sed 's/ /░/g')
+  t="$(($3 / 60)) min $(($3 % 60)) s"
+  if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then printf '\r\033[K  \033[1;34m%s\033[0;2m%s\033[0m %3d %%  %s  \033[2m%s\033[0m' "$full" "$empty" "$1" "$2" "$t"
+  elif [ -t 1 ]; then printf '\r  %s%s %3d %%  %s  %s   ' "$full" "$empty" "$1" "$2" "$t"
+  else printf '  [%s%s] %3d %%  %s  (%s)\n' "$full" "$empty" "$1" "$2" "$t"; fi
+}
+wait_model() {
+  i=0; best=0; last=""
+  until up "$BASE_URL"; do
+    kill -0 "$(cat "$BIRD_HOME/vllm.pid")" 2>/dev/null || { [ -t 1 ] && echo; die "vLLM s'est arrêté : $(vllm_reason). Journal : $LOGS/vllm.log"; }
+    st="$(stage "$LOGS/vllm.log")"; pc="${st%%|*}"; lb="${st#*|}"
+    if [ "$pc" -gt "$best" ]; then best=$pc; fi
+    # sans terminal (journal, WSL redirigé) : une ligne par étape, pas une par seconde
+    if [ -t 1 ] || [ "$lb" != "$last" ]; then bar "$best" "$lb" "$i"; last="$lb"; fi
+    [ $i -le 1800 ] || { [ -t 1 ] && echo; die "vLLM ne répond pas après 30 min. Journal : $LOGS/vllm.log"; }
+    sleep 2; i=$((i + 2))
+  done
+  bar 100 "Prêt" "$i"
+  if [ -t 1 ]; then echo; fi
+}
+# la raison d'un arrêt de vLLM, en une phrase (sinon la dernière ligne du journal)
+vllm_reason() {
+  if grep -qiE "out of memory|CUDA out of memory|insufficient.*memory" "$LOGS/vllm.log"; then echo "mémoire de la carte insuffisante (fermez les jeux et applications 3D, puis relancez)"
+  elif grep -qiE "401|403|gated|Access to model|not authorized|Repository Not Found" "$LOGS/vllm.log"; then echo "accès au modèle refusé par Hugging Face (connectez-vous avec un compte autorisé : hf auth login)"
+  elif grep -qiE "No space left" "$LOGS/vllm.log"; then echo "disque plein. $(space_hint)"
+  elif grep -qiE "No CUDA GPUs|CUDA driver|libcuda|nvidia driver" "$LOGS/vllm.log"; then echo "pilote NVIDIA introuvable (mettez à jour le pilote ; sous Windows, celui de Windows suffit pour WSL)"
+  else tail -n 1 "$LOGS/vllm.log" | cut -c1-200; fi
+}
+
 install_failed() {
   rm -rf "$VLLM_VENV" "${TMPDIR:-}"  # rendre la place prise par l'essai
   if grep -q "No space left" "$LOGS/vllm-install.log" 2>/dev/null; then
@@ -106,6 +184,7 @@ install_failed() {
 }
 
 # ---- 3. le modèle (vLLM)
+GPU_NAME=""; GPU_MB=0; NVSMI=""; VLLM_ARGS=""
 if [ -n "${BIRD_VLLM_URL:-}" ]; then
   BASE_URL="${BIRD_VLLM_URL%/}"
   up "$BASE_URL" || die "Aucun serveur compatible OpenAI ne répond sur $BASE_URL."
@@ -114,9 +193,30 @@ else
   BASE_URL="http://127.0.0.1:$VLLM_PORT/v1"
   if up "$BASE_URL"; then
     ok "vLLM tourne déjà sur $BASE_URL"
+    gpu_detect  # pour mesurer l'empreinte sur la carte
   else
-    command -v nvidia-smi >/dev/null 2>&1 \
-      || say "Pas de carte graphique NVIDIA détectée : vLLM sera lent ou indisponible. Vous pouvez désigner un serveur existant avec BIRD_VLLM_URL."
+    # vLLM sert le modèle sur la carte graphique NVIDIA (CUDA ; sous WSL, via le pilote NVIDIA de Windows).
+    # Sans carte : on ne télécharge pas 10 Go qui ne démarreraient pas ; un serveur local déjà lancé convient.
+    gpu_detect
+    if [ -z "$GPU_NAME" ]; then
+      for alt in http://127.0.0.1:1234/v1 http://127.0.0.1:11434/v1; do
+        if up "$alt"; then BASE_URL="$alt"; ok "Serveur du modèle trouvé : $alt (LM Studio / Ollama)"; break; fi
+      done
+      [ "$BASE_URL" != "http://127.0.0.1:$VLLM_PORT/v1" ] || die "Aucune carte graphique NVIDIA détectée : vLLM a besoin d'une carte NVIDIA (pilote à jour ; sous Windows, WSL 2). Sans carte, lancez un serveur compatible OpenAI (LM Studio, Ollama…) puis relancez avec BIRD_VLLM_URL=http://127.0.0.1:1234/v1."
+    fi
+  fi
+  if [ -n "$GPU_NAME" ] && ! up "$BASE_URL"; then
+    say "Carte graphique : $GPU_NAME ($((GPU_MB / 1024)) Go) — le modèle tournera dessus."
+    # réglages selon la mémoire de la carte : le modèle (~8 Go) et son contexte doivent y tenir
+    if [ "$GPU_MB" -lt 6000 ]; then
+      die "La carte $GPU_NAME a $((GPU_MB / 1024)) Go : il en faut au moins 6 pour le modèle. Utilisez un serveur existant avec BIRD_VLLM_URL."
+    elif [ "$GPU_MB" -lt 11000 ]; then
+      VLLM_ARGS="--quantization fp8 --max-model-len 8192"  # poids en 8 bits (~4 Go) : tient sur 8 Go
+    elif [ "$GPU_MB" -lt 20000 ]; then
+      VLLM_ARGS="--max-model-len 16384"
+    else
+      VLLM_ARGS=""
+    fi
     # vLLM dans son propre environnement : ses dépendances (torch, CUDA) ne touchent jamais celles de Bird
     VLLM_VENV="$BIRD_HOME/vllm-venv"
     if ! "$VLLM_VENV/bin/python" -c 'import vllm' >/dev/null 2>&1; then
@@ -147,19 +247,25 @@ else
         die "Connectez-vous d'abord : $VLLM_VENV/bin/hf auth login (ou définissez HF_TOKEN)."
       fi
     fi
-    say "Démarrage du modèle $BIRD_MODEL avec vLLM…"
+    # le téléchargement (~8 Go, une seule fois) avec sa propre barre de progression, avant le démarrage
+    say "Téléchargement du modèle $BIRD_MODEL (une seule fois, ~8 Go)…"
+    "$VLLM_VENV/bin/hf" download "$BIRD_MODEL" >/dev/null \
+      || die "Téléchargement du modèle impossible : vérifiez votre connexion et votre accès au modèle (hf auth login)."
+    say "Démarrage du modèle $BIRD_MODEL sur la carte graphique…"
     # HF_TOKEN, s'il est défini, est lu par vLLM depuis l'environnement : il n'est jamais écrit sur le disque ni affiché
-    nohup "$VLLM_VENV/bin/vllm" serve "$BIRD_MODEL" --host 127.0.0.1 --port "$VLLM_PORT" \
+    # shellcheck disable=SC2086  # VLLM_ARGS: words chosen above, never user input
+    nohup "$VLLM_VENV/bin/vllm" serve "$BIRD_MODEL" --host 127.0.0.1 --port "$VLLM_PORT" $VLLM_ARGS \
       >"$LOGS/vllm.log" 2>&1 &
     echo $! >"$BIRD_HOME/vllm.pid"
-    i=0
-    until up "$BASE_URL"; do
-      i=$((i + 1))
-      [ $i -le 180 ] || die "vLLM ne répond pas après 15 min. Journal : $LOGS/vllm.log"
-      kill -0 "$(cat "$BIRD_HOME/vllm.pid")" 2>/dev/null || die "vLLM s'est arrêté. Journal : $LOGS/vllm.log"
-      sleep 5
-    done
+    wait_model
     ok "Modèle prêt sur $BASE_URL"
+    # preuve que le modèle est bien sur la carte : sa mémoire est occupée par le serveur
+    used="$("$NVSMI" --query-gpu=memory.used --format=csv,noheader,nounits 2>/dev/null | head -n 1 | tr -dc 0-9)"
+    if [ -n "$used" ] && [ "$used" -gt 2000 ]; then
+      ok "Accélération graphique active : $GPU_NAME, $((used / 1024)) Go occupés par le modèle"
+    else
+      say "Le modèle répond, mais la carte graphique ne semble pas utilisée : voir $LOGS/vllm.log"
+    fi
   fi
 fi
 MODEL_ID="$(curl -fsS -m 5 "$BASE_URL/models" | "$VENV/bin/python" -c 'import json,sys; print(json.load(sys.stdin)["data"][0]["id"])')"
@@ -174,6 +280,8 @@ ok "Le modèle $MODEL_ID répond : « $REPLY »"
 cd "$APP"
 if [ -f scripts/bird_local.py ]; then
   set -- "$VENV/bin/python" scripts/bird_local.py --vllm-url "$BASE_URL" --port "$BIRD_PORT" --no-browser
+  # l'empreinte de chaque réponse mesurée sur votre carte (nvidia-smi), pas estimée
+  [ -n "${GPU_NAME:-}" ] && set -- "$@" --measure-gpu
 else
   set -- "$VENV/bin/python" scripts/serve.py --base-url "$BASE_URL" --model "$MODEL_ID" --api-key local \
     --host 127.0.0.1 --port "$BIRD_PORT"

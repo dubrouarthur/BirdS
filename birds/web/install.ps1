@@ -44,19 +44,27 @@ function Wait-Bird {
 
 # l'oiseau (here-string entre apostrophes : aucun caractère interprété)
 $BirdArt = @'
-        __                       __
-        \ `-.__            __.-' /
-         `-.   `-.__  __.-'   .-'
-            `-.     (o >    .-'
-               `-.__/  \__.-'
-                    \__/
+       ▀█▄▄                    ▄
+        ▀████▄▄              ▄██
+         ▀██████▄           ████
+          ████████▄        █████
+           █████████▄     ██████
+           ▀█████████▄    █████
+            ██████████▄  ██████
+             ██████████▄▄███████▄▄▄▄
+              ███████████████████▀
+               ▀███████████████▀
+              ▄▄█████████████▀
+          ▄▄████████████▀▀▀
+     ▄▄▄█████████▀▀▀▀
+   ▀▀▀▀▀▀▀▀▀
 '@
 Write-Host ""
 Write-Host $BirdArt -ForegroundColor Blue
 Write-Host ""
-Write-Host "          B I R D   " -NoNewline
+Write-Host "   Bird  " -NoNewline
 Write-Host "·  conçu en France" -ForegroundColor DarkGray
-Write-Host "     Votre IA, chez vous. Sans abonnement." -ForegroundColor DarkGray
+Write-Host "   Votre IA, chez vous. Sans abonnement." -ForegroundColor DarkGray
 Write-Host ""
 
 function Install-Bird {
