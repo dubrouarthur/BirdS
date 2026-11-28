@@ -235,6 +235,46 @@ async function shot(page, el, file) {
       check(after === null, `${name}: feedback kept after the thumbs down was taken back`);
     }
 
+    // ---- R25: one folded work line before a short answer (plan 2/2 + 1 step + the flight were three boxes)
+    const first = birds(page).nth(0);
+    const before = await first.evaluate((el) => {
+      const md = el.querySelector(":scope > .md");
+      const kids = [...el.children];
+      return kids.slice(0, kids.indexOf(md)).filter((k) => k.tagName === "DETAILS" || k.classList.contains("tplan-wrap")).length;
+    });
+    check(before === 1, `${name}: ${before} boxes before the short answer`);
+    const work = first.locator(":scope > details.worklog");
+    check((await work.count()) === 1 && /1 étape[\s\S]*Lecture du document[\s\S]*Hirondelle/.test(await work.locator(":scope > summary").innerText().catch(() => "")), `${name}: work line text`);
+    await shot(page, first.locator(":scope > .md").locator("xpath=preceding-sibling::*[1]"), `work-closed-${name}.png`);
+    if (await work.count()) {
+      await work.locator(":scope > summary").click();
+      await page.waitForTimeout(250);
+      check((await work.locator(".tplan-item").count()) === 2 && (await work.locator(".timeline .step").count()) === 1 && (await work.locator(".rf-body").count()) === 1, `${name}: work line body`);
+      await shot(page, work, `work-open-${name}.png`);
+      await work.locator(":scope > summary").click();
+    }
+    // the « … » menu: copy and exports, then « Réécrire… » with one drawing per rewrite
+    const more = birds(page).nth(6).locator('[data-act="more"]');
+    await more.scrollIntoViewIfNeeded();
+    await more.click();
+    await page.waitForTimeout(200);
+    const menu = birds(page).nth(6).locator(".menu");
+    const top = await menu.locator(".menu-item").count();
+    check(top <= 5 && (await menu.locator('[data-act="rewrite"]').count()) === 1, `${name}: menu has ${top} items`);
+    await shot(page, menu, `menu-${name}.png`);
+    await menu.locator('[data-act="rewrite"]').click();
+    await page.waitForTimeout(200);
+    const drawings = await menu.locator('.menu-item[data-act^="tf-"] svg').evaluateAll((svgs) => svgs.map((x) => x.innerHTML));
+    check(drawings.length === 6 && new Set(drawings).size === 6, `${name}: rewrites ${drawings.length}, ${new Set(drawings).size} drawings`);
+    check((await page.evaluate(() => document.activeElement?.dataset.act)) === "menu-back", `${name}: focus not on « Retour »`);
+    await shot(page, menu, `menu-rewrite-${name}.png`);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(150);
+    check((await page.evaluate(() => document.activeElement?.dataset.act)) === "rewrite", `${name}: Escape did not go back to the first level`);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(150);
+    check(await menu.isHidden(), `${name}: menu still open`);
+
     const [sw, cw] = await page.evaluate(() => [document.documentElement.scrollWidth, document.documentElement.clientWidth]);
     check(sw <= cw + 1, `${name}: horizontal scroll ${sw} > ${cw}`);
 

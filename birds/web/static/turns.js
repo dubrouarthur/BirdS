@@ -36,7 +36,7 @@ import { canvasCard } from "./canvas.js";
 import { enhanceAnswer } from "./modules.js";
 import { renderChips, transforms } from "./followups.js";
 import { flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
-import { copyAnswer, feedbackPanel, feedbackThanks, serialize, setSourcesOpen, treeOf, typeset } from "./answers.js"; // math, citations, rich copy, feedback (chat audit C2)
+import { REWRITE_GLYPHS, copyAnswer, feedbackPanel, feedbackThanks, glyph, serialize, setSourcesOpen, treeOf, typeset } from "./answers.js"; // math, citations, rich copy, feedback (chat audit C2)
 
 const cache = new Map(); // turn id -> { md, blocks }
 let handlers = {};
@@ -1236,9 +1236,16 @@ function renderActions(turn, isLast) {
       ["markdown", t("act.copy.md"), "copy-md", () => copyText(turn.answer.content, t("toast.copied.md"))],
       ["word", t("act.export.docx.item"), "export-docx", () => handlers.onExport(turn, "docx")],
       ["download", t("act.export.md.item"), "export-md", () => handlers.onExport(turn, "md")],
-      // one-click transforms of the last answer (followups.js): a new request, as if typed
+      // one-click transforms of the last answer (followups.js): a new request, as if typed, grouped behind
+      // « Réécrire » with a drawing each (shorter, longer, formal, translate, table, list)
       ...(isLast && !state.busy && handlers.onSuggest
-        ? transforms().map(([label, prompt], i) => ["edit", label, `tf-${i}`, () => handlers.onSuggest(prompt)])
+        ? [[
+            "edit",
+            t("act.rewrite"),
+            "rewrite",
+            null,
+            transforms().map(([label, prompt], i) => [glyph(REWRITE_GLYPHS[i] || "edit"), label, `tf-${i}`, () => handlers.onSuggest(prompt)]),
+          ]]
         : []),
     ]),
   );
@@ -1252,16 +1259,47 @@ function moreMenu(items) {
     "aria-expanded": "false",
     "data-act": "more",
   });
-  const entries = items.map(([ico, label, act, run]) =>
-    h(
-      "button",
-      { class: "menu-item", type: "button", role: "menuitem", tabindex: "-1", "data-act": act, onclick: () => (closeMenu(true), run()) },
-      icon(ico),
-      h("span", { text: label }),
-    ),
-  );
+  // [icon, label, act, run, sub?]: an entry with sub opens its list in place (« Réécrire » and its rewrites), with
+  // « Retour » first: the menu stays short and every rewrite has its own drawing (answers.js glyph)
+  const make = (list, back) => {
+    const out = list.map(([ico, label, act, run, sub]) =>
+      h(
+        "button",
+        {
+          class: `menu-item${sub ? " menu-parent" : ""}`,
+          type: "button",
+          role: "menuitem",
+          tabindex: "-1",
+          "data-act": act,
+          ...(sub ? { "aria-haspopup": "menu" } : {}),
+          onclick: () => (sub ? show(make(sub, act), 0) : (closeMenu(true), run())),
+        },
+        typeof ico === "string" ? icon(ico) : ico,
+        h("span", { text: label }),
+        sub && icon("chevron", "menu-sub-chev"),
+      ),
+    );
+    if (back)
+      out.unshift(
+        h(
+          "button",
+          { class: "menu-item menu-back", type: "button", role: "menuitem", tabindex: "-1", "data-act": "menu-back", onclick: () => show(top, top.findIndex((e) => e.dataset.act === back)) },
+          icon("back"),
+          h("span", { text: t("act.back") }),
+        ),
+      );
+    return out;
+  };
+  const top = make(items);
+  let entries = top;
+  const show = (list, index) => {
+    entries = list;
+    menu.replaceChildren(...list);
+    list.at(index)?.focus();
+  };
   const onOutside = (e) => !wrap.contains(e.target) && closeMenu(false);
   function openMenu(index) {
+    if (entries !== top) show(top, 0);
     menu.hidden = false;
     trigger.setAttribute("aria-expanded", "true");
     // opens upward when the conversation area has no room below the button (the composer sits there)
@@ -1291,6 +1329,13 @@ function moreMenu(items) {
         if (go !== undefined) {
           e.preventDefault();
           entries[(go + entries.length) % entries.length].focus();
+        } else if (e.key === "ArrowRight" && document.activeElement?.classList.contains("menu-parent")) {
+          e.preventDefault();
+          document.activeElement.click();
+        } else if ((e.key === "ArrowLeft" || e.key === "Escape") && entries !== top) {
+          e.preventDefault();
+          e.stopPropagation();
+          entries[0].click(); // « Retour »
         } else if (e.key === "Escape") {
           e.preventDefault();
           e.stopPropagation();
@@ -1592,6 +1637,51 @@ function restoreFocus(el, key) {
   next?.focus({ preventScroll: true });
 }
 
+/**
+ * The plan, the steps and the flight of a finished answer as ONE folded line (« 2 étapes · Fiche encyclopédique ·
+ * Recherche web · Hirondelle · 1,3 s »); open, it shows the plan's items, the steps' timeline and the flight's
+ * summary and checks, unchanged. Not merged: while it runs, when something needs the reader (a plan done in part,
+ * a suspicious page, an approval) or when there is only one of them.
+ */
+function workLine(turn, plan, steps, flight) {
+  const parts = [plan, steps, flight].filter(Boolean);
+  if (parts.length < 2 || turn.status !== "done" || turn.crew) return null;
+  if (plan?.querySelector(".tplan-partial") || steps?.querySelector(".badge-warn, .badge-await")) return null;
+  const level = flight?.dataset.level;
+  const own = turn.steps.filter((s) => !s.agent);
+  const n = own.length;
+  const total = own.reduce((sum, s) => sum + (s.seconds || 0), 0);
+  const names = [...new Set(own.map((s) => toolLabel(s.tool)))].join(" · ");
+  const badge = flight?.querySelector(".rf-badge")?.cloneNode(true);
+  const planCount = plan?.querySelector(".tplan-count")?.textContent || "";
+  const flightHead = [flight?.querySelector(".rf-line")?.textContent, flight?.querySelector(".rf-meta")?.textContent]
+    .filter(Boolean)
+    .join(" · ");
+  return details(
+    "steps worklog",
+    turn.ui.work ?? false,
+    (value) => (turn.ui.work = value),
+    [
+      icon("chevron", "chev"),
+      badge,
+      h("span", { class: "steps-count", text: n ? (n === 1 ? t("steps.count.one") : t("steps.count.many", { n })) : planCount }),
+      h("span", {
+        class: "steps-names",
+        text: [names, level && t(`rf.level.${level}`)].filter(Boolean).join(" · "),
+      }),
+      total > 0 && h("span", { class: "num steps-time", text: fmtSeconds(total) }),
+    ],
+    h(
+      "div",
+      { class: "work-body" },
+      plan && [h("p", { class: "work-h", text: [t("plan.title"), planCount].join(" · ") }), plan.querySelector(".tplan-list")],
+      steps && [h("p", { class: "work-h", text: t("steps.title") }), steps.querySelector("ol.timeline")],
+      // Mode Réflexion's flight gives its summary and checks; a plain reasoning keeps its own fold
+      flight && (level ? [h("p", { class: "work-h", text: flightHead }), flight.querySelector(".rf-body")] : flight),
+    ),
+  );
+}
+
 function fillAssistant(el, turn, isLast) {
   // the turn is redrawn on every event (each agent_step of a team): the focused control keeps the focus, or a
   // keyboard user is sent back to the top of the page and Escape on <body> would stop the answer
@@ -1604,12 +1694,10 @@ function fillAssistant(el, turn, isLast) {
   const hasText = !!(turn.answer || turn.text);
   if (hasText) paintMarkdown(turn, entry);
   const mode = turn.mode || activeMode();
-  const children = [
-    byline(entry, turn, mode),
-    renderAgents(turn, handlers),
-    renderPlan(turn),
-    renderSteps(turn.crew ? { ...turn, steps: turn.steps.filter((s) => !s.agent) } : turn), // crew steps sit in their lane
-    // Mode Réflexion: « Bird a pris son vol en Faucon », the reasoning summary, the checks, the full reasoning
+  const planEl = renderPlan(turn);
+  const stepsEl = renderSteps(turn.crew ? { ...turn, steps: turn.steps.filter((s) => !s.agent) } : turn); // crew steps sit in their lane
+  // Mode Réflexion: « Bird a pris son vol en Faucon », the reasoning summary, the checks, the full reasoning
+  const flightEl =
     renderFlight(
       turn,
       details,
@@ -1629,7 +1717,13 @@ function fillAssistant(el, turn, isLast) {
           (value) => (turn.ui.reasoning = value),
           [icon("chevron", "chev"), icon("spark"), t("reasoning.title")],
           h("div", { class: "reasoning-body", text: turn.reasoning }),
-        )),
+        ));
+  // a finished answer opens on one folded line at most: the plan, the steps and the flight together (R25)
+  const work = workLine(turn, planEl, stepsEl, flightEl);
+  const children = [
+    byline(entry, turn, mode),
+    renderAgents(turn, handlers),
+    ...(work ? [work] : [planEl, stepsEl, flightEl]),
     hasText && entry.md,
     turn.answer?.fallback && h("p", { class: "answer-note", "data-notice": "fallback", text: turn.answer.fallback }),
     // markets: the quote card (its period chips) comes before the chart it drives (finance.js)

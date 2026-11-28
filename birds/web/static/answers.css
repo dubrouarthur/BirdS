@@ -312,3 +312,42 @@ a.cite-bubble-title {
     min-block-size: 44px;
   }
 }
+
+/* ---------------------------------------------------------------- one work line before the answer (R25) */
+.worklog > summary .rf-badge {
+  inline-size: 24px;
+  block-size: 24px;
+}
+.worklog > summary .rf-badge .rf-bird {
+  inline-size: 15px;
+  block-size: 15px;
+}
+.work-body {
+  display: grid;
+  gap: 6px;
+  padding: 0 14px 12px;
+}
+.work-h {
+  margin-block-start: 6px;
+  font-size: 0.76rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.work-body > .timeline {
+  padding: 0;
+}
+.work-body > .rf-body {
+  margin-inline-start: 4px;
+}
+
+/* ---------------------------------------------------------------- the « … » menu: Réécrire and its rewrites */
+.menu-parent .menu-sub-chev {
+  margin-inline-start: auto;
+  inline-size: 0.9rem;
+  block-size: 0.9rem;
+  color: var(--muted);
+}
+.menu-back {
+  color: var(--muted);
+}

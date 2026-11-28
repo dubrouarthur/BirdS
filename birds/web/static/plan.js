@@ -120,7 +120,9 @@ export function renderPlan(turn) {
     "div",
     { class: "tplan-wrap" },
     box,
+    // an answer that failed says so in its own notice: the « manquent » line is for a plan that ended short
     partial &&
+      plan.final &&
       h(
         "p",
         { class: "tplan-missing", role: "status" },

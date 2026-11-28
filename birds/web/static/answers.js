@@ -307,6 +307,26 @@ export async function copyAnswer(button, payload) {
   return true;
 }
 
+// ------------------------------------------------------------------ the « … » menu: one drawing per rewrite
+
+const GLYPHS = {
+  shorter: '<path d="M4 6h12M4 10h8M4 14h4"/>',
+  longer: '<path d="M4 6h4M4 10h8M4 14h12"/>',
+  formal: '<path d="M8.2 3.5h3.6L11 6.2l1.8 7.3L10 16.5l-2.8-3 1.8-7.3z"/>',
+  translate: '<circle cx="10" cy="10" r="6.5"/><path d="M3.5 10h13M10 3.5c2 2 2.8 4.2 2.8 6.5s-.8 4.5-2.8 6.5c-2-2-2.8-4.2-2.8-6.5s.8-4.5 2.8-6.5z"/>',
+  table: '<rect x="3.5" y="4.5" width="13" height="11" rx="1.5"/><path d="M3.5 8.5h13M3.5 12h13M8.5 8.5v7"/>',
+  list: '<path d="M8 6h8M8 10h8M8 14h8M4.5 6h.01M4.5 10h.01M4.5 14h.01"/>',
+};
+/** The drawing of each transform of followups.transforms(), in its order. */
+export const REWRITE_GLYPHS = ["shorter", "longer", "formal", "translate", "table", "list"];
+
+/** A drawing of this file (constants, never model output), sized like core.icon(). */
+export function glyph(name) {
+  const wrap = document.createElement("span");
+  wrap.innerHTML = `<svg class="icon" viewBox="0 0 20 20" aria-hidden="true" focusable="false">${GLYPHS[name] || GLYPHS.list}</svg>`;
+  return wrap.firstChild;
+}
+
 // ------------------------------------------------------------------ thumbs down: reasons and a comment
 // Kept with the conversation in this browser only (there is no feedback endpoint on the server: nothing leaves the
 // device). Reasons are fixed keys, the comment is plain text capped at 500 characters.
