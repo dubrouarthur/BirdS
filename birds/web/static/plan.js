@@ -68,33 +68,33 @@ export function renderPlan(turn) {
   const box = h(
     "details",
     {
-      class: `plan${partial ? " plan-partial" : ""}${plan.final && !partial ? " plan-done" : ""}`,
+      class: `tplan${partial ? " tplan-partial" : ""}${plan.final && !partial ? " tplan-done" : ""}`,
       open,
     },
     h(
       "summary",
       { "data-act": "plan" },
       icon("chevron", "chev"),
-      icon(partial ? "alert" : "check", "plan-head-icon"),
-      h("span", { class: "plan-title", text: t("plan.title") }),
+      icon(partial ? "alert" : "check", "tplan-head-icon"),
+      h("span", { class: "tplan-title", text: t("plan.title") }),
       h("span", {
-        class: "plan-count",
+        class: "tplan-count",
         text: t("plan.count", { done, total: plan.items.length }),
       }),
     ),
     h(
       "ol",
-      { class: "plan-list" },
+      { class: "tplan-list" },
       plan.items.map((item) =>
         h(
           "li",
-          { class: `plan-item is-${item.status}` },
+          { class: `tplan-item is-${item.status}` },
           h(
             "span",
-            { class: "plan-mark", "aria-hidden": "true" },
+            { class: "tplan-mark", "aria-hidden": "true" },
             MARK[item.status] ? icon(MARK[item.status]) : null,
           ),
-          h("span", { class: "plan-label", text: item.label }),
+          h("span", { class: "tplan-label", text: item.label }),
           h("span", {
             class: "sr-only",
             text: ` — ${t(`plan.status.${item.status}`)}`,
@@ -108,12 +108,12 @@ export function renderPlan(turn) {
   box.addEventListener("toggle", () => byUser && (turn.ui.planOpen = box.open));
   return h(
     "div",
-    { class: "plan-wrap" },
+    { class: "tplan-wrap" },
     box,
     partial &&
       h(
         "p",
-        { class: "plan-missing", role: "status" },
+        { class: "tplan-missing", role: "status" },
         icon("alert"),
         h("span", { text: missingText(plan) }),
       ),

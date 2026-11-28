@@ -8484,16 +8484,16 @@ ol.a4-list > li::before {
 }
 /* ==================================================================== footprint.js (end) */
 /* ------------------------------------------------------------------ task plan (plan.js, w1-harness) */
-.plan-wrap {
+.tplan-wrap {
   display: grid;
   gap: 6px;
 }
-.plan {
+.tplan {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
 }
-.plan > summary {
+.tplan > summary {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -8503,31 +8503,31 @@ ol.a4-list > li::before {
   font-size: 0.88rem;
   cursor: pointer;
 }
-.plan-title {
+.tplan-title {
   font-weight: 600;
 }
-.plan-count {
+.tplan-count {
   margin-inline-start: auto;
   color: var(--muted);
   font-size: 0.8rem;
   white-space: nowrap;
 }
-.plan-head-icon {
+.tplan-head-icon {
   color: var(--eco);
 }
-.plan-partial .plan-head-icon {
+.tplan-partial .tplan-head-icon {
   color: var(--warn-ink);
 }
-.plan-list {
+.tplan-list {
   display: flex;
   flex-wrap: wrap;
   gap: 6px 8px;
   margin: 0;
   padding: 0 12px 10px;
   list-style: none;
-  counter-reset: plan;
+  counter-reset: tplan;
 }
-.plan-item {
+.tplan-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -8538,16 +8538,16 @@ ol.a4-list > li::before {
   border-radius: 999px;
   font-size: 0.84rem;
   color: var(--ink-2);
-  counter-increment: plan;
+  counter-increment: tplan;
 }
-.plan-label {
+.tplan-label {
   overflow-wrap: anywhere;
 }
-.plan-label::before {
-  content: counter(plan) ". ";
+.tplan-label::before {
+  content: counter(tplan) ". ";
   color: var(--muted);
 }
-.plan-mark {
+.tplan-mark {
   display: inline-grid;
   place-items: center;
   inline-size: 20px;
@@ -8556,33 +8556,33 @@ ol.a4-list > li::before {
   border: 1.5px solid var(--control-line);
   flex: none;
 }
-.plan-mark .icon {
+.tplan-mark .icon {
   inline-size: 14px;
   block-size: 14px;
 }
-.plan-item.is-done .plan-mark {
+.tplan-item.is-done .tplan-mark {
   border-color: var(--eco);
   background: var(--eco-soft);
   color: var(--eco);
 }
-.plan-item.is-failed {
+.tplan-item.is-failed {
   border-color: var(--danger-line);
 }
-.plan-item.is-failed .plan-mark {
+.tplan-item.is-failed .tplan-mark {
   border-color: var(--danger-ink);
   background: var(--danger-bg);
   color: var(--danger-ink);
 }
-.plan-item.is-unavailable {
+.tplan-item.is-unavailable {
   color: var(--muted);
 }
-.plan-item.is-todo .plan-mark {
+.tplan-item.is-todo .tplan-mark {
   border-style: dashed;
 }
-.plan.plan-partial {
+.tplan.tplan-partial {
   border-color: var(--warn-line);
 }
-.plan-missing {
+.tplan-missing {
   display: flex;
   align-items: flex-start;
   gap: 6px;
@@ -8593,12 +8593,12 @@ ol.a4-list > li::before {
   color: var(--warn-ink);
   font-size: 0.86rem;
 }
-.plan-missing .icon {
+.tplan-missing .icon {
   flex: none;
   margin-block-start: 2px;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .plan-item.is-done .plan-mark {
+  .tplan-item.is-done .tplan-mark {
     transition:
       background-color 0.2s,
       border-color 0.2s;

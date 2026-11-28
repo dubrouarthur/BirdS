@@ -132,7 +132,7 @@ async function send(page, text) {
       await page.waitForTimeout(150);
       await send(page, ask.text);
       const last = page.locator(".turn-bird").last();
-      const plan = last.locator("details.plan");
+      const plan = last.locator("details.tplan");
       if (!(await plan.count())) {
         problems.push(`${name}/${ask.id}: no checklist`);
         await page.screenshot({
@@ -140,15 +140,15 @@ async function send(page, text) {
         });
         continue;
       }
-      const done = await last.locator(".plan-item.is-done").count();
-      const total = await last.locator(".plan-item").count();
+      const done = await last.locator(".tplan-item.is-done").count();
+      const total = await last.locator(".tplan-item").count();
       if (done !== ask.done || total !== ask.total)
         problems.push(`${name}/${ask.id}: ${done}/${total} ticked`);
-      const missing = await last.locator(".plan-missing").count();
+      const missing = await last.locator(".tplan-missing").count();
       if (!!missing !== ask.partial)
         problems.push(`${name}/${ask.id}: partial line ${missing}`);
       if (ask.partial) {
-        const said = (await last.locator(".plan-missing").innerText()).trim();
+        const said = (await last.locator(".tplan-missing").innerText()).trim();
         if (!/Partiellement fait : tableur manque\./.test(said))
           problems.push(`${name}/${ask.id}: « ${said} »`);
         if (!(await plan.evaluate((el) => el.open)))
@@ -156,7 +156,7 @@ async function send(page, text) {
       } else if (await plan.evaluate((el) => el.open))
         problems.push(`${name}/${ask.id}: a complete plan stays open`);
       // keyboard: the summary is focusable and toggles the list
-      await last.locator("details.plan > summary").focus();
+      await last.locator("details.tplan > summary").focus();
       const was = await plan.evaluate((el) => el.open);
       await page.keyboard.press("Enter");
       await page.waitForTimeout(150);
@@ -187,7 +187,7 @@ async function send(page, text) {
         path: path.join(OUT, `plan-${ask.id}-${name}.png`),
       });
       await last
-        .locator(".plan-wrap")
+        .locator(".tplan-wrap")
         .screenshot({
           path: path.join(OUT, `plan-${ask.id}-${name}-crop.png`),
         });
