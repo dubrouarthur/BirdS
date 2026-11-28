@@ -9,6 +9,8 @@ Objectif : le niveau d'OpenAI dans les usages de bureau, porté par un petit mod
 - Fiabilité du harnais entre les actions : plan de la demande suivi étape par étape, vérification avant réponse, réparation des arguments.
 - Recherche approfondie et graphe relationnel, petits modules (matrice de comparaison, avantages / inconvénients, frise,
   chiffres clés, liste de tâches, calculatrice, cartes de sources, glossaire), suggestions de suite, transformations en un clic.
+  Fait sur la branche `w1-modules` (docs/HARNESS.md, section 14) : petits modules = module `card` du catalogue,
+  choisi par le routeur ; reste : évaluation routeur en réel de la famille `cards`.
 
 ## Vague 2 (dès la vague 1 fusionnée)
 
@@ -35,6 +37,8 @@ Objectif : le niveau d'OpenAI dans les usages de bureau, porté par un petit mod
    - graphe relationnel qui grandit pendant la recherche ;
    - rapport final plein écran : sommaire, citations [n] avec bulle, panneau de sources (citées / consultées),
      frise, matrice de comparaison, chiffres clés, niveau de confiance par affirmation, export Word / PDF / diapos.
+   Fait sur `w1-modules` (docs/HARNESS.md, section 14) ; reste : une course complète en réel (recherche web
+   indisponible le jour de la mesure).
 3. Sources et citations façon ChatGPT / Perplexity : [n] cliquables, bulle, « N sources », panneau latéral.
 4. Modules du catalogue (`docs/research/rich-catalogue-2026-11.json`), 3 lots : structure de réponse, données, documents métier.
 5. Canevas avancé, objectif « exceptionnel » (dès la vérification du Canevas terminée) :

@@ -687,3 +687,79 @@ et la signature reçoivent un refus prudent. Un passage par tâche, modèle éch
 `ocr_table_totals_mail` (TVA 50,00 € absente avant) peut tenir du tirage. Pour les témoins, la rubrique « contient »
 est générale (« welcom », « SOMME.SI | SUMIF », « linkedin.com/in/test ») ; la base a été re-notée sur ses réponses
 enregistrées après cet assouplissement (aucune génération de plus).
+
+## 14. Recherche approfondie et petits modules (branche `w1-modules`)
+
+### Recherche approfondie, affichage dynamique et complet
+
+Recette `deep_research` (`birds/harness/research.py`, `research_report.py`) sur la machinerie du Mode Agent :
+
+1. **Plan** : la planification de recherche du Mode Agent (`plan_search`, vérifiée par `crew.checked_sub_questions`,
+   partagée avec les recettes à livrable) ; chaque sous-question arrive avec sa requête. Le plan modifiable de la
+   carte (« sites préférés / exclus ») s'applique aussi à la recherche approfondie.
+2. **Recherches et lecture** : requêtes en parallèle, pages lues par lots de 3 (une par site d'abord, sources
+   officielles devant, forums derrière), 10 au plus.
+3. **Extraction** : 3 extracteurs en parallèle, sortie structurée (`record_claims` : affirmation, citation exacte,
+   date, entités, relations), vérifiée en code (citation dans la page, chiffres dans la citation, entités nommées
+   dans la page, extrémités des relations dans la citation).
+4. **Recoupement en code** : deux affirmations de sites différents qui disent la même chose se recoupent
+   (confiance « élevée ») ; même sujet, même année, même unité, chiffres différents : **contradiction** affichée
+   telle quelle (confiance « faible » des deux côtés) ; sinon « moyenne » (citation retrouvée, une source).
+5. **Rapport** : `write_report` (+ `comparison` optionnelle, gardée seulement si chaque chiffre de chaque case est
+   dans une citation vérifiée et chaque option nommée dans une page lue), puis chaque phrase vérifiée contre la
+   page qu'elle cite (citation déplacée vers la page qui porte le chiffre, phrase sans source retirée).
+
+Écran : événements `agent_research` (tableau de bord entier, ≤ 14 ko, remplacé à chaque événement) ; le navigateur
+affiche les phases, les sous-questions ouvertes / résolues (avec leur requête), les sources qui arrivent (lecture,
+retenue, écartée), affirmations vérifiées / recoupées, contradictions et le **graphe relationnel qui grandit**
+(mise en page par forces maison, les nœuds déjà placés gardent leur place, liste de repli, flèches au clavier). Sous
+la réponse : carte de recherche, graphe, frise, comparaison, et la carte « Rapport de recherche » qui ouvre le
+**rapport plein écran** (sommaire qui suit la lecture, citations [n] avec bulle au survol / focus / toucher, Échap,
+panneau Sources « Citées / Consultées » en onglets clavier, chiffres clés, frise, comparaison, graphe,
+contradictions, niveau de confiance par affirmation). Exports : Word et diapos par le moteur bureautique existant
+(`/api/tool`, `make_document` / `make_slides`, sans modèle), PDF par la feuille d'impression du rapport.
+Spec e2e : `scripts/research_ui_smoke.js` (démo, 1280 px et 360 px, clair et sombre, aucune requête tierce).
+
+### Mesure en réel (28/11/2026, endpoint Bird S 4B, `scripts/research_live.py`)
+
+Étape modifiée côté modèle : le plan. Avant = planificateur de la recette précédente (`plan_research`, questions et
+requêtes écrites à part) ; après = `plan_search` du Mode Agent. Une génération par prompt et par bras, température 0.
+
+| Prompt | Avant : plan valide / sous-q. / requêtes / liées | Après : plan valide / sous-q. / requêtes / liées |
+|---|---|---|
+| filière hydrogène vert en France | oui / 1 / 4 / 0 | oui / 4 / 4 / 4 |
+| AI Act et PME (« Recherche approfondie : … ») | oui / 3 / 4 / 0 | non → défaut (1er passage) ; oui / 4 / 4 / 4 après correctifs |
+| European battery industry | oui / 5 / 5 / 0 | oui / 4 / 4 / 4 |
+| marché des pompes à chaleur | oui / 4 / 5 / 0 | oui / 5 / 5 / 5 |
+| carte des acteurs de l'éolien en mer | oui / 3 / 4 / 0 | oui / 3 / 3 / 3 |
+| semaine de quatre jours en Europe | oui / 4 / 5 / 0 | oui / 4 / 4 / 4 |
+| **Total** | 6/6, 20 sous-q., 0 liée à une requête | 6/6 après correctifs, 24 sous-q., 24 liées |
+
+Le bras « avant » ne lie aucune requête à une sous-question : le tableau de bord ne pouvait pas dire quelle question
+une page résout. Le premier passage « après » sur l'AI Act a révélé deux défauts corrigés : le sujet gardait le
+« : » qui suit « Recherche approfondie », et la vérification partagée des requêtes refusait « France » pour une
+demande disant « française » et ignorait les sigles (« AI Act », « PME ») ; comparaison sur 5 lettres et sigles
+acceptés (test `test_the_shared_query_check_reads_word_forms_and_acronyms`). Mesuré à nouveau : 4/4 liées.
+
+Course complète en réel : **non vérifiée**. Le 28/11 à 01 h 35 UTC, l'instance SearXNG ne rendait aucun résultat
+(moteurs « CAPTCHA » et « too many requests ») et l'API Wikipédia répondait 429 ; la recette a passé la main à
+l'agent simple, qui l'a dit honnêtement (« Je ne trouve rien… »). Budget : 21 générations sur 25.
+Chaîne complète vérifiée sur la démo (vraie recette, pages d'exemple enregistrées, modèle scripté qui fait les
+erreurs d'un petit modèle).
+
+### Petits modules : un module du catalogue que le modèle choisit
+
+`card(kind = matrix | proscons | timeline | figures | tasks | calc | sources | glossary)` (`catalog.py`) : le
+routeur décide ; le harnais construit la fiche **à partir des seules données de l'utilisateur** (`modules.card`)
+ou des pages lues (`sources`), aucune fiche quand les données manquent (« fais une frise de l'histoire de France »).
+Les analyseurs (`modules.asked_kinds`) ne sont qu'un indice pour le routeur, et le repli quand il est coupé.
+Nouveaux : avantages / inconvénients, chiffres clés, glossaire (filtre au-delà de 6 termes), cartes de sources (la
+liste des sources de la réponse devient une grille de cartes, mêmes ancres [n]). La calculatrice passe aussi par
+le routeur (elle dépendait d'un module que le routeur ne proposait jamais : avec `BIRD_ROUTER` hybride par défaut,
+elle ne s'affichait plus).
+
+- Catalogue : 598 → 665 jetons (FR, tokenizer Qwen3.5), plafond du test relevé à 680.
+- Entraînement : famille `cards` de `build_tools_mix.py` (80 décisions routeur en train, 3 en éval ; « Combien
+  font 17 % de 3 450 € ? » passe de négatif à `card(calc)`), négatifs sans données.
+- Évaluation : famille `cards` de `router_data.py` (31 cas) ; banc des déclenchements : famille `cards` 31/31,
+  total 1492/1492 (1461 + 31, aucune régression). Évaluation routeur en réel de cette famille : non faite (budget).

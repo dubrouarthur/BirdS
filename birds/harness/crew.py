@@ -376,7 +376,10 @@ def checked_sub_questions(args: dict | None, request: str, limit: int = 5) -> li
     """The (sub-question, web query) pairs of a ``plan_search`` call, each checked in code: the query has 2 to 10
     words, no URL or operator, is about the request (a long word of the request in it) and is no duplicate. Shared by
     the deliverable recipes and deep research (birds.harness.research)."""
-    req = {cc.fold(w)[:6] for w in re.findall(r"[\wÀ-ÿ]{5,}", request)}
+    # about the request: a long word of it (compared on its first 5 letters: « France » is « française »), or one of
+    # its acronyms (« AI Act », « PME »)
+    req = {cc.fold(w)[:5] for w in re.findall(r"[\wÀ-ÿ]{5,}", request)}
+    acronyms = {w for w in re.findall(r"\b[A-Z][A-Z0-9]{1,6}\b", request)}
     out, keys = [], set()
     for sq in ((args or {}).get("sub_questions") or [])[:limit]:
         if not isinstance(sq, dict):
@@ -385,7 +388,8 @@ def checked_sub_questions(args: dict | None, request: str, limit: int = 5) -> li
         words = q.split()
         key = " ".join(sorted(cc.fold(q).split()))
         if (not _QUERY_OK.match(q) or not 2 <= len(words) <= 10 or "http" in q.lower() or ":" in q
-                or key in keys or not any(cc.fold(w)[:6] in req for w in words if len(w) >= 5)):  # fmt: skip
+                or key in keys or not any((len(w) >= 5 and cc.fold(w)[:5] in req) or w in acronyms
+                                          for w in words)):  # fmt: skip
             continue
         keys.add(key)
         out.append((cp.clean_line(sq.get("question"), 140) or q, q))

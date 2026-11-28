@@ -398,3 +398,22 @@ def test_the_plan_cards_exclusions_and_preferences_steer_the_reading(tmp_path):
     run = team(a, d, lang="fr", plan=plan).run(ASK, ASK)
     reads = [s.arguments["url"] for s in run.steps if s.tool == "read_page"]
     assert reads and not any("industrie.test" in u for u in reads)
+
+
+def test_the_subject_drops_the_colon_after_the_tasks_name(tmp_path):
+    a = agent(tmp_path, Script(lambda *x: "x"))
+    q = "Recherche approfondie : l'AI Act et ses obligations pour une PME française"
+    t = team(a, decide(q, mode="auto"), lang="fr")
+    t.instr = q
+    assert not t._subject().startswith(":") and "AI Act" in t._subject()
+
+
+def test_the_shared_query_check_reads_word_forms_and_acronyms():
+    from birds.harness.crew import checked_sub_questions
+
+    req = "Recherche approfondie : l'AI Act et ses obligations pour une PME française"
+    got = checked_sub_questions({"sub_questions": [
+        {"question": "Risques ?", "query": "risques juridiques AI Act PME France"},  # seen live, once rejected
+        {"question": "Recettes ?", "query": "recette de la tarte aux pommes"},
+    ]}, req)  # fmt: skip
+    assert [q for _, q in got] == ["risques juridiques AI Act PME France"]

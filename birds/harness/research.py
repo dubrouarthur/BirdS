@@ -503,7 +503,9 @@ class Research(Crew):
         subject = re.sub(r"\b(?:fais|faire|lance|mène|réalise|une?|des|la|le|les|moi|stp|svp|please|make|do|a|an|the)\b",
                          " ", subject, flags=re.I)  # fmt: skip
         subject = re.split(r"[.?!\n]|\s+(?:avec|with)\s+(?:des|les)?\s*(?:sources|chiffres)", subject)[0]
-        return " ".join(subject.split())[:120] or " ".join(self.instr.split())[:120]
+        # « Recherche approfondie : l'AI Act … »: the colon after the task's name is not part of the subject
+        subject = " ".join(subject.split()).strip(" :;,.-–—")
+        return subject[:120] or " ".join(self.instr.split())[:120]
 
     # -------------------------------------------------------------- the live board (agent_research events)
     def _board_init(self, topic: str) -> None:
