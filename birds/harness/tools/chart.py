@@ -326,6 +326,8 @@ def _fmt(v) -> str:
 def make_chart(args: dict, ctx) -> str:
     if len(ctx.charts) >= MAX_CHARTS:
         raise ToolError(f"at most {MAX_CHARTS} charts per request: answer the user now")
+    if args.get("type") in V2_TYPES:
+        return _make_chart_v2(args, ctx)  # data analysis extension: richer types, values checked at the source
     spec, notes = normalize_chart(args, ctx.lang, ctx.request)
     spec = {"id": f"c{len(ctx.charts) + 1}", **spec, "source": chart_source(spec, ctx)}
     ctx.charts.append(spec)
@@ -344,6 +346,30 @@ def make_chart(args: dict, ctx) -> str:
     if spec["source"] == "model":
         out += "\nThese figures are not from the user, a file or the web: say they are your own, unverified."
     return out
+
+
+V2_TYPES = ("donut", "area", "hbar", "stacked", "scatter", "combo", "waterfall", "funnel")
+
+
+def _make_chart_v2(args: dict, ctx) -> str:
+    """A richer chart (spec v2, birds/harness/analysis/charts.py). Every value must be a number the user wrote, a
+    file or a tool returned, or the harness computed (its note is in the message): an invented one is refused."""
+    from birds.harness.analysis.charts import normalize_spec
+
+    texts = [ctx.request or "", getattr(ctx, "message", "") or ""] + [t for _, t in getattr(ctx, "fetched", [])]
+    allowed = sorted({n for t in texts for n in _numbers_in(t)})
+    try:
+        spec = normalize_spec(args, ctx.lang, ctx.request, allowed=allowed)
+    except ToolError as e:
+        raise ToolError(f"{e}. Call make_chart again with corrected arguments.") from None
+    spec = {"id": f"c{len(ctx.charts) + 1}", **spec, "source": "file" if ctx.message != ctx.request else "request"}
+    ctx.charts.append(spec)
+    n = len(spec.get("labels") or spec.get("points") or [])
+    ctx.step_info = {"chart": spec["id"], "values": n, "series": len(spec.get("series") or []), "type": spec["type"]}
+    return (
+        f"Chart displayed to the user (do not quote this note): {spec['type']} « {spec['title']} », {n} labels. "
+        "Do not draw it again or list its figures: comment on it in 1 to 3 sentences."
+    )
 
 
 __all__ = ["CHART_SERIES", "chart_number", "chart_source", "make_chart", "normalize_chart", "reshaped_text"]

@@ -145,7 +145,8 @@ def type_column(name: str, raw: list) -> Column:
 
 def _sequential(nums: list) -> bool:
     xs = [x for x in nums if x is not None]
-    return len(xs) >= 20 and all(b - a == 1 for a, b in zip(xs, xs[1:], strict=False))
+    # a row number: 0, 1, 2… or 1, 2, 3… (« Montant » 10, 11, 12… is a measure that happens to grow by one)
+    return len(xs) >= 20 and xs[0] in (0, 1) and all(b - a == 1 for a, b in zip(xs, xs[1:], strict=False))
 
 
 def _id_text(v) -> str:

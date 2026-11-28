@@ -862,6 +862,57 @@ def study_touched(q: str) -> bool:
     return crew.decide(q, mode="on").recipe == "doc_research" or bool(crew.decide(q, recipes=flipped).recipe)
 
 
+# ---------------------------------------------------------------- data analysis: questions about an attached table
+# (birds/harness/analysis): YES must become a query the harness computes, NO must be left to the model
+DATA_YES = [
+    ("quel est le CA moyen par mois ?", "aggregate"),
+    ("top 5 des produits", "aggregate"),
+    ("compare 2024 et 2025", "compare"),
+    ("répartition du CA par région", "aggregate"),
+    ("combien de clients ?", "aggregate"),
+    ("corrélation entre prix et quantité", "corr"),
+    ("évolution des ventes", "aggregate"),
+    ("quel est le meilleur commercial ?", "aggregate"),
+    ("les 3 produits les moins vendus", "aggregate"),
+    ("CA par trimestre", "aggregate"),
+    ("nombre de commandes par région", "aggregate"),
+    ("CA de 2025 par rapport à 2024", "compare"),
+    ("distribution du CA", "describe"),
+    ("total des ventes dans l'Est", "aggregate"),
+    ("average revenue per month", "aggregate"),
+    ("top 10 clients by revenue", "aggregate"),
+    ("quantité médiane par produit", "aggregate"),
+    ("calcule le CA total de 2024", "aggregate"),
+]
+DATA_NO = [
+    "résume ce fichier",
+    "traduis ce tableau en anglais",
+    "rédige un mail à Paul avec ces chiffres",
+    "bonjour",
+    "explique-moi ce que contient le fichier",
+    "corrige les fautes du document",
+]
+_FRAME = None
+
+
+def _data_frame():
+    global _FRAME
+    if _FRAME is None:
+        from birds.harness.analysis.profile import frame_of
+        from birds.harness.analysis.table import read_table
+
+        _FRAME = frame_of(read_table(Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "data" / "ventes.csv"))
+    return _FRAME
+
+
+def data_planned(item) -> bool:
+    from birds.harness.analysis import plan_question
+
+    q, op = item if isinstance(item, tuple) else (item, None)
+    plan = plan_question(_data_frame(), q)
+    return plan is not None and (op is None or plan["query"]["op"] == op)
+
+
 def bench(name: str, yes: list[str], no: list[str], fn, touched=None) -> tuple[int, int]:
     miss = [q for q in yes if not fn(q)]
     false = [q for q in no if (touched or fn)(q)]
@@ -892,6 +943,7 @@ if __name__ == "__main__":
         ("realistic", REALISTIC_YES, OFFICE_NO, realistic_ok, anything),
         ("chart_howto", [], CHART_HOWTO_NO, chart_touched),
         ("agent_study", STUDY_YES, STUDY_NO, study_routed, study_touched),
+        ("data_analysis", DATA_YES, DATA_NO, data_planned),
     ):
         ok, n = bench(*args)
         total[0] += ok

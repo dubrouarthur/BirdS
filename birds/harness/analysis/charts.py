@@ -223,6 +223,10 @@ def normalize_spec(args: dict, lang: str = "fr", request: str = "", allowed=None
     else:
         why = "type asked"
     notes = [why]
+    if not series and not points and not (args.get("bins") or args.get("box") or args.get("matrix")):
+        raise _err("no series: give the label column then at least one column of numbers")
+    if want in ("pie", "donut", "waterfall", "funnel", "kpi") and not series:
+        raise _err(f"a {want} needs one series of numbers")
     # ---- type-specific checks and reshaping
     if want in ("pie", "donut"):
         if len(series) > 1:

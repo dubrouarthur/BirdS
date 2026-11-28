@@ -196,8 +196,17 @@ CHART_LABEL, CHART_VALUE, CHART_SERIES = "Libellé", "Valeur", "Série {i}"
 _CHART_TYPES = {
     "bar": "bar bars barre barres histogram histogramme histogrammes column columns colonne colonnes baton batons "
     "barchart",
-    "line": "line lines ligne lignes courbe courbes curve area aire linechart",
-    "pie": "pie camembert camemberts donut doughnut secteur secteurs circulaire piechart",
+    "line": "line lines ligne lignes courbe courbes curve linechart",
+    "pie": "pie camembert camemberts secteur secteurs circulaire piechart",
+    # richer charts (birds/harness/analysis/charts.py, drawn by charts2.js)
+    "donut": "donut doughnut anneau",
+    "area": "area aire aires areachart",
+    "hbar": "hbar barh horizontal horizontalbar barreshorizontales classement ranking",
+    "stacked": "stacked stackedbar empile empilees barresempilees",
+    "scatter": "scatter nuage nuagedepoints xy",
+    "combo": "combo mixte barline",
+    "waterfall": "waterfall cascade",
+    "funnel": "funnel entonnoir",
 }
 _CHART_TYPE = {w: k for k, words in _CHART_TYPES.items() for w in words.split()}
 

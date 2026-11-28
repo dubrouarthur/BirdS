@@ -118,6 +118,8 @@ def parse_number(value, decimal: str = ",") -> tuple[float | None, str]:
                 num = num.replace(",", "")
         elif "," in num:
             num = num.replace(",", ".") if num.count(",") == 1 else num.replace(",", "")
+        elif num.count(".") > 1 and not re.fullmatch(r"\d{1,3}(?:\.\d{3})+", num):
+            raise ValueError("not a number")  # « 1.2.3.4 »: a version or an address, not a number
         elif num.count(".") > 1 or re.fullmatch(r"\d{1,3}\.\d{3}", num):
             num = num.replace(".", "")  # « 1.234 » in a French column: thousands
     else:

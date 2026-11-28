@@ -668,7 +668,8 @@ def test_static_payload_budget():
     assert sum(p.stat().st_size for p in fonts.iterdir()) < 400_000
     # raised step by step: images, attachments, previews, the P1 UX backlog, the file previews, the in-chat charts
     # with web image cards, rich answer text, and the result widgets (maps, company, currency, event cards, .ics) and Mode Agent
-    assert total < 720_000, f"static payload is {total} bytes"  # well under 200 kB once gzipped
+    # + the data card and the richer charts (datakit.js, charts2.js, their app.css section): about 105 kB
+    assert total < 830_000, f"static payload is {total} bytes"  # well under 230 kB once gzipped
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     assert demo < 400_000, f"demo maps weigh {demo} bytes"
 
