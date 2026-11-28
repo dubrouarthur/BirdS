@@ -267,15 +267,20 @@ def test_calc_scenario_answers_only_its_own_prompt():
     assert pick_scenario(calc) == "calc"
     assert pick_scenario("A plan costs 14.90 a month, or 149 a year. Which is cheaper over two years?") == "calc"
     rent = "Notre loyer est de 1 200 € par mois, rédige un mail au propriétaire pour signaler que nous payons par an."
-    assert pick_scenario(rent) == "email"
+    assert pick_scenario(rent) == "reply"
     assert pick_scenario("Résume ce compte rendu : on publie 3 articles par mois et 40 par an.") == "minutes"
     assert pick_scenario("Traduis en anglais : je cours 20 km par mois, soit 240 par an.") == "plain"
-    assert pick_scenario("Write an email: our rent is 1,200 a month and we now pay once a year.") == "email"
+    assert pick_scenario("Write an email: our rent is 1,200 a month and we now pay once a year.") == "reply"
 
 
 def test_scenario_routing():
     assert pick_scenario("Bonjour") == "plain"
-    assert pick_scenario("Draft a reply email") == "email"
+    assert pick_scenario("Draft a reply email") == "reply"
+    # the approval card is the protection demo's own: only a mail built from a named page plays it
+    guard = "Prépare un mail de réponse à Camille à partir de la page https://example.org/demo/offre-fournisseur."
+    assert pick_scenario(guard) == "email"
+    assert pick_scenario("Draft a reply email from the page https://example.org/demo/supplier-offer") == "email"
+    assert pick_scenario("Écris un mail pour décaler la réunion de lundi à mardi.") == "reply"
     assert pick_scenario("Réponds à Camille : son offre nous convient") == "reply"
     assert pick_scenario("Reply to Camille: her offer works for us") == "reply"
     assert pick_scenario("Prepare a 5-slide deck") == "slides"
@@ -320,7 +325,7 @@ def test_heartbeat_comments_keep_the_stream_open():
 
 
 def email_body(lang: str = "fr") -> dict:
-    return {"messages": [{"role": "user", "content": "Prépare un mail de réponse à Camille"}], "lang": lang}
+    return {"messages": [{"role": "user", "content": "Prépare un mail de réponse à Camille à partir de la page https://example.org/demo/offre-fournisseur"}], "lang": lang}
 
 
 def test_confirm_ends_the_run_with_a_signed_token(client):

@@ -507,7 +507,10 @@ def pick_scenario(text: str, has_attachment: bool = False) -> str:
         ("document", ("docx",)),
         ("chart", _DEMO_CHART),  # whole words: "orthographe" or "paragraphe" are not charts
         ("reply", ("réponds à", "reponds a", "reply to")),  # a self-contained reply: no page, no approval
-        ("email", ("mail", "courriel")),
+        # the protection demo (a page with a planted instruction, then an approval card) only when a page is named:
+        # an ordinary mail request gets a plain draft, never a security question it did not cause
+        ("email", re.compile(r"(?:mail|courriel)\b.*(?:https?://|\bpage\b)|(?:https?://|\bpage\b).*(?:mail|courriel)")),
+        ("reply", ("mail", "courriel")),
         ("search", ("cherche", "search", "web", "source", "compare", "trouve", "find")),
         ("minutes", ("compte rendu", "compte-rendu", "minutes", "réunion", "reunion", "meeting")),
         ("document", ("document", "note de synthèse", "memo")),

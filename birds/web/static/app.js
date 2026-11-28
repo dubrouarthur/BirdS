@@ -2341,24 +2341,38 @@ function bind() {
 }
 
 async function loadHealth() {
-  try {
-    const response = await fetch("/api/health");
-    if (!response.ok) throw new Error(String(response.status));
-    state.health = await response.json();
-    showBanner("");
-    if (
-      state.prefs.mode === "demo" &&
-      !state.prefs.demoChosen &&
-      state.health?.modes?.server
-    ) {
-      // a visitor who tried the demo before the operator connected a model would otherwise stay in demo mode
-      state.prefs.mode = "";
-      savePrefs();
-      toast(t("mode.switched"), "ok");
+  // a cold start or a slow network must never drop a visitor into the demo: retry before giving up
+  let health = null;
+  for (const wait of [0, 800, 2000, 4000]) {
+    if (wait) await new Promise((r) => setTimeout(r, wait));
+    try {
+      const response = await fetch("/api/health");
+      if (!response.ok) throw new Error(String(response.status));
+      health = await response.json();
+      break;
+    } catch {
+      /* next attempt */
     }
-  } catch {
+  }
+  if (!health) {
     state.health = null;
     showBanner(t("error.health"));
+    return;
+  }
+  state.health = health;
+  showBanner("");
+  let sessionDemo = false;
+  try {
+    sessionDemo = sessionStorage.getItem("bird.demoSession") === "1";
+  } catch {
+    /* no storage: no demo kept */
+  }
+  if (state.prefs.mode === "demo" && state.health?.modes?.server && !(state.prefs.demoChosen && sessionDemo)) {
+    // the demo is never sticky: a visitor who tried it (or picked it in an earlier visit) comes back on the real model
+    state.prefs.mode = "";
+    state.prefs.demoChosen = false;
+    savePrefs();
+    toast(t("mode.switched"), "ok");
   }
 }
 

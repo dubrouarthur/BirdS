@@ -951,7 +951,16 @@ export function renderSettings() {
         value,
         checked: mode === value,
         disabled: !enabled,
-        onchange: () => apply({ mode: value, demoChosen: value === "demo" }),
+        onchange: () => {
+          // a demo chosen by hand lasts this browser session only: the next visit is back on the real model
+          try {
+            if (value === "demo") sessionStorage.setItem("bird.demoSession", "1");
+            else sessionStorage.removeItem("bird.demoSession");
+          } catch {
+            /* private mode: the demo then lasts until the page is reloaded */
+          }
+          apply({ mode: value, demoChosen: value === "demo" });
+        },
       }),
       h(
         "span",
