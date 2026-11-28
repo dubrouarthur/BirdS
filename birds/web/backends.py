@@ -432,9 +432,7 @@ def widget_scenario(text: str) -> str:
     an event ask."""
     from datetime import datetime
 
-    from birds.harness import clock, intents
-
-    from birds.harness import opendata_intents
+    from birds.harness import clock, intents, opendata_intents
 
     found = [i for i in opendata_intents.merge(intents.detect(text), text) if i.args]
     if found:

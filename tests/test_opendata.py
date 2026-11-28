@@ -213,7 +213,7 @@ def test_the_veto_blocks_known_false_triggers(tool, args, text):
 
 
 def test_the_veto_never_blocks_what_the_parser_itself_starts():
-    for q, tool, args in OD.OPENDATA_YES:
+    for q, _tool, _args in OD.OPENDATA_YES:
         got = [i for i in opendata_intents.detect(q, False, "fr", today=OD.TODAY) if i.args]
         assert opendata_route.veto_reason(R.Call(got[0].tool, dict(got[0].args)), q) == "", q
 
