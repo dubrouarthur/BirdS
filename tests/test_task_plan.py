@@ -467,3 +467,43 @@ def test_plain_turns_cost_no_extra_generation():
     assert sum(r["gens"] for r in rows.values()) == sum(
         s.expect.get("max_gens", 0) for s in SCENARIOS if s.id.startswith("ordinary_")
     )
+
+
+@pytest.mark.parametrize(
+    "ask",
+    [
+        "Rédige un mail qui annonce une présentation au comité jeudi",
+        "Prépare un mail pour demander un rapport d'activité à Julie",
+        "Écris un mail pour demander à Paul de m'envoyer un tableau Excel",
+        "Écris un mail au client pour lui présenter un tableau de nos tarifs",
+        "Rédige une réponse à ce mail : pouvez-vous me faire une présentation du projet ?",
+        "Écris un script Python qui génère un fichier Excel",
+    ],
+)
+def test_a_noun_inside_the_mail_or_the_pasted_text_is_not_a_second_deliverable(ask):
+    assert len(labels(ask)) <= 1, labels(ask)
+
+
+@pytest.mark.parametrize(
+    "ask, want",
+    [
+        ("Prépare une présentation, un mail pour l'annoncer et un tableur du budget.",
+         ["présentation", "mail", "tableur"]),
+        ("Fais un tableau des ventes : janvier 120, février 130, puis prépare un mail", ["tableau", "mail"]),
+        ("Fais une présentation pour présenter le projet avec un tableau des coûts", ["présentation", "tableau"]),
+        ("Rédige un mail et une présentation pour le comité", ["mail", "présentation"]),
+    ],
+)  # fmt: skip
+def test_coordinated_deliverables_still_count(ask, want):
+    assert labels(ask) == want
+
+
+def test_a_mail_announcing_a_deck_is_one_item_no_nudge(tmp_path):
+    llm = FakeClient([call("draft_email", to=["comite@acme.fr"], subject="Présentation jeudi",
+                           body="Bonjour,\n\nJe présenterai jeudi.\n\nMerci"),
+                      "Le brouillon du mail est prêt.", "never"])  # fmt: skip
+    run = Agent(llm, Tok(), Config(workspace=tmp_path, audit_file=None)).run(
+        "Rédige un mail qui annonce une présentation au comité jeudi, à comite@acme.fr"
+    )
+    assert "Note de Bird" not in json.loads(llm.prompts[0])["messages"][-1]["content"]
+    assert len(llm.prompts) == 2 and run.answer == "Le brouillon du mail est prêt." and not run.plan

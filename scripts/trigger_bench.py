@@ -549,6 +549,12 @@ FOLLOWUP_YES = [  # (previous context, follow-up, the call it must start)
     (_CHART, "plutôt en barres", ("chart", "bar")),
 ]
 OFFICE_NO = [  # ordinary office prompts: no rich content at all, alone or right after a rich result
+    # a mail whose content names a deck, a report or a table (a clause of the mail, not a second deliverable)
+    "Rédige un mail qui annonce une présentation au comité jeudi",
+    "Prépare un mail pour demander un rapport d'activité à Julie",
+    "Écris un mail pour demander à Paul de m'envoyer un tableau Excel",
+    "Écris un mail au client pour lui présenter un tableau de nos tarifs",
+    "Rédige une réponse à ce mail : pouvez-vous me faire une présentation du projet ?",
     "rédige un mail de relance pour la facture 2024-118",
     "Ajoute 12 rue de la Paix à mon CV.",
     "résume ce compte rendu en 5 points",

@@ -144,6 +144,28 @@ _COORD = re.compile(r"(?:\bet|\bpuis|\bainsi\s+qu['’]?e?|\band|\bthen|\bplus|\
                     r"(?:(?:un|une|des|le|la|les|l['’]|a|an|the)\s*)?(?:\w+\s+){0,2}$", re.I)  # fmt: skip
 
 
+# a clause hanging off a noun already named (« un mail qui annonce une présentation », « un mail pour demander un
+# rapport », « … de m'envoyer un tableau »): what it names is the content of that noun, not a deliverable
+_SUBORD = re.compile(
+    r"\b(?:un|une|des|le|la|les|l['’]|a|an|the)\s*[\w-]+[^.!?\n]*?"
+    r"(?P<sub>\b(?:qui|que|qu['’]|which|that)\b|\b(?:pour|afin\s+de|to)\s+(?:(?:l['’]|le|la|les|lui|leur|me|m['’]|"
+    r"nous|vous|en|y|them|him|her|it)\s*)*[\w-]+(?:er|ir|re)\b|\bde\s+(?:m['’]|me|nous|lui|leur|t['’]|te)\s*"
+    r"[\w-]+(?:er|ir|re)\b)",
+    re.I,
+)
+_RESTART = re.compile(r"(?:,|;|\b(?:et|puis|ensuite|avec|ainsi\s+qu['’]?e?|and|then|with|plus)\b)", re.I)
+# after « : » the words are the content (« réponds à ce mail : … une présentation ? »); a deliverable still counts
+# there only when coordinated with a verb of making or an article (« … : janvier 120, mars 160, puis prépare un mail »)
+_AFTER_COLON = re.compile(r"\b(?:et|puis|ensuite|and|then)\s+(?:" + _CREATE + r"\b|(?:un|une|des|a|an)\b)", re.I)
+
+
+def _subordinate(before: str) -> bool:
+    """``before`` ends inside a clause that hangs off another noun, with no coordination since."""
+    found = list(_SUBORD.finditer(before))
+    m = found[-1] if found else None
+    return bool(m) and not _RESTART.search(before[m.end("sub") :])
+
+
 def _deliverable(text: str, start: int, kind: str) -> bool:
     """The noun at ``start`` is asked for: an indefinite article right before it, or a verb of making shortly
     before it in the same sentence, and it is not introduced as an input (« de ce mail »). The article must govern
@@ -155,7 +177,7 @@ def _deliverable(text: str, start: int, kind: str) -> bool:
     before = text[max(0, start - 70) : start]
     cut = max((m.end() for m in _BREAK.finditer(before)), default=0)
     before = before[cut:]
-    if _INPUT_BEFORE.search(before):
+    if _INPUT_BEFORE.search(before) or _subordinate(before):
         return False
     how = list(_HOWTO.finditer(before))
     if how and not re.search(r"\b(?:et|puis|ensuite|and|then)\b", before[how[-1].end() :], re.I):
@@ -181,6 +203,9 @@ def extract(request: str, lang: str = "fr", message: str = "", chart: bool = Fal
     """The checklist of ``request`` (the user's own words). ``message`` is the text the model gets (attachment
     notes); ``chart`` says the harness already reads a clear chart ask (agent.chart_ask)."""
     text = " ".join((request or "").split())
+    # quoted words are handed over (« écris "envoie-moi le rapport" sur la carte »): blanked, the offsets stay
+    scan = re.sub(r"«[^»]*»|\"[^\"]*\"|“[^”]*”", lambda q: " " * len(q.group(0)), text)
+    colon = scan.find(":")
     en = lang == "en"
     items: dict[str, Item] = {}
 
@@ -189,10 +214,13 @@ def extract(request: str, lang: str = "fr", message: str = "", chart: bool = Fal
             items[kind] = Item(kind, label or LABELS[kind][en], at, path)
 
     for kind, (noun, _tools, fr, eng) in KINDS.items():
-        for m in re.finditer(r"\b(?:" + noun + r")\b", text, re.I):
-            if _deliverable(text, m.start(), kind):
+        for m in re.finditer(r"\b(?:" + noun + r")\b", scan, re.I):
+            if _deliverable(scan, m.start(), kind):
                 add(kind, m.start(), eng if en else fr)
                 break
+    if colon >= 0 and any(i.at < colon for i in items.values()):
+        for k in [k for k, i in items.items() if i.at > colon and not _AFTER_COLON.search(scan[colon : i.at])]:
+            items.pop(k)  # « rédige une réponse à ce mail : … une présentation ? »: the pasted text names it
     if "sheet" in items:
         items.pop("table", None)  # « un tableau dans un tableur / Excel »: the spreadsheet is the table
     if chart:
