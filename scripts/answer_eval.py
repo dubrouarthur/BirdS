@@ -12,6 +12,7 @@ French, a fresh conversation each time. Every score is computed from the answer 
 - ``code``: the Python block parses and runs to the end (subprocess, isolated, 10 s, no network use expected).
 - ``math``: every TeX command in the answer sits inside a delimiter the chat typesets (markdown.js, run with Node).
 - ``cite_*``: the sources returned, the inline citations [n] that point to one of them, the share of sentences cited.
+- ``mail``: the draft's « À » holds no address the request never gave (« proprietaire@email.com »).
 
 Each case is one generation of the live budget. ``--only`` narrows to some case ids.
 """
@@ -46,6 +47,7 @@ CASES = [
         "ask": "Quelles sont les dernières nouvelles sur la mission Artemis II de la NASA ? Cite tes sources.",
     },
     {"id": "cite_def", "ask": "Qu'est-ce que la directive européenne CSRD ? Donne tes sources."},
+    {"id": "mail", "ask": "Écris un mail à mon propriétaire pour signaler une fuite d'eau dans la salle de bain, ton poli"},
 ]
 
 # (what the answer names, its true date written the French way, the month and year a wrong day would carry)
@@ -141,6 +143,15 @@ def score_math(text: str) -> dict:
     return {"tex_commands": tex, "typeset": got["math"], "raw_left": got["raw"], "ok": got["raw"] == 0}
 
 
+def score_mail(answer: dict, ask: str) -> dict:
+    """The draft's recipients: an address on the card that the request never contained is invented."""
+    draft = answer.get("draft_email") or {}
+    to = draft.get("to") or []
+    to = [to] if isinstance(to, str) else to
+    invented = [a for a in to if a and a.casefold() not in ask.casefold()]
+    return {"draft": bool(draft), "to": to, "invented": invented, "ok": bool(draft) and not invented}
+
+
 def score_cites(answer: dict) -> dict:
     text = str(answer.get("content") or "")
     ns = {int(s.get("n")) for s in answer.get("sources") or [] if str(s.get("n", "")).isdigit()}
@@ -159,6 +170,7 @@ SCORERS = {
     "code": lambda answer: score_code(str(answer.get("content") or "")),
     "math": lambda answer: score_math(str(answer.get("content") or "")),
     "cite": score_cites,
+    "mail": lambda answer: score_mail(answer, CASES[-1]["ask"]),
 }
 
 

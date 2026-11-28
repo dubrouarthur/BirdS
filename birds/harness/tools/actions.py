@@ -26,13 +26,28 @@ def recipients(to: list) -> tuple[list[str], str]:
     return addresses, ", ".join(names)
 
 
+def given_by_user(address: str, ctx) -> bool:
+    """An address someone wrote: the user (this message, an earlier one, a document they attached) or a page read
+    for this request (a contact page; a tainted run asks the user to confirm, guard.py). Never one the model made up:
+    « proprietaire@email.com » for « mon propriétaire » is not an address anyone gave."""
+    seen = " ".join([ctx.said, ctx.request, ctx.message, *(text for _kind, text in ctx.fetched)])
+    return re.search(rf"(?<![\w.+-]){re.escape(address)}(?![\w-])", seen, re.I) is not None
+
+
 def draft_email(args: dict, ctx) -> str:
     to, hint = recipients(list(args["to"]))
+    made_up = [a for a in to if not given_by_user(a, ctx)]
+    to = [a for a in to if a not in made_up]
     draft = {"to": to, "subject": args["subject"], "body": args["body"], "tone": args.get("tone") or "neutral"}
     if hint:
         draft["to_hint"] = hint  # shown on the card as a recipient to complete
     ctx.drafts.append(draft)  # shown by the UI; the harness has no way to send mail
     missing = f" Recipient to be completed by the user: {hint}." if hint else ""
+    if made_up:
+        missing += (
+            f" Removed {', '.join(made_up)}: the user never gave this address. The card asks the user to add the "
+            "address; do not write any address yourself."
+        )
     return (
         "Draft saved and shown to the user as a card with copy buttons and an open-in-mail-app link (not sent). "
         "You cannot send emails: never offer to send it. Do not repeat the body; say in one sentence that it is "

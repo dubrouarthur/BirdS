@@ -63,3 +63,43 @@ def test_answers_node_unit_tests():
         env={**os.environ, "CI": "1"},
     )
     assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-1000:]
+
+
+# ------------------------------------------------------------------ R20: the mail card never invents a recipient
+
+
+def _ctx(**kw):
+    from birds.harness.config import Config, Context
+
+    return Context(config=Config(workspace=Path(".")), http=None, **kw)
+
+
+def test_draft_email_drops_an_address_the_user_never_gave():
+    from birds.harness.tools.actions import draft_email
+
+    c = _ctx(request="Écris un mail à mon propriétaire pour signaler une fuite d'eau")
+    r = draft_email({"to": ["proprietaire@email.com"], "subject": "Fuite", "body": "Bonjour"}, c)
+    assert c.drafts[0]["to"] == [] and "to_hint" not in c.drafts[0]
+    assert "proprietaire@email.com" in r and "never gave" in r and "To: (none)" in r
+
+
+def test_draft_email_keeps_addresses_from_the_conversation_or_an_attached_document():
+    from birds.harness.tools.actions import draft_email
+
+    c = _ctx(request="Relance-le", said="Mon bailleur : Jean Roux <J.Roux@Agence.fr>\nRelance-le")
+    draft_email({"to": ["j.roux@agence.fr"], "subject": "Relance", "body": "Bonjour"}, c)
+    assert c.drafts[0]["to"] == ["j.roux@agence.fr"]
+    c = _ctx(request="Réponds à l'expéditeur du document", fetched=[["file", "De : compta@client.fr"], ["web", "x"]])
+    draft_email({"to": ["compta@client.fr", "boss@client.fr"], "subject": "Re", "body": "Bonjour"}, c)
+    assert c.drafts[0]["to"] == ["compta@client.fr"]  # boss@ was written by nobody
+    c = _ctx(request="Écris au service client de Calor", fetched=[["web", "Contact : support@calor.example"]])
+    draft_email({"to": ["support@calor.example"], "subject": "Panne", "body": "Bonjour"}, c)
+    assert c.drafts[0]["to"] == ["support@calor.example"]  # read on their contact page, not invented
+
+
+def test_agent_hands_the_whole_conversation_to_the_tools():
+    """ctx.said is filled from every user message, the earlier turns too (the address given two turns ago)."""
+    from birds.harness import agent
+
+    src = Path(agent.__file__).read_text()
+    assert 'ctx.said = "\\n".join(' in src and 'm.get("role") == "user"' in src.split("ctx.said =", 1)[1][:200]

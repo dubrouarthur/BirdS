@@ -1180,6 +1180,8 @@ class Agent:
                 )
                 seen.add(repair.canonical(call["name"], call["arguments"]))
                 queue, gen, auto_calls = [call], 1, 1
+        # every word the user wrote in this conversation: draft_email keeps an address only if it is in there
+        ctx.said = "\n".join(str(m.get("content")) for m in messages if m.get("role") == "user" and m.get("content"))
         lvl = reflex.LEVELS.get(choice.level) if choice is not None else None
         rinfo: dict = dict((resume or {}).get("rx") or {}) if resume is not None else {}
         if lvl is not None:

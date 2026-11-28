@@ -1042,7 +1042,7 @@ def test_harness_steps_files_and_draft_from_a_temporary_workspace(tmp_path, monk
     ]
     app, _ = harness_app(outputs)
     with TestClient(app) as client:
-        events = chat(client, "Prépare le plan et un mail")
+        events = chat(client, "Prépare le plan et un mail pour camille@example.org")  # an address the user gave
     assert types(events) == ["step", "step", "step", "step", "answer", "usage", "done"]
     assert [(s["index"], s["tool"], s["status"]) for s in events if s["type"] == "step"] == [
         (0, "make_slides", "running"),
@@ -1306,6 +1306,7 @@ def test_draft_email_result_says_bird_cannot_send_and_keeps_names_apart():
     r = draft_email({"to": ["Marc Petit"], "subject": "Point", "body": "Bonjour Marc"}, c)
     assert "cannot send" in r and "Draft saved" in r and "Marc Petit" in r
     assert c.drafts[0]["to"] == [] and c.drafts[0]["to_hint"] == "Marc Petit"
+    c.request = "Écris à Marc (marc@example.org) et à a@example.org"  # addresses the user gave are kept
     draft_email({"to": ["Marc <marc@example.org>", "a@example.org"], "subject": "s", "body": "b"}, c)
     assert c.drafts[1]["to"] == ["marc@example.org", "a@example.org"] and "to_hint" not in c.drafts[1]
 

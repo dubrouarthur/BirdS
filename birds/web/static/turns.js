@@ -756,15 +756,18 @@ function renderEmail(turn) {
         "div",
         { class: "card-title" },
         h("p", { class: "card-name", text: subject || t("email.title") }),
-        h("p", {
-          class: "card-meta",
-          text: [
-            addresses.length || !hint ? `${t("email.to")} ${addresses.join(", ") || "—"}` : "",
-            hint ? `${t("email.tohint")} ${hint}` : "",
-          ]
-            .filter(Boolean)
-            .join(" · "),
-        }),
+        // never an address nobody gave (the server drops them, actions.py): an empty « À » says what to add
+        h(
+          "p",
+          { class: "card-meta", "data-email-to": addresses.length ? "set" : "missing" },
+          addresses.length
+            ? `${t("email.to")} ${addresses.join(", ")}`
+            : [
+                h("span", { text: `${t("email.to")} ` }),
+                h("span", { class: "email-missing", text: t("email.to.missing") }),
+              ],
+          hint ? ` · ${t("email.tohint")} ${hint}` : "",
+        ),
       ),
     ),
     h("div", { class: "email-body", text: body }),
