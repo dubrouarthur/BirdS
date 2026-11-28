@@ -140,6 +140,11 @@ def scan(text: object) -> list[dict]:
         body = src[m.end() : close.start()] if close else src[m.end() :]
         lang_word, name = _info(m.group(2))
         body = body.rstrip("\n") if close else body
+        # ```js / script.js / code…: the name alone on the first line (seen live, 2 pages out of 6): a name, not code
+        first, _, rest = body.partition("\n")
+        alone = safe_name(first) if (rest or close) and "." in first and first.strip() == first.strip("`*") else None
+        if alone and (name is None or alone.lower() == name.lower()) and alone == first.strip():
+            name, body = alone, rest
         if name is None:
             name = _name_before(src, m.start()) or _name_inside(body, lang_word)
         lang = lang_of(lang_word) if lang_word else (name_lang(name) if name else _sniff(body))

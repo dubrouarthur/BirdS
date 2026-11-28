@@ -238,3 +238,17 @@ def test_frame_policy_and_refusal_of_other_frames():
     # the shims: no WebRTC (CSP does not cover it), no beacon, modals shown inside the page, storage in memory
     for part in ("RTCPeerConnection", "sendBeacon", "window.alert=", "localStorage", "e.source !== parent"):
         assert part in body
+
+
+def test_a_name_alone_on_the_first_line_is_the_name_not_code():
+    # seen live (28/11/2026, 2 pages out of 6): ```js, then « script.js » on its own line, then the code; the line ran
+    # as JavaScript (« script is not defined »)
+    answer = "```html\nindex.html\n<!DOCTYPE html><p>x</p>\n```\n```js\nscript.js\nconst a = 1;\n```"
+    found = code.parse_files(answer)
+    assert [(f["name"], f["text"]) for f in found["files"]] == [
+        ("index.html", "<!DOCTYPE html><p>x</p>"),
+        ("script.js", "const a = 1;"),
+    ]
+    assert code.parse_files("```css style.css\nstyle.css\nh1{}\n```")["files"][0]["text"] == "h1{}"
+    # a first line that is code stays code
+    assert code.parse_files("```js\nconsole.log(1)\n```")["files"][0]["text"] == "console.log(1)"

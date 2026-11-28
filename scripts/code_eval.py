@@ -134,6 +134,9 @@ def main() -> int:
                         row["fix"]["code"] = fx["doc"].get("code")
                         row["fix"]["check"] = check(a.frame, [{"id": case["id"], "doc": fx["doc"]}]).get(case["id"])
             results.append(row)
+            out = Path(a.out)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(json.dumps(results, ensure_ascii=False, indent=1), encoding="utf-8")  # kept case by case
             c = row.get("check") or {}
             print(json.dumps({"id": row["id"], "canvas": row["canvas"], "files": row["files"],
                               "renders": c.get("renders"), "errors": len(c.get("errors") or []),
