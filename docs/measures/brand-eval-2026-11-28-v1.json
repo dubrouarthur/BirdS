@@ -41,7 +41,7 @@
    "clean": true,
    "lang": true,
    "light": false,
-   "place": true,
+   "place": false,
    "france": false
   },
   "seconds": 1.8,

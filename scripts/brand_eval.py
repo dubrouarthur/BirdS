@@ -7,7 +7,8 @@ with the system prompt of one arm. Only the model varies: no search engine, no w
 
 Arms: "before" is the system prompt as trained (identity.DEFAULT_SYSTEM), "after" the runtime one
 (identity.RUNTIME_SYSTEM, the trained text plus one sentence on Bird Models). Rubric, per answer:
-  identity questions  light (léger / light), place (install wherever / où vous voulez / centre de données),
+  identity questions  light (léger / light), place (an affirmative « s'installe… / où vous voulez / centre de
+                      données », never a bare "install"; any « je ne connais pas » answer scores no brand point),
                       france (conçu en France / designed in France), clean (no base model name, no hardware count,
                       no self-deprecation up front, no other assistant's name), lang (answers in the asker's language)
   ordinary tasks      clean, lang, quiet (does not slip the brand into a mail or a summary)
@@ -38,8 +39,19 @@ ORDINARY = [
     ("en", "Write a two-line thank-you note to a colleague who covered my shift."),
 ]
 LIGHT = re.compile(r"\bl[ée]g[eè]re?s?\b|l[ée]g[èe]ret[ée]|\blight(weight)?\b|\bsmall\b|\bpetit", re.I)
+# « Où l'installer » : an affirmative answer only. A bare "install" also matches a refusal (« je n'ai pas d'infos
+# d'installation »), so the verb must say where Bird goes, and any « je ne connais pas » vetoes the whole answer.
 PLACE = re.compile(
-    r"install|o[ùu] (vous|tu) voul|wherever|centre de donn|data ?cent|chez (vous|toi)|on[- ]premise", re.I
+    r"s'install\w*|\binstalls? (it |bird )?(wherever|anywhere|on|in)\b|\bcan be installed\b|"
+    r"o[ùu] (vous|tu) (le |la )?(voul|souhait)|wherever|centre de donn|data ?cent|chez (vous|toi)|on[- ]premises?\b|"
+    r"sur (votre|vos|ta|tes) (propres? )?(machine|serveur|ordinateur|infrastructure)",
+    re.I,
+)
+NOT_KNOWN = re.compile(  # « I don't know Bird »: the model does not know the product it is asked about
+    r"ne (connais|sais) (pas|rien)( de| du| le| la| ce| cette)? ?(produit|bird|logiciel|outil)|pas d'infos?|"
+    r"aucune info|(don't|do not) know (of |about )?(any |a |the )?(product|bird|tool)|not familiar with|"
+    r"no information (about|on)",
+    re.I,
 )
 FRANCE = re.compile(r"(con[çc]u|d[ée]velopp[ée]|cr[ée]{2}) en France|designed in France|French", re.I)
 DIRTY = re.compile(
@@ -60,10 +72,31 @@ def lang_ok(text: str, lang: str) -> bool:
 def score(kind: str, lang: str, text: str) -> dict:
     c = {"clean": not DIRTY.search(text), "lang": lang_ok(text, lang)}
     if kind == "identity":
-        c.update(light=bool(LIGHT.search(text)), place=bool(PLACE.search(text)), france=bool(FRANCE.search(text)))
+        known = not NOT_KNOWN.search(text)  # a refusal scores nothing, whatever words it happens to contain
+        c.update(
+            light=known and bool(LIGHT.search(text)),
+            place=known and bool(PLACE.search(text)),
+            france=known and bool(FRANCE.search(text)),
+        )
     else:
         c["quiet"] = not BRAND.search(text)
     return c
+
+
+def table(rows: list[dict], arms: list[str]) -> None:
+    print("\n| arm | identity: light | place | France | clean | ordinary: clean | quiet | all checks |")
+    print("|---|---|---|---|---|---|---|---|")
+    for arm in arms:
+        ids = [r for r in rows if r["arm"] == arm and r["kind"] == "identity"]
+        ords = [r for r in rows if r["arm"] == arm and r["kind"] == "ordinary"]
+
+        def n(rs, k):
+            return f"{sum(r['checks'].get(k, False) for r in rs)}/{len(rs)}"
+
+        tot = sum(len(r["checks"]) for r in rows if r["arm"] == arm)
+        ok = sum(sum(r["checks"].values()) for r in rows if r["arm"] == arm)
+        print(f"| {arm} | {n(ids, 'light')} | {n(ids, 'place')} | {n(ids, 'france')} | {n(ids, 'clean')} | "
+              f"{n(ords, 'clean')} | {n(ords, 'quiet')} | {ok}/{tot} |")  # fmt: skip
 
 
 def main(argv=None) -> int:
@@ -74,7 +107,19 @@ def main(argv=None) -> int:
     ap.add_argument("--arms", default="before,after")
     ap.add_argument("--json", help="write every answer and check to this file")
     ap.add_argument("--only", help="regex on the questions (a smaller run)")
+    ap.add_argument("--rescore", nargs="+", metavar="JSON",
+                    help="re-score saved answers with the current rubric (no generation), rewrite their checks")  # fmt: skip
     a = ap.parse_args(argv)
+    if a.rescore:
+        for f in a.rescore:
+            rows = json.loads(Path(f).read_text(encoding="utf-8"))
+            for r in rows:
+                if r["answer"].strip():
+                    r["checks"] = score(r["kind"], r["lang"], r["answer"])
+            Path(f).write_text(json.dumps(rows, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+            print(f)
+            table(rows, sorted({r["arm"] for r in rows}, key=["before", "after"].index))
+        return 0
     if not a.base_url:
         ap.error("--base-url (or BIRD_BASE_URL) is required: this evaluation runs the live model")
     import tempfile
@@ -117,19 +162,7 @@ def main(argv=None) -> int:
                     bad = [k for k, v in checks.items() if not v]
                     print(f"[{arm}] {ask[:48]:48s} {'PASS' if not bad else 'fail'} gens={rows[-1]['gens']} {' '.join(bad)} {err}",
                           flush=True)  # fmt: skip
-    print("\n| arm | identity: light | place | France | clean | ordinary: clean | quiet | all checks |")
-    print("|---|---|---|---|---|---|---|---|")
-    for arm in a.arms.split(","):
-        ids = [r for r in rows if r["arm"] == arm and r["kind"] == "identity"]
-        ords = [r for r in rows if r["arm"] == arm and r["kind"] == "ordinary"]
-
-        def n(rs, k):
-            return f"{sum(r['checks'].get(k, False) for r in rs)}/{len(rs)}"
-
-        tot = sum(len(r["checks"]) for r in rows if r["arm"] == arm)
-        ok = sum(sum(r["checks"].values()) for r in rows if r["arm"] == arm)
-        print(f"| {arm} | {n(ids, 'light')} | {n(ids, 'place')} | {n(ids, 'france')} | {n(ids, 'clean')} | "
-              f"{n(ords, 'clean')} | {n(ords, 'quiet')} | {ok}/{tot} |")  # fmt: skip
+    table(rows, a.arms.split(","))
     if a.json:
         Path(a.json).parent.mkdir(parents=True, exist_ok=True)
         Path(a.json).write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
