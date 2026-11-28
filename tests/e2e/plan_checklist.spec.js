@@ -132,7 +132,8 @@ async function send(page, text) {
       await page.waitForTimeout(150);
       await send(page, ask.text);
       const last = page.locator(".turn-bird").last();
-      const plan = last.locator("details.tplan");
+      // a complete plan folds into the answer's one work line with the steps (chat audit R25); a partial one stays
+      const plan = last.locator(ask.partial ? "details.tplan" : "details.worklog, details.tplan").first();
       if (!(await plan.count())) {
         problems.push(`${name}/${ask.id}: no checklist`);
         await page.screenshot({
@@ -156,7 +157,7 @@ async function send(page, text) {
       } else if (await plan.evaluate((el) => el.open))
         problems.push(`${name}/${ask.id}: a complete plan stays open`);
       // keyboard: the summary is focusable and toggles the list
-      await last.locator("details.tplan > summary").focus();
+      await plan.locator(":scope > summary").focus();
       const was = await plan.evaluate((el) => el.open);
       await page.keyboard.press("Enter");
       await page.waitForTimeout(150);
@@ -186,8 +187,7 @@ async function send(page, text) {
       await page.screenshot({
         path: path.join(OUT, `plan-${ask.id}-${name}.png`),
       });
-      await last
-        .locator(".tplan-wrap")
+      await (ask.partial ? last.locator(".tplan-wrap") : plan)
         .screenshot({
           path: path.join(OUT, `plan-${ask.id}-${name}-crop.png`),
         });
