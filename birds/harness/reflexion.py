@@ -605,9 +605,12 @@ def review_kept(draft: str, reply: str) -> tuple[str, bool]:
 
 
 def label_line(key: str, lang: str = "fr") -> str:
-    """« Bird a pris son vol en Faucon » / « Bird took flight as a Falcon »."""
+    """« Bird a pris son vol en Faucon » / « Bird took flight as a Falcon », « … as an Owl »."""
     lv = level(key)
-    return f"Bird took flight as a {lv.bird['en']}" if lang == "en" else f"Bird a pris son vol en {lv.bird['fr']}"
+    if lang != "en":
+        return f"Bird a pris son vol en {lv.bird['fr']}"
+    name = lv.bird["en"]
+    return f"Bird took flight as {'an' if name[0] in 'AEIOU' else 'a'} {name}"
 
 
 def public(info: dict | None, lang: str = "fr") -> dict | None:

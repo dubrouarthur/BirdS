@@ -16,6 +16,7 @@ export function birdIcon(key, cls = "") {
 }
 
 const nameOf = (key) => t(`rf.level.${key}`);
+const asOf = (key) => t(`rf.level.${key}.as`); // « Faucon » / « an Owl », for the header line
 
 // ------------------------------------------------------------------ the picker
 
@@ -172,7 +173,7 @@ export function flyingBird(turn) {
 
 export function flyingText(turn) {
   const key = turn.flight?.level;
-  return LEVELS.includes(key) ? t("rf.flying", { bird: nameOf(key) }) : "";
+  return LEVELS.includes(key) ? t("rf.flying", { bird: asOf(key) }) : "";
 }
 
 /**
@@ -220,7 +221,7 @@ export function renderFlight(turn, detailsFn, fullReasoning) {
       h(
         "span",
         { class: "rf-sumtext" },
-        h("span", { class: "rf-line", text: t("rf.flight", { bird: nameOf(rf.level) }) }),
+        h("span", { class: "rf-line", text: t("rf.flight", { bird: asOf(rf.level) }) }),
         h("span", { class: "rf-meta", text: meta }),
       ),
       icon("chevron", "chev"),
@@ -232,5 +233,5 @@ export function renderFlight(turn, detailsFn, fullReasoning) {
 }
 
 export function flightText(rf) {
-  return rf && LEVELS.includes(rf.level) ? t("rf.flight", { bird: nameOf(rf.level) }) : "";
+  return rf && LEVELS.includes(rf.level) ? t("rf.flight", { bird: asOf(rf.level) }) : "";
 }

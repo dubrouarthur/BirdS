@@ -55,7 +55,7 @@ def test_five_birds_with_real_budgets():
     assert [R.LEVELS[k].checks for k in R.KEYS] == [0, 0, 1, 2, 2]
     assert R.LEVELS["faucon"].think_tokens > 1500 and R.LEVELS["colibri"].think_tokens == 0
     assert R.label_line("faucon") == "Bird a pris son vol en Faucon"
-    assert R.label_line("chouette", "en") == "Bird took flight as a Owl".replace("a Owl", "a Owl")
+    assert R.label_line("chouette", "en") == "Bird took flight as an Owl"
     assert R.normalize(True) == "hirondelle" and R.normalize("bogus") == "auto" and R.normalize("FAUCON") == "faucon"
 
 
@@ -307,3 +307,6 @@ def test_public_field_for_the_interface():
     pub = R.public(info, "fr")
     assert pub["line"] == "Bird a pris son vol en Faucon" and pub["label"] == "Précis" and pub["checks"]["calcs"] == 3
     assert R.public(info, "en")["bird"] == "Falcon" and R.public({"level": "x"}) is None
+    assert [R.label_line(k, "en") for k in R.KEYS] == [
+        "Bird took flight as a Hummingbird", "Bird took flight as a Swallow", "Bird took flight as a Falcon",
+        "Bird took flight as an Owl", "Bird took flight as an Albatross"]  # fmt: skip

@@ -62,4 +62,11 @@ test("every string in French and English, every key used exists", () => {
     assert.ok(fr.includes(f.key), f.key);
   for (const k of ["rf.by.bird", "rf.by.you", "rf.by.crew", "rf.flight", "rf.flying", "rf.fact.points.fixed"]) assert.ok(fr.includes(k), k);
   assert.equal(REFLEXION_STRINGS.fr["rf.flight"], "Bird a pris son vol en {bird}");
+  // English takes the article with the name: « as an Owl », never « as a Owl »
+  for (const k of R.LEVELS) {
+    const as = REFLEXION_STRINGS.en[`rf.level.${k}.as`];
+    assert.equal(as, `${/^[AEIOU]/.test(REFLEXION_STRINGS.en[`rf.level.${k}`]) ? "an" : "a"} ${REFLEXION_STRINGS.en[`rf.level.${k}`]}`, k);
+    assert.equal(REFLEXION_STRINGS.fr[`rf.level.${k}.as`], REFLEXION_STRINGS.fr[`rf.level.${k}`], k);
+  }
+  assert.equal(REFLEXION_STRINGS.en["rf.flight"], "Bird took flight as {bird}");
 });
