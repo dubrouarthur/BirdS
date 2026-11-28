@@ -103,3 +103,58 @@ def test_agent_hands_the_whole_conversation_to_the_tools():
 
     src = Path(agent.__file__).read_text()
     assert 'ctx.said = "\\n".join(' in src and 'm.get("role") == "user"' in src.split("ctx.said =", 1)[1][:200]
+
+
+# ------------------------------------------------------------------ R7: the entity card's picture
+
+
+def _png(w=4, h=4) -> bytes:
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (w, h), (30, 90, 200)).save(buf, "PNG")
+    return buf.getvalue()
+
+
+def _client(handler):
+    import httpx
+
+    return httpx.Client(transport=httpx.MockTransport(handler), trust_env=False, follow_redirects=False)
+
+
+def test_image_fetch_retries_once_when_wikimedia_is_busy(monkeypatch):
+    """upload.wikimedia.org answers 429 to bursts from shared egress IPs: the proxy gave 502 and a broken picture."""
+    import httpx
+
+    from birds.harness import Config, guard
+
+    monkeypatch.setattr(guard, "resolve", lambda host: ["93.184.216.34"])
+    monkeypatch.setattr(guard.time, "sleep", lambda s: None)
+    calls = []
+
+    def handler(request):
+        calls.append(str(request.url))
+        if len(calls) == 1:
+            return httpx.Response(429, headers={"retry-after": "1"}, content=b"slow down")
+        return httpx.Response(200, headers={"content-type": "image/png"}, content=_png())
+
+    cfg = Config(workspace=Path("."), audit_file=None, pin_dns=False)
+    ctype, body = guard.fetch_image(_client(handler), cfg, "https://upload.wikimedia.org/a/330px-x.png")
+    assert ctype == "image/png" and body.startswith(b"\x89PNG") and len(calls) == 2
+
+    calls.clear()
+    always = lambda request: calls.append(1) or httpx.Response(429)  # noqa: E731
+    try:
+        guard.fetch_image(_client(always), cfg, "https://upload.wikimedia.org/a/330px-x.png")
+        raise AssertionError("a host that stays busy is an upstream error")
+    except guard.FetchError as err:
+        assert err.code == "upstream" and len(calls) == 2  # one retry, never a loop
+
+    calls.clear()
+    gone = lambda request: calls.append(1) or httpx.Response(404)  # noqa: E731
+    try:
+        guard.fetch_image(_client(gone), cfg, "https://upload.wikimedia.org/a/330px-x.png")
+    except guard.FetchError:
+        assert len(calls) == 1  # a missing picture is not retried
