@@ -92,6 +92,15 @@ const KEEP_FILE_B64 = 400_000; // larger generated files are not kept in localSt
 
 // ------------------------------------------------------------------ conversations (localStorage)
 
+// The answers being written, by conversation id: {conv, turn, controller}. Each conversation has its own; the
+// composer's busy state and Stop follow the conversation on screen.
+const running = new Map();
+function syncBusy() {
+  const r = state.conv && running.get(state.conv.id);
+  state.busy = !!r;
+  state.abort = r ? r.controller : null;
+}
+
 const randomId = () =>
   globalThis.crypto?.randomUUID
     ? crypto.randomUUID()
@@ -230,9 +239,11 @@ function openConv(id) {
     closeDrawer();
     return;
   }
-  stop(); // the aborted answer is saved as "stopped" in its own conversation (runTurn keeps a reference to it)
-  const conv = (id && loadConv(id)) || newConv();
+  // an answer being written keeps going in the background and lands in its own conversation (runTurn keeps a
+  // reference to it); that conversation is opened from memory, never from its saved copy
+  const conv = (id && running.get(id)?.conv) || (id && loadConv(id)) || newConv();
   state.conv = conv;
+  syncBusy();
   state.editing = false;
   forgetRendered();
   showView("chat");
@@ -336,6 +347,8 @@ function renderSidebar() {
           onclick: () => openConv(c.id),
         },
         h("span", { class: "conv-title", text: title }),
+        running.has(c.id) &&
+          h("span", { class: "cx-live", role: "img", "aria-label": t("cx.live.side"), title: t("cx.live.side") }),
         c.att &&
           h(
             "span",
@@ -428,6 +441,7 @@ function exportConv(id) {
 
 function deleteConv(id, title) {
   if (!window.confirm(t("side.delete.confirm", { title }))) return;
+  running.get(id)?.controller.abort(); // an answer still being written there stops with it
   store.set(`bird.conv.${id}`, null);
   state.convs = state.convs.filter((c) => c.id !== id);
   store.set("bird.convs", JSON.stringify(state.convs));
@@ -439,6 +453,7 @@ function deleteConv(id, title) {
 
 function clearAll() {
   if (!window.confirm(t("side.clear.confirm"))) return;
+  for (const r of running.values()) r.controller.abort();
   for (const key of store.keys("bird.conv.")) store.set(key, null);
   state.convs = [];
   store.set("bird.convs", null);
@@ -1222,12 +1237,13 @@ function httpMessage(status, detail) {
   return `HTTP ${status}`;
 }
 
-let painting = false;
+const painting = new Set(); // one frame per streaming turn (two conversations can stream at once)
 function paintSoon(turn) {
-  if (painting) return;
-  painting = true;
+  if (painting.has(turn)) return;
+  painting.add(turn);
   requestAnimationFrame(() => {
-    painting = false;
+    painting.delete(turn);
+    if (!state.conv?.turns.includes(turn)) return; // written in the background: drawn when its conversation opens
     updateStream(turn);
     scrollToEnd(false);
   });
@@ -1403,10 +1419,11 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
 async function runTurn(turn, extra = {}) {
   const conv = state.conv; // the conversation this answer belongs to, even if the user opens another one
   const controller = new AbortController();
-  state.abort = controller;
+  running.set(conv.id, { conv, turn, controller });
+  syncBusy();
+  renderSidebar(); // the row shows that an answer is being written
   let release;
   state.runDone = new Promise((resolve) => (release = resolve)); // awaited by « Revenir au mode simple »
-  state.busy = true;
   turn.status = "running";
   turn.error = null;
   updateComposer();
@@ -1558,8 +1575,8 @@ async function runTurn(turn, extra = {}) {
         dropped: turn.status === "error" && ["dropped", "network", "offline"].includes(turn.error?.code),
         caveats: [],
       });
-    state.abort = null;
-    state.busy = false;
+    if (running.get(conv.id)?.controller === controller) running.delete(conv.id);
+    syncBusy();
     if (turn.wakeStart) endWake(turn);
     turn.live = null;
     syncTitle();
@@ -1582,14 +1599,19 @@ async function runTurn(turn, extra = {}) {
     }
     const shown = state.conv === conv;
     if (shown) renderConversation(); // the last-turn actions (regenerate, edit) depend on the busy state
+    else if (turn.status === "done") toast(t("cx.live.done", { title: conv.title || t("side.untitled") }), "ok", {
+      action: { label: t("deliv.show"), run: () => openConv(conv.id) },
+    });
     if (shown && turn.status === "stopped") announce(t("turn.stopped"));
     else if (shown && turn.status === "error" && turn.error) {
       // the sentence the error notice shows (a raw internal message is never read out)
       const shownText = document.querySelector(`[data-turn="${turn.id}"] .notice-text p`)?.textContent;
       announce(shownText || turn.error.message);
     }
-    updateComposer();
-    updateTop();
+    if (shown) {
+      updateComposer();
+      updateTop();
+    }
     saveConv(conv);
     if (shown) scrollToEnd(false);
     if (turn.status === "slice") window.setTimeout(() => continueSlice(turn, conv), 0);
@@ -2071,6 +2093,7 @@ function openDeliverables() {
 }
 
 function stop() {
+  syncBusy();
   if (!state.abort) return;
   if (document.activeElement?.id === "btn-stop") keepFocus();
   state.abort.abort();

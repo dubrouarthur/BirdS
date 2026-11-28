@@ -83,6 +83,28 @@ part("context", async (page, name, fail, shot) => {
   await page.keyboard.press("Escape");
 });
 
+// ---------------------------------------------------------------- R2: an answer keeps going in the background
+part("background", async (page, name, fail, shot) => {
+  await newChat(page);
+  await send(page, "Cherche des sources récentes sur le vélo en ville", false);
+  await page.waitForSelector('.turn-bird[aria-busy="true"]', { timeout: 10000 });
+  await openDrawer(page);
+  await page.waitForSelector(".conv .cx-live", { timeout: 5000 }).catch(() => fail("R2: no live mark on the row"));
+  await shot("r2-live-row");
+  await newChat(page);
+  await page.waitForTimeout(400);
+  if (!(await page.locator("#btn-send").isVisible())) fail("R2: the new conversation is busy");
+  // back to the first conversation while (or after) its answer is written
+  await openDrawer(page);
+  await page.locator(".conv-open", { hasText: "vélo en ville" }).first().click();
+  await idle(page);
+  const last = page.locator(".turn-bird").last();
+  const text = await last.innerText();
+  if (/Réponse interrompue|interrompu/.test(text)) fail("R2: the answer was stopped by the switch");
+  if (!(await last.locator(".actions-row").count())) fail("R2: the answer did not finish in its conversation");
+  await shot("r2-back");
+});
+
 (async () => {
   const browser = await chromium.launch();
   const problems = [];
