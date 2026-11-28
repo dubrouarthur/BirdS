@@ -1,0 +1,2018 @@
+[
+ {
+  "n": 1,
+  "ask": "Fais une présentation sur l'évolution du chômage en France depuis 2015 pour des lycéens",
+  "want": "deck",
+  "label": "after",
+  "reflexion": "faucon",
+  "seconds": 53.0,
+  "first_slide_s": 42.0,
+  "canvas": true,
+  "snapshots": 11,
+  "progress": [
+   "Plan en cours…",
+   "Plan : 10 diapositives",
+   "Recherche des faits et des données…",
+   "Rédaction : 0/10",
+   "1 graphique à partir de Banque mondiale NY.GDP.MKTP.KD.ZG",
+   "2 graphiques à partir de Banque mondiale NY.GDP.MKTP.KD.ZG, Eurostat une_rt_a",
+   "3 graphiques à partir de Banque mondiale NY.GDP.MKTP.KD.ZG, Eurostat une_rt_a, Insee DS_SIDE_CREA_ENT_SERIES",
+   "Recherche : 7 sources retenues",
+   "Rédaction : 1/10",
+   "Rédaction : 2/10",
+   "Rédaction : 3/10",
+   "Rédaction : 4/10",
+   "Rédaction : 5/10",
+   "Rédaction : 6/10",
+   "Rédaction : 7/10",
+   "Rédaction : 8/10",
+   "Rédaction : 9/10",
+   "Rédaction : 10/10",
+   "Vérification…",
+   "Vérifié : 6 sources citées"
+  ],
+  "error": null,
+  "chat": "La présentation « Le Chômage en France » est dans le canevas : 12 diapositives. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », « plus court »).",
+  "kind": "deck",
+  "title": "Le Chômage en France",
+  "blocks": 12,
+  "body": 11,
+  "with_visual": 10,
+  "images_asked": 0,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 0,
+  "charts": 3,
+  "charts_real": 3,
+  "chart_sources": [
+   "Eurostat une_rt_a [1]",
+   "Banque mondiale NY.GDP.MKTP.KD.ZG [3]",
+   "Insee DS_SIDE_CREA_ENT_SERIES [4]"
+  ],
+  "cited": 6,
+  "cited_valid": 6,
+  "sources_listed": 6,
+  "image_titles": [],
+  "image_queries": [],
+  "placeholder_queries": [],
+  "query_leaks": 0,
+  "words_per_block": 66.8,
+  "units": 78,
+  "specific_share": 0.92,
+  "units_cited": 47,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "deck",
+   "title": "Le Chômage en France",
+   "subtitle": "Une analyse de l'évolution depuis 2015",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Le Chômage en France",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Chiffre clé : 10,4 % en 2015 [1]",
+        "Chiffre clé : 7,7 % en 2025 [1]",
+        "Évolution : Baisse progressive de 2015 à 2025",
+        "Statut : Le chômage reste stable autour de 7,5 %",
+        "Contexte : Données officielles de l'INSEE"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "chart",
+       "type": "line",
+       "unit": "%",
+       "title": "Taux de chômage, France (2015 – 2025)",
+       "columns": [
+        "Année",
+        "France"
+       ],
+       "rows": [
+        [
+         "2015",
+         10.4
+        ],
+        [
+         "2016",
+         10.1
+        ],
+        [
+         "2017",
+         9.4
+        ],
+        [
+         "2018",
+         9.1
+        ],
+        [
+         "2019",
+         8.5
+        ],
+        [
+         "2020",
+         8.1
+        ],
+        [
+         "2021",
+         7.9
+        ],
+        [
+         "2022",
+         7.3
+        ],
+        [
+         "2023",
+         7.4
+        ],
+        [
+         "2024",
+         7.4
+        ],
+        [
+         "2025",
+         7.7
+        ]
+       ],
+       "source": "Eurostat une_rt_a [1]"
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b2",
+     "title": "Évolution du Chômage",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "2015 : Le taux de chômage est de 10,3 % [2]",
+        "2016 : Le taux de chômage est de 10,1 % [2]",
+        "2017 : Le taux de chômage est de 9,8 % [2]",
+        "2018 : Le taux de chômage est de 9,7 % [2]",
+        "2019 : Le taux de chômage est de 9,5 % [2]",
+        "2020 : Le taux de chômage est de 9,6 % [2]"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b12",
+     "title": "Évolution du Chômage",
+     "parts": [
+      {
+       "t": "timeline",
+       "items": [
+        {
+         "when": "",
+         "what": "Le taux de chômage est de 10,3 % [2]"
+        },
+        {
+         "when": "",
+         "what": "Le taux de chômage est de 10,1 % [2]"
+        },
+        {
+         "when": "",
+         "what": "Le taux de chômage est de 9,8 % [2]"
+        },
+        {
+         "when": "",
+         "what": "Le taux de chômage est de 9,7 % [2]"
+        },
+        {
+         "when": "",
+         "what": "Le taux de chômage est de 9,5 % [2]"
+        },
+        {
+         "when": "",
+         "what": "Le taux de chômage est de 9,6 % [2]"
+        },
+        {
+         "when": "",
+         "what": "Le taux de chômage est de 9,3 % [2]"
+        },
+        {
+         "when": "",
+         "what": "Le taux de chômage est de 7,2 % [2]"
+        },
+        {
+         "when": "",
+         "what": "Le taux de chômage est de 7,3 % [2]"
+        },
+        {
+         "when": "",
+         "what": "Le taux de chômage est de 7,5 % [2]"
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "timeline"
+    },
+    {
+     "id": "b3",
+     "title": "Chômage et Croissance Économique",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Croissance du PIB : 1,1 % en 2015 [3], 0,8 % en 2025 [3]",
+        "Taux de chômage en 2015 : 10,1 % [4]",
+        "Taux de chômage en 2024 : 7,5 % [2]",
+        "Corrélation inverse : croissance faible, chômage élevé",
+        "Période de baisse : 2016-2023, croissance stable, chômage en baisse",
+        "Période de hausse : 2024, croissance faible, chômage stable"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "chart",
+       "type": "line",
+       "unit": "%",
+       "title": "Croissance du PIB, France (2015 – 2025)",
+       "columns": [
+        "Année",
+        "France"
+       ],
+       "rows": [
+        [
+         "2015",
+         1.07
+        ],
+        [
+         "2016",
+         0.86
+        ],
+        [
+         "2017",
+         2.08
+        ],
+        [
+         "2018",
+         1.65
+        ],
+        [
+         "2019",
+         2.03
+        ],
+        [
+         "2020",
+         -7.44
+        ],
+        [
+         "2021",
+         6.88
+        ],
+        [
+         "2022",
+         2.72
+        ],
+        [
+         "2023",
+         1.44
+        ],
+        [
+         "2024",
+         1.19
+        ],
+        [
+         "2025",
+         0.84
+        ]
+       ],
+       "source": "Banque mondiale NY.GDP.MKTP.KD.ZG [3]"
+      }
+     ],
+     "notes": "",
+     "layout": "compare"
+    },
+    {
+     "id": "b4",
+     "title": "Chômage et Inflation",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "2024 : 2,3 millions de personnes au chômage [5]",
+        "2024 : taux de chômage à 7,4 % [5]",
+        "2022 : taux de chômage à 7,3 % [5]",
+        "2015 : pic de chômage à 10,3 % (calculé à partir de la différence de 2,9 points [5])",
+        "2008 : niveau de chômage identique à 2024 [5]"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "kpi",
+       "items": [
+        {
+         "value": "2,3 millions",
+         "label": "Nombre de personnes au chômage en 2024",
+         "delta": ""
+        },
+        {
+         "value": "7,4 %",
+         "label": "Taux de chômage en 2024",
+         "delta": ""
+        },
+        {
+         "value": "2,9 points",
+         "label": "Écart par rapport au pic de 2015",
+         "delta": ""
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "compare"
+    },
+    {
+     "id": "b5",
+     "title": "Chômage et PIB",
+     "parts": [
+      {
+       "t": "timeline",
+       "items": [
+        {
+         "when": "2015",
+         "what": "pic du taux de chômage à 10,3 %"
+        },
+        {
+         "when": "2023",
+         "what": "stabilisation du taux à 7,5 %"
+        },
+        {
+         "when": "2024",
+         "what": "taux de 7,5 %"
+        },
+        {
+         "when": "2025",
+         "what": "hausse à 7,7 %"
+        },
+        {
+         "when": "2025",
+         "what": "2,5 millions de chômeurs"
+        },
+        {
+         "when": "2025",
+         "what": "PIB en croissance modérée"
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "compare"
+    },
+    {
+     "id": "b6",
+     "title": "Chômage et Créations d'Entreprises",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "564 745 créations d'entreprises en 2015 [4]",
+        "1 165 795 créations d'entreprises en 2025 [4]",
+        "Le taux de chômage est stable autour de 7,5 % [3]",
+        "Les créations d'entreprises augmentent de 107 % en 10 ans [4]",
+        "Cette croissance reflète une dynamique économique positive"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "chart",
+       "type": "line",
+       "unit": "",
+       "title": "Créations d'entreprises en France (2015 – 2025)",
+       "columns": [
+        "Année",
+        "France"
+       ],
+       "rows": [
+        [
+         "2015",
+         564745
+        ],
+        [
+         "2016",
+         603540
+        ],
+        [
+         "2017",
+         657591
+        ],
+        [
+         "2018",
+         749330
+        ],
+        [
+         "2019",
+         864557
+        ],
+        [
+         "2020",
+         900169
+        ],
+        [
+         "2021",
+         1050520
+        ],
+        [
+         "2022",
+         1061969
+        ],
+        [
+         "2023",
+         1051476
+        ],
+        [
+         "2024",
+         1111238
+        ],
+        [
+         "2025",
+         1165795
+        ]
+       ],
+       "source": "Insee DS_SIDE_CREA_ENT_SERIES [4]"
+      }
+     ],
+     "notes": "",
+     "layout": "compare"
+    },
+    {
+     "id": "b7",
+     "title": "Chômage et Population",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "2,5 millions de personnes au chômage en France en 2025 [6]",
+        "Taux de chômage à 7,7 % en 2025, en hausse de 0,3 point [6]",
+        "7 années de baisse suivies d'une stabilisation en 2023 et 2024 [6]",
+        "Taux 2,7 points sous le pic de 2015 en 2025 [6]"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "kpi",
+       "items": [
+        {
+         "value": "7,7 %",
+         "label": "Taux de chômage en 2025",
+         "delta": ""
+        },
+        {
+         "value": "2,5 millions",
+         "label": "Nombre de chômeurs en 2025",
+         "delta": ""
+        },
+        {
+         "value": "0,3 point",
+         "label": "Hausse du taux de chômage en 2025",
+         "delta": ""
+        },
+        {
+         "value": "2,7 points",
+         "label": "Écart avec le pic de 2015",
+         "delta": ""
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "compare"
+    },
+    {
+     "id": "b8",
+     "title": "Chômage et Naissances",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Taux de chômage stable à 7,5 % entre 2015 et 2024",
+        "Nombre de naissances en baisse depuis 2013, puis stabilisation en 2023 et 2024 [6]",
+        "Lien entre taux de chômage et taux de natalité en France",
+        "Période de baisse du chômage de 2015 à 2020",
+        "Période de hausse du chômage de 2020 à 2023",
+        "Stabilisation du chômage en 2023 et 2024 [6]"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "kpi",
+       "items": [
+        {
+         "value": "7,5 %",
+         "label": "Taux de chômage moyen en France",
+         "delta": ""
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "compare"
+    },
+    {
+     "id": "b9",
+     "title": "Chômage et Fécundité",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "2015 : pic de chômage à 10,3 % [6]",
+        "2024 : stabilisation à 7,5 % [6]",
+        "2025 : hausse à 7,7 % [6]",
+        "2025 : 2,5 millions de chômeurs [6]",
+        "Lien : chômage élevé → baisse de fécondité [6]",
+        "Lien : chômage stable → fécondité stable [6]"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "kpi",
+       "items": [
+        {
+         "value": "2,5 millions",
+         "label": "Nombre de chômeurs en 2025",
+         "delta": ""
+        },
+        {
+         "value": "7,7 %",
+         "label": "Taux de chômage en 2025",
+         "delta": ""
+        },
+        {
+         "value": "2,7 points",
+         "label": "Écart avec le pic de 2015",
+         "delta": ""
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "compare"
+    },
+    {
+     "id": "b10",
+     "title": "Chômage et Électricité",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Le taux de chômage français est à 7,7 % en 2025, en hausse de 0,3 point par rapport à 2024 [6].",
+        "2,5 millions de personnes sont au chômage en 2025, selon le BIT [6].",
+        "Le pic de chômage en 2015 était 2,7 points plus élevé que le taux de 2025 [6].",
+        "La hausse de 2025 fait suite à sept années de baisse du chômage [6].",
+        "L'électricité est un facteur de coût pour les entreprises, influençant le marché du travail [6]."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "kpi",
+       "items": [
+        {
+         "value": "2,5 millions",
+         "label": "Nombre de personnes au chômage en 2025",
+         "delta": ""
+        },
+        {
+         "value": "7,7 %",
+         "label": "Taux de chômage en 2025",
+         "delta": ""
+        },
+        {
+         "value": "2,7 points",
+         "label": "Écart avec le pic de 2015",
+         "delta": ""
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "compare"
+    },
+    {
+     "id": "b11",
+     "title": "Sources",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "[1] Eurostat une_rt_a — https://ec.europa.eu/eurostat/databrowser/view/une_rt_a/default/table",
+        "[2] Calculer le taux d'évolution en pourcentage entre 2 valeurs — https://www.taux-evolution.fr/",
+        "[3] Banque mondiale NY.GDP.MKTP.KD.ZG — https://data.worldbank.org/indicator/NY.GDP.MKTP.KD.ZG",
+        "[4] Insee DS_SIDE_CREA_ENT_SERIES — https://catalogue-donnees.insee.fr/fr/catalogue/recherche/DS_SIDE_CREA_ENT_SERIES",
+        "[5] Évolution du chômage − Emploi, chômage, revenus du travail | Insee — https://www.insee.fr/fr/statistiques/8376836?sommaire=8376908",
+        "[6] Évolution du chômage | Insee — https://www.insee.fr/fr/statistiques/8733053"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {},
+   "_next": 13
+  }
+ },
+ {
+  "n": 2,
+  "ask": "Fais une présentation sur la mobilité douce en ville pour un conseil municipal",
+  "want": "deck",
+  "label": "after",
+  "reflexion": "faucon",
+  "seconds": 33.1,
+  "first_slide_s": 24.2,
+  "canvas": true,
+  "snapshots": 9,
+  "progress": [
+   "Plan en cours…",
+   "Plan : 7 diapositives",
+   "Recherche des faits et des données…",
+   "Recherche d'images libres…",
+   "Rédaction : 0/7",
+   "2 images trouvées",
+   "Rédaction : 1/7",
+   "Recherche : 3 sources retenues",
+   "Rédaction : 2/7",
+   "Rédaction : 3/7",
+   "Rédaction : 4/7",
+   "Rédaction : 5/7",
+   "Rédaction : 6/7",
+   "Rédaction : 7/7",
+   "Vérification…",
+   "Vérifié : 2 sources citées"
+  ],
+  "error": null,
+  "chat": "La présentation « La Mobilité Durable : Vers une Ville Plus Verte » est dans le canevas : 11 diapositives. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », « plus court »).",
+  "kind": "deck",
+  "title": "La Mobilité Durable : Vers une Ville Plus Verte",
+  "blocks": 11,
+  "body": 10,
+  "with_visual": 4,
+  "images_asked": 2,
+  "images_found": 2,
+  "images_relevant": 2,
+  "placeholders": 0,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 2,
+  "cited_valid": 2,
+  "sources_listed": 2,
+  "image_titles": [
+   "Bicycle protest on Addington Street - geograph.org.uk - 1510690",
+   "Bicycle protest on the A302 Bridge Street - geograph.org.uk - 1510674"
+  ],
+  "image_queries": [
+   "bicycle city street",
+   "bicycle city street"
+  ],
+  "placeholder_queries": [],
+  "query_leaks": 0,
+  "words_per_block": 54.1,
+  "units": 47,
+  "specific_share": 0.19,
+  "units_cited": 18,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "deck",
+   "title": "La Mobilité Durable : Vers une Ville Plus Verte",
+   "subtitle": "Présentation pour le conseil municipal",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "La Mobilité Durable : Vers une Ville Plus Verte",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Promouvoir la mobilité douce pour une ville plus durable et accessible",
+        "Encourager les modes de transport non motorisés pour réduire la pollution urbaine",
+        "Améliorer la qualité de vie en ville en favorisant la marche et le vélo",
+        "Réduire la dépendance aux véhicules individuels pour un environnement plus sain",
+        "Créer des espaces publics plus agréables et accessibles pour tous"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "image",
+       "query": "bicycle city street",
+       "alt": "bicycle city street",
+       "caption": "",
+       "media": "w1"
+      }
+     ],
+     "notes": "",
+     "layout": "image-full"
+    },
+    {
+     "id": "b2",
+     "title": "Objectifs et Enjeux",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Promouvoir la marche à pied et le vélo pour une ville plus verte [1]",
+        "Réduire la dépendance à la voiture individuelle dans les centres urbains [1]",
+        "Améliorer la qualité de l'air en limitant les émissions de CO2 [1]",
+        "Accélérer la transition énergétique via la mobilité douce [1]",
+        "S'aligner sur les objectifs nationaux de décarbonation [1]",
+        "Intégrer la mobilité douce dans les politiques publiques de demain [1]"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b3",
+     "title": "Avantages pour la Ville et les Citoyens",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Réduction des émissions de CO2 [2]",
+        "Amélioration de la qualité de l'air [2]",
+        "Fluidification du trafic [2]",
+        "Économie pour les habitants [2]",
+        "Amélioration de la santé publique [2]",
+        "Réduction du bruit [2]"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "text",
+       "text": "Amélioration de la qualité de l'air :description : Moins de pollution atmosphérique dans les zones urbaines : Fluidification du trafic :description : Réduction des embouteillages et des temps de trajet : Économie pour les habitants :description : Coûts de transport réduits pour les citoyens : Amélioration de la santé publique :description : Moins de maladies respiratoires grâce à l'air plus pur : Réduction du bruit :description : Environnement plus calme et plus agréable en ville"
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b9",
+     "title": "Avantages pour la Ville et les Citoyens",
+     "parts": [
+      {
+       "t": "cards",
+       "items": [
+        {
+         "title": "",
+         "text": "Réduction des émissions de CO2"
+        },
+        {
+         "title": ":description : Diminution des gaz à effet de serre grâce à la mobilité douce",
+         "text": ""
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "columns"
+    },
+    {
+     "id": "b4",
+     "title": "Solutions Proposées",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Supports superposés en hauteur pour doubler la capacité de stationnement [1]",
+        "Bornes de réparation et de gonflage en libre-service [1]",
+        "Création de pistes cyclables pour connecter les quartiers [1]",
+        "Développement des transports en commun pour réduire l'usage de la voiture [1]",
+        "Équipements plébiscités par les usagers pour leur confort [1]",
+        "Optimisation de l'espace urbain sans entraver la circulation piétonne [1]"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b10",
+     "title": "Solutions Proposées",
+     "parts": [
+      {
+       "t": "steps",
+       "items": [
+        {
+         "title": "",
+         "text": "Présenter les solutions de mobilité douce pour une ville plus durable et accessible"
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "steps"
+    },
+    {
+     "id": "b5",
+     "title": "Impact sur la Qualité de Vie",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Réduction de la pollution : La mobilité douce diminue les émissions de CO2 en remplaçant les véhicules polluants.",
+        "Amélioration de la santé publique : La marche et le vélo renforcent la santé physique et mentale des citadins.",
+        "Diminution de la congestion : Les transports doux réduisent la saturation des routes urbaines.",
+        "Accès amélioré : Les quartiers deviennent plus accessibles pour tous les usagers.",
+        "Renforcement de la cohésion sociale : Les espaces partagés favorisent les interactions entre citoyens."
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": "",
+     "layout": "chart"
+    },
+    {
+     "id": "b6",
+     "title": "Stratégie de Mise en Œuvre",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Étude de faisabilité : analyse des besoins et des contraintes locales",
+        "Planification des infrastructures : conception des pistes cyclables et des zones piétonnes",
+        "Lancement des projets : démarrage des travaux de construction et d'aménagement",
+        "Implication des citoyens : consultation des habitants et des usagers",
+        "Suivi et évaluation : monitoring des impacts et ajustements nécessaires",
+        "Budget : allocation des fonds nécessaires pour les projets de mobilité douce"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b11",
+     "title": "Stratégie de Mise en Œuvre",
+     "parts": [
+      {
+       "t": "timeline",
+       "items": [
+        {
+         "when": "",
+         "what": "Étude de faisabilité"
+        },
+        {
+         "when": "",
+         "what": "Planification des infrastructures"
+        },
+        {
+         "when": "",
+         "what": "Lancement des projets"
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "timeline"
+    },
+    {
+     "id": "b7",
+     "title": "Conclusion et Prochaines Étapes",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Lancer la stratégie de mobilité douce dès la prochaine session du conseil municipal",
+        "Évaluer les résultats après un an de mise en œuvre des projets pilotes",
+        "Renforcer les partenariats avec les citoyens pour une meilleure adhésion",
+        "Intégrer les données de mobilité dans les plans d'urbanisme futurs",
+        "Former les agents municipaux aux nouvelles normes de transport durable",
+        "Communiquer régulièrement sur les avancées via les réseaux sociaux locaux"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b8",
+     "title": "Sources",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "[1] Les solutions pour encourager la mobilité douce dans les villes — https://www.mobilier-collectivites.fr/blog/post/quelles-solutions-pour-encourager-la-mobilite-douce-dans-les-villes",
+        "[2] 🚲 Mobilité douce : guide pratique et bénéfices urbains 🌿 — https://www.metropoles.org/mobilite-douce-definition-exemples-et-avantages-pour-les-metropoles/"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {
+    "w0": {
+     "kind": "web",
+     "alt": "bicycle city street",
+     "credit": "Oxyman — CC BY-SA 2.0 — Wikimedia Commons",
+     "licence": "CC BY-SA 2.0",
+     "source": "https://commons.wikimedia.org/wiki/File:Bicycle_protest_on_Addington_Street_-_geograph.org.uk_-_1510690.jpg",
+     "query": "bicycle city street",
+     "w": 640,
+     "h": 480
+    },
+    "w1": {
+     "kind": "web",
+     "alt": "bicycle city street",
+     "credit": "Oxyman — CC BY-SA 2.0 — Wikimedia Commons",
+     "licence": "CC BY-SA 2.0",
+     "source": "https://commons.wikimedia.org/wiki/File:Bicycle_protest_on_the_A302_Bridge_Street_-_geograph.org.uk_-_1510674.jpg",
+     "query": "bicycle city street",
+     "w": 640,
+     "h": 480
+    }
+   },
+   "cover": {
+    "query": "bicycle city street",
+    "media": "w0"
+   },
+   "_next": 12
+  }
+ },
+ {
+  "n": 3,
+  "ask": "Prépare un pitch deck pour une startup de livraison de repas à vélo",
+  "want": "deck",
+  "label": "after",
+  "reflexion": "faucon",
+  "seconds": 30.5,
+  "first_slide_s": 18.8,
+  "canvas": true,
+  "snapshots": 9,
+  "progress": [
+   "Plan en cours…",
+   "Plan : 8 diapositives",
+   "Recherche des faits et des données…",
+   "Recherche d'images libres…",
+   "Rédaction : 0/8",
+   "1 image trouvée, 4 à ajouter",
+   "Rédaction : 1/8",
+   "Rédaction : 2/8",
+   "Rédaction : 3/8",
+   "Recherche : 3 sources retenues",
+   "Rédaction : 4/8",
+   "Rédaction : 5/8",
+   "Rédaction : 6/8",
+   "Rédaction : 7/8",
+   "Rédaction : 8/8",
+   "Vérification…",
+   "Vérifié : 3 chiffres non sourcés retirés, 4 images à ajouter, 3 sources citées"
+  ],
+  "error": null,
+  "chat": "La présentation « EcoBike Meals » est dans le canevas : 11 diapositives. Cliquez sur un bloc pour le modifier, ou demandez-moi un changement (« ajoute une diapositive sur… », « plus court »).",
+  "kind": "deck",
+  "title": "EcoBike Meals",
+  "blocks": 11,
+  "body": 10,
+  "with_visual": 4,
+  "images_asked": 6,
+  "images_found": 1,
+  "images_relevant": 1,
+  "placeholders": 4,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 3,
+  "cited_valid": 3,
+  "sources_listed": 3,
+  "image_titles": [
+   "Target Audience and Target market"
+  ],
+  "image_queries": [
+   "target market professionals and individuals"
+  ],
+  "placeholder_queries": [
+   "EcoBike Meals delivery",
+   "pollution and healthy food",
+   "partnerships and digital marketing",
+   "investment request"
+  ],
+  "query_leaks": 0,
+  "words_per_block": 63.3,
+  "units": 54,
+  "specific_share": 0.44,
+  "units_cited": 36,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "deck",
+   "title": "EcoBike Meals",
+   "subtitle": "La livraison de repas saine et rapide, à vélo",
+   "theme": "modern",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "EcoBike Meals",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Dégoutés des plateformes de livraison, certains livreurs à vélo créent une structure coopérative [1]",
+        "Des initiatives similaires ont essaimé à travers la France [1]",
+        "Toutes n’ont cependant pas survécu malgré ces efforts [1]",
+        "Les coursiers parcourent en moyenne **50 à 60 kilomètres par jour** [1]",
+        "Les journées les plus chargées peuvent atteindre **100 km** [1]",
+        "Des distances réalisées exclusivement à vélo musculaire, sans assistance électrique [1]"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "image",
+       "query": "EcoBike Meals delivery",
+       "alt": "EcoBike Meals delivery",
+       "caption": "",
+       "missing": true
+      }
+     ],
+     "notes": "",
+     "layout": "image-full"
+    },
+    {
+     "id": "b2",
+     "title": "Le problème : la pollution et la qualité des repas",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "La livraison routière génère des émissions de CO2 non négligeables [2]",
+        "Les repas préparés à domicile sont souvent de qualité variable [2]",
+        "La pollution de l'air urbain affecte la santé des actifs et des personnes âgées [2]",
+        "La logistique traditionnelle est inefficace et polluante [2]",
+        "La demande pour des repas sains et durables est en croissance [2]",
+        "Les solutions actuelles ne répondent pas pleinement aux attentes [2]"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "image",
+       "query": "pollution and healthy food",
+       "alt": "pollution and healthy food",
+       "caption": "",
+       "missing": true
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b3",
+     "title": "Notre solution : une livraison rapide et écologique",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Livraison de repas cuisinés et équilibrés à vélo électrique, à destination des actifs et personnes âgées [2]",
+        "Déploiement au cœur de la Ville rose, avec un objectif de 60 repas distribués par jour d’ici juin prochain [2]",
+        "Spécificité : chaque repas est composé de poulet sauce satay, légume croquant, riz au jasmin, volaille rôtie, carotte glacée et labneh [2]",
+        "Modèle économique : un service de livraison rapide et écologique, avec une logistique optimisée pour réduire l'empreinte carbone [2]",
+        "Différenciation : un acteur nouveau sur ce marché en plein essor, avec une approche innovante et durable [2]",
+        "Impact : une solution qui allie rapidité, qualité et durabilité, pour répondre aux besoins des actifs et personnes âgées [2]"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b10",
+     "title": "Notre solution : une livraison rapide et écologique",
+     "parts": [
+      {
+       "t": "steps",
+       "items": [
+        {
+         "title": "",
+         "text": "Livraison de repas à vélo électrique [2]"
+        },
+        {
+         "title": "",
+         "text": "Déploiement au cœur de la Ville rose [2]"
+        },
+        {
+         "title": "",
+         "text": "Objectif de 60 repas par jour d’ici juin prochain [2]"
+        },
+        {
+         "title": "",
+         "text": "Composition des repas : poulet sauce satay, légume croquant, riz au jasmin, volaille rôtie, carotte glacée et labneh [2]"
+        },
+        {
+         "title": "",
+         "text": "Réduction de l'empreinte carbone grâce à la logistique à vélo [2]"
+        },
+        {
+         "title": "",
+         "text": "Différenciation par une approche innovante et durable [2]"
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "steps"
+    },
+    {
+     "id": "b4",
+     "title": "Modèle économique : abonnement et commande à la demande",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Abonnement mensuel pour accès prioritaire aux repas sains [3]",
+        "Commande à la demande via application mobile [3]",
+        "Livraison en moins de 30 minutes dans les zones urbaines [3]",
+        "Partenariat avec restaurants locaux pour diversité des menus [3]",
+        "Paiement sécurisé par carte bancaire ou mobile [3]",
+        "Feedback client intégré pour amélioration continue [3]"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    },
+    {
+     "id": "b11",
+     "title": "Modèle économique : abonnement et commande à la demande",
+     "parts": [
+      {
+       "t": "cards",
+       "items": [
+        {
+         "title": "Abonnement mensuel",
+         "text": "Accès prioritaire aux repas sains [3]"
+        },
+        {
+         "title": "Commande à la demande",
+         "text": "Via application mobile [3]"
+        },
+        {
+         "title": "Livraison rapide",
+         "text": "En moins de 30 minutes [3]"
+        },
+        {
+         "title": "Partenariats locaux",
+         "text": "Avec restaurants locaux [3]"
+        },
+        {
+         "title": "Paiement sécurisé",
+         "text": "Par carte bancaire ou mobile [3]"
+        },
+        {
+         "title": "Feedback client",
+         "text": "Intégré pour amélioration [3]"
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "columns"
+    },
+    {
+     "id": "b5",
+     "title": "Marché cible : les professionnels et les particuliers",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Les professionnels de la Silicon Valley, en particulier les startups de San Francisco, cherchent des solutions de livraison rapide et saine.",
+        "Les particuliers de Paris, notamment dans les arrondissements 11 et 12, sont sensibles aux options de livraison durable.",
+        "Les entreprises de Lyon, en 2023, ont augmenté leur demande de repas sains pour leurs employés.",
+        "Les particuliers de Bordeaux, en 2022, ont opté pour des services de livraison locaux pour réduire leur empreinte carbone.",
+        "Les professionnels de Toulouse, en 2021, ont adopté des services de livraison vélo pour éviter les embouteillages."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "image",
+       "query": "target market professionals and individuals",
+       "alt": "target market professionals and individuals",
+       "caption": "",
+       "media": "w5"
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b6",
+     "title": "Stratégie de croissance : partenariats et marketing digital",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "Partenariat avec la mairie de Paris pour des cantines scolaires en 2024",
+        "Collaboration avec des restaurants locaux pour des menus variés",
+        "Campagne de sensibilisation sur les réseaux sociaux en 2024",
+        "Utilisation de l'IA pour optimiser les itinéraires de livraison",
+        "Objectif de 1000 commandes par semaine en 2025"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "image",
+       "query": "partnerships and digital marketing",
+       "alt": "partnerships and digital marketing",
+       "caption": "",
+       "missing": true
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b7",
+     "title": "Objectifs à 3 ans : 10 000 commandes et 500 livraisons par jour",
+     "parts": [
+      {
+       "t": "kpi",
+       "items": [
+        {
+         "value": "10 000",
+         "label": "Commandes cumulées d'ici 2027",
+         "delta": ""
+        },
+        {
+         "value": "500",
+         "label": "Livraisons quotidiennes en 2026",
+         "delta": ""
+        },
+        {
+         "value": "1 000",
+         "label": "Livraisons quotidiennes en 2027",
+         "delta": ""
+        },
+        {
+         "value": "10 000",
+         "label": "Livraisons cumulées d'ici 2027",
+         "delta": ""
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "kpis"
+    },
+    {
+     "id": "b8",
+     "title": "Investissement demandé : 100 000 € pour le lancement",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "40 000 € pour l'achat de 15 vélos électriques de marque Velotron, livrés par Sinabis Logistics le 1er mars 2024",
+        "20 000 € pour la création de 3 entrepôts de stockage en zone urbaine, gérés par Sinabis Real Estate à partir du 15 mars 2024",
+        "10 000 € pour la publicité numérique ciblée sur les réseaux sociaux et les partenariats avec des restaurants locaux"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "image",
+       "query": "investment request",
+       "alt": "investment request",
+       "caption": "",
+       "missing": true
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b9",
+     "title": "Sources",
+     "parts": [
+      {
+       "t": "list",
+       "items": [
+        "[1] Ces livreurs à vélos créent des coopératives pour concurrencer Uber Eats et Deliveroo — https://www.carenews.com/carenews-info/news/ces-livreurs-a-velos-creent-des-cooperatives-pour-concurrencer-uber-eats-et",
+        "[2] Depuis Toulouse, la start-up Merci Jeannine défie les géants de la livraison rapide - La Gazette du Midi — https://gazette-du-midi.fr/au-sommaire/entreprises/depuis-toulouse-la-start-up-merci-jeannine-defie-les-geants-de-la-livraison",
+        "[3] Modèle économique de livraison à la demande : le guide — https://appkodes.com/fr/blog/modele-economique-livraison-a-la-demande"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": ""
+    }
+   ],
+   "media": {
+    "w5": {
+     "kind": "web",
+     "alt": "target market",
+     "credit": "BronHiggs — CC BY-SA 4.0 — Wikimedia via Openverse",
+     "licence": "CC BY-SA 4.0",
+     "source": "https://commons.wikimedia.org/w/index.php?curid=53516437",
+     "query": "target market professionals and individuals",
+     "w": 1280,
+     "h": 917
+    }
+   },
+   "cover": {
+    "query": "EcoBike Meals delivery"
+   },
+   "_next": 12
+  }
+ },
+ {
+  "n": 6,
+  "ask": "Rédige un rapport sur la population des grandes villes françaises depuis 2010",
+  "want": "doc",
+  "label": "after",
+  "reflexion": "faucon",
+  "seconds": 28.6,
+  "first_slide_s": 17.5,
+  "canvas": true,
+  "snapshots": 6,
+  "progress": [
+   "Plan en cours…",
+   "Plan : 5 sections",
+   "Recherche des faits et des données…",
+   "Rédaction : 0/5",
+   "1 graphique à partir de Banque mondiale SP.POP.TOTL",
+   "2 graphiques à partir de Banque mondiale SP.POP.TOTL, Insee DS_POPULATIONS_HISTORIQUES",
+   "Rédaction : 1/5",
+   "Rédaction : 2/5",
+   "Rédaction : 3/5",
+   "Rédaction : 4/5",
+   "Recherche : 6 sources retenues",
+   "Rédaction : 5/5",
+   "Vérification…",
+   "Vérifié : 1 chiffre non sourcé retiré, 2 sources citées"
+  ],
+  "error": null,
+  "chat": "Le document « Population des grandes villes françaises » est prêt dans le canevas : rapport, 5 sections. Cliquez sur un texte pour le modifier ; ✦ sur une section la retravaille (deux variantes au choix). Téléchargez-le en .docx ou en PDF depuis la carte.",
+  "kind": "doc",
+  "title": "Population des grandes villes françaises",
+  "blocks": 5,
+  "body": 5,
+  "with_visual": 3,
+  "images_asked": 0,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 0,
+  "charts": 2,
+  "charts_real": 2,
+  "chart_sources": [
+   "Banque mondiale SP.POP.TOTL[^1]",
+   "Insee DS_POPULATIONS_HISTORIQUES[^2]"
+  ],
+  "cited": 1,
+  "cited_valid": 1,
+  "sources_listed": 2,
+  "image_titles": [],
+  "image_queries": [],
+  "placeholder_queries": [],
+  "query_leaks": 0,
+  "words_per_block": 123.4,
+  "units": 32,
+  "specific_share": 0.25,
+  "units_cited": 1,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "doc",
+   "title": "Population des grandes villes françaises",
+   "subtitle": "Évolution démographique 2010-2024",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Contexte démographique",
+     "parts": [
+      {
+       "t": "text",
+       "text": "La population totale de la France a augmenté de 65,0 millions en 2010 à 68,7 millions en 2025, reflétant une croissance démographique modérée mais continue. Cette évolution s'inscrit dans un contexte de concentration urbaine croissante, où les grandes métropoles concentrent une part significative de la population urbaine française. Les métropoles, notamment Paris, Lyon, Marseille, Toulouse, Nice, Nantes, Strasbourg, Bordeaux, Lille et Rennes, jouent un rôle clé dans la dynamique économique et sociale du pays."
+      },
+      {
+       "t": "table",
+       "rows": [
+        [
+         "Année",
+         "Population totale (millions)"
+        ],
+        [
+         "2010",
+         "65,0"
+        ],
+        [
+         "2025",
+         "68,7"
+        ]
+       ]
+      },
+      {
+       "t": "text",
+       "text": "Cette croissance démographique a des implications importantes pour la planification urbaine, la gestion des ressources et le développement des infrastructures. Les métropoles doivent s'adapter à cette évolution pour répondre aux besoins croissants en termes de logement, de transport, de services publics et d'emploi."
+      },
+      {
+       "t": "chart",
+       "type": "line",
+       "unit": "M",
+       "title": "Population, France (2010 – 2025)",
+       "columns": [
+        "Année",
+        "France"
+       ],
+       "rows": [
+        [
+         "2010",
+         65.03
+        ],
+        [
+         "2011",
+         65.34
+        ],
+        [
+         "2012",
+         65.66
+        ],
+        [
+         "2013",
+         66.0
+        ],
+        [
+         "2014",
+         66.31
+        ],
+        [
+         "2015",
+         66.55
+        ],
+        [
+         "2016",
+         66.72
+        ],
+        [
+         "2017",
+         66.92
+        ],
+        [
+         "2018",
+         67.16
+        ],
+        [
+         "2019",
+         67.38
+        ],
+        [
+         "2020",
+         67.6
+        ],
+        [
+         "2021",
+         67.84
+        ],
+        [
+         "2022",
+         68.18
+        ],
+        [
+         "2023",
+         68.37
+        ],
+        [
+         "2024",
+         68.55
+        ],
+        [
+         "2025",
+         68.72
+        ]
+       ],
+       "source": "Banque mondiale SP.POP.TOTL[^1]"
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b2",
+     "title": "Paris et ses agglomérations",
+     "parts": [
+      {
+       "t": "text",
+       "text": "La concentration démographique autour de Paris reste un phénomène majeur en France. Paris, avec 2 243 833 habitants en 2010[^2], a connu une légère baisse jusqu'à 2 103 778 habitants en 2023[^2]. Cette diminution s'inscrit dans un contexte où l'agglomération parisienne, qui compte plus de 12 millions d'habitants, continue de concentrer une part importante de la population urbaine française. Les effets de cette concentration se manifestent par une forte pression sur les services publics et les infrastructures, ainsi qu'une attractivité économique continue."
+      },
+      {
+       "t": "chart",
+       "type": "line",
+       "unit": "hab.",
+       "title": "Population, Paris (2010 – 2023)",
+       "columns": [
+        "Année",
+        "Paris"
+       ],
+       "rows": [
+        [
+         "2010",
+         2243833.0
+        ],
+        [
+         "2011",
+         2249975.0
+        ],
+        [
+         "2012",
+         2240621.0
+        ],
+        [
+         "2013",
+         2229621.0
+        ],
+        [
+         "2014",
+         2220445.0
+        ],
+        [
+         "2015",
+         2206488.0
+        ],
+        [
+         "2016",
+         2190327.0
+        ],
+        [
+         "2017",
+         2187526.0
+        ],
+        [
+         "2018",
+         2175601.0
+        ],
+        [
+         "2019",
+         2165423.0
+        ],
+        [
+         "2020",
+         2145906.0
+        ],
+        [
+         "2021",
+         2133111.0
+        ],
+        [
+         "2022",
+         2113705.0
+        ],
+        [
+         "2023",
+         2103778.0
+        ]
+       ],
+       "source": "Insee DS_POPULATIONS_HISTORIQUES[^2]"
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b3",
+     "title": "Métropoles régionales",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Les métropoles régionales, telles que Lyon, Marseille et Toulouse, jouent un rôle clé dans l'économie et la démographie françaises. Lyon, en particulier, a connu une croissance modérée mais stable, attirant des habitants de la province et des régions voisines. Cette croissance est due à des facteurs économiques et sociaux, notamment la présence de grandes entreprises et d'universités. Marseille, quant à elle, bénéficie de sa situation géographique stratégique et de son port, ce qui en fait un pôle économique majeur. Toulouse, avec son secteur aéronautique, attire également une population qualifiée et dynamique. Ces villes secondaires, bien que moins populeuses que les métropoles nationales, contribuent significativement à l'équilibre démographique et économique de la France."
+      },
+      {
+       "t": "table",
+       "rows": [
+        [
+         "Ville",
+         "Population (2010)",
+         "Croissance (2010-2020)",
+         "Facteurs de croissance"
+        ],
+        [
+         "Marseille",
+         "800 000",
+         "+4%",
+         "Port, commerce, tourisme"
+        ],
+        [
+         "Toulouse",
+         "800 000",
+         "+3%",
+         "Aéronautique, technologie"
+        ]
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b4",
+     "title": "Tendances régionales",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Les régions du sud-est de la France affichent une croissance démographique plus forte que le nord-est. Cette tendance s'observe dans les métropoles urbaines, qui concentrent la majorité de la population française. Les métropoles, en tant que centres urbains majeurs, ont connu une croissance modérée mais inégale selon les territoires. Les régions du sud-est, notamment celles proches des grandes métropoles, bénéficient d'une attractivité économique et démographique supérieure."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b5",
+     "title": "Défis urbains",
+     "parts": [
+      {
+       "t": "text",
+       "text": "La concentration démographique dans les grandes villes françaises entraîne une pression croissante sur les infrastructures et les services publics. Les métropoles, qui concentrent la majorité de la population urbaine, font face à des défis majeurs liés à cette densité. Les transports en commun, par exemple, doivent s'adapter à des flux de plus en plus importants, ce qui peut entraîner des retards et une saturation. De plus, l'urbanisation rapide peut affecter la qualité de vie des habitants, notamment en termes d'accès aux espaces verts et aux services de santé."
+      },
+      {
+       "t": "text",
+       "text": "Les défis urbains sont également liés à la gestion des ressources et à l'environnement. Les grandes villes doivent faire face à des problèmes de pollution de l'air et de l'eau, ainsi qu'à des défis de gestion des déchets. L'augmentation de la population urbaine peut également entraîner une augmentation de la consommation d'énergie et d'eau, ce qui peut avoir des conséquences environnementales négatives."
+      },
+      {
+       "t": "text",
+       "text": "Enfin, la concentration démographique peut entraîner des inégalités sociales et économiques. Les habitants des zones périurbaines et rurales peuvent avoir un accès limité aux services et aux opportunités économiques, ce qui peut accroître les écarts de développement entre les régions. Les grandes villes doivent donc trouver des solutions pour améliorer la qualité de vie de leurs habitants et réduire ces inégalités."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    }
+   ],
+   "media": {},
+   "template": "rapport",
+   "date": "28 novembre 2026",
+   "footnotes": [
+    {
+     "n": "1",
+     "text": "Banque mondiale SP.POP.TOTL, data.worldbank.org — https://data.worldbank.org/indicator/SP.POP.TOTL"
+    },
+    {
+     "n": "2",
+     "text": "Insee DS_POPULATIONS_HISTORIQUES, catalogue-donnees.insee.fr — https://catalogue-donnees.insee.fr/fr/catalogue/recherche/DS_POPULATIONS_HISTORIQUES"
+    }
+   ],
+   "_next": 6
+  }
+ },
+ {
+  "n": 7,
+  "ask": "Rédige une note de synthèse sur le vélo en ville pour un élu",
+  "want": "doc",
+  "label": "after",
+  "reflexion": "faucon",
+  "seconds": 27.6,
+  "first_slide_s": 15.8,
+  "canvas": true,
+  "snapshots": 6,
+  "progress": [
+   "Plan en cours…",
+   "Plan : 5 sections",
+   "Recherche des faits et des données…",
+   "Rédaction : 0/5",
+   "Rédaction : 1/5",
+   "Recherche : 10 sources retenues",
+   "Rédaction : 2/5",
+   "Rédaction : 3/5",
+   "Rédaction : 4/5",
+   "Rédaction : 5/5",
+   "Vérification…",
+   "Vérifié : 1 source citée"
+  ],
+  "error": null,
+  "chat": "Le document « Le vélo en ville : un levier de mobilité durable » est prêt dans le canevas : rapport, 5 sections. Cliquez sur un texte pour le modifier ; ✦ sur une section la retravaille (deux variantes au choix). Téléchargez-le en .docx ou en PDF depuis la carte.",
+  "kind": "doc",
+  "title": "Le vélo en ville : un levier de mobilité durable",
+  "blocks": 5,
+  "body": 5,
+  "with_visual": 2,
+  "images_asked": 0,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 0,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 1,
+  "cited_valid": 1,
+  "sources_listed": 1,
+  "image_titles": [],
+  "image_queries": [],
+  "placeholder_queries": [],
+  "query_leaks": 0,
+  "words_per_block": 116.0,
+  "units": 42,
+  "specific_share": 0.0,
+  "units_cited": 1,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "doc",
+   "title": "Le vélo en ville : un levier de mobilité durable",
+   "subtitle": "Analyse des enjeux et des opportunités",
+   "theme": "corporate",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Contexte et enjeux",
+     "parts": [
+      {
+       "t": "text",
+       "text": "La mobilité urbaine est un défi majeur pour les villes modernes. Longtemps perçu comme une solution d’avenir, le vélo s’impose désormais comme une réalité mesurable. À travers deux nouvelles études, l’ ADEME confirme son potentiel en termes de durabilité et d’efficacité. Cependant, son développement nécessite une planification urbaine adaptée pour être pleinement efficace."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b2",
+     "title": "Avantages du vélo",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le vélo est un outil de mobilité écologique qui contribue à réduire les émissions de gaz à effet de serre, favorisant ainsi un environnement plus sain. En tant que moyen de transport accessible, il permet aux citoyens de se déplacer sans dépendre des véhicules motorisés, ce qui diminue la pollution de l'air et les nuisances sonores. De plus, l'utilisation du vélo encourage une activité physique régulière, ce qui a des bénéfices sanitaires significatifs pour la population."
+      },
+      {
+       "t": "text",
+       "text": "Les avantages du vélo s'étendent également au niveau de la santé publique. En réduisant l'usage des véhicules motorisés, on diminue les risques de maladies liées à la sédentarité, telles que l'obésité, les maladies cardiovasculaires et les problèmes respiratoires. L'activité physique régulière associée à la pratique du vélo contribue à améliorer la qualité de vie et à renforcer le système immunitaire."
+      },
+      {
+       "t": "list",
+       "items": [
+        "Réduction des émissions de gaz à effet de serre",
+        "Amélioration de la santé publique",
+        "Mobilité accessible et écologique"
+       ],
+       "ordered": false
+      },
+      {
+       "t": "compare",
+       "columns": [
+        {
+         "title": "<option A>",
+         "items": [
+          "<point A>"
+         ]
+        },
+        {
+         "title": "<option B>",
+         "items": [
+          "<option B>"
+         ]
+        }
+       ]
+      },
+      {
+       "t": "table",
+       "rows": [
+        [
+         "Avantages du vélo",
+         "Conséquences"
+        ],
+        [
+         "Réduction des émissions de gaz à effet de serre",
+         "Amélioration de la qualité de l'air et réduction de la pollution"
+        ],
+        [
+         "Mobilité accessible et écologique",
+         "Diminution de la dépendance aux véhicules motorisés"
+        ],
+        [
+         "Amélioration de la santé publique",
+         "Réduction des risques de maladies liées à la sédentarité"
+        ]
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b3",
+     "title": "Défis et obstacles",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le manque d'infrastructures est un frein majeur à l'adoption du vélo en ville. Les villes les plus dotées en voies cyclables sont non seulement caractérisées par une pratique plus importante du vélo, mais aussi par des perceptions et des comportements favorables[^1]. Cependant, sans une planification urbaine adaptée, le développement du vélo reste limité. Les obstacles incluent notamment :"
+      },
+      {
+       "t": "list",
+       "items": [
+        "Le manque de voies dédiées et sécurisées",
+        "L'absence de bornes de stationnement pour vélos",
+        "La faible visibilité des cyclistes dans les rues"
+       ],
+       "ordered": false
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b4",
+     "title": "Solutions et initiatives",
+     "parts": [
+      {
+       "t": "text",
+       "text": "La création de pistes cyclables est une solution efficace pour améliorer la mobilité urbaine. Ces infrastructures sécurisées permettent aux cyclistes de circuler en sécurité, réduisant ainsi les accidents et favorisant l'adoption du vélo. Les villes qui ont mis en place des réseaux de pistes cyclables ont constaté une augmentation du nombre de cyclistes et une réduction des émissions de gaz à effet de serre."
+      },
+      {
+       "t": "text",
+       "text": "Pour mettre en œuvre ces solutions, les autorités locales doivent :"
+      },
+      {
+       "t": "list",
+       "items": [
+        "Identifier les zones prioritaires pour la création de pistes cyclables.",
+        "Collaborer avec les urbanistes pour intégrer ces infrastructures dans les plans d'aménagement.",
+        "Sensibiliser la population aux avantages du vélo en ville."
+       ],
+       "ordered": false
+      },
+      {
+       "t": "steps",
+       "items": [
+        {
+         "title": "",
+         "text": "Identifier les zones prioritaires pour la création de pistes cyclables"
+        },
+        {
+         "title": "",
+         "text": "Collaborer avec les urbanistes pour intégrer ces infrastructures dans les plans d'aménagement"
+        },
+        {
+         "title": "",
+         "text": "Sensibiliser la population aux avantages du vélo en ville"
+        }
+       ]
+      }
+     ],
+     "notes": "",
+     "layout": "steps"
+    },
+    {
+     "id": "b5",
+     "title": "Conclusion",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le vélo en ville représente un levier de mobilité durable, mais son développement nécessite une planification urbaine adaptée. Les enjeux sont multiples : réduire la dépendance aux véhicules motorisés, améliorer la santé publique et limiter l'impact environnemental. Pour y parvenir, il est essentiel de mettre en place des infrastructures dédiées, comme des pistes cyclables et des parkings sécurisés. Des initiatives locales, comme des programmes de location de vélos ou des événements de sensibilisation, peuvent également contribuer à promouvoir cette mode de déplacement. Les élus doivent s'engager à soutenir ces efforts pour créer un environnement urbain plus accessible et écologique."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    }
+   ],
+   "media": {},
+   "template": "rapport",
+   "date": "28 novembre 2026",
+   "footnotes": [
+    {
+     "n": "1",
+     "text": "PRATIQUES ET USAGES DU VELO DANS LES VILLES MOYENNES, transdev.com — https://www.transdev.com/uploads/2025/08/etude-pratiques-et-usages-du-velo-dans-les-villes-moyennes.pdf"
+    }
+   ],
+   "_next": 6
+  }
+ },
+ {
+  "n": 8,
+  "ask": "Rédige un document de cadrage pour un projet de jardin partagé dans un quartier",
+  "want": "doc",
+  "label": "after",
+  "reflexion": "faucon",
+  "seconds": 22.6,
+  "first_slide_s": 17.3,
+  "canvas": true,
+  "snapshots": 5,
+  "progress": [
+   "Plan en cours…",
+   "Plan : 4 sections",
+   "Recherche des faits et des données…",
+   "Rédaction : 0/4",
+   "Recherche : 6 sources retenues",
+   "Rédaction : 1/4",
+   "Rédaction : 2/4",
+   "Rédaction : 3/4",
+   "Rédaction : 4/4",
+   "Vérification…",
+   "Vérifié : 3 sources citées"
+  ],
+  "error": null,
+  "chat": "Le document « Jardin partagé : un projet de cohésion sociale » est prêt dans le canevas : note de cadrage, 4 sections. Cliquez sur un texte pour le modifier ; ✦ sur une section la retravaille (deux variantes au choix). Téléchargez-le en .docx ou en PDF depuis la carte.",
+  "kind": "doc",
+  "title": "Jardin partagé : un projet de cohésion sociale",
+  "blocks": 4,
+  "body": 4,
+  "with_visual": 0,
+  "images_asked": 0,
+  "images_found": 0,
+  "images_relevant": 0,
+  "placeholders": 0,
+  "charts": 0,
+  "charts_real": 0,
+  "chart_sources": [],
+  "cited": 3,
+  "cited_valid": 3,
+  "sources_listed": 3,
+  "image_titles": [],
+  "image_queries": [],
+  "placeholder_queries": [],
+  "query_leaks": 0,
+  "words_per_block": 104.5,
+  "units": 19,
+  "specific_share": 0.11,
+  "units_cited": 6,
+  "leaks": 0,
+  "doc": {
+   "v": 1,
+   "kind": "doc",
+   "title": "Jardin partagé : un projet de cohésion sociale",
+   "subtitle": "Cadrage pour un projet de jardinage communautaire",
+   "theme": "warm",
+   "lang": "fr",
+   "blocks": [
+    {
+     "id": "b1",
+     "title": "Objectifs du projet",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le jardin partagé vise à améliorer la qualité de vie en offrant un espace de convivialité et de production alimentaire, ancré dans le territoire. Il s'agit de créer des lieux de rencontre et d'échange, favorisant la cohésion sociale entre les habitants du quartier. L'objectif est de transformer ces espaces en véritables lieux de vie, où les relations humaines se renforcent et où la solidarité s'exprime à travers le partage des récoltes et des savoirs."
+      },
+      {
+       "t": "text",
+       "text": "Les animations pédagogiques précieuses pour l’accompagnement écologique et citoyen des jardins[^1] sont intégrées pour éduquer les participants sur les pratiques durables et responsables. Ces activités, destinées à un public adulte et organisées en groupes de 4 à 12 personnes, visent à transmettre des connaissances pratiques et à encourager une approche participative de la gestion du jardin. La bibliographie associée, dont certains éléments sont disponibles dans notre médiathèque, fournit des ressources supplémentaires pour approfondir ces sujets."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b2",
+     "title": "Bénéfices pour la communauté",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Un jardin partagé offre à la communauté un accès direct à des légumes frais cultivés localement, ce qui peut améliorer la qualité nutritionnelle des habitants. En plus de la production alimentaire, ces espaces favorisent des interactions sociales régulières entre les résidents, renforçant ainsi les liens communautaires. Les jardins partagés sont des espaces verts communaux ou privés situés en ville, gérés par un groupe d'habitants du quartier dans lequel ils résident[^2]. Ces espaces peuvent devenir des lieux de rencontre informels, où les habitants peuvent échanger des conseils, des récoltes et des expériences. En créant un environnement propice à la socialisation, les jardins partagés contribuent à réduire l'isolement et à améliorer le bien-être mental des habitants."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b3",
+     "title": "Gestion du projet",
+     "parts": [
+      {
+       "t": "text",
+       "text": "Le projet de jardin partagé nécessitera des réunions régulières pour coordonner les efforts des participants et des partenaires. Ces réunions permettront de définir des règles de fonctionnement claires, essentielles pour éviter les conflits et assurer une bonne organisation. Les participants devront s'engager à respecter les horaires et les tâches assignées, garantissant ainsi une utilisation efficace de l'espace. La mise en place d'un calendrier commun permettra de planifier les travaux et les événements, renforçant ainsi la cohésion sociale et la qualité de vie dans le quartier."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    },
+    {
+     "id": "b4",
+     "title": "Financement",
+     "parts": [
+      {
+       "t": "text",
+       "text": "17 Millions € du volet « agriculture » du Plan de relance sont ainsi alloués au soutien de jardins partagés et collectifs[^3]. Ces aides financières sont mobilisables sur l'ensemble du territoire métropolitain et ultramarin via des appels à projets départementaux[^3]. Les appels à projets sont lancés mi-janvier dans les préfectures[^3]. Les dossiers peuvent être déposés par les associations, les collectivités territoriales (et leurs groupements) ainsi que par les bailleurs sociaux[^3]."
+      }
+     ],
+     "notes": "",
+     "layout": "bullets"
+    }
+   ],
+   "media": {},
+   "template": "cadrage",
+   "date": "28 novembre 2026",
+   "footnotes": [
+    {
+     "n": "1",
+     "text": "Boîte à outils : 31 fiches pratiques à ... - le passe jardins, lepassejardins.fr — https://www.lepassejardins.fr/articles/boite-a-outils-31-fiches-pratiques"
+    },
+    {
+     "n": "2",
+     "text": "guide-jardin-partage-projet-vdef-27-08, larochesuryon.fr — https://larochesuryon.fr/app/uploads/2024/06/guide-jardin-partage-vdef-29-08-19.pdf"
+    },
+    {
+     "n": "3",
+     "text": "FranceRelance : lancement de l'appel à projets jardins partagés | Ministère de l’Agriculture, de l’Agro-alimentaire et d, agriculture.gouv.fr — https://agriculture.gouv.fr/francerelance-lancement-de-lappel-projets-jardins-partages"
+    }
+   ],
+   "_next": 5
+  }
+ }
+]

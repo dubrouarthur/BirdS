@@ -247,6 +247,11 @@ def _picture_words(query: str) -> list[str]:
     return [w for w in cc.fold(query).split() if len(w) >= 3 and w not in _ECHO and w not in images.FLUFF]
 
 
+_COMMON = set("""avec dans pour plus moins entre comme leur leurs cette sont font fait faire tout tous toutes autres
+avenir histoire contexte enjeux introduction conclusion synthese présentation presentation rapport document note
+evolution what with from that this their about more""".split())
+
+
 def _names_series(indicator: str, text: str) -> bool:
     from birds.harness.tools.opendata import stats
 
@@ -605,6 +610,28 @@ def scrub(block: dict) -> int:
     return n
 
 
+def dedupe_visual(block: dict) -> int:
+    """A slide that says the same thing twice (a list AND a timeline or steps of the same items, seen live: two
+    « Les Origines du Train de Nuit » slides once split): the list goes, the visual stays. Returns 1 if dropped."""
+    from birds.harness import crew_checks as cc
+
+    parts = block.get("parts") or []
+    vis = [p for p in parts if p.get("t") in ("timeline", "steps", "cards", "kpi")]
+    lists = [p for p in parts if p.get("t") == "list"]
+    if not vis or not lists:
+        return 0
+    seen = cc.fold(" ".join(str(v) for p in vis for x in p.get("items") or [] for v in
+                            (x.values() if isinstance(x, dict) else [x])))  # fmt: skip
+    for lp in lists:
+        items = lp.get("items") or []
+        same = sum(1 for x in items if (w := [y for y in cc.fold(_CITE.sub(" ", x)).split() if len(y) >= 4])
+                   and sum(y in seen for y in w) >= 0.6 * len(w))  # fmt: skip
+        if items and same >= 0.6 * len(items):
+            block["parts"] = [p for p in parts if p is not lp]
+            return 1
+    return 0
+
+
 def balance(block: dict, kind: str) -> int:
     """No wall of text: at most MAX_POINTS points of POINT_CHARS characters on a slide. Returns how many cuts."""
     cuts = 0
@@ -874,9 +901,14 @@ class Pipeline:
         step, text, ctx = self.env.tool("web_search", {"query": query[:200], "max_results": 4})
         if step.error:
             return []
-        results = list((step.info or {}).get("results") or [])
-        facts: list[Fact] = []
         head = [w for w in re.findall(r"[\wÀ-ÿ'-]{4,}", f"{it.title} {it.search}")][:8]
+        # a result that shares no word with the slide is not its source (seen live: « Équipe de Jordanie de
+        # football — Wikipédia » and the « L » article cited in a deck on night trains)
+        want = {cc.fold(w)[:6] for w in head if cc.fold(w) not in _COMMON}
+        results = [r for r in (step.info or {}).get("results") or []
+                   if want & {cc.fold(w)[:6] for w in re.findall(r"[\wÀ-ÿ'-]{4,}",
+                                                                 f"{r.get('title', '')} {r.get('snippet', '')}")}]  # fmt: skip
+        facts: list[Fact] = []
         with self.lock:
             go = self.reads < MAX_READS and time.monotonic() < self.gather_until
             if go:
@@ -1118,6 +1150,8 @@ class Pipeline:
         for i, b in enumerate(doc["blocks"]):
             b.pop("pending", None)
             scrub(b)
+            if o.kind == "deck":
+                cuts += dedupe_visual(b)
             dropped += check_figures(b, allowed, o.kind)
             cuts += balance(b, o.kind)
             body = [p for p in b["parts"] if p.get("t") != "image"]

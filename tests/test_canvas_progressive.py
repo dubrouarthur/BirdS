@@ -295,3 +295,23 @@ def test_a_plan_without_any_fact_gets_web_facts_at_full_depth():
     res = pg.Pipeline(e).run()
     assert calls.count("web_search") >= 3 and any("no fact planned" in r for r in res.repairs)
     assert res.doc["sources"]
+
+
+def test_an_unrelated_search_result_is_never_a_source_and_a_slide_never_says_it_twice():
+    def junk(name, args, ctx=None):
+        step = SimpleNamespace(error=None, flags=[], info={"results": [
+            {"url": "https://fr.wikipedia.org/wiki/Jordanie_football", "title": "Équipe de Jordanie de football",
+             "snippet": "La sélection nationale de football de Jordanie dispute la coupe d'Asie depuis 1984."}]})  # fmt: skip
+        return step, "", ctx
+
+    e = env()
+    e.tool = junk
+    p = pg.Pipeline(e)
+    p.gather_until = 1e18
+    assert p.web(pg.Item("Le train de nuit Paris-Vienne", search="train de nuit Europe")) == []
+    block = {"parts": [
+        {"t": "list", "items": ["1850 : premier train de nuit en France", "1870 : extension du réseau en Allemagne"]},
+        {"t": "timeline", "items": [{"when": "1850", "what": "premier train de nuit en France"},
+                                    {"when": "1870", "what": "extension du réseau en Allemagne"}]},
+    ]}  # fmt: skip
+    assert pg.dedupe_visual(block) == 1 and [x["t"] for x in block["parts"]] == ["timeline"]
