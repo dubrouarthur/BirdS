@@ -1357,8 +1357,8 @@ function renderError(turn, isLast) {
         button("btn-outline btn-small", "gear", t("error.settings"), () =>
           handlers.onOpenSettings(),
         ),
-      isLast &&
-        !state.busy &&
+      // any failed turn can be tried again, even after later messages: a new version from there (« ‹ 1/2 › »)
+      !state.busy &&
         button(
           "btn-outline btn-small",
           "retry",

@@ -186,6 +186,26 @@ part("continue", async (page, name, fail, shot) => {
   await shot("r23-continued");
 });
 
+// ---------------------------------------------------------------- R22: a failed turn stays retryable
+part("retry", async (page, name, fail, shot) => {
+  await newChat(page);
+  await send(page, "Simule une panne");
+  if (!(await page.locator(".notice-error").count())) fail("R22: the demo failure did not show");
+  await send(page, "Bonjour");
+  const failed = page.locator(".turn-bird").first();
+  if (!(await failed.locator('[data-act="retry"]').count())) fail("R22: the failed turn lost « Réessayer » after a new message");
+  await shot("r22-failed");
+  await failed.locator('[data-act="retry"]').click();
+  await page.waitForTimeout(300);
+  if (await page.locator(".toast .toast-action").count()) fail("R22: retry offers an undo");
+  await idle(page);
+  if ((await page.locator(".turn-bird .cx-pager").first().getAttribute("data-versions").catch(() => "")) !== "2/2")
+    fail("R22: the retry is not a new version");
+  await page.locator('.turn-bird [data-act="ver-prev"]').first().click();
+  await page.waitForTimeout(300);
+  if (!(await page.locator(".turn-user").last().innerText()).includes("Bonjour")) fail("R22: the later exchange is lost");
+});
+
 (async () => {
   const browser = await chromium.launch();
   const problems = [];
