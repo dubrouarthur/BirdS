@@ -703,7 +703,9 @@ def test_static_payload_budget():
     # the data card and the richer charts (datakit.js, charts2.js, their app.css section: ~110 kB raw, ~31 kB gzipped)
     # the open-data cards (holidays, entity, tenders, papers, communes, chart source line: +44 kB raw, ~9 kB gzipped)
     # and Mode Réflexion (bird picker, drawings, flight header: +20 kB raw, +6 kB gzipped)
-    assert total < 1_380_000, f"static payload is {total} bytes"  # measured 1 374 501 after merging brand-site
+    # the reasoning slider (941cfc9: 1 381 577, already over the previous 1 380 000) and the UX pass (calm wake-up
+    # line and bar, mail card recipient hint and blanks, dead retry countdown removed: +1.3 kB raw)
+    assert total < 1_386_000, f"static payload is {total} bytes"  # measured 1 382 917 after the UX pass
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"

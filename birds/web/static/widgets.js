@@ -874,8 +874,7 @@ function renderPlaces(w, turn) {
       "div",
       { class: "widget-head-links" },
       ext(osmAll, t("widget.openOsm")),
-      itinerary && " · ",
-      itinerary,
+      itinerary, // side by side with a gap, no « · » left dangling when the second link wraps on a phone
     ),
     frame,
     route,

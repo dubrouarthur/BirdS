@@ -38,7 +38,7 @@ function outside(e) {
   if (!picker.menu.contains(e.target) && !picker.button.contains(e.target)) close(false);
 }
 
-function open() {
+function open(byKeyboard = true) {
   renderMenu();
   const phone = window.matchMedia("(max-width: 640px)").matches;
   const box = picker.button.getBoundingClientRect();
@@ -49,7 +49,10 @@ function open() {
   picker.scrim.hidden = !phone;
   picker.button.setAttribute("aria-expanded", "true");
   document.addEventListener("pointerdown", outside, true);
-  picker.menu.querySelector("#rf-range")?.focus();
+  // from the keyboard, straight onto the slider; from a tap or a click, onto the sheet itself, so no focus ring
+  // is drawn around the slider (Tab still goes to the switch, then the slider)
+  if (byKeyboard) picker.menu.querySelector("#rf-range")?.focus();
+  else picker.menu.focus({ preventScroll: true });
 }
 
 const valueText = (key) => `${nameOf(key)} · ${t(`rf.level.${key}.label`)}`;
@@ -175,13 +178,13 @@ export function mountPicker(slot, onPick) {
     "aria-expanded": "false",
     "aria-controls": "rf-menu",
   });
-  const menu = h("div", { id: "rf-menu", class: "rf-menu", role: "dialog", "aria-labelledby": "rf-menu-title", hidden: true });
+  const menu = h("div", { id: "rf-menu", class: "rf-menu", role: "dialog", "aria-labelledby": "rf-menu-title", tabindex: "-1", hidden: true });
   const scrim = h("div", { class: "rf-scrim", hidden: true, onclick: () => close(false) });
   menu.addEventListener("keydown", onKey);
   // no focus on press (as the send button): focusing the dock shows it « typing », hides its note and moves it,
   // and the release then landed on the text box (seen at 360 px): the click opened nothing
   button.addEventListener("mousedown", (e) => e.preventDefault());
-  button.addEventListener("click", () => (menu.hidden ? open() : close()));
+  button.addEventListener("click", (e) => (menu.hidden ? open(e.detail === 0) : close())); // detail 0: Enter or Space
   button.addEventListener("keydown", (e) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
