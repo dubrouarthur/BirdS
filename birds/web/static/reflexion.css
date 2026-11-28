@@ -528,3 +528,9 @@
   block-size: 18px;
   color: var(--accent);
 }
+/* touch screens: the pill is a 44 px target, as the other frequent controls of the composer */
+@media (pointer: coarse) {
+  .rf-pill {
+    min-block-size: 44px;
+  }
+}
