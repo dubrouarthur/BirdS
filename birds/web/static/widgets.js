@@ -17,6 +17,7 @@ import { MODULES, moduleText } from "./modules.js";
 import { REPORT_MODULES, reportText } from "./research.js";
 import { dataCardText, renderDataCard } from "./datakit.js"; // data analysis hook: the data card
 import { OPENDATA_RENDER, opendataText, useMapFrame } from "./opendata.js"; // open data
+import { FINANCE_RENDER, quoteText } from "./finance.js"; // markets: the quote card
 
 const OSM_COPYRIGHT = "https://www.openstreetmap.org/copyright";
 const MAP_SRC =
@@ -2220,6 +2221,7 @@ const RENDER = {
   ...REPORT_MODULES, // the deep research report card and its full-screen view (research.js)
   datacard: renderDataCard, // data analysis hook (datakit.js)
   ...OPENDATA_RENDER, // open data (opendata.js)
+  ...FINANCE_RENDER, // markets (finance.js)
 };
 useMapFrame(mapFrame); // open data: the commune card's map is the same frame as the others
 
@@ -2283,6 +2285,8 @@ export function widgetsText(turn, markdown = false) {
       out.push(
         `${w.title} — ${String(w.start).slice(0, 16).replace("T", " ")}${w.all_day ? "" : `–${String(w.end).slice(11, 16)}`}${w.location ? ` — ${w.location}` : ""}`,
       );
+    } else if (w.type === "quote") {
+      out.push(quoteText(w)); // markets (finance.js)
     } else out.push(opendataText(w, markdown)); // open data ("" for other types)
   }
   return out.filter(Boolean).join("\n");

@@ -27,6 +27,15 @@ def own(prefill) -> bool:
     return bool(prefill is not None and prefill.tool in OWN_ANSWER)
 
 
+def usable(prefill, cfg) -> bool:
+    """False for a market quote this deployment cannot serve (shares without the licensed feed's key)."""
+    if prefill is None or prefill.tool != "get_quote" or not prefill.args:
+        return True
+    from birds.harness.tools.opendata.finance import usable as quote_usable
+
+    return quote_usable(prefill.args, cfg)
+
+
 def withdraw(prefill) -> set[str]:
     """Tools to withdraw for this turn: a statistics chart is already drawn, so no second make_chart."""
     return {"make_chart"} if prefill is not None and prefill.tool in CHART_TOOLS else set()
@@ -518,8 +527,11 @@ def commune(text: str, lang: str = "fr") -> Intent | None:
 def detect(text: str, attached: bool = False, lang: str = "fr", today: date | None = None) -> list[Intent]:
     """The open-data intent of the user's own words (at most one), prefilled when sure. Next to an attached
     document nothing is looked up automatically: the tool is only offered."""
+    from birds.harness.finance_intents import quote  # markets (get_quote): before statistics and entity cards
+
     for fn in (lambda: papers(text, lang), lambda: tenders(text, lang), lambda: calendar(text, lang, today),
-               lambda: commune(text, lang), lambda: statistics(text, lang, today), lambda: entity(text, lang)):  # fmt: skip
+               lambda: commune(text, lang), lambda: quote(text, lang), lambda: statistics(text, lang, today),
+               lambda: entity(text, lang)):  # fmt: skip
         got = fn()
         if got is not None:
             if attached and got.args:
@@ -535,6 +547,8 @@ def merge(found: list[Intent], text: str, attached: bool = False, lang: str = "f
     if not mine:
         return found
     # « bank holidays in the UK »: holiday words are unambiguous, the map's « bank » is not
-    if mine[0].args and (mine[0].mode == "address" or mine[0].tool == "work_calendar" or not any(i.args for i in found)):
+    # « historique EUR/USD sur 1 an »: a rate's history is the market chart, not the day's conversion
+    if mine[0].args and (mine[0].mode in ("address", "history") or mine[0].tool == "work_calendar"
+                         or not any(i.args for i in found)):  # fmt: skip
         return mine + [i for i in found if not i.args][:1]
     return found + [Intent(mine[0].tool, None)]

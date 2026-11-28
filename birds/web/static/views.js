@@ -1,4 +1,5 @@
 // Secondary views: the footprint ("Empreinte"), settings, about, welcome, keyboard help.
+import { saveAgentMode } from "./agent-mode.js";
 import {
   $,
   activeMode,
@@ -1135,8 +1136,7 @@ export function renderSettings() {
             ["off", t("composer.agent.off")],
           ],
           (v) => {
-            state.agent = ["auto", "on", "off"].includes(v) ? v : "auto";
-            store.set("bird.agent", state.agent);
+            state.agent = saveAgentMode(v, globalThis.localStorage, globalThis.sessionStorage);
             toast(t("toast.saved"), "ok");
           },
         ),

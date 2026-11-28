@@ -84,6 +84,29 @@ def ground(call, text: str, context: str) -> str:
         return "" if _grounded(q, src) else "query not in the user's words"
     if call.tool in ("lookup_entity", "find_commune"):
         return "" if _grounded(a["name"], src) else "name not in the user's words"
+    if call.tool == "get_quote":
+        return _ground_quote(a, src)
+    return ""
+
+
+def _ground_quote(a: dict, src: str) -> str:
+    """Each instrument the model wrote must be one the user's words name (a listed name, a ticker, a currency)."""
+    from birds.harness.finance_intents import _fx_words
+    from birds.harness.tools.opendata import finance, markets
+
+    try:
+        insts = finance.instruments_of(a)
+    except Exception:
+        return "not a listed instrument"
+    named = {i.key for i in markets.find_all(src)}
+    for i in insts:
+        if i.kind == "fx":
+            words = markets.fx_pair(_fx_words(src))
+            if not (words and {words.base, words.currency} >= {i.base, i.currency} - {"EUR"}):
+                return "currency not in the user's words"
+        elif i.key not in named and (i.kind == "crypto" or not _grounded(i.name, src)):
+            # a coin is named only as find_all reads it: « Bitcoin Cash » is not Bitcoin
+            return "instrument not in the user's words"
     return ""
 
 
@@ -109,6 +132,11 @@ _CUES = {
                                r"commande\s+publique|boamp|tenders?", re.I),
     "find_papers": re.compile(r"articles?|publi\w+|[ée]tudes?|papers?|recherches?|research|scientifi|acad[ée]mi|"
                               r"\bdoi\b|10\.\d{4,9}/|openalex|crossref|th[èe]ses?|litt[ée]rature|studies|works", re.I),
+    "get_quote": re.compile(
+        r"cours|bourse|boursi|actions?\b|cotation|cot[ée]|indices?\b|titres?\b|stocks?|shares?|prices?|prix|"
+        r"valeur|vaut|bitcoin|crypto|ether|\bbtc\b|\bcac\b|\bdax\b|nikkei|ftse|sbf|compar|versus|\bvs\b|"
+        r"[ée]volution|historique|history|graphique|courbe|chart|euros?\b|dollars?|livres?\b|yens?\b|francs?\b|"
+        r"devises?|currenc|\b[A-Z]{3}/[A-Z]{3}\b|performance|base\s+100", re.I),
     "find_commune": re.compile(r"code\s+postal|codes\s+postaux|postcode|zip|insee|commune|population|habitants|"
                                r"d[ée]partement|adresse|address|\d{5}|\d+\s*(?:bis|ter)?,?\s+(?:rue|av|bd|boulevard|"
                                r"avenue|place|chemin|all[ée]e|impasse|quai|route)", re.I),
@@ -118,6 +146,13 @@ _HOWTO = re.compile(r"\b(?:comment|how\s+(?:do|to|can|should)|pourquoi|why|expli
 _TEXT_TASK = re.compile(r"\b(?:summari[sz]\w*|translat\w*|rewrit\w*|proofread\w*|paraphras\w*|rephras\w*|"
                         r"tradui[rst]e?|traduisez|r[ée]sume[sz]?|reformule[sz]?|corrige[sz]?|orthographe|relis|"
                         r"mets\s+en\s+forme)\b", re.I)  # fmt: skip
+
+
+def _names_instrument(text: str) -> bool:
+    """« Safran, ça monte ? »: a listed instrument named is the market family's own word."""
+    from birds.harness.tools.opendata.markets import find_all
+
+    return bool(find_all(text))
 
 
 def veto_reason(call, text: str) -> str:
@@ -132,10 +167,21 @@ def veto_reason(call, text: str) -> str:
         return "open data false trigger (a task on the user's text)"  # « Translate into French: … » (not an address)
     if fires:
         return ""  # the family's own parser starts it too
-    if not _CUES[call.tool].search(t):
+    if not _CUES[call.tool].search(t) and not (call.tool == "get_quote" and _names_instrument(t)):
         return "open data: none of the family's words"
     if O._DELIVERABLE.search(t) or _TEXT_TASK.search(t) or _OWN_DATA.search(t):
         return "open data false trigger (writing or own data)"
+    if call.tool == "get_quote":
+        from birds.harness import finance_intents as F
+
+        strong = F._STRONG.search(t)
+        if (F._LESSON.search(t) or F._PRODUCT.search(t) or F._ACCOUNTS.search(t)) and not strong or F._OWN.search(t):
+            return "market false trigger (a lesson, a product, a company's accounts or the user's own holdings)"
+        if F._TASK.search(t) and not re.search(r"\b(?:cours|bourse|cotation|stock|share)", t, re.I):
+            return "market false trigger (« action » as a task)"
+        if F._HOWTO.search(t):
+            return "open data false trigger (how-to or definition)"
+        return ""
     if call.tool == "lookup_entity":
         name = str(call.args.get("name", ""))
         # « c'est quoi un KPI ? »: a common noun is a definition to write, not a card (a proper name or an acronym)
