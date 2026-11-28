@@ -134,6 +134,11 @@ OPENDATA_NO = [
     # a bare J+N counts calendar days: never a working-day card
     "Calcule J+30 sur la facture du 3 décembre",
     "échéance à J+45 à partir du 10 janvier",
+    # the user's leave, contract or project: a holiday calendar does not answer it
+    "combien de jours ouvrés de congés me reste-t-il ?",
+    "how many working days of leave do I have left?",
+    "combien de jours ouvrés dans mon contrat ?",
+    "Combien de jours ouvrés reste-t-il avant la fin du projet ?",
 ]
 
 # clear asks the parsers miss: router-only (router_data family "opendata_router"), never on the regex bench

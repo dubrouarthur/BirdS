@@ -82,6 +82,10 @@ _NOT_CALENDAR = re.compile(r"\b(?:pose[rz]?|prendre|prends|cong[ée]s?\s+pay[ée
                            r"r[ée]union|rdv|rendez-vous|meeting|majoration|pay[ée]s?\s+double|travaill[ée]|"
                            r"heures?\s+sup|salaire)\b", re.I)  # fmt: skip
 
+# the user's own leave, contract or project: a holiday calendar is not their balance or their deadline
+_CAL_OWN = re.compile(r"\b(?:me|mon|ma|mes|my|I\s+have|do\s+I|il\s+me|cong[ée]s?|leaves?|vacances|contrats?|"
+                      r"contracts?|projets?|projects?|solde|balance|reste-t-il|reste\s+t\s+il|left)\b", re.I)  # fmt: skip
+
 
 def _zone_words(t: str) -> str:
     f = cal.fold(t)
@@ -117,6 +121,8 @@ def calendar(text: str, lang: str = "fr", today: date | None = None) -> Intent |
             r"\b(?:comment|how (?:to|do|can)|diff[ée]rence|d[ée]finition|signifi\w*|veut dire|c'est quoi|qu'est-ce|"
             r"what is|what's the difference)\b", t, re.I):  # fmt: skip
         return None
+    if _CAL_OWN.search(t):
+        return None  # « combien de jours ouvrés de congés me reste-t-il ? », « … avant la fin du projet »
     hol, work, plus = _HOLIDAY.search(t), _WORKDAYS.search(t), _RX_PLUS.search(t)
     wd = _RX_WEEKDAY.search(t)
     if not (hol or work or plus or wd):
@@ -222,6 +228,8 @@ def own_data(tool: str, text: str) -> bool:
     t = _clean(text)
     if tool == "get_statistics":
         return bool(_STATS_OWN.search(t)) and not _CREATIONS_ASK.search(t)
+    if tool == "work_calendar":
+        return bool(_CAL_OWN.search(t))
     return False
 
 

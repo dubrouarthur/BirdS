@@ -239,6 +239,17 @@ def test_a_bare_j_plus_n_is_never_counted_in_working_days():
     assert opendata_route.ground(call, "J+30 ouvrés à partir du 3 décembre", "") == ""
 
 
+@pytest.mark.parametrize("ask", ["combien de jours ouvrés de congés me reste-t-il ?",
+                                 "how many working days of leave do I have left?",
+                                 "combien de jours ouvrés dans mon contrat ?",
+                                 "Combien de jours ouvrés reste-t-il avant la fin du projet ?"])  # fmt: skip
+def test_the_user_s_leave_contract_or_project_is_not_a_holiday_calendar(ask):
+    assert not any(i.args for i in opendata_intents.detect(ask, today=OD.TODAY))
+    model = R.Decision([], None, False, "model", {})
+    assert R.merge(model, R.regex_decision(ask), R.own_decision(ask)).get("work_calendar") is None
+    assert opendata_route.veto_reason(R.Call("work_calendar", {"period": "2026"}), ask)
+
+
 def test_the_veto_never_blocks_what_the_parser_itself_starts():
     for q, _tool, _args in OD.OPENDATA_YES:
         got = [i for i in opendata_intents.detect(q, False, "fr", today=OD.TODAY) if i.args]
