@@ -1078,9 +1078,11 @@ function updateComposer() {
   $("photo-note").textContent = canImages
     ? t("att.photo.note")
     : t("att.img.unsupported");
-  const nDocs = nAtt - images;
+  // the paperclip counts the images too where it is the only button (no photo button on a large screen)
+  const photoShown = photo.offsetParent !== null && getComputedStyle(photo).display !== "none";
+  const nDocs = photoShown ? nAtt - images : nAtt;
   $("btn-attach").dataset.count = nDocs ? String(nDocs) : "";
-  $("btn-photo").dataset.count = images ? String(images) : "";
+  $("btn-photo").dataset.count = images && photoShown ? String(images) : "";
   // most reasons stay for screen readers only; a pending approval is shown, with a way to reach the request
   const why = $("send-why");
   const shown = reason === "composer.send.pending" || reason === "composer.send.offline" || reason === "cx.ctx.lost.block";

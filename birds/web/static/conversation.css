@@ -348,3 +348,28 @@
   color: var(--link);
   font-size: 0.9rem;
 }
+
+/* ------------------------------------------------------------ attachment tray: every card in sight */
+/* the tray wraps on every screen (4 documents and 3 images at most): no card hides past the edge */
+.att-tray {
+  flex-wrap: wrap;
+  overflow-x: visible;
+  max-block-size: 40dvh;
+  overflow-y: auto;
+}
+.att-tray .att-in {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+/* keyboard open on a phone (little height left): one scrolling row again, so the conversation keeps its room */
+@media (max-width: 640px) and (max-height: 520px) {
+  .att-tray {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+  .att-tray .att-in {
+    flex: none;
+  }
+}

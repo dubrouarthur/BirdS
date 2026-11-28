@@ -220,7 +220,7 @@ export async function addImage(file, onChange) {
   item.view = await blobUrl(full, 0.85); // lightbox
   item.thumb = await blobUrl(canvasOf(bitmap, ...fit(bw, bh, 240)));
   bitmap.close?.();
-  if (!/\.jpe?g$/i.test(item.name)) item.name = `${item.name.replace(/\.[^.]+$/, "")}.jpg`;
+  // the name stays the user's own (« capture.png »), even though the pixels sent are a JPEG
   Object.assign(item, { url, w, h: hgt, status: "ready", sent: Math.round((url.length * 3) / 4) });
   announce(t("att.added", { name: item.name }));
   onChange();

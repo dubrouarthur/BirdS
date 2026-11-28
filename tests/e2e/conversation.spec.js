@@ -413,6 +413,40 @@ part("reload", async (page, name, fail, shot) => {
   await page.fill("#composer-input", "");
 });
 
+// ---------------------------------------------------------------- R21: the attachment tray
+part("tray", async (page, name, fail, shot) => {
+  await newChat(page);
+  const files = ["a-compte-rendu-long-nom.txt", "b-notes.md", "c-budget.csv"].map((n) => ({ name: n, mimeType: "text/plain", buffer: Buffer.from(DOC) }));
+  await page.setInputFiles("#file-input", [...files, { name: "capture-ecran.png", mimeType: "image/png", buffer: await png(page) }]);
+  await page.waitForFunction(() => document.querySelectorAll(".att-tray .att-card").length === 4, null, { timeout: 8000 }).catch(() => fail("R21: not 4 cards"));
+  await page.waitForTimeout(600);
+  const hidden = await page.evaluate(() => {
+    const tray = document.querySelector(".att-tray");
+    const box = tray.getBoundingClientRect();
+    return [...tray.querySelectorAll(".att-card")].filter((c) => {
+      const r = c.getBoundingClientRect();
+      return r.right > box.right + 1 && getComputedStyle(tray).overflowX === "visible";
+    }).length;
+  });
+  if (hidden) fail(`R21: ${hidden} card(s) cut off with no way to scroll`);
+  const scrollable = await page.evaluate(() => {
+    const t = document.querySelector(".att-tray");
+    return t.scrollWidth <= t.clientWidth + 1 || ["auto", "scroll"].includes(getComputedStyle(t).overflowX);
+  });
+  if (!scrollable) fail("R21: the tray overflows without scrolling");
+  const counts = await page.evaluate(() => {
+    const vis = (id) => { const el = document.getElementById(id); return el && el.offsetParent !== null ? Number(el.dataset.count || 0) : 0; };
+    return vis("btn-attach") + vis("btn-photo");
+  });
+  if (counts !== 4) fail(`R21: the buttons count ${counts} attachments for 4`);
+  if (!(await page.locator(".att-tray .att-name", { hasText: "capture-ecran.png" }).count())) fail("R21: the PNG was renamed");
+  await shot("r21-tray");
+  await page.locator(".att-tray .att-doc").first().click();
+  await page.waitForSelector("dialog.cx-preview[open]", { timeout: 3000 }).catch(() => fail("R21: a document card does nothing when clicked"));
+  await page.keyboard.press("Escape");
+  for (let i = 0; i < 4; i++) await page.locator(".att-tray .att-x").first().click().catch(() => {});
+});
+
 (async () => {
   const browser = await chromium.launch();
   const problems = [];
