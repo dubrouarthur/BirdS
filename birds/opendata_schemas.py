@@ -82,6 +82,19 @@ OPENDATA_SCHEMAS: list[dict] = [
         {"name": {**_S, "description": "A commune name (Roubaix) or a postal address."}},
         ["name"],
     ),
+    _fn(
+        "get_quote",
+        "Last price, change and price history of a listed share, a stock index, a crypto-asset or a currency pair "
+        "(shares: licensed market feed; crypto: CoinGecko; currencies: ECB reference rates), as a quote card and a "
+        "line chart; up to 3 instruments compared rebased to 100. Dated closes, never real time.",
+        {
+            "symbols": {**_S, "description": "1 to 3 names or tickers, comma separated, e.g. LVMH, Hermès; CAC 40; "
+                        "bitcoin; EUR/USD."},
+            "range": {"type": "string", "enum": ["1m", "6m", "1y", "5y"], "description": "Optional period (6m)."},
+            "currency": {"type": "string", "enum": ["EUR", "USD"], "description": "Optional: crypto prices in."},
+        },
+        ["symbols"],
+    ),
 ]
 OPENDATA_NAMES = [t["function"]["name"] for t in OPENDATA_SCHEMAS]
 OPENDATA_EXAMPLES = {
@@ -91,6 +104,7 @@ OPENDATA_EXAMPLES = {
     "find_tenders": '{"query": "nettoyage de locaux", "where": "59"}',
     "find_papers": '{"query": "batteries sodium-ion", "order": "recent"}',
     "find_commune": '{"name": "Roubaix"}',
+    "get_quote": '{"symbols": "LVMH, Hermès", "range": "1y"}',
 }
 # what the settings panel says about each tool (birds.web.server.tools_info)
 OPENDATA_TEXT = {
@@ -110,4 +124,8 @@ OPENDATA_TEXT = {
         "Communes and addresses (geo.api.gouv.fr, national address base)",
     ),
 }
-CHART_TOOLS = {"get_statistics"}  # draw into answer.charts: make_chart is withdrawn for that turn
+OPENDATA_TEXT["get_quote"] = (
+    "Cours de bourse, cryptoactifs et devises en fiche et graphique (Twelve Data, CoinGecko, BCE)",
+    "Share, crypto and currency prices as a card and a chart (Twelve Data, CoinGecko, ECB)",
+)
+CHART_TOOLS = {"get_statistics", "get_quote"}  # draw into answer.charts: make_chart is withdrawn for that turn

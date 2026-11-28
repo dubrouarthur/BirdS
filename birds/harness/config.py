@@ -76,6 +76,9 @@ class Config:
     # MET Norway's terms: identify the application and a contact site (never a person's name or e-mail)
     met_user_agent: str = "BirdHarness/0.1 (+https://bird-s.vercel.app)"
     geo_cache_dir: str | None = None  # optional disk cache (file names are hashes, never the query)
+    # markets (birds/harness/tools/opendata/finance.py): shares and indices need a licensed feed with display rights
+    twelvedata_api_key: str | None = field(default=None, repr=False)  # BIRD_TWELVEDATA_API_KEY
+    coingecko_api_key: str | None = field(default=None, repr=False)  # BIRD_COINGECKO_API_KEY (optional Demo key)
 
 
 @dataclass

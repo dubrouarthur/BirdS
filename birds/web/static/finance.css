@@ -1,0 +1,203 @@
+/* Quote card (finance.js). Up and down are said by a sign and an arrow too, never by colour alone; both colours
+   keep at least 4.5:1 on the card surface in light and dark (tests/js/finance.test.mjs checks the pairs). */
+:root {
+  --mkt-up: #12764a;
+  --mkt-down: #b3261e;
+  --mkt-flat: #586078;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --mkt-up: #5fd3a0;
+    --mkt-down: #f3a497;
+    --mkt-flat: #9ba6bc;
+  }
+}
+:root[data-theme="dark"] {
+  --mkt-up: #5fd3a0;
+  --mkt-down: #f3a497;
+  --mkt-flat: #9ba6bc;
+}
+
+.widget-quote .fin-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+.fin-head > h3 {
+  margin: 0;
+}
+.fin-ranges {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+.fin-range {
+  min-inline-size: 40px;
+  min-block-size: 32px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.fin-range:hover:not([disabled]) {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+.fin-range[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--line-strong);
+  cursor: default;
+}
+.fin-range:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.fin-list {
+  display: grid;
+  gap: 0;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.fin-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "id figures"
+    "trend trend"
+    "asof asof";
+  gap: 4px 12px;
+  padding-block: 12px;
+  border-block-start: 1px solid var(--line);
+}
+.fin-item:first-child {
+  border-block-start: 0;
+  padding-block-start: 4px;
+}
+.fin-id {
+  grid-area: id;
+  min-inline-size: 0;
+}
+.fin-name {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 650;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.fin-sym {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+.fin-figures {
+  grid-area: figures;
+  text-align: end;
+}
+.fin-price {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.fin-list.fin-multi .fin-price {
+  font-size: 1.2rem;
+}
+.fin-change {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0 6px;
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+.fin-base {
+  flex-basis: 100%;
+  font-size: 0.76rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+.fin-arrow {
+  font-size: 0.72em;
+}
+.fin-up {
+  color: var(--mkt-up);
+}
+.fin-down {
+  color: var(--mkt-down);
+}
+.fin-flat {
+  color: var(--mkt-flat);
+}
+.fin-trend {
+  grid-area: trend;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-inline-size: 0;
+}
+.fin-spark {
+  flex: 0 0 auto;
+  inline-size: 120px;
+  block-size: 32px;
+}
+.fin-spark polyline {
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.fin-period {
+  margin: 0;
+  font-size: 0.82rem;
+  min-inline-size: 0;
+}
+.fin-pp {
+  font-weight: 650;
+}
+.fin-asof {
+  grid-area: asof;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.fin-note {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+}
+.fin-advice {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.fin-source a + a {
+  margin-inline-start: 0.2em;
+}
+@media (max-width: 420px) {
+  .fin-price {
+    font-size: 1.3rem;
+  }
+  .fin-spark {
+    inline-size: 96px;
+  }
+  .fin-trend {
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+}

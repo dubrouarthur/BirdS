@@ -188,6 +188,17 @@ MODULES: tuple[Module, ...] = (
         (("code postal de Roubaix", {"name": "Roubaix"}),
          ("normalise l'adresse 8 bd du port 95000 cergy", {"name": "8 bd du port 95000 cergy"})),
     ),
+    # ---- markets (birds/harness/tools/opendata/finance.py): dated closes, quote card and history chart
+    Module(
+        "get_quote", PREFILL, "finance",
+        "cours de bourse, crypto ou devise, historique, comparaison",
+        "share, index, crypto or currency price, history, comparison",
+        {"symbols": Arg("str", True, fr="1 à 3 noms", en="1 to 3 names"),
+         "range": Arg("enum", choices=("1m", "6m", "1y", "5y"), fr="période", en="period")},
+        (("compare LVMH et Hermès sur 1 an", {"symbols": "LVMH, Hermès", "range": "1y"}),
+         ("cours du bitcoin", {"symbols": "bitcoin"}),
+         ("le CAC 40 sur 5 ans", {"symbols": "CAC 40", "range": "5y"})),
+    ),
     Module(
         "office", HINT, "office",
         "un fichier ou un brouillon : présentation, document, tableur, mail",

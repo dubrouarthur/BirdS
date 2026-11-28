@@ -179,7 +179,7 @@ def test_answers_are_cached_except_no_store_and_calls_are_capped(monkeypatch, li
 
 def test_the_catalogue_offers_the_six_open_data_modules_with_valid_grounded_examples():
     names = {m.name for m in catalog.MODULES if m.family == "opendata"}
-    assert names == set(OPENDATA_TOOLS)
+    assert names == set(OPENDATA_TOOLS) - {"get_quote"}  # the market module has its own family (tests/test_finance.py)
     for n in names:
         assert f"- {n}(" in catalog.text("fr") and f"- {n}(" in catalog.text("en")
     assert names <= R.available_names(Config(workspace=Path(".")))

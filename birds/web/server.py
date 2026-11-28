@@ -210,6 +210,8 @@ def harness_config(s: Settings) -> dict:
         "searxng_url": s.searxng_url,
         "brave_api_key": s.brave_api_key,
         "tavily_api_key": s.tavily_api_key,
+        "twelvedata_api_key": s.twelvedata_api_key,
+        "coingecko_api_key": s.coingecko_api_key,
         "search_default": s.search_default,
         "search_contact": s.search_contact,
         "pin_dns": s.pin_dns,

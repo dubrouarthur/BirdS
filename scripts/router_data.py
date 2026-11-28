@@ -193,10 +193,11 @@ def judge(decision, item) -> dict:
     if item["label"] == "no":
         return {"pred": bool(fired), "ok": not fired, "args": True}
     exp = item["expect"]
+    drawn = ("get_statistics", "get_quote")  # official figures or market prices drawn from the source itself
     if exp["tool"] == "make_chart":  # a trend of official figures drawn from the source itself is that chart
-        fired += [c for c in decision.modules if c.tool == "get_statistics"]
-    hit = [c for c in fired if not exp["tool"] or c.tool == exp["tool"] or (exp["tool"], c.tool) == ("make_chart",
-                                                                                                    "get_statistics")]
+        fired += [c for c in decision.modules if c.tool in drawn]
+    hit = [c for c in fired if not exp["tool"] or c.tool == exp["tool"] or (exp["tool"] == "make_chart"
+                                                                            and c.tool in drawn)]
     good = bool(hit) and args_ok(hit[0], exp)
     return {"pred": bool(hit), "ok": good, "args": good or not hit}
 
