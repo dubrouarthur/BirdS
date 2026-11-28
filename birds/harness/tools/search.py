@@ -126,8 +126,9 @@ class SearxngBackend:
             data, used = self._ask(query, lang, spare), "fallback"
             down = [str(e[0]) for e in data.get("unresponsive_engines") or [] if isinstance(e, (list, tuple)) and e]
         results = data.get("results") or []
-        if used == "fallback":  # bing and yahoo through SearXNG add home pages and broken links: kept out
-            results = [x for x in results if _article(x.get("url"))]
+        if used == "fallback":  # bing and yahoo add broken links and their own pages: kept out; home pages go last
+            results = [x for x in results if _link(x.get("url"))]
+            results = [x for x in results if _article(x.get("url"))] + [x for x in results if not _article(x.get("url"))]
         if not results and down:
             raise SearchError("search_unavailable", f"{self.label}: no engine answered ({', '.join(down[:4])})")
         if results and used == "default":
@@ -142,6 +143,24 @@ class SearxngBackend:
             }
             for x in results[:n]
         ]
+
+
+_ENGINE_HOSTS = re.compile(r"(^|\.)(bing|yahoo|brave|duckduckgo|google|msn)\.[a-z.]+$")
+_ENGINE_PATHS = ("/search", "/ck/", "/aclick", "/go/", "/url", "/r/")
+
+
+def _link(url) -> bool:
+    """A usable result link: http(s), a real host, and not the search engine's own home or redirect page
+    (``in.bing.com/``, ``bing.com/ck/…``). A site's home page stays: it is the answer to « le site de la mairie »."""
+    from urllib.parse import urlsplit
+
+    try:
+        p = urlsplit(str(url or ""))
+    except ValueError:
+        return False
+    host = p.hostname or ""
+    engine_page = _ENGINE_HOSTS.search(host) and (p.path.strip("/") == "" or p.path.startswith(_ENGINE_PATHS))
+    return p.scheme in ("http", "https") and "." in host and not engine_page
 
 
 def _article(url) -> bool:

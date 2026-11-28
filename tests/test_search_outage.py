@@ -110,3 +110,32 @@ def test_searxng_then_brave_then_wikipedia_when_a_brave_key_is_set(tmp_path):
         del os.environ["BIRD_SEARXNG_FALLBACK"]
     assert got[0]["title"] == "Carrefour Saint-Cloud"
     assert s.last["label"] == "Brave Search" and s.last["fallback_from"] == "SearXNG"
+
+
+def test_fallback_keeps_an_official_home_page_after_the_articles():
+    """« Site de la mairie de Saint-Cloud » in degraded mode: the town's home page is the answer, so it is kept (after
+    the article pages); the engine's own pages and broken links are still kept out."""
+    rows = [
+        {"title": "Bing", "url": "https://in.bing.com/"},
+        {"title": "r", "url": "https://www.bing.com/ck/a?u=xyz"},
+        {"title": "x", "url": "http:///go/v1/Ab"},
+        {"title": "Mairie de Saint-Cloud", "url": "https://www.saintcloud.fr/"},
+        {"title": "Horaires", "url": "https://www.saintcloud.fr/horaires"},
+        {"title": "Aide Google", "url": "https://support.google.com/maps/answer/1"},
+    ]
+
+    def handler(req):
+        q = parse_qs(urlsplit(str(req.url)).query)
+        if q.get("engines"):
+            return httpx.Response(200, json={"results": rows, "unresponsive_engines": []})
+        return httpx.Response(200, json={"results": [], "unresponsive_engines": DOWN})
+
+    out = S.SearxngBackend("https://searx.example", httpx.Client(transport=httpx.MockTransport(handler))).search(
+        "site mairie saint-cloud", 10
+    )
+    urls = [x["url"] for x in out]
+    assert urls == [
+        "https://www.saintcloud.fr/horaires",
+        "https://support.google.com/maps/answer/1",
+        "https://www.saintcloud.fr/",
+    ]
