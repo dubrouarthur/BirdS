@@ -51,6 +51,8 @@ def ground(call, text: str, context: str) -> str:
             cal.parse_period(str(a["period"]), date.today())
         except Exception:
             return "period is not a year, a month or a date"
+        if a.get("add_days") and not O._WORKDAYS.search(src):
+            return "working days not in the user's words"  # a bare « J+30 » counts calendar days
         z = str(a.get("zone") or "")
         if z and cal.zone_of(z) not in ("metropole", "") and cal.zone_of(z) != cal.zone_of(O._zone_words(src)):
             if not _grounded(z, src):

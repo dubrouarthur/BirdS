@@ -229,6 +229,16 @@ def test_no_country_is_filled_in_when_the_user_named_none():
     assert _ask("évolution du chômage en France depuis 2015")[1]["places"] == "France"
 
 
+def test_a_bare_j_plus_n_is_never_counted_in_working_days():
+    """« J+30 sur la facture du 3 décembre » is 2 January 2027 in calendar days, not 18 January in working days."""
+    ask = "Calcule J+30 sur la facture du 3 décembre"
+    assert not any(i.args for i in opendata_intents.detect(ask, today=OD.TODAY))
+    call = R.Call("work_calendar", {"period": "2026-12-03", "add_days": 30})
+    assert "working days" in opendata_route.ground(call, ask, "")
+    assert _ask("J+30 ouvrés à partir du 3 décembre")[1]["add_days"] == 30
+    assert opendata_route.ground(call, "J+30 ouvrés à partir du 3 décembre", "") == ""
+
+
 def test_the_veto_never_blocks_what_the_parser_itself_starts():
     for q, _tool, _args in OD.OPENDATA_YES:
         got = [i for i in opendata_intents.detect(q, False, "fr", today=OD.TODAY) if i.args]

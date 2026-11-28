@@ -124,7 +124,9 @@ def calendar(text: str, lang: str = "fr", today: date | None = None) -> Intent |
     if _NOT_CALENDAR.search(t) and not (plus or wd):
         return None  # « pose un congé le 8 mai », « réunion le jour férié »: an event or an HR question
     zone = _zone_words(t)
-    if plus and (work or re.search(r"\b[jJ]\s*\+", t)):
+    if plus and not work:
+        return None  # « J+30 sur la facture »: calendar days in France, a sum for the model, never working days
+    if plus:
         n = int(plus.group(1) or plus.group(2))
         m = _RX_FROM.search(t)
         start = _iso(m.group("d"), today) if m else ""

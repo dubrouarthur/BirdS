@@ -131,6 +131,9 @@ OPENDATA_NO = [
     "Inflation des salaires dans l'équipe depuis 2020",
     "the unemployment rate in my team since 2015",
     "le chômage depuis 2015",
+    # a bare J+N counts calendar days: never a working-day card
+    "Calcule J+30 sur la facture du 3 décembre",
+    "échéance à J+45 à partir du 10 janvier",
 ]
 
 # clear asks the parsers miss: router-only (router_data family "opendata_router"), never on the regex bench
