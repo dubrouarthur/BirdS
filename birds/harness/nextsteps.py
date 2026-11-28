@@ -251,6 +251,10 @@ _BIRD_VOICE = re.compile(
 # carried over from a page or a pasted text, never a request the user would click
 _UNSAFE = re.compile(
     r"https?://|www\.|[\w.+-]+@[\w-]+\.\w|[<>{}\[\]`|\\]|"
+    # a bare domain or a short link (« bit.ly/promo2027 », « exemple-promo.fr »), lower-case top-level part, not a
+    # file name (« rapport.pdf ») nor an initial (« M.Dupont »)
+    r"(?-i:(?<![\w@.])[a-z0-9][\w-]*(?:\.[\w-]+)*\.(?!(?:pdf|docx?|xlsx?|pptx?|odt|ods|odp|csv|txt|md|json|ics|"
+    r"png|jpe?g|gif|webp|svg|zip)\b)[a-z]{2,24}\b)|"
     r"\b(?:ignore|oublie|disregard|system prompt|invite syst[èe]me|instructions? (?:pr[ée]c[ée]dentes?|previous)|"
     r"previous instructions|jailbreak|mot de passe|password|api key|cl[ée] d'api|token)\b",
     re.I,
