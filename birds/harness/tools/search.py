@@ -72,25 +72,65 @@ def _clean(text) -> str:
     return " ".join(html.unescape(text).split())
 
 
+# Engines a SearXNG instance can query without a key or a CAPTCHA, asked by name when its default engines answer
+# nothing (``engines=`` reaches an engine even when the instance has it off). Probe of the production instance,
+# 28/11/2026: duckduckgo (CAPTCHA) and google cse (suspended) answered 0 results; bing 10, brave 20, yahoo 7;
+# qwant « access denied »; mojeek, startpage, wikipedia not installed. ``BIRD_SEARXNG_FALLBACK`` overrides the list.
+FALLBACK_ENGINES = ("bing", "brave", "yahoo")
+DEGRADED_S = 300.0  # once the default engines failed, the fallback engines are asked first for this long
+_DEGRADED: dict[str, float] = {}
+
+
+def fallback_engines() -> tuple[str, ...]:
+    import os
+
+    raw = os.environ.get("BIRD_SEARXNG_FALLBACK")
+    if raw is None:
+        return FALLBACK_ENGINES
+    return tuple(e.strip() for e in raw.split(",") if re.fullmatch(r"[\w .-]{2,40}", e.strip()))
+
+
 class SearxngBackend:
     """SearXNG JSON API (`/search?format=json`; the instance must enable the json format).
 
-    The base URL is set by the operator, not by the model, so it may be a local address.
+    The base URL is set by the operator, not by the model, so it may be a local address. An answer with no result
+    while engines were unresponsive (CAPTCHA, suspended, timeout) is an outage, not « no results »: the keyless
+    fallback engines are asked by name, and when they answer nothing either a ``search_unavailable`` error lets
+    ``FallbackSearch`` answer from Wikipedia. ``last`` says which engines answered.
     """
 
     name, label = "searxng", "SearXNG"
 
-    def __init__(self, base_url: str, http, timeout: float = 10.0):
+    def __init__(self, base_url: str, http, timeout: float = 10.0, clock=None):
+        import time
+
         self.url, self.http, self.timeout = base_url.rstrip("/") + "/search", http, timeout
+        self.clock = clock or time.monotonic
+        self.last: dict = {}
+
+    def _ask(self, query: str, lang: str | None, engines: tuple[str, ...] = ()) -> dict:
+        params = {"q": query, "format": "json", **({"language": lang} if lang else {})}
+        if engines:
+            params["engines"] = ",".join(engines)
+        r = self.http.get(self.url, params=params, timeout=self.timeout)
+        return _json(r, self.label)
 
     def search(self, query: str, n: int, lang: str | None = None) -> list[dict]:
-        params = {"q": query, "format": "json", **({"language": lang} if lang else {})}
-        r = self.http.get(self.url, params=params, timeout=self.timeout)
-        data = _json(r, self.label)
-        if not data.get("results") and data.get("unresponsive_engines"):
-            # HTTP 200 with nothing found because its engines refused (CAPTCHA, suspended): an outage, not an answer
-            dead = ", ".join(str(e[0]) for e in data["unresponsive_engines"] if e)
-            raise SearchError("search_unavailable", f"{self.label}: no engine answered ({dead})")
+        spare = fallback_engines()
+        degraded = _DEGRADED.get(self.url, 0.0) > self.clock()
+        data = self._ask(query, lang, spare if degraded and spare else ())
+        down = [str(e[0]) for e in data.get("unresponsive_engines") or [] if isinstance(e, (list, tuple)) and e]
+        used = "fallback" if degraded and spare else "default"
+        if not data.get("results") and down and spare and not degraded:
+            _DEGRADED[self.url] = self.clock() + DEGRADED_S
+            data, used = self._ask(query, lang, spare), "fallback"
+            down = [str(e[0]) for e in data.get("unresponsive_engines") or [] if isinstance(e, (list, tuple)) and e]
+        results = data.get("results") or []
+        if not results and down:
+            raise SearchError("search_unavailable", f"{self.label}: no engine answered ({', '.join(down[:4])})")
+        if results and used == "default":
+            _DEGRADED.pop(self.url, None)
+        self.last = {"engines": used, **({"down": down[:6]} if down else {})}
         return [
             {
                 "title": x.get("title") or "",
@@ -98,8 +138,39 @@ class SearxngBackend:
                 "snippet": x.get("content") or "",
                 **_image(x.get("thumbnail") or x.get("img_src")),
             }
-            for x in (data.get("results") or [])[:n]
+            for x in results[:n]
         ]
+
+
+def probe(base_url: str, http, *, query: str = "Paris", timeout: float = 4.0) -> dict:
+    """The health of a SearXNG instance (``/api/health``): results on a canary query with its default engines, the
+    engines that answered, the unresponsive ones and why, and whether the fallback engines answer. Never raises."""
+    import time
+
+    url = base_url.rstrip("/") + "/search"
+    out: dict = {"backend": "searxng", "query": query}
+    t0 = time.monotonic()
+    for key, engines in (("default", ()), ("fallback", fallback_engines())):
+        if key == "fallback" and (out.get("results") or not engines):
+            break
+        params = {"q": query, "format": "json", **({"engines": ",".join(engines)} if engines else {})}
+        try:
+            r = http.get(url, params=params, timeout=timeout)
+            data = _json(r, "SearXNG")
+        except Exception as e:  # noqa: BLE001 - the probe reports, never raises
+            out[key] = {"ok": False, "error": e.code if isinstance(e, SearchError) else type(e).__name__}
+            continue
+        results = data.get("results") or []
+        alive = sorted({str(en) for x in results for en in (x.get("engines") or [])})
+        down = [{"engine": str(e[0]), "why": str(e[1])[:80] if len(e) > 1 else ""}
+                for e in data.get("unresponsive_engines") or [] if isinstance(e, (list, tuple)) and e]  # fmt: skip
+        out[key] = {"ok": bool(results), "results": len(results), "alive": alive, "unresponsive": down,
+                    **({"engines": list(engines)} if engines else {})}  # fmt: skip
+        out["results"] = out.get("results", 0) or len(results)
+    out["ok"] = bool((out.get("default") or {}).get("ok"))
+    out["degraded"] = not out["ok"] and bool((out.get("fallback") or {}).get("ok"))
+    out["seconds"] = round(time.monotonic() - t0, 2)
+    return out
 
 
 class BraveBackend:
@@ -276,7 +347,8 @@ class FallbackSearch:
     def search(self, query: str, n: int, lang: str | None = None) -> list[dict]:
         try:
             results = self.primary.search(query, n, lang=lang)
-            self.last = {"backend": self.primary.name, "label": self.primary.label}
+            self.last = {"backend": self.primary.name, "label": self.primary.label,
+                         **dict(getattr(self.primary, "last", None) or {})}  # fmt: skip
             return results
         except Exception as e:  # noqa: BLE001 - any failure of the keyed backend: try the free one
             code = e.code if isinstance(e, SearchError) else "search_failed"

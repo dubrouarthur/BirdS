@@ -1879,6 +1879,7 @@ _SEARCH_CODES = {
     "search_unauthorized": ("Clé de l'API de recherche refusée", "Search API key refused"),
     "search_bad_request": ("Requête refusée par le moteur de recherche", "Query refused by the search engine"),
     "search_failed": ("Le moteur de recherche n'a pas répondu", "The search engine did not answer"),
+    "search_unavailable": ("Recherche web indisponible pour le moment", "Web search unavailable for now"),
 }
 
 

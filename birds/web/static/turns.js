@@ -239,7 +239,7 @@ function renderSteps(turn) {
           ),
           step.info?.label &&
             h("span", {
-              class: `badge badge-src${step.info.fallback_from ? " badge-warn" : ""}`,
+              class: "badge badge-src", // a fallback is a calm line in the step, never a warning
               title: step.info.fallback_from
                 ? t("steps.fallback", { from: step.info.fallback_from, label: step.info.label })
                 : t("steps.via", { label: step.info.label }),
