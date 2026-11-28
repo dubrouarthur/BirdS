@@ -14,7 +14,7 @@ const path = require("path");
 const fs = require("fs");
 
 const BASE = (process.env.BIRD_URL || "http://127.0.0.1:9461").replace(/\/$/, "");
-const OUT = process.env.SHOTS || path.join(__dirname, "shots", "brand");
+const OUT = process.env.SHOTS || path.join(require("os").tmpdir(), "bird-brand-shots");
 const ONLY = process.env.ONLY || "";
 fs.mkdirSync(OUT, { recursive: true });
 const SECTIONS = "body > section, main > section, body > footer, main > footer";
