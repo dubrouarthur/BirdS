@@ -13,9 +13,9 @@ previous period, moving average, correlation, distribution) or ``null`` when the
 stacked, combo, heatmap) or ``auto``. The harness checks the spec (``query.normalize``) and runs it: every number
 of the answer comes from the engine.
 
-The fixed templates of ``ask.py`` keep three roles, as for the module router (``router.py``): hints in the prompt,
-the fallback when the endpoint is unavailable, slow or answers something unusable, and in ``hybrid`` mode (the
-default, as ``BIRD_ROUTER``) a confident template the model left out is kept. A follow-up (« en courbe plutôt »,
+The fixed templates of ``ask.py`` keep two roles: hints in the prompt, and the fallback when the endpoint is
+unavailable, slow or answers something unusable. An explicit ``null`` from the model is its decision: no template
+overrules it, in ``hybrid`` mode (the default, as ``BIRD_ROUTER``) too. A follow-up (« en courbe plutôt »,
 « seulement le top 5 », « par trimestre ») gets the previous turn's spec, written in the memo by the server, and
 the model edits it; without a model, ``revise`` applies the same edits by rule.
 """
@@ -44,7 +44,6 @@ STOP = ["<|im_end|>", "<|endoftext|>", "\n\n"]
 PREFIX = '{"analysis":'
 KEYS = frozenset({"op", "measure", "agg", "by", "time", "period", "pivot", "filters", "sort", "top", "share", "window",
                   "change", "years", "x", "y"})
-CONFIDENT = ("template", "revised", "correlation", "describe")  # the rules' plans hybrid mode keeps
 MEMO_RE = re.compile(r"\[(?:Analyse de|Analysis of) « [^»\n]{0,120} » — (\{.*?\})\]")
 
 _HEAD = {
@@ -419,14 +418,8 @@ def decide(llm, tok, f: Frame, question: str, *, history=None, lang: str = "fr",
     if plan and plan.get("repaired"):
         meta["repaired"] = plan.pop("repaired")
     meta["model"] = {"analysis": plan["query"] if plan else None, "chart": plan.get("chart") if plan else None}
-    if (
-        plan is None
-        and base is not None
-        and mode == "hybrid"
-        and base.get("why") in ("template", "revised", "corr", "describe")
-    ):
-        meta["kept_rule"] = True  # a confident template the model left out (hybrid, as the module router)
-        return Planned(base, "hybrid", meta)
+    # an explicit null is the model's decision (« Quelle est la population de Canberra ? » with a table in the
+    # conversation): the rules never overrule it; they only stand in when the call itself failed (above)
     if plan is not None and not plan.get("chart") and base and base.get("query") == plan["query"]:
         plan["chart"] = base.get("chart")
     return Planned(plan, "model", meta)

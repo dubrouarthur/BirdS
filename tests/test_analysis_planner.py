@@ -98,13 +98,20 @@ def test_model_decides_and_its_chart_is_kept(frame):
     assert llm.calls[0]["max_tokens"] == P.MAX_TOKENS
 
 
-def test_model_null_is_respected_unless_a_confident_template_hybrid(frame):
-    got = P.decide(Scripted({"analysis": None, "chart": "auto"}), TOK, frame, "résume ce fichier", mode="hybrid")
-    assert got.source == "model" and got.plan is None
-    got = P.decide(Scripted({"analysis": None, "chart": "auto"}), TOK, frame, "top 5 des produits", mode="hybrid")
-    assert got.source == "hybrid" and got.plan["query"]["top"] == 5 and got.meta["kept_rule"]
-    got = P.decide(Scripted({"analysis": None, "chart": "auto"}), TOK, frame, "top 5 des produits", mode="model")
-    assert got.source == "model" and got.plan is None
+@pytest.mark.parametrize("mode", ["hybrid", "model"])
+@pytest.mark.parametrize("question", ["résume ce fichier", "top 5 des produits", "Quelle est la population de Canberra ?",
+                                      "Combien font 17 x 23 ?", "corrélation entre Quantité et Prix unitaire (€)",
+                                      "distribution de Quantité"])  # fmt: skip
+def test_an_explicit_null_from_the_model_is_never_overruled_by_a_template(frame, mode, question):
+    # review 28/11/2026: hybrid kept « sum of CA (€) » over the model's null for any « quel / combien » question
+    got = P.decide(Scripted({"analysis": None, "chart": "auto"}), TOK, frame, question, mode=mode)
+    assert got.source == "model" and got.plan is None and "kept_rule" not in got.meta
+
+
+def test_the_rules_stand_in_only_when_the_call_fails(frame):
+    q = "corrélation entre Quantité et Prix unitaire (€)"  # why="correlation": the template hybrid never kept
+    got = P.decide(Scripted(EndpointError("timeout", "asleep")), TOK, frame, q, mode="hybrid")
+    assert got.source == "fallback" and got.plan["query"]["op"] == "corr"
 
 
 @pytest.mark.parametrize(

@@ -704,9 +704,9 @@ Code : `birds/harness/analysis/` (lecture `table.py`, profil `profile.py`, moteu
   fermée : regroupement, filtre, croisement (`pivot`), top-N, parts, comparaison de deux années, **évolution en %
   d'une période à l'autre** (`change`), **moyenne mobile** (`window`), corrélation, distribution. Aucun code du
   modèle n'est exécuté : le harnais vérifie la spécification (`query.normalize`, clés inconnues refusées) puis calcule.
-- **Les règles fixes** (`ask.py`) ne sont que des indices dans le prompt, le filet de secours (endpoint endormi, trop
-  lent, JSON inutilisable) et, en mode `hybrid` (le même réglage que `BIRD_ROUTER`), un gabarit sûr que le modèle
-  aurait laissé de côté.
+- **Les règles fixes** (`ask.py`) ne sont que des indices dans le prompt et le filet de secours (endpoint endormi,
+  trop lent, JSON inutilisable). Un `null` explicite du modèle est sa décision : aucun gabarit ne le contredit, en
+  mode `hybrid` (le même réglage que `BIRD_ROUTER`) comme en mode `model`.
 - **Graphique choisi par le modèle** parmi barres, barres horizontales, courbe, aire, nuage de points, anneau, empilé,
   combiné (barres + courbe, 2e axe) et carte de chaleur, dessiné en SVG maison (clair / sombre, tableau de données
   accessible « Données du graphique », export PNG / SVG / CSV). Un choix qui ne convient pas au résultat (un anneau pour
