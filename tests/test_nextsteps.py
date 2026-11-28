@@ -88,6 +88,20 @@ def test_lengths_language_duplicates_and_three_at_most():
     assert en and N.validate(obj(("Rédige l'invitation", "Rédige l'invitation pour le séminaire.")), lang="en")[0] == []
 
 
+def test_short_chips_in_the_other_language_are_dropped():
+    """Issue: two English stopwords and no French one were needed, so « Shorten it » passed in French."""
+    for label, prompt in (("Shorten it", "Shorten the email."), ("Make it warmer", "Make it warmer.")):
+        assert N.validate(obj((label, prompt)), lang="fr") == ([], [(label, "language")])
+    for label, prompt in (("Raccourcis-le", "Raccourcis le mail."), ("Fais la version courte", "Fais-la courte.")):
+        assert N.validate(obj((label, prompt)), lang="en") == ([], [(label, "language")])
+    for label, prompt, lang in (("Fais un post LinkedIn", "Fais un post LinkedIn sur le lancement.", "fr"),
+                                ("Ajoute une section sur les KPI", "Ajoute une section KPI.", "fr"),
+                                ("Compare avec un prêt à 3 %", "Recalcule la mensualité à 3 %.", "fr"),
+                                ("Translate it into French", "Translate the email into French.", "en"),
+                                ("Propose three title options", "Propose three title options.", "en")):
+        assert N.validate(obj((label, prompt)), lang=lang)[0], label
+
+
 def test_labels_cut_by_the_schema_end_on_a_whole_word():
     # the labels the live run of 28/11/2026 got cut at 42 characters by the endpoint (docs/HARNESS.md § 17)
     assert N.tidy_label("Ajoute une diapositive sur les modalités d") == "Ajoute une diapositive sur les modalités"

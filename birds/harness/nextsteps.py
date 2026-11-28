@@ -322,14 +322,26 @@ _NEEDS = (
     (re.compile(r"\b(?:articles?|publications?) scientifiques?\b|\bscientific papers?\b|\bdoi\b", re.I),
      "find_papers"),
 )  # fmt: skip
-_FR_W = re.compile(r"\b(?:le|la|les|des|du|un|une|et|en|au|aux|pour|avec|sur|dans|ce|cette|ces|ta|ton|tes|mon|ma|"
-                   r"mes|plus|qui|que|à|de)\b", re.I)  # fmt: skip
-_EN_W = re.compile(r"\b(?:the|a|an|and|for|with|on|in|this|that|these|your|my|more|of|to|into|which)\b", re.I)
+# the language of a 2-12 word request: function words and the imperatives chips start with, in each language
+# (the words both languages share, « compare », « propose », « change », « structure », count for neither)
+_FR_W = frozenset("""le la les l des du un une et en au aux pour avec sur dans ce cette ces ta ton tes mon ma mes
+plus qui que à de d sans par entre leur leurs notre nos votre vos chaque tous toutes ajoute fais rédige écris traduis
+raccourcis résume donne montre trouve calcule liste prépare crée rends développe simplifie reformule explique
+détaille cherche précise corrige rajoute remplace mets passe garde enlève supprime refais propose-moi""".split())
+_EN_W = frozenset("""the a an and for with on in this that these those your my more of to into which it its them
+their our by from about each all add make write draft translate shorten summarize summarise give show find calculate
+list prepare create rewrite expand simplify rephrase explain detail search fix replace put turn keep remove delete
+redo shorter longer warmer""".split())
+_WORD = re.compile(r"[a-zà-öø-ÿœæ]+", re.I)
 
 
 def wrong_language(text: str, lang: str) -> bool:
-    fr, en = len(_FR_W.findall(text)), len(_EN_W.findall(text))
-    return (en >= 2 and fr == 0) if lang == "fr" else (fr >= 2 and en == 0)
+    """A chip in the other language than the conversation: more of that language's words than of its own (accents
+    count as French). Works on « Shorten it » as on a full sentence."""
+    words = [w.lower() for w in _WORD.findall(text)]
+    fr = sum(w in _FR_W for w in words) + (2 if re.search(r"[éèêëàâùûçôîïœ]", text, re.I) else 0)
+    en = sum(w in _EN_W for w in words)
+    return (en > fr) if lang == "fr" else (fr > en)
 
 
 def _clean(v) -> str:
