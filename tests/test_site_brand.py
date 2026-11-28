@@ -29,10 +29,10 @@ def test_no_placeholder_address_and_no_contact_link_that_cannot_write(page):
     m = re.search(r'<section class="section contact" id="contact"[^>]*>.*?</section>', html, re.S)
     assert "data-contact-only hidden" in m.group(0)[:200]
     rest = html[: m.start()] + html[m.end() :]  # outside the (hidden) Contact section
-    for a in re.findall(r'<(?:a|li)\b[^>]*>(?:<a [^>]*>)?', rest):
+    for a in re.findall(r"<(?:a|li)\b[^>]*>(?:<a [^>]*>)?", rest):
         if "#contact" in a or "data-contact" in a:
             assert "data-contact-only hidden" in a, a
-    for a, label in re.findall(r'(<a [^>]*>)([^<]*)', rest):  # a « write to us » label is hidden without an address
+    for a, label in re.findall(r"(<a [^>]*>)([^<]*)", rest):  # a « write to us » label is hidden without an address
         if re.search(r"Nous écrire|Write to us|Parler de votre|Tell us about|Talk about your", label):
             assert "data-contact-only hidden" in a, a
 
@@ -109,3 +109,28 @@ def test_runtime_system_keeps_the_trained_text_and_adds_the_brand():
         assert RUNTIME_SYSTEM[lang].endswith(BRAND_NOTE[lang])
     assert "en France" in BRAND_NOTE["fr"] and "in France" in BRAND_NOTE["en"]
     assert not re.search(r"qwen|gpu", " ".join(BRAND_NOTE.values()), re.I)
+
+
+@pytest.mark.parametrize("page", ["index.html", "en/index.html"])
+def test_reference_copy_holds_the_live_hero_and_where_section(page):
+    """site/COPY.md keeps the published brand blocks word for word, in both languages."""
+    import html as h
+
+    copy = text(SITE / "COPY.md")
+    live = text(SITE / page)
+    for pattern in (
+        r'<p class="lede">(.*?)</p>',
+        r'<p class="hero-text">(.*?)</p>',
+        r'id="where-h">(.*?)</h2>',
+        r'class="where-foot"><span>(.*?)</span>',
+    ):
+        m = re.search(pattern, live, re.S)
+        assert m, pattern
+        words = h.unescape(re.sub(r"<[^>]+>", "", m.group(1))).replace(" ", " ").strip()
+        assert words.rstrip(".") in re.sub(r"\s+", " ", copy.replace("*", "")), words
+
+
+def test_reference_copy_english_half_is_english():
+    copy = text(SITE / "COPY.md")
+    en = copy[copy.index("# ENGLISH VERSION") : copy.index("## RSE & sobriété")]
+    assert "Nous écrire" not in en and "Write to us" in en
