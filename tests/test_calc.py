@@ -45,6 +45,34 @@ def test_exact_results(q, want):
     assert want in f, (q, f)
 
 
+
+@pytest.mark.parametrize(
+    "q, lang, want",
+    [  # thousands separators read in the user's language: « 1,200 » is twelve hundred in English, 1.2 in French
+        ("What is the monthly payment on a 300,000 € loan over 25 years at 4%?", "en", "Monthly payment: 1,583.51 €"),
+        ("What is 15% of 1,200?", "en", "15% of 1,200: 180."),
+        ("Bought at 1,000 €, sold at 1,500 €, what is the margin?", "en", "Margin: 500 €"),
+        ("What is 10% of 1,250,000.50?", "en", "125,000.05"),
+        ("What is 15% of 2.5?", "en", "0.38"),
+        ("mensualité d'un prêt de 1.250.000 € sur 25 ans à 4 %", "fr", "Mensualité : 6\u202f597,96\u202f€"),
+        ("combien font 10 % de 1,250,000 ?", "fr", "125\u202f000"),
+        ("combien font 50 % de 1,5 ?", "fr", "0,75"),
+        ("combien font 10 % de 1.234,5 ?", "fr", "123,45"),
+    ],
+)
+def test_thousands_separators_follow_the_language(q, lang, want):
+    w, f = facts(q, lang)
+    assert w and w["type"] == "calc", q
+    assert want in f, (q, f)
+
+
+def test_number_reads_grouping_by_language():
+    assert calc.number("1,200", "en") == 1200 and calc.number("1,200", "fr") == Decimal("1.2")
+    assert calc.number("1.250.000", "fr") == calc.number("1.250.000", "en") == 1250000
+    assert calc.number("1,250,000", "fr") == 1250000 and calc.number("1,200.50", "en") == Decimal("1200.50")
+    assert calc.number("3,5", "en") == Decimal("3.5") and calc.number("1.5", "en") == Decimal("1.5")
+
+
 @pytest.mark.parametrize(
     "q",
     [

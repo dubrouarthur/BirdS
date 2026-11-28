@@ -12,22 +12,37 @@ Currencies are left to ``convert_currency`` (« 100 dollars en euros » is a rat
 from __future__ import annotations
 
 import re
+from contextvars import ContextVar
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation, getcontext
 
 getcontext().prec = 40
 
 # ------------------------------------------------------------------ numbers
 
-_NUM = r"(?:\d{1,3}(?:[   ]\d{3})+|\d+)(?:[.,]\d+)?"
+# grouped thousands first (« 1 250 000 », « 1.250.000 », « 1,250,000 », « 1,200.50 », « 1.234,5 »), then plain
+_NUM = (r"(?:\d{1,3}(?:[\u00a0\u202f ]\d{3})+(?:[.,]\d+)?|\d{1,3}(?:\.\d{3})+,\d+|\d{1,3}(?:,\d{3})+\.\d+"
+        r"|\d{1,3}(?:\.\d{3}){2,}|\d{1,3}(?:,\d{3}){2,}|\d+(?:[.,]\d+)?)")
 _MULT = {"k": Decimal(1000), "m": Decimal(1_000_000), "md": Decimal(1_000_000_000), "mds": Decimal(1_000_000_000)}
 _EUR = r"(?:\s?(?:€|euros?|eur)\b|\s?€)"
+_LANG: ContextVar[str] = ContextVar("calc_lang", default="fr")
 
 
-def number(raw: str) -> Decimal | None:
-    """« 1 200,50 » -> 1200.50 ; « 3,5 » -> 3.5 ; « 1.234,5 » (thousands dot) -> 1234.5."""
-    s = re.sub(r"[   ]", "", str(raw or "").strip())
-    if re.fullmatch(r"\d{1,3}(?:\.\d{3})+(?:,\d+)?", s):
+def number(raw: str, lang: str | None = None) -> Decimal | None:
+    """« 1 200,50 » -> 1200.50 ; « 3,5 » -> 3.5 ; « 1.234,5 » / « 1.250.000 » (thousands dots) -> 1234.5 / 1250000.
+
+    The comma depends on the language: in English « 1,200 » is twelve hundred (a comma before groups of three
+    digits groups thousands), in French it is 1.2. Several comma groups (« 1,250,000 ») or a comma group then a dot
+    decimal (« 1,200.50 ») are thousands in both."""
+    lang = lang or _LANG.get()
+    s = re.sub(r"[\u00a0\u202f ]", "", str(raw or "").strip())
+    if re.fullmatch(r"\d{1,3}(?:\.\d{3}){2,}(?:,\d+)?|\d{1,3}\.\d{3},\d+", s) or (
+        lang != "en" and re.fullmatch(r"\d{1,3}\.\d{3}", s)
+    ):
         s = s.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"\d{1,3}(?:,\d{3}){2,}(?:\.\d+)?|\d{1,3},\d{3}\.\d+", s) or (
+        lang == "en" and re.fullmatch(r"\d{1,3},\d{3}", s)
+    ):
+        s = s.replace(",", "")
     else:
         s = s.replace(",", ".")
     try:
@@ -235,6 +250,10 @@ _PRINCIPAL = re.compile(
     rf"(?:pr[êe]t|emprunt|cr[ée]dit|loan|mortgage|emprunter|borrow)\D{{0,25}}?(?P<a>{_NUM})\s?(?P<am>k|m)?\s?(?:€|euros?)?",
     re.I,
 )
+# English puts the amount before the noun: « a 300,000 € loan », « a $250k mortgage »
+_PRINCIPAL_BEFORE = re.compile(
+    rf"(?<![\d.,])(?P<a>{_NUM})\s?(?P<am>k|m)?\s?(?:€|euros?)?\s+(?:home\s+)?(?:loan|mortgage)\b", re.I
+)
 _YEARS = re.compile(r"(?:sur|pendant|en|over|for)\s+(?P<y>\d{1,2})\s?(?:ans|années|years?)\b", re.I)
 _MONTHS = re.compile(r"(?:sur|pendant|en|over|for)\s+(?P<n>\d{1,3})\s?(?:mois|months?)\b", re.I)
 _RATE = re.compile(r"(?:à|a|au taux de|taux de|at|rate of)\s+(?P<r>\d+(?:[.,]\d+)?)\s?%", re.I)
@@ -244,12 +263,17 @@ def _pct(m: re.Match, key: str = "p") -> Decimal | None:
     return number(m[key]) if m and m[key] else None
 
 
-def detect(text: str) -> dict | None:
-    """The calculation asked in the user's own words, with its exact inputs, or None."""
+def detect(text: str, lang: str = "fr") -> dict | None:
+    """The calculation asked in the user's own words, with its exact inputs, or None. ``lang`` reads the figures
+    (« 1,200 » is 1200 in English, 1.2 in French)."""
     t = " ".join(str(text or "").split())
     if not t or len(t) > 400 or not re.search(r"\d", t):
         return None
-    got = _detect(t)
+    tok = _LANG.set("en" if lang == "en" else "fr")
+    try:
+        got = _detect(t)
+    finally:
+        _LANG.reset(tok)
     if got and got["kind"] in ("change", "variation", "percent_of", "ratio"):
         got["unit"] = "€" if re.search(r"€|\beuros?\b", t, re.I) else ""
     return got
@@ -264,7 +288,7 @@ def _detect(t: str) -> dict | None:
     if got:
         return got
     if _LOAN.search(t):
-        a = _amount(_PRINCIPAL.search(t))
+        a = _amount(_PRINCIPAL_BEFORE.search(t)) or _amount(_PRINCIPAL.search(t))
         ym, mm, rm = _YEARS.search(t), _MONTHS.search(t), _RATE.search(t)
         n = int(ym["y"]) * 12 if ym else int(mm["n"]) if mm else None
         r = number(rm["r"]) if rm else None
@@ -489,7 +513,7 @@ NOTE = {
 def facts_for(text: str, lang: str = "fr") -> tuple[dict | None, str]:
     """(card, facts) for the user's words, or (None, "")."""
     try:
-        got = detect(text)
+        got = detect(text, lang)
         if not got:
             return None, ""
         w = card(got, lang)

@@ -562,6 +562,21 @@ CARD_NO = [  # the words of a card without its data, or another request: no card
     "c'est quoi un glossaire ?",
 ]
 
+# the exact calculator reads the figures in the user's language (« 1,200 » is 1200 in English, 1.2 in French)
+CALC_VALUES_YES = [  # (ask, lang, text the computed facts must contain)
+    ("What is the monthly payment on a 300,000 € loan over 25 years at 4%?", "en", "Monthly payment: 1,583.51 €"),
+    ("What is 15% of 1,200?", "en", "15% of 1,200: 180."),
+    ("Bought at 1,000 €, sold at 1,500 €, what is the margin?", "en", "Margin: 500 €"),
+    ("Price incl. VAT of 1,200 € excl. VAT at 20%?", "en", "1,440 €"),
+    ("mensualité d'un prêt de 1.250.000 € sur 25 ans à 4 %", "fr", "6\u202f597,96\u202f€"),
+    ("mensualité d'un prêt de 200 000 € sur 20 ans à 3,5 %", "fr", "1\u202f159,92\u202f€"),
+    ("combien font 50 % de 1,5 ?", "fr", "0,75"),
+]
+CALC_VALUES_NO = [  # figures without a sum to do: no calculator card, in English too
+    ("We grew revenue to 1,200,000 € this year.", "en"),
+    ("Send the 1,500 € invoice to Paul.", "en"),
+    ("The loan committee meets on 12 March.", "en"),
+]
 
 # ---------------------------------------------------------------- follow-ups, pictures, and realistic phrasings
 # a short follow-up re-asks the previous turn's rich result (its context comes from the server memo, followup.py)
@@ -1058,6 +1073,15 @@ def canvas_edited(item) -> bool:
     return canvas_intents.edit_ask(q, "deck", shown=shown)
 
 
+def calc_value(item) -> bool:
+    """The calculator card fired and its exact facts contain the expected figure (NO items: it did not fire)."""
+    from birds.harness import calc
+
+    q, lang, want = (*item, None) if len(item) == 2 else item
+    w, facts = calc.facts_for(q, lang)
+    return bool(w) and (want is None or want in facts)
+
+
 def card_kind(q):
     """The parsers' hint for the small modules (router.regex_decision), with the data there."""
     from birds.harness import router
@@ -1102,6 +1126,7 @@ if __name__ == "__main__":
         ("canvas", CANVAS_YES + CANVAS_CODE_FROM_OFFICE, CANVAS_NO + CANVAS_OFFICE_NO, canvas_opened, canvas_touched),
         ("canvas_edit", CANVAS_EDIT_YES, CANVAS_EDIT_NO, canvas_edited),
         ("cards", CARD_YES, CARD_NO, card_kind),
+        ("calc_values", CALC_VALUES_YES, CALC_VALUES_NO, calc_value),
     ):
         ok, n = bench(*args)
         total[0] += ok
