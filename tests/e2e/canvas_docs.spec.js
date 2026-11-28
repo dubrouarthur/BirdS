@@ -100,6 +100,8 @@ async function run(name, options, scheme) {
       "a page is A4 (297 / 210)",
     );
   }
+  // the next steps come late (the « suggestions » event after « final »): the row appears once, complete
+  await page.waitForSelector(".chips-row .mchip", { timeout: 15000 }).catch(() => {});
   const chips = await page.locator(".chips-row .mchip").allInnerTexts();
   check(chips.length >= 2 && chips.length <= 3 && chips.some((c) => /Ajouter/.test(c)), `2-3 next steps (${chips})`);
   await page.screenshot({ path: path.join(SHOTS, `docs-create-${tag}.png`) });

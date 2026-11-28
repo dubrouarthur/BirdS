@@ -502,7 +502,7 @@ def resolve(doc: dict, find, limit: int = 4, deadline: float | None = None, work
     by_query: dict[str, tuple] = {}
     used = set((doc.get("media") or {}).keys())
     for p in targets:
-        if p.get("media"):
+        if p.get("media") or p.get("missing"):  # « missing »: already searched this turn, the placeholder stays
             continue
         q = str(p.get("query") or "").strip()
         if not q:

@@ -875,6 +875,21 @@ ol.cv-list > li::before {
   color: var(--t-muted);
   text-align: center;
 }
+.cv-img-ph-title {
+  font-weight: 600;
+  color: var(--t-ink, inherit);
+}
+.cv-img-ph-q {
+  max-inline-size: 36ch;
+  overflow-wrap: anywhere;
+  font-style: italic;
+}
+.cv-img-ph-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
 .cv-code-slide {
   margin: 0;
   padding: 2cqi;
