@@ -62,10 +62,10 @@ FR_EN = {
     "ready": ("Bird local est prêt", "Bird local is ready"),
     "open": ("Sur cette machine   {url}", "On this machine     {url}"),
     "hosted": (
-        "Depuis le chat      {origin} → Réglages → Modèle → Bird local",
-        "From the chat       {origin} → Settings → Model → Bird local",
+        "Depuis {origin}     ouvrez ce lien (déjà appairé) :\n                      {link}",
+        "From {origin}       open this link (already paired):\n                      {link}",
     ),  # fmt: skip
-    "code": ("Code d'appairage    {code}", "Pairing code        {code}"),
+    "code": ("Code (si besoin)    {code}", "Code (if asked)     {code}"),
     "stop": (
         "Ctrl+C pour arrêter. Vos conversations restent sur cette machine.",
         "Ctrl+C to stop. Your conversations stay on this machine.",
@@ -197,11 +197,12 @@ def main(argv: list[str] | None = None) -> int:
     bar = "─" * 64
     print(f"\n{bar}\n  {say('ready', lang)}\n\n  {say('open', lang, url=url)}")
     for origin in args.origins:
-        print("  " + say("hosted", lang, origin=origin))
+        # the code rides in the fragment of a ready-made link: never sent to a server, nothing to type
+        print("  " + say("hosted", lang, origin=origin, link=f"{origin}/#bird-local={args.port}:{code}"))
     print(f"  {say('code', lang, code=code)}\n\n  {say('stop', lang)}\n{bar}\n", flush=True)
     if not args.no_browser:
-        # the code rides in the fragment: never sent to any server, removed from the address bar by the page
-        threading.Timer(1.0, lambda: webbrowser.open(f"{url}#pair={code}")).start()
+        # the app served here needs no code: open it as is
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     import uvicorn
 
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")  # loopback only, never 0.0.0.0

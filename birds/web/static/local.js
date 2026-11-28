@@ -40,6 +40,19 @@ export function installRouting() {
     const routed = L.routeRequest(input, init || {}, ctx);
     return original(routed.input, routed.init);
   };
+  // the hosted chat opened from the link scripts/bird_local.py prints (#bird-local=PORT:CODE): connect at once, nothing
+  // to type; only the port this deployment's CSP allows
+  const link = L.linkFromHash(location.hash);
+  const onThatBird = link && L.isLoopback(location.hostname) && String(link.port) === location.port;
+  if (link) {
+    history.replaceState(null, "", location.pathname + location.search);
+    if (!onThatBird && link.port === localPort()) {
+      localPair.set(link.code, true);
+      state.prefs.mode = "local";
+      state.prefs.localBase = `http://127.0.0.1:${link.port}`;
+      savePrefs();
+    }
+  }
   // scripts/bird_local.py opens http://127.0.0.1:8765/#pair=CODE: keep the code for this tab, clean the address bar
   if (L.isLoopback(location.hostname)) {
     const code = L.codeFromHash(location.hash);

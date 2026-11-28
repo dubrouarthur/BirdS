@@ -240,17 +240,28 @@ async function send(page, text) {
       if (apiCalls.some((u) => !u.startsWith(LOCAL))) problems.push("local page: a call left the machine");
       await shot(page, `local-app-${cfg.name}.png`);
       await ctx.close();
-      // opened by hand, without the code: the pairing dialog
+      // opened by hand, without any code: the page Bird local serves works at once (no pairing dialog, a full turn)
       const b = await newPage(browser, cfg, { script: setStorage, arg: [prefs(), null] });
       await b.page.goto(LOCAL, { waitUntil: "networkidle" });
-      if (!(await b.page.locator("#local-pair[open]").count())) problems.push("local page without code: no pairing dialog");
-      else {
-        await shot(b.page, `local-app-pair-${cfg.name}.png`);
-        await b.page.fill("#local-pair-code", CODE);
-        await b.page.press("#local-pair-code", "Enter");
-        await b.page.waitForSelector("#local-pair", { state: "detached", timeout: 5000 }).catch(() => problems.push("local page: dialog stays"));
-      }
+      if (await b.page.locator("#local-pair[open]").count()) problems.push("local page without code: asks for a code");
+      await send(b.page, "Bonjour sans code");
+      const own = await b.page.locator(".turn-bird").last().innerText();
+      if (!/votre machine/.test(own)) problems.push(`local page without code: answer « ${own.slice(0, 80)} »`);
+      await shot(b.page, `local-app-nocode-${cfg.name}.png`);
       await b.ctx.close();
+    }
+
+    // ---- B1b. the ready-made link the command prints (#bird-local=PORT:CODE): connected at once, nothing typed
+    {
+      const cfg = CONFIGS[0];
+      const { ctx, page, apiCalls } = await newPage(browser, cfg, { script: setStorage, arg: [prefs(), null] });
+      await page.goto(`${HOSTED}/#bird-local=8765:${CODE}`, { waitUntil: "networkidle" });
+      if (page.url().includes("bird-local=")) problems.push("hosted link: the code stays in the address bar");
+      await send(page, "Bonjour par le lien");
+      const t = await page.locator(".turn-bird").last().innerText();
+      if (!/votre machine/.test(t)) problems.push(`hosted link: answer « ${t.slice(0, 80)} »`);
+      if (!apiCalls.some((u) => u.startsWith(LOCAL) && u.includes("/api/chat"))) problems.push("hosted link: the turn did not go to the machine");
+      await ctx.close();
     }
 
     // ---- B2. a new tab where the code was kept for one tab only: still the machine, never the hosted server

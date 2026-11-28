@@ -1,5 +1,16 @@
 # Bird local — le modèle sur votre machine
 
+**Le plus simple :**
+
+- Linux / macOS : `curl -fsSL https://bird-s.vercel.app/install.sh | sh`
+- Windows (PowerShell) : `irm https://bird-s.vercel.app/install.ps1 | iex` — avec WSL (recommandé pour une carte
+  NVIDIA, `wsl --install` une fois) tout s'installe dans WSL ; sans WSL, Bird se branche sur un serveur compatible
+  OpenAI déjà lancé (LM Studio, Ollama, vLLM : `$env:BIRD_VLLM_URL`).
+
+La page qui s'ouvre (http://127.0.0.1:8765) marche tout de suite, **sans code**. Pour utiliser votre Bird local depuis
+bird-s.vercel.app, ouvrez le lien que la commande affiche (« Depuis bird-s.vercel.app, ouvrez : … ») : il est déjà
+appairé, rien à taper.
+
 Bird est léger : son modèle s'installe où vous voulez, y compris sur votre propre machine. **Bird local** fait tourner
 le harnais complet de Bird (routage, outils, modules, empreinte) chez vous, devant votre serveur vLLM, et vous l'utilisez
 soit depuis le chat hébergé (https://bird-s.vercel.app), soit directement dans votre navigateur
