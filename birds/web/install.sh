@@ -37,6 +37,23 @@ say() { printf '\033[1;34m›\033[0m %s\n' "$*"; }
 ok() { printf '\033[1;32m✓\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31m✗\033[0m %s\n' "$*" >&2; exit 1; }
 
+# ---- 0. l'oiseau (couleur seulement dans un terminal, jamais avec NO_COLOR)
+banner() {
+  if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then b='\033[1;34m'; d='\033[2m'; r='\033[0m'; else b=''; d=''; r=''; fi
+  printf '\n%b' "$b"
+  cat <<'BIRD'
+        __                       __
+        \ `-.__            __.-' /
+         `-.   `-.__  __.-'   .-'
+            `-.     (o >    .-'
+               `-.__/  \__.-'
+                    \__/
+BIRD
+  printf '%b\n          B I R D   %b·  conçu en France%b\n' "$r" "$d" "$r"
+  printf '%b     Votre IA, chez vous. Sans abonnement.%b\n\n' "$d" "$r"
+}
+banner
+
 # ---- 1. prérequis
 command -v curl >/dev/null 2>&1 || die "curl est requis."
 command -v git >/dev/null 2>&1 || die "git est requis (https://git-scm.com)."
@@ -67,6 +84,27 @@ ok "Bird installé dans $APP"
 
 up() { curl -fsS -m 3 "$1/models" >/dev/null 2>&1; }
 
+# WSL : le disque Linux est un fichier sur le disque C: de Windows ; s'il est plein, c'est là qu'il faut faire de la place
+in_wsl() { grep -qi microsoft /proc/version 2>/dev/null; }
+space_hint() {
+  if in_wsl; then echo "Libérez de la place sur le disque C: de Windows (Paramètres → Système → Stockage), puis relancez la même commande."
+  else echo "Libérez de la place sur ce disque, puis relancez la même commande."; fi
+}
+# need_space DOSSIER GO QUOI : arrête tout de suite, avec la place qui manque, plutôt qu'après 10 minutes de téléchargement
+need_space() {
+  free_kb="$(df -Pk "$1" 2>/dev/null | awk 'NR==2 {print $4}')"
+  [ -n "$free_kb" ] || return 0
+  free_gb=$((free_kb / 1048576))
+  [ "$free_gb" -ge "$2" ] || die "Il faut environ $2 Go libres pour $3 ; il en reste $free_gb. $(space_hint)"
+}
+install_failed() {
+  rm -rf "$VLLM_VENV" "${TMPDIR:-}"  # rendre la place prise par l'essai
+  if grep -q "No space left" "$LOGS/vllm-install.log" 2>/dev/null; then
+    die "Disque plein pendant l'installation de vLLM (environ 25 Go nécessaires). $(space_hint)"
+  fi
+  die "L'installation de vLLM a échoué. Détail : $LOGS/vllm-install.log"
+}
+
 # ---- 3. le modèle (vLLM)
 if [ -n "${BIRD_VLLM_URL:-}" ]; then
   BASE_URL="${BIRD_VLLM_URL%/}"
@@ -81,12 +119,24 @@ else
       || say "Pas de carte graphique NVIDIA détectée : vLLM sera lent ou indisponible. Vous pouvez désigner un serveur existant avec BIRD_VLLM_URL."
     # vLLM dans son propre environnement : ses dépendances (torch, CUDA) ne touchent jamais celles de Bird
     VLLM_VENV="$BIRD_HOME/vllm-venv"
-    [ -d "$VLLM_VENV" ] || "$PY" -m venv "$VLLM_VENV"
     if ! "$VLLM_VENV/bin/python" -c 'import vllm' >/dev/null 2>&1; then
+      # vLLM (torch + CUDA, ~10 Go) puis le modèle (~8 Go) : vérifier la place AVANT de télécharger
+      need_space "$BIRD_HOME" 25 "vLLM et le modèle"
       say "Installation de vLLM (quelques minutes la première fois)…"
-      "$VLLM_VENV/bin/python" -m pip install -q --upgrade pip
-      "$VLLM_VENV/bin/python" -m pip install -q vllm "huggingface_hub[cli]" \
-        || die "L'installation de vLLM a échoué (voir https://docs.vllm.ai)."
+      rm -rf "$VLLM_VENV"  # un essai interrompu (disque plein, coupure) ne laisse jamais un environnement à moitié fait
+      # uv fournit un Python que vLLM supporte (3.12), quel que soit celui du système (3.14…), et choisit la
+      # version CUDA de torch adaptée à la carte ; sans cache : rien n'est téléchargé deux fois sur le disque
+      export TMPDIR="$BIRD_HOME/tmp" UV_NO_CACHE=1 PIP_NO_CACHE_DIR=1
+      mkdir -p "$TMPDIR"
+      if "$VENV/bin/python" -m pip install -q uv >>"$LOGS/vllm-install.log" 2>&1 \
+        && "$VENV/bin/uv" venv -q --python 3.12 "$VLLM_VENV" >>"$LOGS/vllm-install.log" 2>&1; then
+        "$VENV/bin/uv" pip install -q --python "$VLLM_VENV/bin/python" --torch-backend=auto vllm huggingface_hub \
+          >>"$LOGS/vllm-install.log" 2>&1 || install_failed
+      else
+        "$PY" -m venv "$VLLM_VENV" && "$VLLM_VENV/bin/python" -m pip install -q vllm huggingface_hub \
+          >>"$LOGS/vllm-install.log" 2>&1 || install_failed
+      fi
+      rm -rf "$TMPDIR"
     fi
     # le modèle est sur Hugging Face : HF_TOKEN s'il est fourni, sinon la connexion « hf auth login »
     if [ -z "${HF_TOKEN:-}" ] && ! "$VLLM_VENV/bin/hf" auth whoami >/dev/null 2>&1; then
