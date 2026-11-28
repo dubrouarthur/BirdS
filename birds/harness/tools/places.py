@@ -253,32 +253,53 @@ def _line(n, p: geo.Place, lang: str) -> str:
     return f"{n}. " + " — ".join(x for x in parts if x)
 
 
-def _tail(lang: str) -> str:
+def _tail(lang: str, mode: str = "") -> str:
     if lang == "fr":
-        return (
-            "Ces lieux viennent d'OpenStreetMap et peuvent être incomplets. Une carte et des fiches sont affichées "
+        lead = (
+            "Ces lieux répondent à la demande : présente les 3 à 5 plus proches, chacun avec son nom, son adresse, "
+            "sa distance et ses horaires quand ils sont donnés ; ne dis jamais que tu n'as rien trouvé. "
+            if mode == "near"
+            else ""
+        )
+        return lead + (
+            "Ces lieux viennent d'OpenStreetMap. Une carte et des fiches sont affichées "
             "à l'utilisateur sous ta réponse : ne recopie pas toutes les adresses ; résume, ne cite que ces lieux, "
             "ne donne ni note, ni prix, ni temps de trajet. Tu ne connais ni les lignes de métro ou de bus, ni les "
             "parkings, ni les entrées : ne les invente pas ; dis que le lien « Itinéraire » de la carte donne l'accès."
         )
-    return (
-        "These come from OpenStreetMap and may be incomplete. A map and cards are shown to the user under your "
+    lead = (
+        "These places answer the request: give the 3 to 5 nearest, each with its name, address, distance and opening "
+        "hours when given; never say you found nothing. "
+        if mode == "near"
+        else ""
+    )
+    return lead + (
+        "These come from OpenStreetMap. A map and cards are shown to the user under your "
         "answer: do not repeat every address; summarise, mention only these places, give no ratings, prices or "
         "travel times. You know no metro or bus lines, car parks or entrances: do not invent them; say that the "
         "map's 'Directions' link shows how to get there."
     )
 
 
-def _none(q: str, lang: str) -> str:
+def _none(q: str, lang: str, near: str = "", radius_m: int | None = None) -> str:
+    where = ""
+    if near:
+        km = _fmt_dist(radius_m, lang) if radius_m else ""
+        where = (f" dans un rayon de {km} autour de {near}" if km else f" autour de {near}") if lang == "fr" else (
+            f" within {km} of {near}" if km else f" around {near}")  # fmt: skip
     if lang == "fr":
         return (
-            f"Aucun lieu trouvé pour « {q} » sur OpenStreetMap. Si une page lue donne son adresse ou le lieu qui "
-            "l'abrite (un aéroport, un centre commercial…), appelle find_places avec cette adresse ; sinon dis-le, "
-            "et n'invente pas d'adresse."
+            f"Aucun lieu trouvé pour « {q} »{where} sur OpenStreetMap. Si une page lue donne son adresse ou le lieu "
+            "qui l'abrite (un aéroport, un centre commercial…), appelle find_places avec cette adresse. Sinon, dis en "
+            "une phrase ce que tu as cherché et où, puis propose une suite concrète (élargir la zone, partir d'une "
+            "adresse précise, chercher un nom d'enseigne) ; ton positif, n'invente pas d'adresse et ne renvoie pas "
+            "l'utilisateur vers quelqu'un d'autre."
         )
     return (
-        f"No place found for '{q}' on OpenStreetMap. If a page you read gives its address or the place that hosts it "
-        "(an airport, a mall…), call find_places with that address; otherwise say so, and do not guess an address."
+        f"No place found for '{q}'{where} on OpenStreetMap. If a page you read gives its address or the place that "
+        "hosts it (an airport, a mall…), call find_places with that address. Otherwise say in one sentence what you "
+        "searched and where, then offer a concrete next step (a wider area, a precise address, a brand name); keep a "
+        "positive tone, do not guess an address and do not send the user to someone else."
     )
 
 
@@ -377,6 +398,9 @@ def find_places(args: dict, ctx) -> str:
         raise ToolError("the map service is unavailable right now; say so, never that these places do not exist")
     if not places:
         ctx.step_info = {"found": 0}
+        if center is not None and mode == "near":
+            ctx.step_info["searched"] = {"query": query, "near": center.name, "radius_m": _radii(center)[-1]}
+            return _none(query, lang, center.name, _radii(center)[-1])
         return _none(near if near and center is None else query, lang)
     ctx.place_calls += 1
     if mode == "route":
@@ -479,9 +503,10 @@ def find_places(args: dict, ctx) -> str:
         )
     if mode == "list" and plan:
         lines.append(_plan_text(widget, lang))
-    if qualifier:
-        lines.append(_qualifier_note(qualifier, lang))
-    lines.append(_tail(lang) + (f" Source à citer : [{n_src}]." if lang == "fr" else f" Source to cite: [{n_src}]."))
+    if qualifier and (note := _qualifier_note(qualifier, lang)):
+        lines.append(note)
+        ctx.step_info["caveat"] = note
+    lines.append(_tail(lang, mode) + (f" Source à citer : [{n_src}]." if lang == "fr" else f" Source to cite: [{n_src}]."))
     return "\n".join(lines)
 
 

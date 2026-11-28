@@ -136,3 +136,50 @@ def test_the_same_places_found_twice_make_one_card(tmp_path):
     steps = [SimpleNamespace(tool="find_places", info=i, error=None) for i in infos]
     ws = build_widgets(steps, "", "fr", datetime(2026, 11, 28, 10, 0), b"k")
     assert [w["type"] for w in ws] == ["places"]
+
+
+def _near_card(tmp_path, query="supermarché"):
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    from birds.web.widgets import build_widgets
+
+    ctx = ctx_for(tmp_path, [])
+    TOOLS["find_places"]({"query": query, "near": "Saint-Cloud"}, ctx)
+    steps = [SimpleNamespace(tool="find_places", info=ctx.step_info, error=None)]
+    return build_widgets(steps, "", "fr", datetime(2026, 11, 28, 10, 0), b"k"), steps
+
+
+def test_an_answer_that_gives_up_beside_the_card_is_written_from_the_results(tmp_path):
+    from birds.web.rescue import check_places_answer
+
+    widgets, steps = _near_card(tmp_path)
+    bad = ("Je n'ai pas trouvé d'informations fiables sur les supermarchés à Saint-Cloud. Vérifiez sur une carte "
+           "locale ou demandez à un voisin.")  # fmt: skip
+    fixed = check_places_answer(bad, widgets, steps, "fr")
+    assert fixed and "Monoprix" in fixed and "Lidl" in fixed and "voisin" not in fixed
+    assert fixed.startswith("Voici 3 supermarchés autour de Saint-Cloud") and "Mo-Sa 08:30-21:00" in fixed
+    good = "Le plus proche est Monoprix, boulevard de la République ; Lidl et Carrefour City sont à quelques minutes."
+    assert check_places_answer(good, widgets, steps, "fr") is None
+
+
+def test_pharmacie_de_garde_rewrite_keeps_the_duty_number(tmp_path):
+    from birds.web.rescue import check_places_answer
+
+    widgets, steps = _near_card(tmp_path, "pharmacie de garde")
+    fixed = check_places_answer("Aucune pharmacie de garde n'est indiquée pour Saint-Cloud.", widgets, steps, "fr")
+    assert "Pharmacie du Parc" in fixed and "3237" in fixed
+
+
+def test_nothing_found_says_what_bird_searched_never_ask_a_neighbour(tmp_path):
+    from types import SimpleNamespace
+
+    from birds.web.rescue import check_places_answer
+
+    ctx = ctx_for(tmp_path, [])
+    TOOLS["find_places"]({"query": "boulangerie", "near": "Saint-Cloud"}, ctx)  # the fake has no bakery
+    steps = [SimpleNamespace(tool="find_places", info=ctx.step_info, error=None)]
+    fixed = check_places_answer("Rien sur la carte. Demandez à un voisin.", [], steps, "fr")
+    assert fixed.startswith("J'ai cherché les boulangeries sur OpenStreetMap dans un rayon de 5,0 km autour de Saint")
+    assert "élargir" in fixed
+    assert check_places_answer("Aucune boulangerie n'est répertoriée ; je peux élargir la zone.", [], steps, "fr") is None

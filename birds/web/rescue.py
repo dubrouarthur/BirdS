@@ -11,6 +11,8 @@ A pre-called tool (a map, a company record, a rate, a forecast) is the harness's
 
 from __future__ import annotations
 
+import re
+
 from .widgets import build_widgets
 
 # the run ended without an answer of the model's own
@@ -139,3 +141,96 @@ def summary_text(widgets: list[dict], lang: str) -> str:
             label = str(s.get("label") or "").lower()
             out.append((f"Prévisions pour {name} : " if fr else f"Forecast for {name}: ") + f"{label}{temp}.")
     return " ".join(x for x in out if x)
+
+
+# ---------------------------------------------------------------- the answer of a places turn, checked
+# An answer that gives up (« je n'ai pas trouvé », « demandez à un voisin ») while the tool found places, or that names
+# none of them, contradicts the card under it (production, 28/11/2026). The harness then writes the answer from the
+# tool's results, never from the model's text.
+GIVE_UP = re.compile(
+    r"\bje n['’]ai (?:pas|rien) trouv|\baucune? (?:information|donn[ée]e|r[ée]sultat)s? fiables?|\bje ne (?:trouve|peux)"
+    r" (?:pas|rien)|\bje ne suis pas en mesure|\bdemande[rz]? (?:à|a) (?:un |une |vos? |votre )?(?:voisin|passant|"
+    r"habitant|accueil|médecin)|\bv[ée]rifie[rz]? sur (?:une|la) carte|\baucune? \w+ (?:n['’]est|ne figure|"
+    r"n['’]appara[iî]t)|\bI (?:could not|couldn['’]t|did not|didn['’]t|cannot|can['’]t) find|\bask (?:a|your) "
+    r"neighbo",
+    re.I,
+)
+
+
+def _fold(text: str) -> str:
+    import unicodedata
+
+    t = unicodedata.normalize("NFKD", str(text or "").casefold().replace("’", "'"))
+    return "".join(c for c in t if not unicodedata.combining(c))
+
+
+def places_answer(widgets: list[dict], lang: str, caveat: str = "", n: int = 5) -> str:
+    """The answer written from a near card: the nearest places, each with its address, distance and hours."""
+    fr = lang != "en"
+    w = next((x for x in widgets or [] if x.get("type") == "places" and x.get("mode") == "near" and x.get("places")),
+             None)  # fmt: skip
+    if w is None:
+        return summary_text(widgets, lang)
+    lines = places_lines(w, lang)
+    for i, p in enumerate(w["places"][:n], 1):
+        bits = [f"**{p['name']}**", p.get("address") or "", _km(p.get("distance_m"), lang)]
+        if p.get("hours"):
+            bits.append(("horaires : " if fr else "hours: ") + p["hours"])
+        lines.append(f"{i}. " + " — ".join(b for b in bits if b))
+    if caveat_line := _caveat_for_user(caveat, lang):
+        lines.append(caveat_line)
+    lines.append("La carte les situe ; le lien « Itinéraire » de chaque fiche calcule le trajet." if fr
+                 else "The map shows them; each card's 'Directions' link computes the route.")  # fmt: skip
+    return "\n".join(lines)
+
+
+def _caveat_for_user(caveat: str, lang: str) -> str:
+    """The qualifier OSM cannot check, said to the user (the tool told the model)."""
+    if "3237" in caveat:
+        return ("Pour la pharmacie de garde de nuit ou du dimanche : le 3237 ou 3237.fr." if lang != "en"
+                else "For the night or Sunday duty pharmacy in France: 3237 or 3237.fr.")  # fmt: skip
+    return ""
+
+
+SEND_AWAY = re.compile(
+    r"\bdemande[rz]? (?:à|a) (?:un |une |vos? |votre |l['’])?(?:voisin|passant|habitant|accueil|médecin)|"
+    r"\bv[ée]rifie[rz]? (?:sur (?:une|la) carte|le site|aupr[èe]s)|\bask (?:a|your) neighbo|\bcheck a local map",
+    re.I,
+)
+
+
+def _searched_nothing(steps, lang: str) -> str:
+    """What Bird did when the category was found nowhere near the anchor, and the next step it offers."""
+    info = next(((getattr(s, "info", None) or {}) for s in steps or [] if getattr(s, "tool", "") == "find_places"
+                 and (getattr(s, "info", None) or {}).get("searched")), None)  # fmt: skip
+    if not info:
+        return ""
+    got = info["searched"]
+    fr = lang != "en"
+    what = _kinds(str(got.get("query") or ""), 2, lang).split(" ", 1)[1]
+    km = _km(got.get("radius_m"), lang)
+    return (f"J'ai cherché les {what} sur OpenStreetMap dans un rayon de {km} autour de {got.get('near')} : aucun "
+            "n'y est encore répertorié. Je peux élargir la zone, partir d'une adresse précise ou chercher une enseigne "
+            "par son nom." if fr else
+            f"I searched OpenStreetMap for {what} within {km} of {got.get('near')}: none is listed there yet. I can "
+            "widen the area, start from a precise address or look up a brand by name.")  # fmt: skip
+
+
+def check_places_answer(content: str, widgets: list[dict], steps, lang: str) -> str | None:
+    """The answer rewritten from the places found when the model's answer contradicts them (gives up, or names none
+    of the places of a near card), else None (the model's answer stands). Nothing found: an answer that sends the
+    user elsewhere (« demandez à un voisin ») says instead what Bird searched and offers the next step."""
+    cards = [w for w in widgets or [] if w.get("type") == "places" and w.get("places")]
+    if not content:
+        return None
+    if not cards:
+        return (_searched_nothing(steps, lang) or None) if SEND_AWAY.search(content) else None
+    text = _fold(content)
+    names = [_fold(p.get("name")) for w in cards for p in w["places"] if p.get("name")]
+    named = any(nm and len(nm) >= 3 and nm in text for nm in names)
+    near = any(w.get("mode") == "near" for w in cards)
+    if not GIVE_UP.search(content) and (named or not near):
+        return None
+    caveat = next((str((getattr(s, "info", None) or {}).get("caveat") or "") for s in steps or []
+                   if getattr(s, "tool", "") == "find_places" and (getattr(s, "info", None) or {}).get("caveat")), "")
+    return places_answer(cards, lang, caveat) or None

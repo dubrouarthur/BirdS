@@ -2648,6 +2648,10 @@ class HarnessBackend:
                 if text:
                     content, stop_reason = text, "answer"
                     fallback = rescue.NOTE["en" if run.lang == "en" else "fr"]
+            if (fixed := rescue.check_places_answer(content, widgets, run.steps, run.lang)) is not None:
+                # the answer gave up while the map found places (or sent the user to a neighbour): the answer is
+                # written from the tool's results (birds/web/rescue.py)
+                content = fixed
             if data_prep is not None:
                 widgets = [data_prep.card, *widgets]  # data analysis hook: the data card first
             ctx.emit(
