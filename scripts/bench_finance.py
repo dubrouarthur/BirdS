@@ -27,6 +27,9 @@ FINANCE_YES = [
     ("Schneider Electric : cours et évolution sur 1 mois", {"symbols": "Schneider Electric", "range": "1m"}),
     ("où en est le titre BNP Paribas ?", {"symbols": "BNP Paribas"}),
     ("dois-je acheter des actions Airbus ?", {"symbols": "Airbus"}),
+    ("dois-je acheter du bitcoin maintenant ?", {"symbols": "Bitcoin"}),  # live 28/11: answered « consultez un site »
+    ("est-ce le moment d'investir dans Nvidia ?", {"symbols": "Nvidia"}),
+    ("should I buy ethereum now?", {"symbols": "Ethereum"}),
     ("cours de MC.PA", {"symbols": "LVMH"}),
     ("stock price of Apple", {"symbols": "Apple"}),
     ("Apple share price over 5 years", {"symbols": "Apple", "range": "5y"}),

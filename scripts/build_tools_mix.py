@@ -1030,6 +1030,10 @@ def finance(rng):
     for s in FI_SHARES[:5]:
         m = _m("get_quote", symbols=s)
         yield "fi14", "fr", f"faut-il acheter l'action {s} maintenant ?", None, _lab([m], native=m)
+    for word, name in FI_CRYPTO[:2]:
+        m = _m("get_quote", symbols=name)
+        yield "fi15", "fr", f"faut-il investir dans {word} en ce moment ?", None, _lab(
+            [m], native=m)
     for tid, t in FI_NEG:
         yield tid, "en" if tid.startswith("fine") else "fr", t, None, _lab([], web=False)
 

@@ -45,6 +45,9 @@ Objectif : le niveau d'OpenAI dans les usages de bureau, porté par un petit mod
 4. Modules du catalogue (`docs/research/rich-catalogue-2026-11.json`), 3 lots : structure de réponse, données, documents métier.
    Données ouvertes : **fusionné le 28/11/2026** (`open-apis`, `docs/OPENDATA.md`, 12 sources sans clé, 6 fiches
    choisies par le routeur ; catalogue du routeur 985 jetons) ; reste : mesure du routeur en réel ; prochain lot : Hub'Eau, qualité de l'air, catalogue data.gouv.fr.
+   Marchés (`finance-api`, `docs/FINANCE.md`) : fiche de cours et historique (cryptoactifs CoinGecko, devises BCE
+   sans clé ; actions et indices via Twelve Data dès que `BIRD_TWELVEDATA_API_KEY` d'une offre avec droit d'affichage
+   est fournie) ; reste : la clé, et revérifier en réel « dois-je acheter … ».
 5. Canevas avancé, objectif « exceptionnel » (dès la vérification du Canevas terminée) :
    - diapos : ~20 mises en page (couverture plein cadre, chiffre clé géant, comparaison, frise, grille d'images, citation,
      graphique + message clé, clôture), thèmes marqués, mise en page choisie d'après le contenu ; images Openverse +

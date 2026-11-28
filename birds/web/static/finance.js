@@ -236,7 +236,8 @@ function row(item, w) {
     h(
       "div",
       { class: "fin-id" },
-      h("p", { class: "fin-name", text: item.name }),
+      // « EUR/USD » never breaks at its slash (word joiner)
+      h("p", { class: "fin-name", text: String(item.name).replace("/", "/\u2060") }),
       market && h("p", { class: "fin-sym muted", text: market }),
     ),
     h(

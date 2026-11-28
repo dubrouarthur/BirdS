@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 
 from birds.harness.intents import Intent
-from birds.harness.tools.opendata.finance import range_of
+from birds.harness.tools.opendata.finance import advice_asked, range_of
 from birds.harness.tools.opendata.markets import AMBIGUOUS, find_all, fold, fx_pair
 
 # a market word next to the instrument: these are enough for a share named without ambiguity
@@ -103,7 +103,9 @@ def quote(text: str, lang: str = "fr") -> Intent | None:
     kinds = {i.kind for i in insts}
     words = {fold(t)}
     strong = bool(_STRONG.search(t))
-    market = bool(_MARKET.search(t))
+    # « dois-je acheter du bitcoin ? »: the card (dated price, neutral line) instead of « consultez un site »
+    market = bool(_MARKET.search(t)) or (advice_asked(t) and bool(re.search(r"\b(?:ach[eè]t\w*|vend\w*|investi\w*|"
+                                                                          r"buy|sell|invest\w*)\b", t, re.I)))
     for i in insts:
         named = [a for a in i.aliases if re.search(rf"(?<![\w]){re.escape(a)}(?![\w])", next(iter(words)))]
         if i.kind == "crypto" and named and market:
