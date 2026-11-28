@@ -341,3 +341,10 @@
   flex: 1;
   min-inline-size: 0;
 }
+
+/* ------------------------------------------------------------ « Livrables »: mails drafted in the chat */
+.deliv-ic.is-mail {
+  background: var(--accent-soft);
+  color: var(--link);
+  font-size: 0.9rem;
+}

@@ -290,6 +290,29 @@ part("search", async (page, name, fail, shot) => {
   await page.fill("#conv-search", "");
 });
 
+// ---------------------------------------------------------------- R16: « Livrables » lists decks, documents, mails
+part("deliverables", async (page, name, fail, shot) => {
+  await newChat(page);
+  await send(page, "Fais une présentation de 3 diapositives sur le vélo en ville");
+  await page.evaluate(() => document.querySelector('.cv-panel [data-act="close"], .cv-close')?.click());
+  await send(page, "Écris un mail à mon propriétaire pour signaler une fuite");
+  const btn = page.locator("#btn-deliverables");
+  if (!(await btn.isVisible())) {
+    fail("R16: no « Livrables » button for a deck and a mail");
+    return;
+  }
+  await btn.click();
+  await page.waitForSelector("#deliverables[open] .deliv-item");
+  await page.waitForTimeout(300);
+  const text = await page.locator("#deliverables-body").innerText();
+  if (!/Présentation/.test(text)) fail("R16: the canvas deck is not listed");
+  if (!/Brouillon de mail/.test(text)) fail("R16: the mail draft is not listed");
+  await shot("r16-deliverables");
+  await page.locator('#deliverables [data-deliv="open"]').first().click();
+  await page.waitForTimeout(400);
+  if (!(await page.evaluate(() => !!document.querySelector(".cv-panel:not([hidden]), #canvas:not([hidden])")))) fail("R16: « Ouvrir » did not open the canvas");
+});
+
 (async () => {
   const browser = await chromium.launch();
   const problems = [];

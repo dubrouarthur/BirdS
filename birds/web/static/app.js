@@ -724,7 +724,7 @@ function updateTop() {
   });
   $("btn-model").setAttribute("aria-label", label);
   $("btn-model").title = label;
-  const deliv = deliverablesOf(state.conv);
+  const deliv = allDeliverables(state.conv);
   $("btn-deliverables").hidden = !deliv.length || state.view !== "chat";
   $("deliverables-n").textContent = deliv.length ? String(deliv.length) : "";
   const s = totals(convUsages(state.conv));
@@ -2259,57 +2259,82 @@ function askNotify() {
 }
 
 /** « Livrables »: every file of the conversation, newest first, with its turn and a download. */
+/** What the conversation made, newest first: the canvas's decks, documents, pages and sheets (with their versions),
+ * the mails drafted in the chat, and the other files. A file shown by a canvas card is listed once, as the canvas. */
+function allDeliverables(conv) {
+  if (!conv) return [];
+  const turns = conv.turns || [];
+  const inCanvas = new Set(turns.flatMap((x) => x.answer?.canvas?.files || []));
+  const out = [];
+  for (const a of Object.values(conv.canvas?.list || {})) {
+    const last = a?.versions?.at(-1);
+    if (!last) continue;
+    const doc = a.versions[a.cur]?.doc || last.doc;
+    out.push({ type: "canvas", aid: a.aid, kind: a.kind, title: doc?.title || t(`cv.kind.${a.kind}`), n: a.versions.length, at: last.at || 0 });
+  }
+  turns.forEach((turn, i) => {
+    const mail = turn.role === "assistant" && turn.answer?.draft_email;
+    if (mail?.subject)
+      out.push({ type: "mail", turn: turn.id, title: String(mail.subject), to: [].concat(mail.to || []).join(", "), at: turn.ts || i });
+  });
+  for (const d of deliverablesOf(conv)) if (!inCanvas.has(d.name)) out.push({ type: "file", ...d, at: 0 });
+  return out.sort((x, y) => (y.at || 0) - (x.at || 0));
+}
+
 function openDeliverables() {
   const dialog = $("deliverables");
   const body = $("deliverables-body");
   body.replaceChildren();
-  const list = deliverablesOf(state.conv);
-  if (!list.length) body.append(Object.assign(document.createElement("p"), { className: "hint", textContent: t("deliv.empty") }));
-  const ul = document.createElement("ul");
-  ul.className = "deliv-list";
+  const list = allDeliverables(state.conv);
+  if (!list.length) body.append(h("p", { class: "hint", text: t("deliv.empty") }));
+  const showTurn = (turnId, sel) => {
+    dialog.close();
+    const el = (sel && document.querySelector(`[data-turn="${turnId}"] ${sel}`)) || document.querySelector(`[data-turn="${turnId}"]`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    el?.querySelector("button")?.focus({ preventScroll: true });
+  };
+  const item = (badge, cls, title, meta, ...acts) =>
+    h(
+      "li",
+      { class: "deliv-item" },
+      h("span", { class: `deliv-ic ${cls}`, "aria-hidden": "true", text: badge }),
+      h("div", { class: "deliv-text" }, h("p", { class: "deliv-name", text: title }), h("p", { class: "deliv-meta", text: meta })),
+      h("div", { class: "deliv-acts" }, ...acts),
+    );
+  const ul = h("ul", { class: "deliv-list" });
   for (const d of list) {
-    const li = document.createElement("li");
-    li.className = "deliv-item";
-    const ic = document.createElement("span");
-    ic.className = `deliv-ic is-${d.kind}`;
-    ic.textContent = (d.name.match(/\.([a-z0-9]{1,5})$/i) || ["", "?"])[1].toUpperCase();
-    const text = document.createElement("div");
-    text.className = "deliv-text";
-    const title = document.createElement("p");
-    title.className = "deliv-name";
-    title.textContent = d.title;
-    const meta = document.createElement("p");
-    meta.className = "deliv-meta";
-    meta.textContent = [t(`deliv.kind.${d.kind}`), d.team && t("deliv.team"), !d.file.data && t("deliv.lost")]
-      .filter(Boolean)
-      .join(" · ");
-    text.append(title, meta);
-    const acts = document.createElement("div");
-    acts.className = "deliv-acts";
-    const show = document.createElement("button");
-    show.type = "button";
-    show.className = "btn btn-outline btn-small";
-    show.textContent = t("deliv.show");
-    show.addEventListener("click", () => {
-      dialog.close();
-      const el = document.querySelector(`[data-turn="${d.turn}"] .file-card[data-file="${CSS.escape(d.name.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 120))}"]`)
-        || document.querySelector(`[data-turn="${d.turn}"]`);
-      el?.scrollIntoView({ block: "center", behavior: "smooth" });
-      el?.querySelector("button")?.focus({ preventScroll: true });
-    });
-    acts.append(show);
-    if (d.file.data) {
-      const dl = document.createElement("button");
-      dl.type = "button";
-      dl.className = "btn btn-primary btn-small";
-      dl.textContent = t("files.download");
-      dl.addEventListener("click", () =>
-        download(d.name, d.file.mime || "application/octet-stream", new Blob([b64ToBytes(d.file.data)], { type: d.file.mime || "application/octet-stream" })),
+    if (d.type === "canvas") {
+      const kind = t(`cx.deliv.kind.${d.kind}`) === `cx.deliv.kind.${d.kind}` ? t("deliv.kind.file") : t(`cx.deliv.kind.${d.kind}`);
+      const badge = { deck: "PPT", doc: "DOC", code: "</>", sheet: "XLS", page: "WEB" }[d.kind] || "•";
+      const cls = { deck: "is-slides", doc: "is-document", sheet: "is-sheet" }[d.kind] || "is-file";
+      ul.append(
+        item(badge, cls, d.title, [kind, d.n > 1 ? t("cx.deliv.versions", { n: d.n }) : "v1"].join(" · "),
+          h("button", { class: "btn btn-primary btn-small", type: "button", "data-deliv": "open", text: t("cx.deliv.open"),
+            onclick: () => (dialog.close(), canvas.open(d.aid)) }),
+        ),
       );
-      acts.append(dl);
+    } else if (d.type === "mail") {
+      ul.append(
+        item("@", "is-mail", d.title, [t("cx.deliv.kind.mail"), d.to && t("cx.deliv.mail.to", { to: d.to })].filter(Boolean).join(" · "),
+          h("button", { class: "btn btn-outline btn-small", type: "button", "data-deliv": "show", text: t("deliv.show"),
+            onclick: () => showTurn(d.turn, ".email-card") }),
+        ),
+      );
+    } else {
+      const acts = [
+        h("button", { class: "btn btn-outline btn-small", type: "button", text: t("deliv.show"),
+          onclick: () => showTurn(d.turn, `.file-card[data-file="${CSS.escape(d.name.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 120))}"]`) }),
+      ];
+      if (d.file.data)
+        acts.push(
+          h("button", { class: "btn btn-primary btn-small", type: "button", text: t("files.download"),
+            onclick: () => download(d.name, d.file.mime || "application/octet-stream", new Blob([b64ToBytes(d.file.data)], { type: d.file.mime || "application/octet-stream" })) }),
+        );
+      ul.append(
+        item((d.name.match(/\.([a-z0-9]{1,5})$/i) || ["", "?"])[1].toUpperCase(), `is-${d.kind}`, d.title,
+          [t(`deliv.kind.${d.kind}`), d.team && t("deliv.team"), !d.file.data && t("deliv.lost")].filter(Boolean).join(" · "), ...acts),
+      );
     }
-    li.append(ic, text, acts);
-    ul.append(li);
   }
   if (list.length) body.append(ul);
   if (!dialog.open) {
