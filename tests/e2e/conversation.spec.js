@@ -242,6 +242,34 @@ part("menu", async (page, name, fail, shot) => {
   if (!(await page.evaluate(() => document.activeElement?.classList.contains("conv-more")))) fail("R12: focus lost after a cancelled rename");
 });
 
+// ---------------------------------------------------------------- R13: delete with undo, styled « Tout effacer »
+part("delete", async (page, name, fail, shot) => {
+  await newChat(page);
+  await send(page, "Quelle heure est-il à Tokyo ?");
+  await openDrawer(page);
+  const before = await page.locator(".conv").count();
+  await page.locator(".conv.is-current .conv-more").click();
+  await page.locator('[data-conv-act="delete"]').click();
+  await page.waitForTimeout(200);
+  if ((await page.locator(".conv").count()) !== before - 1) fail("R13: not deleted at once");
+  const undo = page.locator(".toast .toast-action");
+  if (!(await undo.count())) fail("R13: no « Annuler » toast");
+  await shot("r13-undo-toast");
+  await undo.first().click();
+  await page.waitForTimeout(300);
+  if ((await page.locator(".conv").count()) !== before) fail("R13: « Annuler » did not bring it back");
+  if (!(await page.locator(".turn-user").count())) fail("R13: the restored conversation is not shown");
+  await openDrawer(page);
+  await page.click("#btn-clear");
+  await page.waitForSelector("dialog.cx-confirm[open]");
+  await page.waitForTimeout(300);
+  if (!(await page.evaluate(() => document.activeElement?.dataset.act === "confirm-cancel"))) fail("R13: the safe answer is not focused");
+  await shot("r13-clear-dialog");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(200);
+  if ((await page.locator(".conv").count()) !== before) fail("R13: Escape cleared the conversations");
+});
+
 (async () => {
   const browser = await chromium.launch();
   const problems = [];

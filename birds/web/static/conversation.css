@@ -242,7 +242,8 @@
   min-inline-size: 0;
   margin: 0;
   overflow-wrap: anywhere;
-  font: 600 1.12rem/1.3 var(--serif);
+  font: 700 1.1rem/1.3 var(--sans);
+  letter-spacing: -0.01em;
 }
 .cx-dialog-text {
   margin: 10px 0 0;

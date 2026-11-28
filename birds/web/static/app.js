@@ -520,20 +520,51 @@ function exportConv(id) {
   toast(t("toast.exported"), "ok");
 }
 
+/** Delete at once, with « Annuler » in the toast for a few seconds (no blocking confirm()). */
 function deleteConv(id, title) {
-  if (!window.confirm(t("side.delete.confirm", { title }))) return;
   running.get(id)?.controller.abort(); // an answer still being written there stops with it
+  const wasOpen = state.conv?.id === id;
+  const raw = wasOpen && state.conv.turns.length ? JSON.stringify(slim(state.conv)) : store.get(`bird.conv.${id}`);
+  const at = state.convs.findIndex((c) => c.id === id);
+  const entry = state.convs[at];
   store.set(`bird.conv.${id}`, null);
   state.convs = state.convs.filter((c) => c.id !== id);
   store.set("bird.convs", JSON.stringify(state.convs));
-  menuFor = null;
-  if (state.conv?.id === id) openConv(null);
+  if (menuFor !== null) {
+    menuFor = null;
+    document.removeEventListener("pointerdown", convMenuOutside, true);
+  }
+  if (wasOpen) openConv(null);
   else renderSidebar();
-  toast(t("toast.deleted"), "ok");
+  if (!$("sidebar").contains(document.activeElement) || document.activeElement === document.body) $("conv-search").focus({ preventScroll: true });
+  toast(t("cx.side.deleted", { title }), "ok", {
+    ms: 8000,
+    action: {
+      label: t("act.undo"),
+      run: () => {
+        if (!raw || !entry || state.convs.some((c) => c.id === id)) return;
+        store.set(`bird.conv.${id}`, raw);
+        state.convs.splice(Math.min(Math.max(at, 0), state.convs.length), 0, entry);
+        store.set("bird.convs", JSON.stringify(state.convs));
+        if (wasOpen && !state.conv?.turns.length) openConv(id);
+        else renderSidebar();
+        sideFocus = null;
+        announce(t("cx.side.restored"));
+        document.querySelector(`[data-conv="${CSS.escape(id)}"] .conv-open`)?.focus({ preventScroll: true });
+      },
+    },
+  });
 }
 
-function clearAll() {
-  if (!window.confirm(t("side.clear.confirm"))) return;
+/** « Tout effacer »: a styled dialog (light and dark, the app's tone), the safe answer focused. */
+async function clearAll() {
+  const ok = await cx.confirmDialog({
+    title: t("cx.clear.title"),
+    text: t("cx.clear.text"),
+    ok: t("cx.clear.ok"),
+    cancel: t("cx.clear.cancel"),
+  });
+  if (!ok) return;
   for (const r of running.values()) r.controller.abort();
   for (const key of store.keys("bird.conv.")) store.set(key, null);
   state.convs = [];
