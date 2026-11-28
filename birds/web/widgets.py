@@ -14,8 +14,10 @@ from zoneinfo import ZoneInfo
 
 from birds.harness import geo, when
 
-from . import mapimg
-from . import opendata_widgets  # open data
+from . import (
+    mapimg,
+    opendata_widgets,  # open data
+)
 
 MAX_WIDGET_BYTES = 8_000
 MAX_LIST_BYTES = 16_000  # a map of up to 25 places (« montre sur une carte : a ; b ; c … »)

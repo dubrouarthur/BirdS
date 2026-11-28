@@ -80,7 +80,9 @@ def where(text: str) -> tuple[str, list[str]]:
         # « Var », « Lot », « Cher », « Ain »: ordinary words too, so only after « dans le » or « département du »
         lead = (r"(?:\bdans\s+(?:le|la|les|l')\s*|\bd[ée]partement\s+(?:du|de\s+la|de\s+l'|des)\s*)" if len(w) <= 5
                 else r"(?:\b(?:dans\s+(?:le|la|les|l')|en|du|de\s+la|des|dans|in)\s*)")
-        if len(w) >= 3 and re.search(lead + re.escape(w) + r"(?![\w-])", t):
+        # a long name alone at the end of the request (« travaux de voirie Gironde »)
+        if len(w) >= 3 and (re.search(lead + re.escape(w) + r"(?![\w-])", t)
+                            or (len(w) >= 6 and re.search(r"(?<![\w-])" + re.escape(w) + r"\W*$", t))):
             code = _DEP_WORDS[w]
             return f"{DEPARTMENTS[code]} ({code})", [code]
     return "", []

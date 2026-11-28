@@ -39,7 +39,7 @@ def _clean(text: str) -> str:
 
 # a piece of writing, a file, code or a how-to: the data is context there, never a card of its own
 _DELIVERABLE = re.compile(
-    r"\b(?:r[ée]dig\w*|[ée]cri(?:s|re|vez|t)\b|mail|e-mail|courriel|lettre|traduis\w*|traduire|reformule\w*|"
+    r"\b(?:r[ée]dig\w*|[ée]cri(?:s|re|vez|t)\b|mail|e-mail|courriel|courrier|lettre|traduis\w*|traduire|reformule\w*|"
     r"r[ée]sum\w*|pr[ée]sentation|diapo\w*|slides?|pptx|powerpoint|deck|document|docx|rapport|report|note de|"
     r"tableur|excel|xlsx|spreadsheet|feuille de calcul|draft|write|compose|programme\w*|fonction|script|"
     r"code(?!\s+(?:postal|insee|naf|ape|commune))|python|"
@@ -345,7 +345,12 @@ def tenders(text: str, lang: str = "fr") -> Intent | None:
     if _DELIVERABLE.search(t) or not (_TENDER_ASK.search(t) or _TENDER.match(t)):
         return None
     after = t[_TENDER.search(t).end() :]
-    m = _TOPIC.search(" " + after) or _TOPIC.search(t)
+    # « appels d'offres nettoyage de locaux » : the subject right after the noun, before any preposition inside it
+    after = re.sub(r"^(?:\s+(?:boamp|ouverts?|publi[ée]s?|en\s+cours))+", "", after, flags=re.I)
+    lead = re.match(r"\s+(?:(?:en|de|des|du|pour|sur|concernant|in|for|on)\s+)?(?:(?:de\s+la|de\s+l'|la|le|les|l'|une?|d')\s*)?"
+                    r"(?P<k>(?!(?:le|la|les|l'|cours|ligne|ce|cette|france|r[ée]gion|dans|à|a|au|aux)\b)[a-zà-ÿ]"
+                    r"[\w'-]*(?:\s+(?:de|des|du|d'|et)?\s*[a-zà-ÿ][\w'-]*){0,3})", after, re.I)  # fmt: skip
+    m = lead or _TOPIC.search(" " + after) or _TOPIC.search(t)
     kw = ""
     if m:
         kw = _TOPIC_STOP.sub("", m.group("k")).strip(" ,.?!")
@@ -356,6 +361,11 @@ def tenders(text: str, lang: str = "fr") -> Intent | None:
     label, deps = fr_where(t)
     days = 7 if re.search(r"\bcette\s+semaine|this\s+week|7\s+derniers\s+jours|last\s+week\b", t, re.I) else (
         1 if re.search(r"\baujourd'hui|today\b", t, re.I) else 30)  # fmt: skip
+    if label:  # the place is an argument of its own, not a keyword (« voirie Gironde »)
+        name = re.escape(label.split(" (")[0])
+        kw = re.sub(rf"(?i)\s*\b(?:dans\s+(?:le|la|les|l')\s*|en\s+|du\s+)?{name}\b.*$", "", kw).strip(" ,.?!")
+        if len(kw) < 2:
+            return Intent("find_tenders", None)
     args = {"query": kw, "days": days}
     if deps:
         args["where"] = deps[0] if len(deps) == 1 else label
@@ -425,7 +435,10 @@ def commune(text: str, lang: str = "fr") -> Intent | None:
     if not t or len(t) > 200:
         return None
     m = _RX_NORMALISE.search(t)
-    if m and looks_like_address(m.group("a")):
+    # « corrige l'adresse … dans le courrier »: an edit of the user's text, not a lookup
+    in_doc = re.search(r"\b(?:dans|sur|de)\s+(?:le|la|ce|cette|mon|ma|notre|l')\s*(?:courrier|lettre|mail|courriel|"
+                       r"document|fichier|contrat|devis|facture|texte|signature)\b", t, re.I)  # fmt: skip
+    if m and not in_doc and looks_like_address(m.group("a")):
         return Intent("find_commune", {"name": m.group("a").strip(" .?!")}, keep_web=False, mode="address")
     if _DELIVERABLE.search(t):
         return None
