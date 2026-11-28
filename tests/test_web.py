@@ -145,7 +145,7 @@ def test_health(client):
 @pytest.mark.parametrize("lang", ["fr", "en"])
 def test_plain_answer_streams_then_gives_the_full_answer(client, lang):
     events = chat(client, "Bonjour" if lang == "fr" else "Hello", lang=lang)
-    assert types(events) == ["answer", "usage", "done"]
+    assert types(events) == ["answer", "usage", "final", "done"]
     answer, usage = one(events, "answer"), one(events, "usage")
     assert set(answer) == {"type", "content", "sources", "files", "draft_email", "stop_reason", "charts", "web_images", "code_checks", "widgets"}
     assert answer["charts"] == [] and answer["web_images"] == []
@@ -186,14 +186,14 @@ def test_demo_is_deterministic(client):
 
 def test_thinking_emits_reasoning_only_when_on(client):
     on = chat(client, "Bonjour", thinking=True)
-    assert types(on) == ["reasoning", "answer", "usage", "done"]
+    assert types(on) == ["reasoning", "answer", "usage", "final", "done"]
     assert one(on, "usage")["thinking"] is True
     assert "reasoning" not in types(chat(client, "Bonjour", thinking=False))
 
 
 def test_search_scenario_steps_sources_citations(client):
     events = chat(client, "Cherche pourquoi les petits modèles consomment moins, cite tes sources")
-    assert types(events) == ["step", "step", "step", "step", "answer", "usage", "done"]
+    assert types(events) == ["step", "step", "step", "step", "answer", "usage", "final", "done"]
     steps = [e for e in events if e["type"] == "step"]
     assert all(set(s) == STEP_KEYS for s in steps)
     assert [(s["index"], s["tool"], s["status"]) for s in steps] == [
@@ -703,7 +703,8 @@ def test_static_payload_budget():
     # the data card and the richer charts (datakit.js, charts2.js, their app.css section: ~110 kB raw, ~31 kB gzipped)
     # the open-data cards (holidays, entity, tenders, papers, communes, chart source line: +44 kB raw, ~9 kB gzipped)
     # and Mode Réflexion (bird picker, drawings, flight header: +20 kB raw, +6 kB gzipped)
-    assert total < 1_380_000, f"static payload is {total} bytes"  # measured 1 374 501 after merging brand-site
+    # and the late events of a turn (Bird's next steps after « final », readLate: +2 kB raw)
+    assert total < 1_386_000, f"static payload is {total} bytes"  # measured 1 381 201 with the late next steps
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"
@@ -989,7 +990,7 @@ def test_harness_streams_the_answer_and_keeps_history():
             ]
         }
         events = post_chat(client, body)
-    assert types(events) == ["answer", "usage", "done"]
+    assert types(events) == ["answer", "usage", "final", "done"]
     assert streamed(events) == one(events, "answer")["content"] == "Bonjour, voici la réponse complète."
     usage = one(events, "usage")
     assert set(usage) == USAGE_KEYS and usage["tokens_kind"] == "counted" and usage["energy_wh"] is None
@@ -1029,7 +1030,7 @@ def test_harness_steps_files_and_draft_from_a_temporary_workspace(tmp_path, monk
     app, _ = harness_app(outputs)
     with TestClient(app) as client:
         events = chat(client, "Prépare le plan et un mail")
-    assert types(events) == ["step", "step", "step", "step", "answer", "usage", "done"]
+    assert types(events) == ["step", "step", "step", "step", "answer", "usage", "final", "done"]
     assert [(s["index"], s["tool"], s["status"]) for s in events if s["type"] == "step"] == [
         (0, "make_slides", "running"),
         (0, "make_slides", "done"),

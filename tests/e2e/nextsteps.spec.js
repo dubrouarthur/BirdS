@@ -73,8 +73,17 @@ async function shot(page, file) {
     await page.goto(URL, { waitUntil: "networkidle" });
     await page.waitForTimeout(1200);
 
-    // 1. a deck: Bird's own next steps, in the user's voice
+    // 1. a deck: Bird's own next steps, in the user's voice. They come after « final »: Send, the actions and
+    // the receipt are back first (no Stop over a finished answer), the chip row appears once, a moment later
     await send(page, "fais une présentation sur le télétravail");
+    const early = await page.evaluate(() => {
+      const t = [...document.querySelectorAll(".turn-bird")].at(-1);
+      return { chips: t.querySelectorAll(".chips-row").length, stop: !document.querySelector("#btn-stop")?.hidden,
+               actions: t.querySelectorAll("[data-act]").length };
+    });
+    if (early.chips || early.stop || !early.actions)
+      problems.push(`${name}: the turn did not end before its next steps: ${JSON.stringify(early)}`);
+    await page.locator(".turn-bird").last().locator(".chips-row .mchip-next").first().waitFor({ timeout: 15000 }).catch(() => {});
     await closeCanvas(page);
     const row = page.locator(".turn-bird").last().locator(".chips-row");
     const next = row.locator(".mchip-next");

@@ -222,9 +222,13 @@ export function transforms() {
   ];
 }
 
+/** The answers whose next steps are still coming (the late ``suggestions`` event after « final »): their chip row
+ * waits for them, so the row appears once, in its final order. In memory only: a reloaded turn never waits. */
+export const chipsWaiting = new WeakSet();
+
 /** The chip row of the last answer, or null: each chip sends a request the user could have typed. */
 export function renderChips(turn, onSuggest, busy = false) {
-  if (!turn?.answer || turn.status === "running" || busy) return null;
+  if (!turn?.answer || turn.status === "running" || busy || chipsWaiting.has(turn)) return null;
   const items = chipItems(turn.answer);
   if (!items.length) return null;
   return h(

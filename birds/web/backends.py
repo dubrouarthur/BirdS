@@ -264,6 +264,13 @@ def step_event(
     }
 
 
+def final_event(pending: list[str] | None = None) -> Event:
+    """The end of the turn for the user: the answer and its receipt are sent. The client gives Send back, shows the
+    actions and counts a Stop as nothing; ``pending`` names the late events still to come on this stream
+    (``suggestions``: Bird's next steps), then ``done`` closes it."""
+    return {"type": "final", "pending": list(pending or [])}
+
+
 def usage_event(
     *,
     model: str,
@@ -566,6 +573,7 @@ class DemoBackend:
     """Scripted, deterministic backend. No model is involved: nothing here is measured."""
 
     delay: float = 1.0  # multiplier on the scripted pauses (0 in tests)
+    NEXT_PAUSE = 1.2  # seconds before the scripted next steps (the live call: p50 2.0 s)
     kind: str = "demo"
     model: str = "bird-demo"
     images: bool = True  # scripted: a fake transcription, labelled as such
@@ -610,7 +618,10 @@ class DemoBackend:
             ctx.emit = emit
         if seen and not ctx.cancel.is_set():
             kind = demo_suggest_kind(seen[-1], made[-1] if made else "")
-            if kind:
+            ctx.emit(final_event(["suggestions"] if kind else []))
+            # the live call takes ≈ 2 s after the answer (docs/HARNESS.md § 17): the demo keeps a pause, so the
+            # late event is seen as it is live (Send back first, the chips after)
+            if kind and not ctx.cancel.wait(self.NEXT_PAUSE * self.delay):
                 from birds.harness import nextsteps
 
                 lang = "en" if request.lang == "en" else "fr"
@@ -2773,9 +2784,13 @@ class HarnessBackend:
                     history=hist_stats,
                 )
             )
-            # after the answer and its receipt, never before: Bird writes the next steps the user may want
-            # (birds/harness/nextsteps.py), from the request and the answer only
-            if stop_reason == "answer" and content.strip() and not ctx.cancel.is_set():
+            # after the answer and its receipt, never before: the turn is over for the user (``final``: Send is
+            # back, the actions and the receipt show, a Stop is no longer an interruption); then Bird writes the
+            # next steps the user may want (birds/harness/nextsteps.py), from the request and the answer only, as
+            # a late event of the same stream
+            later = stop_reason == "answer" and bool(content.strip()) and self._suggest_on(ctx)
+            ctx.emit(final_event(["suggestions"] if later else []))
+            if later:
                 self._suggest(agent, cfg, request_words, content, run.lang or lang, ctx)
         finally:
             if ephemeral:
@@ -2784,16 +2799,23 @@ class HarnessBackend:
                 shutil.rmtree(workspace / ".bird_images", ignore_errors=True)
 
     @staticmethod
+    def _suggest_on(ctx: RunContext) -> bool:
+        """Will this turn get Bird's next steps: switched on, time left, the user still there."""
+        import os
+
+        off = os.environ.get("BIRD_NEXTSTEPS", "on").strip().lower() in ("off", "0", "false")
+        return not off and ctx.seconds_left() - 1.0 >= 2.0 and not ctx.cancel.is_set()
+
+    @staticmethod
     def _suggest(agent, cfg, request_words: str, content: str, lang: str, ctx: RunContext) -> None:
         """The ``suggestions`` event: 0-3 next steps written by the model, validated (nextsteps.validate). Sent
         only when the model answered; nothing on a failure (the client keeps its widget chips). Never raises."""
         import logging
-        import os
 
         from birds.harness import nextsteps, router
 
         left = ctx.seconds_left() - 1.0
-        if left < 2.0 or os.environ.get("BIRD_NEXTSTEPS", "on").strip().lower() in ("off", "0", "false"):
+        if not HarnessBackend._suggest_on(ctx):
             return
         try:
             names = router.available_names(cfg, agent)

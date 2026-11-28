@@ -195,7 +195,10 @@ def test_suggestions_event_comes_after_the_answer_and_its_receipt(monkeypatch):
         r = c.post("/api/chat", json={"messages": [{"role": "user", "content": "prépare un séminaire à Annecy"}]})
     ev = [e for e in _events(r) if e["type"] not in ("delta", "user", "status", "step")]
     kinds = [e["type"] for e in ev]
-    assert kinds[-3:] == ["usage", "suggestions", "done"] and kinds.index("answer") < kinds.index("suggestions")
+    # the turn ends for the user at « final » (Send back, actions, a Stop is no interruption); the next steps
+    # come after it, as a late event of the same stream
+    assert kinds[-4:] == ["usage", "final", "suggestions", "done"] and kinds.index("answer") < kinds.index("final")
+    assert ev[-3] == {"type": "final", "pending": ["suggestions"]}
     sug = ev[-2]
     assert sug == {
         "type": "suggestions",
@@ -216,6 +219,33 @@ def test_no_suggestions_event_when_off_or_when_the_call_fails(monkeypatch):
             r = c.post("/api/chat", json={"messages": [{"role": "user", "content": "Bonjour"}]})
         assert "suggestions" not in [e["type"] for e in _events(r)]
         assert any(e["type"] == "answer" for e in _events(r))
+        if env == "off":  # nothing pending: « final » says so, the client counts the turn at once
+            assert [e for e in _events(r) if e["type"] == "final"] == [{"type": "final", "pending": []}]
+
+
+def test_the_turn_is_final_before_a_slow_next_steps_call(monkeypatch):
+    """A slow or cold endpoint: the answer and its receipt never wait for the next steps (« final » first)."""
+    import time as _time
+
+    monkeypatch.setenv("BIRD_ROUTER", "regex")
+
+    class Slow(Probeable):
+        def generate(self, prompt, max_tokens, stop, **kw):
+            if "suites d'une conversation avec Bird" in prompt:
+                _time.sleep(0.6)
+            return super().generate(prompt, max_tokens, stop, **kw)
+
+    llm = Slow(["Voici le plan du séminaire à Annecy."], nexts=json.dumps(obj(("Détaille le budget", "Détaille le "
+               "budget du séminaire à Annecy."))))  # fmt: skip
+    app = create_app(Settings(rate_limit=0), server_backend=HarnessBackend(llm, Tok()))
+    marks = {}
+    with TestClient(app) as c:
+        t0 = _time.monotonic()
+        with c.stream("POST", "/api/chat", json={"messages": [{"role": "user", "content": "un séminaire"}]}) as r:
+            for line in r.iter_lines():
+                if line.startswith("data:"):
+                    marks.setdefault(json.loads(line[5:])["type"], _time.monotonic() - t0)
+    assert marks["final"] < marks["suggestions"] - 0.5 and marks["usage"] <= marks["final"]
 
 
 def test_demo_scripts_its_next_steps_from_what_the_answer_is():
@@ -232,7 +262,10 @@ def test_demo_scripts_its_next_steps_from_what_the_answer_is():
             )
         )
     assert "suggestions" not in [e["type"] for e in hello]
+    assert [e for e in hello if e["type"] == "final"] == [{"type": "final", "pending": []}]
     if any(e["type"] == "answer" and e.get("draft_email") for e in mail):
+        kinds = [e["type"] for e in mail]
+        assert kinds.index("final") < kinds.index("suggestions") and kinds[-1] == "done"
         sug = next(e for e in mail if e["type"] == "suggestions")
         assert sug["source"] == "demo" and sug["items"][0]["label"] == "Rends le ton plus chaleureux"
         for it in sug["items"]:

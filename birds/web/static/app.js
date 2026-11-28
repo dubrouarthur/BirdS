@@ -63,7 +63,7 @@ import { setModuleHooks } from "./modules.js";
 import { applyResearchEvent } from "./research.js";
 import { mountPicker, updatePicker } from "./reflexion.js"; // Mode Réflexion: the bird picker
 import { normalizeChoice, thinks } from "./reflexion-data.js";
-import { cleanSuggestions } from "./followups.js"; // Bird's next steps (the suggestions event)
+import { chipsWaiting, cleanSuggestions } from "./followups.js"; // Bird's next steps (the suggestions event)
 
 // Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
 const AGENT_MODES = ["auto", "on", "off"];
@@ -1333,8 +1333,9 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
     case "usage":
       turn.usage = event;
       break;
-    case "suggestions": // Bird's next steps, after the answer (birds/harness/nextsteps.py): drawn when the turn ends
+    case "suggestions": // Bird's next steps (birds/harness/nextsteps.py): normally late, after « final »
       if (turn.answer) turn.answer.suggestions = cleanSuggestions(event.items);
+      chipsWaiting.delete(turn);
       break;
     case "agent_plan": {
       const said = applyAgentEvent(turn, event);
@@ -1386,8 +1387,68 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
   scrollToEnd(false);
 }
 
+/** The events of an SSE response body, one by one (heartbeats skipped); ``onByte`` on every read. */
+async function* sseEvents(reader, onByte) {
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    onByte(); // heartbeats included
+    if (done) return;
+    buffer += decoder.decode(value, { stream: true });
+    let cut;
+    while ((cut = buffer.indexOf("\n\n")) >= 0) {
+      const frame = buffer.slice(0, cut);
+      buffer = buffer.slice(cut + 2);
+      const data = frame
+        .split("\n")
+        .filter((line) => line.startsWith("data:")) // lines starting with ":" are heartbeats
+        .map((line) => line.slice(5).trimStart())
+        .join("\n");
+      if (!data) continue;
+      try {
+        yield JSON.parse(data);
+      } catch {
+        /* not JSON: skipped */
+      }
+    }
+  }
+}
+
+/** After « final »: the turn is over for the user (Send is back, a Stop changes nothing); the same stream still
+ * brings its late events (Bird's next steps, the receipt that counts them) until « done ». A new turn, a lost
+ * connection or a server error only end the wait: the answer stays as it is. */
+async function readLate(turn, conv, events, controller, stopWatch) {
+  state.late = controller;
+  try {
+    for (;;) {
+      const { value: event, done } = await events.next();
+      if (done || event.type === "done") break;
+      if (event.type === "suggestions" || event.type === "usage") handleEvent(turn, event, conv);
+    }
+  } catch {
+    /* aborted (a new turn) or dropped: nothing to undo */
+  } finally {
+    stopWatch();
+    if (state.late === controller) state.late = null;
+    const waited = chipsWaiting.delete(turn);
+    countUsage(turn, conv);
+    saveConv(conv);
+    if (waited && state.conv === conv) updateTurn(turn); // no next steps after all: the widget chips show
+  }
+}
+
+/** The turn's receipt in the local ledger (« Consommation »), once, when its last usage event is in. */
+function countUsage(turn, conv) {
+  if (turn.usage && turn.status === "done" && !turn.counted) {
+    turn.counted = true;
+    ledgerAdd(turn.usage, conv.id);
+  }
+}
+
 async function runTurn(turn, extra = {}) {
   const conv = state.conv; // the conversation this answer belongs to, even if the user opens another one
+  if (state.late) state.late.abort(); // the previous turn's late next steps: this new request comes first
   const controller = new AbortController();
   state.abort = controller;
   let release;
@@ -1399,6 +1460,8 @@ async function runTurn(turn, extra = {}) {
   updateTurn(turn);
   followTurn = turn.id;
   let finished = false;
+  let late = false; // « final » came with events still to read (readLate)
+  let events = null;
   turn.started = Date.now();
   const ticker = window.setInterval(tick, 1000);
   // a stream that goes silent (tunnel, Wi-Fi to 4G handover, NAT timeout) never ends on its own: the server sends
@@ -1462,8 +1525,6 @@ async function runTurn(turn, extra = {}) {
       return;
     }
     const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
     lastByte = Date.now();
     document.addEventListener("visibilitychange", onVisible);
     watchdog = window.setInterval(() => {
@@ -1472,30 +1533,18 @@ async function runTurn(turn, extra = {}) {
         controller.abort();
       }
     }, 5000);
+    events = sseEvents(reader, () => (lastByte = Date.now()));
     for (;;) {
-      const { value, done } = await reader.read();
-      lastByte = Date.now(); // heartbeats included
+      const { value: event, done } = await events.next();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let cut;
-      while ((cut = buffer.indexOf("\n\n")) >= 0) {
-        const frame = buffer.slice(0, cut);
-        buffer = buffer.slice(cut + 2);
-        const data = frame
-          .split("\n")
-          .filter((line) => line.startsWith("data:")) // lines starting with ":" are heartbeats
-          .map((line) => line.slice(5).trimStart())
-          .join("\n");
-        if (!data) continue;
-        let event;
-        try {
-          event = JSON.parse(data);
-        } catch {
-          continue;
-        }
-        if (event.type === "done") finished = true;
-        else handleEvent(turn, event, conv, docs);
-      }
+      if (event.type === "done") finished = true;
+      else if (event.type === "final") {
+        // the answer and its receipt are in: the turn ends here for the user, late events follow (readLate)
+        finished = true;
+        late = Array.isArray(event.pending) && event.pending.length > 0;
+        if (late && event.pending.includes("suggestions") && turn.answer) chipsWaiting.add(turn);
+        break;
+      } else handleEvent(turn, event, conv, docs);
     }
     if (finished && turn.status === "running" && !turn.answer) {
       // the plan card waits for « Lancer »; a long task's slice ended: the next one starts below
@@ -1529,8 +1578,16 @@ async function runTurn(turn, extra = {}) {
     }
   } finally {
     window.clearInterval(ticker);
-    window.clearInterval(watchdog);
-    document.removeEventListener("visibilitychange", onVisible);
+    const stopWatch = () => {
+      window.clearInterval(watchdog);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+    late = late && turn.status === "done";
+    if (late) readLate(turn, conv, events, controller, stopWatch);
+    else {
+      stopWatch();
+      chipsWaiting.delete(turn);
+    }
     // the team did not report its end: the user stopped it, the server failed, or the connection was lost
     if (turn.status === "stopped" && turn.crew) turn.crew.checkpoint = ""; // Stop frees everything: no resume
     if (turn.crew && !turn.crew.done && !["confirm", "slice"].includes(turn.status))
@@ -1560,10 +1617,7 @@ async function runTurn(turn, extra = {}) {
         draft_email: null,
         stop_reason: "stopped",
       };
-    if (turn.usage && turn.status === "done" && !turn.counted) {
-      turn.counted = true;
-      ledgerAdd(turn.usage, conv.id);
-    }
+    if (!late) countUsage(turn, conv); // with late events: once their receipt is in (readLate)
     const shown = state.conv === conv;
     if (shown) renderConversation(); // the last-turn actions (regenerate, edit) depend on the busy state
     if (shown && turn.status === "stopped") announce(t("turn.stopped"));
