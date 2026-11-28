@@ -778,11 +778,13 @@ class _DemoRun:
         self.pause(0.4)
         self.finish(
             self.t(
-                "Je suis **Bird**, un petit assistant de travail (4 milliards de paramètres) conçu par Bird Models.\n\n"
+                "Je suis **Bird**, un petit assistant de travail (4 milliards de paramètres) conçu en France par Bird Models. "
+                "Léger, il s'installe où vous voulez : chez vous ou dans le centre de données de votre choix.\n\n"
                 "Ceci est le **mode démo** : cette réponse est écrite à l'avance, aucun modèle ne tourne. "
                 "Essayez l'un des exemples (mail, compte rendu, présentation, recherche web) pour voir les étapes "
                 "de l'agent et le compteur de ressources.",
-                "I am **Bird**, a small work assistant (4 billion parameters) built by Bird Models.\n\n"
+                "I am **Bird**, a small work assistant (4 billion parameters) designed in France by Bird Models. "
+                "Light, it installs wherever you want: on your premises or in the data centre you choose.\n\n"
                 "This is **demo mode**: this answer is written in advance, no model is running. "
                 "Try one of the examples (email, meeting minutes, slides, web research) to see the agent steps "
                 "and the resource meter.",
