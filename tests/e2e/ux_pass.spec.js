@@ -167,6 +167,31 @@ async function scripted(page, events, ask) {
     await mixed.scrollIntoViewIfNeeded();
     await shot("mail-mixed");
 
+    // ---- a recipient line longer than the card: « À » stays on the first line, the recipients flow after it
+    await scripted(
+      page,
+      [
+        [100, { type: "answer", content: "Brouillon prêt.", draft_email: { to: ["jean-baptiste.delacroix-montmorency@entreprise-exemple-tres-longue.fr", "Marc Petit"], to_hint: "le service comptabilité", subject: "Facture", body: "Bonjour,\n\nCi-joint." } }],
+        [50, { type: "done" }],
+      ],
+      "Écris un mail",
+    );
+    await page.waitForTimeout(1200);
+    const longTo = page.locator(".email-card .email-to").last();
+    const lines = await longTo.evaluate((el) => {
+      const r = document.createRange();
+      r.selectNodeContents(el.firstChild);
+      const label = r.getBoundingClientRect();
+      r.selectNodeContents([...el.childNodes].slice(1).find((n) => n.textContent.trim()));
+      const first = r.getClientRects()[0];
+      return { label: label.top, first: first ? first.top : -1, over: el.scrollWidth - el.clientWidth };
+    });
+    if (Math.abs(lines.label - lines.first) > 4) problems.push(`${c.name}: « À » alone on its line (${lines.label} vs ${lines.first})`);
+    if (lines.over > 1) problems.push(`${c.name}: recipient line overflows the card by ${lines.over} px`);
+    if ((await longTo.locator(".email-missing").count()) !== 2) problems.push(`${c.name}: long line, not one hint per name`);
+    await longTo.scrollIntoViewIfNeeded();
+    await shot("mail-long");
+
     // ---- « Aller à la fin »: a small round arrow with its words for screen readers
     await page.evaluate(() => {
       const s = document.getElementById("scroll");

@@ -1788,15 +1788,23 @@ details[open] > summary > .chev {
   white-space: pre-wrap;
   font-size: 0.96rem;
 }
-/* the recipient line: what is known, then a quiet dashed hint for what is still to add */
+/* the recipient line: what is known, then a quiet dashed hint for what is still to add. Plain inline text, so
+   « À » stays at the head of the first line and long addresses wrap after it instead of dropping below it */
 .email-to {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 2px 6px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+/* a name and its hint move to the next line together, never the hint alone */
+.email-name {
+  display: inline-block;
+  max-inline-size: 100%;
 }
 .email-missing {
   display: inline-flex;
+  vertical-align: middle;
+  margin-inline-start: 2px;
+  line-height: 1.4;
+  white-space: nowrap;
   align-items: center;
   gap: 4px;
   padding: 1px 8px 1px 6px;

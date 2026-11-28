@@ -788,7 +788,7 @@ function renderEmail(turn) {
           // (it is not in the mailto: link); nobody at all reads « destinataire à ajouter »
           addresses.length || names.length
             ? [...addresses, ...names].flatMap((who, i) => [
-                i ? ", " : "",
+                i ? ", " : null,
                 i < addresses.length
                   ? who
                   : h("span", { class: "email-name" }, who, " ", missingPill("email.to.noaddr")),
