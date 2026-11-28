@@ -205,11 +205,9 @@ def demo_research(run) -> None:
                   hooks=Hooks(on_agent=on, on_token=lambda _t: None))  # fmt: skip
 
     class DemoResearch(Research):
-        def _tool(self, lane, name, args, *, forced=None):  # the recorded pages instead of the network
-            with self.lock:
-                index = self.index
-                self.index += 1
-            self._emit({"kind": "tool_start", "index": index, "tool": name, "arguments": args, "agent": lane})
+        def _tool(self, lane, name, args, *, forced=None, index=None):  # the recorded pages instead of the network
+            if index is None:
+                index = self._announce(lane, name, args)
             run.pause(0.5 if name == "read_page" else 0.7)
             if name == "web_search":  # each query finds the example pages in its own order
                 items = list(_PAGES.items())

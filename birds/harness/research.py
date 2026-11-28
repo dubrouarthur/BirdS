@@ -607,7 +607,10 @@ class Research(Crew):
         for row in self.board["queries"]:
             row["status"] = "running"
         self._board()
-        futures = {self.pool.submit(self._tool, lane, "web_search", {"query": q, "max_results": 6}): q for q in queries}
+        futures = {}
+        for q in queries:  # numbered and announced in the plan's order; the board follows whichever ends first
+            args = {"query": q, "max_results": 6}
+            futures[self.pool.submit(self._tool, lane, "web_search", args, index=self._announce(lane, "web_search", args))] = q
         found: dict[str, list[str]] = {}
         for f in as_completed(futures):
             q = futures[f]
@@ -651,7 +654,7 @@ class Research(Crew):
             for u in batch:
                 by_url[u]["status"] = "reading"
             self._board()
-            reads = list(self.pool.map(lambda u: self._tool(lane, "read_page", {"url": u}), batch))
+            reads = self._tools(lane, "read_page", [{"url": u} for u in batch])
             for u, (_, step, text, _) in zip(batch, reads, strict=True):
                 read += 1
                 src = by_url[u]

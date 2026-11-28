@@ -741,10 +741,23 @@ class Crew:
         return None
 
     # -------------------------------------------------------------- one tool call, through the single agent's guard
-    def _tool(self, lane: str, name: str, args: dict, *, forced: str | None = None):
+    def _announce(self, lane: str, name: str, args: dict) -> int:
+        """Number a tool call and announce it (in the caller's order, before any parallel run)."""
         with self.lock:
             index = self.index
             self.index += 1
+        self._emit({"kind": "tool_start", "index": index, "tool": name, "arguments": args, "agent": lane})
+        return index
+
+    def _tools(self, lane: str, name: str, arg_list: list[dict]) -> list:
+        """The same tool on several arguments, in parallel: numbered and announced in the given order (the activity
+        feed and the read order stay those of the plan, whatever thread finishes first), results in that order."""
+        started = [(self._announce(lane, name, a), a) for a in arg_list]
+        return list(self.pool.map(lambda ia: self._tool(lane, name, ia[1], index=ia[0]), started))
+
+    def _tool(self, lane: str, name: str, args: dict, *, forced: str | None = None, index: int | None = None):
+        if index is None:
+            index = self._announce(lane, name, args)
         ctx = Context(
             config=self.cfg,
             http=self.agent.http,
@@ -759,7 +772,6 @@ class Crew:
         sub = Run(lang=self.lang, flagged=self.flagged)
         clone = copy.copy(self.agent)
         clone.hooks = Hooks()  # the crew reports its own steps (with the lane id)
-        self._emit({"kind": "tool_start", "index": index, "tool": name, "arguments": args, "agent": lane})
         if name == "read_page":  # page parsing (lxml) crashed the process when run in parallel: one page at a time
             with _PAGE_LOCK:
                 step, result = clone._call(name, args, 0, sub, ctx, 0, forced, frozenset())
@@ -1072,7 +1084,7 @@ class Crew:
         site), keeps evidence windows; when fewer than 2 pages gave an extract and time is left, reads up to
         MORE_PAGES more pages of other sites. 0 model calls."""
         self._step(lane, "running", "brief", detail=" · ".join(queries))
-        results = list(self.pool.map(lambda q: self._tool(lane, "web_search", {"query": q, "max_results": 5}), queries))
+        results = self._tools(lane, "web_search", [{"query": q, "max_results": 5} for q in queries])
         rows = [re.findall(r"^\s+(https?://\S+)\s*$", text, re.M) for _, step, text, _ in results if not step.error]
         urls, seen = [], set()
         for row in itertools.zip_longest(*rows):  # the first result of each search, then the second...
@@ -1127,11 +1139,11 @@ class Crew:
                     )
                     total += len(win)
 
-        keep(self.pool.map(lambda u: self._tool(lane, "read_page", {"url": u}), urls[:pages]))
+        keep(self._tools(lane, "read_page", [{"url": u} for u in urls[:pages]]))
         have = {site(w["url"] or "") for w in windows}
         more = [u for u in urls[pages:] if site(u) not in have][:MORE_PAGES]
         if len(windows) < 2 and more and self._left() > BRIEF_S + 60:
-            keep(self.pool.map(lambda u: self._tool(lane, "read_page", {"url": u}), more))
+            keep(self._tools(lane, "read_page", [{"url": u} for u in more]))
         self._step(
             lane, "done", "brief", detail=f"{len(windows)} page(s)", seconds=round(time.monotonic() - self.t0, 1)
         )
@@ -1533,6 +1545,12 @@ class Crew:
         n = 1 if self._cold() else self.n_drafts
         if n < 2:
             self._step("redacteur_b", "skipped", "drafts")
+        with self.lock:
+            left = self.max_calls - self.calls
+        if 0 < left < n:  # the budget left goes to the first versions, in order (never to whichever thread is first)
+            for k in range(left, n):
+                self._step("redacteur_" + "ab"[k], "skipped", "drafts", detail="budget")
+            n = left
         angles = ANGLES[self.lang][self._angle_key(tool)]
         max_t = (900 if tool == "draft_email" else 1500) + (800 if self.thinking else 0)
 
