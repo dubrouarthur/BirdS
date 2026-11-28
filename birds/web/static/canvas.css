@@ -1242,7 +1242,7 @@ ol.cv-list > li::before {
   background: #fff;
   transition: opacity 0.18s ease;
 }
-.cv-frame.is-loading {
+.cv-frame.cv-loading {
   opacity: 0;
   pointer-events: none;
 }

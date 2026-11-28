@@ -2206,7 +2206,7 @@ function syncStage() {
     view.stageHtml = p.html;
     view.bundleFiles = p.files;
     const frame = h("iframe", {
-      class: "cv-frame is-loading",
+      class: "cv-frame cv-loading",
       src: "/canvas/frame",
       sandbox: SANDBOX,
       referrerpolicy: "no-referrer",
@@ -2223,8 +2223,8 @@ function syncStage() {
 }
 
 function shown(frame) {
-  if (!frame.classList.contains("is-loading")) return;
-  frame.classList.remove("is-loading");
+  if (!frame.classList.contains("cv-loading")) return;
+  frame.classList.remove("cv-loading");
   // the page shown before stays under the new one while it fades in, then goes
   const old = [...view.frames.keys()].filter((f) => f !== frame);
   window.setTimeout(() => {
@@ -2370,7 +2370,7 @@ function onFrameMessage(e) {
     const meta = view.frames.get(frame);
     if (!meta || meta.sent) return; // the page asking again: it gets nothing more
     meta.sent = true;
-    if (frame.classList.contains("is-loading")) view.console = [];
+    if (frame.classList.contains("cv-loading")) view.console = [];
     frame.contentWindow.postMessage({ bird: "render", html: meta.html }, "*");
   } else if (e.data.bird === "console") {
     if (e.data.level === "ready") {

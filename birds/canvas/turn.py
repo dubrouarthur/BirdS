@@ -281,7 +281,7 @@ def chat_text(kind: str, doc: dict, lang: str, before: str = "", after: str = ""
     if cut:
         parts.append("La réponse a été coupée par la limite de longueur : la fin peut manquer." if fr
                      else "The answer was cut by the length limit: the end may be missing.")  # fmt: skip
-    lead = before if before and len(before) <= 300 and not re.match(r"(?i)^\s*(voici|here is|here's|bien s[uû]r|"
+    lead = before if before and len(before) <= 300 and not re.match(r"(?i)^\s*(voici|voil[àa]|here is|here's|bien s[uû]r|"
                                                                      r"d'accord|ok)\b", before) else ""  # fmt: skip
     if _EXCUSE.search(lead):
         lead = ""  # « je n'ai pas accès à vos données… » before a deck that is right there: the content speaks

@@ -250,7 +250,8 @@ async function run(name, options, { full = true, scheme = "light" } = {}) {
         out.parent = false;
       }
       try {
-        out.storage = !!window.localStorage;
+        // the frame's localStorage is an in-memory stand-in (canvas_web.FRAME_HTML), never the browser's
+        out.storage = Object.getPrototypeOf(window.localStorage) === Storage.prototype;
       } catch {
         out.storage = false;
       }

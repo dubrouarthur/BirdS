@@ -36,8 +36,8 @@ async function say(page, text) {
 
 /** The preview frame shown (not one still loading behind it). */
 async function shownFrame(page) {
-  await page.waitForSelector("#canvas .cv-frame:not(.is-loading)", { timeout: 10000 });
-  const handles = await page.$$("#canvas .cv-frame:not(.is-loading)");
+  await page.waitForSelector("#canvas .cv-frame:not(.cv-loading)", { timeout: 10000 });
+  const handles = await page.$$("#canvas .cv-frame:not(.cv-loading)");
   return handles.at(-1).contentFrame(); // the newest (the one before stays a moment while the new one fades in)
 }
 
@@ -82,7 +82,7 @@ async function run(name, options, { scheme = "light", security = true } = {}) {
   check(true, "a file is shown as being written while the model writes");
   if (!phone) await page.screenshot({ path: path.join(SHOTS, `code-streaming-${tag}.png`) });
   await idle(page);
-  await page.waitForSelector("#canvas .cv-frame:not(.is-loading)", { timeout: 10000 });
+  await page.waitForSelector("#canvas .cv-frame:not(.cv-loading)", { timeout: 10000 });
   let frame = await shownFrame(page);
   const h1 = await frame.locator("h1").textContent({ timeout: 5000 }).catch(() => "");
   check(/boulangerie/i.test(h1 || ""), `page rendered in the sandbox: ${h1}`);
