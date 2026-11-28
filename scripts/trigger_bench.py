@@ -545,6 +545,11 @@ CARD_YES = [  # (ask with its data, the kind the parsers must hint)
     ("donne-moi les sources de ta réponse", "sources"),
 ]
 CARD_NO = [  # the words of a card without its data, or another request: no card
+    # the data of a chart, a sheet or a canvas asked: it goes into that element, no card beside it
+    "Crée un graphique avec ces KPI : janvier : 12 000 €, février : 15 000 €, mars : 9 000 €",
+    "Fais-moi un tableau de bord Excel des ventes : janvier : 12 000 €, février : 15 000 €",
+    "Fais un graphique qui compare ces offres :\n| Offre | Prix | Délai |\n|---|---|---|\n| A | 120 € | 4 h |\n"
+    "| B | 95 € | 8 h |",
     "quels sont les avantages du vélo électrique ?",
     "fais une frise de l'histoire de France",
     "quels sont les chiffres clés du marché du vélo en France ?",

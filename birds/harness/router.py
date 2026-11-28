@@ -96,6 +96,18 @@ def _cities(found: dict, lang: str) -> list[str]:
     return [c.get("en" if lang == "en" else "fr") or c["fr"] for c in found.get("cities") or []]
 
 
+def _deliverable(text: str, mods: list[Call], attached: bool) -> bool:
+    """A chart, an office file or a canvas is the element asked: the user's data goes into it."""
+    if any(c.tool in ("make_chart", "office") for c in mods):
+        return True
+    try:
+        from birds.canvas import intents as canvas_intents
+
+        return bool(canvas_intents.ask(text, attached))
+    except Exception:  # the canvas words must never break routing
+        return False
+
+
 def regex_decision(
     text: str, *, history: list[dict] | None = None, attached: bool = False, lang: str = "fr", now=None
 ) -> Decision:
@@ -157,6 +169,9 @@ def regex_decision(
             else "document"
         )  # fmt: skip
         mods.append(Call("office", {"kind": kind}))
+    if any(c.tool == "card" and c.args.get("kind") != "calc" for c in mods) and _deliverable(text, mods, attached):
+        # the figures or the table are the data of the chart, the sheet or the canvas asked: no card beside it
+        mods = [c for c in mods if c.tool != "card"]
     agent = "auto"
     try:
         from birds.harness import crew
@@ -737,13 +752,19 @@ def own_words(text: str) -> str | None:
 
 
 def merge(model: Decision, base: Decision, own: Decision | None = None) -> Decision:
-    """hybrid: the model's decision, plus a confident parser call of a family the model left out. ``own`` is the
+    """hybrid: the model's decision, plus a confident parser call of a family the model left out (never a small
+    « card » but the exact calculator: those are the model's choice). ``own`` is the
     parsers' decision on the user's own instruction (``own_words``) for a task on pasted text: a parser call that
     comes only from the pasted text is not added back over the model's choice."""
     mods = list(model.modules)
     fam = {catalog.BY_NAME[c.tool].family for c in mods}
     for c in base.modules:
         if catalog.BY_NAME[c.tool].kind == catalog.HINT or catalog.BY_NAME[c.tool].family in fam:
+            continue
+        if c.tool == "card" and c.args.get("kind") != "calc":
+            # the small cards are the model's choice only: a parser guess (figures, matrix…) next to the chart or the
+            # sheet the model chose is clutter. The exact calculator stays: its numbers come from code, not words.
+            model.meta.setdefault("not_merged", []).append(f"card:{c.args.get('kind')}")
             continue
         if own is not None and own.get(c.tool) is None:
             model.meta.setdefault("not_merged", []).append(c.tool)

@@ -626,3 +626,27 @@ def test_a_reply_to_write_never_starts_the_weather(text, mode):
 )
 def test_a_person_addressed_is_never_the_weather_place(text, place):
     assert R.regex_decision(text).get("get_weather").args["place"] == place
+
+
+@pytest.mark.parametrize(
+    "model, text",
+    [  # the model chose the chart or the sheet: the parsers' guess of a card is not added beside it
+        ([R.Call("make_chart", {})], "Crée un graphique avec ces KPI : janvier : 12 000 €, février : 15 000 €, mars : 9 000 €"),
+        ([R.Call("office", {"kind": "sheet"})], "Fais-moi un tableau de bord Excel des ventes : janvier : 12 000 €, "
+         "février : 15 000 €"),
+        ([R.Call("make_chart", {})], "Fais un graphique qui compare ces offres :\n| Offre | Prix |\n|---|---|\n"
+         "| A | 120 € |\n| B | 95 € |"),
+        ([], "Fais une fiche de chiffres clés : CA 2025 : 1,2 M€ ; marge : 18 % ; effectif : 45 salariés"),
+    ],
+)  # fmt: skip
+def test_hybrid_never_adds_a_small_card_the_model_left_out(model, text):
+    d = R.merge(R.Decision(list(model)), R.regex_decision(text))
+    assert "card" not in d.tools() and d.tools() == [c.tool for c in model]
+
+
+def test_hybrid_keeps_the_exact_calculator_and_the_parsers_drop_a_card_beside_a_chart():
+    d = R.merge(R.Decision([]), R.regex_decision("mensualité d'un prêt de 200 000 € sur 20 ans à 3,5 %"))
+    assert [(c.tool, c.args) for c in d.modules] == [("card", {"kind": "calc"})]
+    assert R.regex_decision("Crée un graphique avec ces KPI : janvier : 12 000 €, février : 15 000 €").tools() == [
+        "make_chart"
+    ]
