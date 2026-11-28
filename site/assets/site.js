@@ -112,6 +112,25 @@
       });
     }
 
+    // Galerie : un arrêt de tabulation seulement quand elle défile (carrousel sous 900 px), pour qu'on la
+    // fasse défiler au clavier ; sur bureau elle tient en entier et ne doit pas ajouter un arrêt vide.
+    var bentos = document.querySelectorAll(".bento");
+    if (bentos.length) {
+      var syncBento = function () {
+        for (var b = 0; b < bentos.length; b++) {
+          var el = bentos[b];
+          if (el.scrollWidth > el.clientWidth + 1) el.setAttribute("tabindex", "0");
+          else {
+            el.removeAttribute("tabindex");
+            if (document.activeElement === el) el.blur();
+          }
+        }
+      };
+      syncBento();
+      window.addEventListener("resize", syncBento, { passive: true });
+      window.addEventListener("load", syncBento);
+    }
+
     // En-tête : filet au défilement.
     var header = document.querySelector(".site-header");
     if (header) {

@@ -5,7 +5,7 @@
 // Checks, at 360, 768 and 1280 px, light and dark, French and English:
 //   site   no third-party request, no CSP or script error, no horizontal scroll, nothing left invisible after a
 //          scroll through the page (reveal), the hero mail draft is filled on load and again when scrolled back to,
-//          the gallery stays short on phones and tablets, no placeholder address, no contact link without an address (and with
+//          the gallery stays short on phones and tablets and is a tab stop only when it scrolls, no placeholder address, no contact link without an address (and with
 //          one, the Contact section and buttons open a mail), the freedom-to-install section comes right after the hero
 //   chat   the welcome says lightness and freedom to install, fits the screen, and closes on an uncluttered chat
 // Screenshots of every section (look at them). ONLY=<tag part> narrows.
@@ -80,12 +80,17 @@ async function site(browser, lang, w, theme) {
       ids,
       overflow: document.documentElement.scrollWidth - innerWidth,
       gallery: gallery ? Math.round(gallery.getBoundingClientRect().height) : 0,
+      bento: [...document.querySelectorAll(".bento")].map((b) => ({ scrolls: b.scrollWidth > b.clientWidth + 1, tab: b.getAttribute("tabindex") })),
       contacts,
       body: document.body.innerText,
     };
   }, SECTIONS);
   check(info.hidden.length === 0, `${tag} nothing left invisible after scrolling (${info.hidden.slice(0, 3)})`);
   check(info.overflow <= 0, `${tag} no horizontal scroll`);
+  check(
+    info.bento.every((b) => (b.tab === "0") === b.scrolls),
+    `${tag} gallery is a tab stop only when it scrolls (${JSON.stringify(info.bento)})`,
+  );
   check(w >= 900 || info.gallery < 1900, `${tag} gallery stays short (${info.gallery} px)`);
   check(!/birdmodels\.example|TODO/.test(info.body), `${tag} no placeholder address`);
   check(info.contacts.length === 0, `${tag} no contact link shown without an address (${info.contacts.slice(0, 2)})`);

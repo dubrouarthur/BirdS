@@ -134,3 +134,11 @@ def test_reference_copy_english_half_is_english():
     copy = text(SITE / "COPY.md")
     en = copy[copy.index("# ENGLISH VERSION") : copy.index("## RSE & sobriété")]
     assert "Nous écrire" not in en and "Write to us" in en
+
+
+def test_gallery_is_a_tab_stop_only_when_it_scrolls():
+    for page in ("index.html", "en/index.html"):
+        tag = re.search(r'<div class="bento"[^>]*>', text(SITE / page)).group(0)
+        assert "tabindex" not in tag, tag  # set by site.js only when the carousel overflows
+    js = text(SITE / "assets" / "site.js")
+    assert "scrollWidth > el.clientWidth" in js and 'removeAttribute("tabindex")' in js
