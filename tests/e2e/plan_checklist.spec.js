@@ -75,6 +75,11 @@ async function send(page, text) {
     { timeout: 60000 },
   );
   await page.waitForTimeout(400);
+  // a deck opens in the canvas, which covers a phone's whole screen: close it like a user to read the chat
+  if (await page.evaluate(() => innerWidth < 900 && document.documentElement.classList.contains("cv-open"))) {
+    await page.evaluate(() => document.querySelector('.cv-panel [data-act="close"], .cv-close')?.click());
+    await page.waitForTimeout(300);
+  }
 }
 
 (async () => {
@@ -156,6 +161,22 @@ async function send(page, text) {
           problems.push(`${name}/${ask.id}: a partial plan is folded`);
       } else if (await plan.evaluate((el) => el.open))
         problems.push(`${name}/${ask.id}: a complete plan stays open`);
+      // opened, the work line keeps every row inside its box (a long detail ends in « … », it is not cut off)
+      if (!ask.partial) {
+        const was0 = await plan.evaluate((el) => el.open);
+        if (!was0) await plan.evaluate((el) => (el.open = true));
+        await page.waitForTimeout(150);
+        const spill = await plan.evaluate((el) => {
+          const box = el.getBoundingClientRect();
+          return [...el.querySelectorAll(".work-body *")].filter((c) => {
+            const r = c.getBoundingClientRect();
+            return r.width > 0 && r.right > box.right + 1;
+          }).length;
+        });
+        if (spill) problems.push(`${name}/${ask.id}: ${spill} element(s) of the work line run past its box`);
+        if (!was0) await plan.evaluate((el) => (el.open = false));
+        await page.waitForTimeout(150);
+      }
       // keyboard: the summary is focusable and toggles the list
       await plan.locator(":scope > summary").focus();
       const was = await plan.evaluate((el) => el.open);

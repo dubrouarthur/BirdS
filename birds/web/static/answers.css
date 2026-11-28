@@ -313,8 +313,12 @@ a.cite-bubble-title {
 }
 .work-body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr); /* a long step or tool detail ends in « … », never past the box (360 px) */
   gap: 6px;
   padding: 0 14px 12px;
+}
+.work-body > * {
+  min-inline-size: 0;
 }
 .work-h {
   margin-block-start: 6px;
