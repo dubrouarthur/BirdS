@@ -735,6 +735,9 @@ function fillMarks(text) {
     .map((part, i) => (i % 2 ? h("mark", { class: "email-fill", title: t("email.fill"), text: part }) : part));
 }
 
+// a quiet dashed pill: what is still to add before the mail can leave
+const missingPill = (key) => h("span", { class: "email-missing" }, icon("plus"), h("span", { text: t(key) }));
+
 function renderEmail(turn) {
   const draft = turn.answer?.draft_email;
   if (!draft || typeof draft !== "object") return null;
@@ -781,14 +784,16 @@ function renderEmail(turn) {
           "p",
           { class: "card-meta email-to" },
           h("span", { text: `${t("email.to")} ` }),
-          [...addresses, ...names].join(", "),
-          !addresses.length &&
-            h(
-              "span",
-              { class: "email-missing" },
-              icon("plus"),
-              h("span", { text: t(names.length ? "email.to.noaddr" : "email.to.missing") }),
-            ),
+          // the addresses, then each name with its own « adresse à ajouter »: a name never reads as a real recipient
+          // (it is not in the mailto: link); nobody at all reads « destinataire à ajouter »
+          addresses.length || names.length
+            ? [...addresses, ...names].flatMap((who, i) => [
+                i ? ", " : "",
+                i < addresses.length
+                  ? who
+                  : h("span", { class: "email-name" }, who, " ", missingPill("email.to.noaddr")),
+              ])
+            : missingPill("email.to.missing"),
         ),
       ),
     ),

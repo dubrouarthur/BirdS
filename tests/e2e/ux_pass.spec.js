@@ -147,6 +147,26 @@ async function scripted(page, events, ask) {
     await page.locator(".email-card").scrollIntoViewIfNeeded();
     await shot("mail");
 
+    // ---- an address and a bare name: the name keeps its own « adresse à ajouter », only the address goes to mailto:
+    await scripted(
+      page,
+      [
+        [100, { type: "answer", content: "Brouillon prêt.", draft_email: { to: ["marie.dupont@exemple.fr"], to_hint: "Paul Martin", subject: "Réunion", body: "Bonjour,\n\nÀ jeudi." } }],
+        [50, { type: "done" }],
+      ],
+      "Écris un mail",
+    );
+    await page.waitForTimeout(1200);
+    const mixed = page.locator(".email-card").last();
+    const named = await mixed.locator(".email-name").innerText().catch(() => "");
+    if (!named.includes("Paul Martin") || !(await mixed.locator(".email-name .email-missing").count()))
+      problems.push(`${c.name}: a bare name next to an address shows as a real recipient «${named}»`);
+    if (await mixed.locator(".email-missing").count() !== 1) problems.push(`${c.name}: mixed recipients, ${await mixed.locator(".email-missing").count()} hints`);
+    const mixedTo = await mixed.locator("a[data-mailto]").getAttribute("href");
+    if (!/^mailto:marie\.dupont%40exemple\.fr\?/.test(mixedTo || "")) problems.push(`${c.name}: mixed mailto ${mixedTo}`);
+    await mixed.scrollIntoViewIfNeeded();
+    await shot("mail-mixed");
+
     // ---- « Aller à la fin »: a small round arrow with its words for screen readers
     await page.evaluate(() => {
       const s = document.getElementById("scroll");
