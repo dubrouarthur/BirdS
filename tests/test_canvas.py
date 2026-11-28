@@ -1065,3 +1065,35 @@ def test_chat_text_drops_an_excuse_before_the_deck():
     text = turn.chat_text("deck", d, "fr", before="Je n'ai pas accès à vos données internes ni à l'outil web.")
     assert "accès" not in text
     assert "ajoute une section" in turn.chat_text("doc", dsl.parse("# A\nx\n# B\ny", "doc"), "fr")
+
+
+# ------------------------------------------------------------------ the task plan on canvas turns
+
+
+def test_canvas_deck_turn_never_reports_the_deck_as_missing(monkeypatch):
+    """The canvas delivers the deck: the task plan does not count it as an item the file tools should make."""
+    from fastapi.testclient import TestClient
+
+    _no_network(monkeypatch)
+    app, llm = _app([DECK, "| Poste | Coût |\n|---|---|\n| A | 1 |"])
+    with TestClient(app) as client:
+        events = _chat(client, "Fais une présentation sur le plan mobilité avec un tableau des coûts")
+    answer = next(e for e in events if e["type"] == "answer")
+    assert len(llm.prompts) == 1, "one generation: no nudge for a deck the canvas built"
+    assert "Note de Bird" not in json.loads(llm.prompts[0])["messages"][-1]["content"]
+    assert not (answer.get("plan") or {}).get("missing")
+
+
+def test_canvas_code_turn_reads_the_script_words_as_what_it_does(monkeypatch):
+    """« un script qui génère un fichier Excel et envoie un mail »: the program's job, not three deliverables."""
+    from fastapi.testclient import TestClient
+
+    _no_network(monkeypatch)
+    code = "```python\nimport openpyxl\n\nwb = openpyxl.Workbook()\nwb.save('clients.xlsx')\n```"
+    app, llm = _app([code, "Not used"])
+    with TestClient(app) as client:
+        events = _chat(client, "Écris un script Python qui génère un fichier Excel et envoie un mail au client")
+    answer = next(e for e in events if e["type"] == "answer")
+    assert len(llm.prompts) == 1
+    assert "Note de Bird" not in json.loads(llm.prompts[0])["messages"][-1]["content"]
+    assert not answer.get("plan")

@@ -220,6 +220,20 @@ def extract(request: str, lang: str = "fr", message: str = "", chart: bool = Fal
     return sorted(items.values(), key=lambda i: i.at)
 
 
+# on a canvas turn the canvas itself is the deck, document or sheet, and it holds the tables, totals, chart and
+# summary the request asks for; only what lies outside it stays to check (a mail beside it, a search, a file to read)
+_BESIDE_CANVAS = {"mail", "search", "page", "read"}
+# a script, a web page or a diagram: the nouns of the request say what the program does (« un script qui génère un
+# fichier Excel et envoie un mail »), never what the turn delivers
+_PROGRAM_CANVAS = {"code", "diagram", "page"}
+
+
+def for_canvas(items: list[Item], kind: str) -> list[Item]:
+    """The items of a canvas turn of ``kind`` (deck | doc | sheet | code | diagram | page) still to check."""
+    keep = {"read", "search", "page"} if kind in _PROGRAM_CANVAS else _BESIDE_CANVAS
+    return [i for i in items if i.kind in keep]
+
+
 def active(items: list[Item]) -> bool:
     """The checklist is shown and checked as a whole only for two items or more."""
     return len(items) >= 2

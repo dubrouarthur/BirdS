@@ -392,13 +392,14 @@ def sink_for(captured: list[dict]):
 
 
 def derive_agent(agent, hooks, sink, hide: tuple[str, ...] = (), max_tokens: int = CANVAS_MAX_TOKENS,
-                 keep_only: set[str] | None = None):  # fmt: skip
+                 keep_only: set[str] | None = None, kind: str = ""):  # fmt: skip
     """A copy of the turn's agent for a canvas turn: same model, network and limits, a larger answer budget,
     the file tools captured by ``sink`` and the ``hide`` tools left out of the tool block."""
     from birds.harness import Agent
 
     cfg = dataclasses.replace(agent.cfg, max_tokens=max(agent.cfg.max_tokens, max_tokens))
     cfg.canvas_sink = sink  # read by the file tools (tools/files.py) and by the agent's file reminders
+    cfg.canvas_kind = kind  # read by the task plan (plan.for_canvas): the canvas is the deliverable
     a = Agent(agent.llm, agent.tok, cfg, confirm=agent.confirm, http=agent.http, search=agent.search, hooks=hooks)
     a.tools = [t for t in a.tools if t["function"]["name"] not in hide
                and (keep_only is None or t["function"]["name"] in keep_only)]  # fmt: skip

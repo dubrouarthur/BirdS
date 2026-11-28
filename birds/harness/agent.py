@@ -1064,6 +1064,8 @@ class Agent:
             fresh = re.sub(r"\[(?:Fichier joint|Attached file)\s*:\s*([^\]\n]+)\]",
                            lambda m: "" if m.group(0) in told else m.group(0), user)  # fmt: skip
             tplan = taskplan.extract(req, run.lang, fresh, chart_ask(req)) if getattr(cfg, "task_plan", True) else []
+            if getattr(cfg, "canvas_sink", None) is not None:  # the canvas is the file: never « présentation manque »
+                tplan = taskplan.for_canvas(tplan, getattr(cfg, "canvas_kind", "") or "deck")
             if taskplan.active(tplan):
                 messages[-1]["content"] += taskplan.note(tplan, run.lang)
             self._base = self._base_text(messages, turn_at)
