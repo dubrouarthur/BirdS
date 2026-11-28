@@ -85,15 +85,15 @@ async function run(name, options, { full = true, scheme = "light" } = {}) {
   const during = await page.locator("#canvas .cv-status.is-writing").count();
   await idle(page);
   const slides = await page.locator("#canvas .cv-slide").count();
-  check(slides === 6, `deck drawn: cover + 5 slides (got ${slides})`);
+  check(slides === 8, `deck drawn: cover + 7 slides (got ${slides})`);
   check(during === 1 || slides > 0, "status shows the writing while streaming");
   check(
     (await page.locator("#canvas .cv-kpi").count()) === 3,
     "key figures drawn as tiles",
   );
   check(
-    (await page.locator("#canvas .cv-timeline li").count()) === 3,
-    "timeline drawn",
+    (await page.locator("#canvas .cv-steps li").count()) === 4,
+    "process steps drawn",
   );
   await page.waitForSelector("#canvas .cv-img img", { timeout: 10000 });
   check(
@@ -144,7 +144,7 @@ async function run(name, options, { full = true, scheme = "light" } = {}) {
     `slide added: ${titles.join(" | ")}`,
   );
   check(
-    (await page.locator("#canvas .cv-slide").count()) === 7,
+    (await page.locator("#canvas .cv-slide").count()) === 9,
     "one more slide, the others kept",
   );
   const versions = await page.locator("#canvas .cv-select option").count();
@@ -177,7 +177,7 @@ async function run(name, options, { full = true, scheme = "light" } = {}) {
     // reorder, then theme
     await page.locator('#canvas [data-k^="down-"]').first().click();
     await page.waitForTimeout(100);
-    await page.locator('#canvas .cv-swatch[aria-label="Chaleureux"]').click();
+    await page.locator('#canvas .cv-swatch[aria-label="Terracotta"]').click();
     await page.waitForTimeout(100);
     check(
       (await page.locator("#canvas .cv-body.cvt-warm").count()) === 1,
@@ -186,7 +186,7 @@ async function run(name, options, { full = true, scheme = "light" } = {}) {
     // version switch is diff-free: v1 back, then the last one
     await page.selectOption("#canvas .cv-select", "0");
     check(
-      (await page.locator("#canvas .cv-slide").count()) === 6,
+      (await page.locator("#canvas .cv-slide").count()) === 8,
       "v1 shows the first deck",
     );
     const last = (await page.locator("#canvas .cv-select option").count()) - 1;

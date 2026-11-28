@@ -1691,7 +1691,10 @@ class Agent:
                     step.decision = "denied_cap" if capped else forced
                 else:
                     step.decision = guard.gate(
-                        name, args, tainted=run.flagged, side_effects=side_effects, cfg=self.cfg, confirm=self.confirm
+                        name, args, tainted=run.flagged, side_effects=side_effects, cfg=self.cfg, confirm=self.confirm,
+                        user_text=None
+                        if getattr(self.cfg, "confirm_deliverables", False)
+                        else f"{ctx.message or ''}\n{ctx.request or ''}",
                     )
             if step.decision == "pause":
                 return step, ""

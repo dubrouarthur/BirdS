@@ -104,10 +104,14 @@ export const resetPrefs = () =>
 
 /** The mode actually used for requests: the saved choice if this server offers it, else the server default. */
 export function activeMode() {
-  const modes = state.health?.modes || { demo: true };
+  // no health yet (cold start, slow network): the real model, never the demo; a failed send then says so plainly
+  if (!state.health) return "server";
+  const modes = state.health.modes || {};
   const wanted = state.prefs.mode;
+  // a deployment with a real model never answers from the demo, whatever an earlier visit stored
+  if (wanted === "demo" && modes.server) return "server";
   if (wanted && modes[wanted]) return wanted;
-  return state.health?.default_mode || "demo";
+  return state.health.default_mode || (modes.server ? "server" : "demo");
 }
 export const isDemo = () => activeMode() === "demo";
 /** The product name shown to people (the technical name served by the endpoint stays in the details). */

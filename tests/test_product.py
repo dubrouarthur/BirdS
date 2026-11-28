@@ -848,3 +848,42 @@ def test_an_image_from_an_earlier_message_can_be_read_again(tmp_path):
         events = _sse(c.post("/api/chat", json={"messages": history}))
     done = [e for e in events if e["type"] == "step" and e["tool"] == "read_file"][-1]
     assert done["status"] == "done" and "1 250,00" in done["preview"]
+
+
+def test_searxng_first_brave_as_its_backup_when_its_engines_refuse():
+    """SearXNG is the default; an answer with no results because its engines refused (CAPTCHA, suspended) is an
+    outage: Brave answers, and Wikipedia stays the last resort."""
+    calls = []
+
+    def handler(req):
+        calls.append(req.url.host)
+        if req.url.host == "s":
+            return httpx.Response(
+                200, json={"results": [], "unresponsive_engines": [["duckduckgo", "CAPTCHA"], ["google cse", "Suspended"]]}
+            )
+        if "brave" in req.url.host:
+            return httpx.Response(
+                200, json={"web": {"results": [{"title": "Mairie", "url": "https://www.saintcloud.fr/", "description": "x"}]}}
+            )
+        return httpx.Response(200, json=WIKI)
+
+    cfg = Config(workspace=".", searxng_url="http://s", brave_api_key="b")
+    s = make_search(cfg, _client(handler))
+    assert isinstance(s, FallbackSearch) and isinstance(s.primary, SearxngBackend)
+    assert isinstance(s.fallback, FallbackSearch) and isinstance(s.fallback.primary, BraveBackend)
+    out = s.search("mairie saint-cloud", 3, lang="fr")
+    assert out and out[0]["url"] == "https://www.saintcloud.fr/"
+    assert s.last["backend"] == "brave" and s.last["fallback_from"] == "SearXNG"
+    assert calls[0] == "s" and any("brave" in h for h in calls)
+
+
+def test_searxng_with_real_results_is_used_and_brave_never_called():
+    calls = []
+
+    def handler(req):
+        calls.append(req.url.host)
+        return httpx.Response(200, json={"results": [{"title": "T", "url": "https://ex.org/", "content": "c"}]})
+
+    s = make_search(Config(workspace=".", searxng_url="http://s", brave_api_key="b"), _client(handler))
+    assert s.search("q", 3)[0]["url"] == "https://ex.org/" and s.last["backend"] == "searxng"
+    assert calls == ["s"]

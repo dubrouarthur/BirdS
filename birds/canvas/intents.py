@@ -59,7 +59,8 @@ _HOWTO = re.compile(
 )
 # A question anywhere in the sentence (« … des conseils pour le stress ? », « … dure combien de temps ? »).
 _QUESTION = re.compile(
-    r"\b(?:conseils?|astuces?|tips|advice|avis|combien|c['’]est quoi|qu['’]est-ce|est-ce que|est-il|est-elle|"
+    r"\b(?:conseils?(?! (?:municipal|communautaire|d['’]administration|de (?:classe|quartier|direction|surveillance|"
+    r"l['’]ordre|d[ée]veloppement)|r[ée]gional|d[ée]partemental|scientifique|syndical|des ministres))|astuces?|tips|advice|avis|combien|c['’]est quoi|qu['’]est-ce|est-ce que|est-il|est-elle|"
     r"faut-il|dois-je|should i|what does|que dit|quels? sont|quelles? sont|(?<!sur )(?<!about )pourquoi|"
     r"(?<!sur )(?<!about )comment (?:faire|on|je|puis|r[ée]ussir))\b",
     re.I,
@@ -111,6 +112,12 @@ _FILE_FORMAT = re.compile(
 )
 
 
+_WORD_FILE = re.compile(r"\b(?:docx|word|fichier word|format word|document word|word document|word file)\b", re.I)
+_OTHER_FILE = re.compile(r"\b(?:pptx|xlsx|\.ppt|powerpoint|power point|excel|tableur|spreadsheet|slides?|diapos?)\b",
+                         re.I)  # fmt: skip
+_LETTER = re.compile(r"(?:lettres?|courriers?|letters?)", re.I)
+
+
 def ask(words: str, attached: bool = False) -> str | None:
     """'deck' | 'doc' | 'code' | 'diagram' | None, from the user's own words. A hint, never the last word: when it
     says None the turn is an ordinary one, where the model may still call its trained make_slides / make_document
@@ -132,7 +139,17 @@ def ask(words: str, attached: bool = False) -> str | None:
         return "code"
     if re.search(_PY, head, re.I) and _MAKE_RX.search(head):
         return "code"
-    if _NOT.search(head) or _FILE_FORMAT.search(head):
+    if _WORD_FILE.search(head) and not _OTHER_FILE.search(head) and not _NOT.search(_LETTER.sub(" ", head)):
+        # a Word document (« rédige un document Word », « une lettre en Word »): the canvas is the document and
+        # its card downloads the .docx — one deliverable, one card (the trained tool's file would be a second one)
+        if _near(head, _DOC, lead=False) or _near(head, _LETTER.pattern, lead=False):
+            return "doc"
+    veto = _NOT.search(head)
+    if veto and re.match(r"compar|expli", veto.group(0), re.I) and _near(head, _DECK):
+        noun = re.search(_DECK, head, re.I)
+        if noun and veto.start() > noun.end():
+            veto = None  # « une présentation qui compare A et B »: what the deck does, not a request to compare
+    if veto or _FILE_FORMAT.search(head):
         return None  # a named file format (« une présentation pptx ») is a file: the trained tool makes it
     if _near(head, _DECK):
         return "deck"

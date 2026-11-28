@@ -125,7 +125,7 @@ class ChatBody(BaseModel):
     reflexion: Literal["auto", "colibri", "hirondelle", "faucon", "chouette", "albatros"] | None = None
     agent: Literal["auto", "on", "off"] = "auto"  # Mode Agent (birds.harness.crew): Auto, Activé, Désactivé
     # Mode Agent, wave 2: "plan" asks for the plan card first (the app); omitted, a decided team starts at once (API)
-    agent_flow: Literal["plan"] | None = None
+    agent_flow: Literal["plan", "run"] | None = None  # "run": the app, the team starts at once (no plan card first)
     agent_plan: AgentPlanIn | None = None  # « Lancer »: the signed plan, edited
     agent_slice: str | None = Field(default=None, max_length=600_000)  # the next slice of a long task (signed state)
     agent_notes: list[AgentNoteIn] = Field(default_factory=list, max_length=12)  # notes not delivered live

@@ -57,7 +57,8 @@ def canvas_in(raw) -> dict | None:
     )
     shown = raw.get("open") is not False  # an older page sent no flag: its panel was the one shown
     return {"doc": doc, "aid": aid or turn.new_aid(), "version": ver, "target": target if shown else None,
-            "open": shown, "fresh": raw.get("fresh") is True}  # fmt: skip
+            "open": shown, "fresh": raw.get("fresh") is True,
+            "variants": shown and bool(target) and raw.get("variants") == 2}  # fmt: skip
 
 
 def plan_for(request, words: str, lang: str, enabled: bool = True, attached: bool = False) -> turn.Plan | None:
@@ -77,13 +78,25 @@ def ref(run) -> dict | None:
     if not c:
         return None
     out = {"aid": c["aid"], "version": c["version"]}
+    if c.get("variants"):
+        out["variants"] = True
     doc = c.get("doc") or {}
     if doc.get("kind") == "code":  # what the page already has, for the next-step chips (followups.js)
         from birds.canvas import code as codefiles
 
         out.update(kind="code", hints=codefiles.hints(codefiles.files_of(doc)))
     if c.get("adopted"):
-        out.update(doc=public(c["doc"]), kind=c["doc"].get("kind"), open=False)
+        # a document opens in the canvas at once (one deliverable, one card); a deck or a sheet is offered
+        out.update(doc=public(doc), kind=doc.get("kind"), open=doc.get("kind") == "doc")
+        if c.get("files"):
+            out["files"] = list(c["files"])  # the file cards this artifact replaces in the chat
+    if doc.get("kind") == "doc":
+        from birds.canvas import templates
+
+        st = templates.check(doc)
+        out["structure"] = {k: st[k] for k in ("template", "found", "missing", "complete")}
+        out["next"] = templates.next_steps(doc, doc.get("lang") or "fr")
+        out["repairs"] = len(c.get("repairs") or [])
     return out
 
 
@@ -190,6 +203,8 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
         return run_reopen(p, ctx, agent, lang)
     captured: list[dict] = []
     compute = turn.compute_for(p, words, lang)
+    if p.variants:
+        compute = lambda _text: None  # noqa: E731 - two variants are shown together at the end, not streamed
     stream = turn.Stream(compute, lambda d: emit_doc(ctx, p, d, "stream", lang))
     hooks = dataclasses.replace(agent.hooks, on_token=stream.feed, on_reset=stream.reset)
     # the turn's ordinary tools stay offered on a patch turn too (an edit that was not one still gets its weather);
@@ -224,6 +239,8 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
             doc = patch.rewrite(p.base, doc)
         before = text
         repairs.append(f"model called {captured[-1]['tool']}: its arguments became the document")
+    elif text and p.variants:
+        return finish_variants(ctx, p, run, text, words, lang, repairs)
     elif text:
         if p.kind in ("code", "diagram") or (p.base or {}).get("kind") == "code":
             from birds.canvas import code as codefiles
@@ -260,7 +277,7 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
         return run  # the chat shows the model's answer as is (no canvas this time)
     kind = doc.get("kind")
     if p.mode == "create" and kind in ("deck", "doc"):
-        turn.finish_doc(doc, kind, words, lang)
+        turn.finish_doc(doc, kind, words, lang, repairs)
     elif kind == "deck":
         from birds.canvas import convert as cv
 
@@ -275,12 +292,42 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
         return run
     emit_doc(ctx, p, doc, "final", lang, label=_t(lang, "Création", "Created") if p.mode == "create" else words[:80],
              changes=changes)  # fmt: skip
+    version = (p.version + 1) if p.mode != "create" else 1
     run.answer = turn.chat_text("code" if p.kind == "diagram" else kind, doc, lang, before, after,
                                 cut=run.stop_reason == "length", verb="create" if p.mode == "create" else "patch",
-                                changes=changes)  # fmt: skip
+                                version=version, changes=changes)  # fmt: skip
     run.stop_reason = "answer"
-    run.canvas = {"aid": p.aid, "version": (p.version + 1) if p.mode != "create" else 1, "doc": doc,
-                  "repairs": repairs, "raw": text[:8000]}  # fmt: skip  # raw: for evaluations, never sent
+    run.canvas = {"aid": p.aid, "version": version, "doc": doc, "repairs": repairs,
+                  "raw": text[:8000]}  # fmt: skip  # raw: for evaluations, never sent
+    return run
+
+
+def finish_variants(ctx, p: turn.Plan, run, text: str, words: str, lang: str, repairs: list[str]):
+    """✦ on a section: two rewrites shown side by side in the canvas (no new version until one is chosen). One
+    rewrite only: it becomes the next version, as a « Demander à Bird » would. None: the chat says so."""
+    base = next(b for b in p.base["blocks"] if b["id"] == p.target)
+    found = turn.parse_variants(text, base, lang, repairs)
+    title = base.get("title") or ""
+    if len(found) >= 2:
+        ctx.emit({"type": "canvas", "phase": "variants", "aid": p.aid, "base": p.version, "kind": "doc",
+                  "target": p.target, "blocks": [public({"blocks": [b]})["blocks"][0] for b in found[:2]]})  # fmt: skip
+        run.answer = _t(lang, f"Deux variantes de la section « {title} » : choisissez-en une dans le canevas, ou "
+                              "gardez l'actuelle.",
+                        f"Two variants of the section \"{title}\": choose one in the canvas, or keep the current "
+                        "one.")  # fmt: skip
+        run.stop_reason = "answer"
+        run.canvas = {"aid": p.aid, "version": p.version, "doc": p.base, "repairs": repairs, "raw": text[:8000],
+                      "variants": True}  # fmt: skip
+        return run
+    if not found:
+        run.answer = _t(lang, f"Je n'ai pas pu retravailler la section « {title} » : reformulez la demande.",
+                        f"I could not rework the section \"{title}\": please rephrase.")  # fmt: skip
+        return run
+    doc = patch.apply_all(p.base, [{"op": "replace", "id": p.target, "block": found[0]}])[0]
+    emit_doc(ctx, p, doc, "final", lang, label=words[:80])
+    run.answer = turn.chat_text("doc", doc, lang, verb="patch", version=p.version + 1)
+    run.stop_reason = "answer"
+    run.canvas = {"aid": p.aid, "version": p.version + 1, "doc": doc, "repairs": repairs, "raw": text[:8000]}
     return run
 
 
@@ -290,16 +337,16 @@ def _enough(doc: dict) -> bool:
     return len(blocks) >= 2 or bool(blocks and len(blocks[0].get("parts") or []) >= 2)
 
 
-def adopt_files(run, ctx, lang: str) -> None:
+def adopt_files(run, ctx, lang: str, words: str = "") -> None:
     """A deck, document or sheet made by a trained tool on an ordinary turn (or by the Mode Agent's team) is also
     offered in the canvas: the browser keeps it, and the file card gets « Ouvrir dans le canevas »."""
     try:
-        _adopt(run, ctx, lang)
+        _adopt(run, ctx, lang, words)
     except Exception:  # noqa: BLE001 - never lose the answer for the canvas
         return
 
 
-def _adopt(run, ctx, lang: str) -> None:
+def _adopt(run, ctx, lang: str, words: str = "") -> None:
     if getattr(run, "canvas", None):
         return
     for s in getattr(run, "steps", []) or []:
@@ -309,12 +356,37 @@ def _adopt(run, ctx, lang: str) -> None:
         if doc is None:
             continue
         kind = doc["kind"]
+        repairs: list[str] = []
         if kind in ("deck", "doc"):
-            turn.finish_doc(doc, kind, doc.get("title") or "", lang)
+            turn.finish_doc(doc, kind, (words or "") + " " + (doc.get("title") or ""),
+                            lang, repairs)  # fmt: skip
         p = turn.Plan("create", kind, turn.new_aid())
-        # no event of its own: the document travels with the answer (« Ouvrir dans le canevas » on the file card)
-        run.canvas = {"aid": p.aid, "version": 1, "doc": doc, "adopted": True}
+        # no event of its own: the document travels with the answer. A Word-like document opens in the canvas
+        # and its card replaces the file card (and the « Fichier : x.docx » line of the answer); a deck or a sheet
+        # keeps its file card, with « Ouvrir dans le canevas »
+        run.canvas = {"aid": p.aid, "version": 1, "doc": doc, "adopted": True, "repairs": repairs}
+        if kind == "doc":
+            names = [str(f) for f in getattr(run, "files", []) or [] if str(f).lower().endswith(".docx")]
+            run.canvas["files"] = [n.rsplit("/", 1)[-1] for n in names]
+            if hasattr(run, "answer"):
+                run.answer = strip_file_lines(str(run.answer or ""), run.canvas["files"])
         return
+
+
+_FILE_LINE = re.compile(
+    r"(?im)^[ \t>*_-]*(?:\*\*|__)?(?:fichier|file|document|t[ée]l[ée]chargement|download)\s*(?:\*\*|__)?\s*:"
+    r"(?:\*\*|__)?\s*`?[^\n`]*\.docx`?\s*\.?[ \t]*$\n?")
+
+
+def strip_file_lines(text: str, names: list[str]) -> str:
+    """The answer around a document shown in the canvas: no « Fichier : note.docx » line, no bare file name (the
+    card is the deliverable)."""
+    out = _FILE_LINE.sub("", text or "")
+    for n in names:
+        if n:
+            out = re.sub(rf"(?im)^[^\n]*`?{re.escape(n)}`?[^\n]*$\n?", "", out) if len(out.split(n)[0]) < 4000 \
+                else out  # fmt: skip
+    return re.sub(r"\n{3,}", "\n\n", out).strip()
 
 
 def memo_with_canvas(memo: str, run, lang: str) -> str:
@@ -334,7 +406,7 @@ class ExportIn(BaseModel):
 class ImageIn(BaseModel):
     query: str = Field(min_length=1, max_length=120)
     exclude: list[str] = Field(default_factory=list, max_length=8)
-    theme: Literal["corporate", "modern", "warm"] | None = None
+    theme: Literal["corporate", "modern", "warm", "forest", "night"] | None = None
     lang: Literal["fr", "en"] = "fr"
     mid: str | None = Field(default=None, pattern=r"^[a-z]{1,2}\d{1,4}$")
 
@@ -463,7 +535,7 @@ def make_router(settings, guard_request, check_access, resolve_mode, fetch_clien
             client = fetch_client(settings)  # a fresh client per call (server.image_client: never None)
             try:
                 cfg = Config(workspace=__import__("pathlib").Path("."), audit_file=None, pin_dns=settings.pin_dns)
-                m = images.search_commons(body.query, om.Fetcher(client, cfg), body.exclude, mid,
+                m = images.search_web(body.query, om.Fetcher(client, cfg), body.exclude, mid,
                                           deadline=time.monotonic() + 12)  # fmt: skip
             finally:
                 if client is not None:
