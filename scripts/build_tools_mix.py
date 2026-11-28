@@ -54,7 +54,7 @@ from birds.tools import BIRD_TOOLS, EXTRA_TOOLS  # noqa: E402
 SOURCE, LICENSE = "bird_tools", "apache-2.0"
 NOW = datetime(2026, 11, 23, 10, 0, tzinfo=ZoneInfo("Europe/Paris"))
 NATIVE = {"get_weather", "find_places", "find_company", "convert_currency", "work_calendar", "lookup_entity",
-          "get_statistics", "find_tenders", "find_papers", "find_commune"}
+          "get_statistics", "find_tenders", "find_papers", "find_commune", "get_quote"}
 
 # ---------------------------------------------------------------- slot lists
 TOWNS_FR = [
@@ -953,6 +953,91 @@ def opendata(rng):
         yield tid, "en" if tid.startswith("odne") else "fr", t, None, _lab([], web=False)
 
 
+# ---------------------------------------------------------------- markets (catalogue family "finance": get_quote)
+FI_SHARES = ["LVMH", "Hermès", "Airbus", "TotalEnergies", "Sanofi", "BNP Paribas", "Kering", "Safran", "Danone",
+             "Capgemini", "Schneider Electric", "Stellantis", "Michelin", "Société Générale"]  # fmt: skip
+FI_SHARES_EN = ["Apple", "Microsoft", "Nvidia", "Tesla", "Amazon", "Netflix", "Airbus", "LVMH"]
+FI_INDICES = ["CAC 40", "DAX", "FTSE 100", "Nikkei 225", "SBF 120"]
+FI_CRYPTO = [("le bitcoin", "Bitcoin"), ("l'ether", "Ethereum"), ("le solana", "Solana"), ("le XRP", "XRP")]
+FI_PAIRS = [("l'euro dollar", "EUR/USD"), ("l'euro face à la livre", "EUR/GBP"), ("le yen", "EUR/JPY"),
+            ("le franc suisse", "EUR/CHF")]  # fmt: skip
+FI_RANGES = [("sur 1 mois", "1m"), ("sur 6 mois", "6m"), ("sur un an", "1y"), ("sur 5 ans", "5y")]
+FI_RANGES_EN = [("over a month", "1m"), ("over 6 months", "6m"), ("over the past year", "1y"), ("over 5 years", "5y")]
+FI_NEG = [  # (template id, text): the same words as a lesson, a task, a product, accounts, writing, own holdings
+    ("fin1", "trouve-moi un cours de guitare le mercredi"), ("fin1", "cours de soutien en maths pour mon fils"),
+    ("fin1", "je prépare un cours sur les marchés financiers"),
+    ("fin2", "plan d'action pour relancer les ventes"), ("fin2", "quelles actions prioritaires pour ce trimestre ?"),
+    ("fin3", "combien coûte un iPhone 16 Pro ?"), ("fin3", "prix d'un abonnement Amazon Prime"),
+    ("fin4", "chiffre d'affaires d'Airbus en 2024"), ("fin4", "combien de salariés chez Michelin ?"),
+    ("fin5", "c'est quoi un ETF ?"), ("fin5", "comment fonctionne le bitcoin ?"), ("fin5", "explique le CAC 40"),
+    ("fin6", "rédige une note sur la chute du Nikkei"), ("fin6", "écris un post LinkedIn sur l'action Tesla"),
+    ("fin7", "mes actions Total ont perdu 10 %, je fais quoi ?"), ("fin7", "analyse mon portefeuille"),
+    ("fin8", "le total de la facture"), ("fin8", "un jus d'orange et un croissant"),
+    ("fine1", "how does the stock market work?"), ("fine1", "write a newsletter about Nvidia earnings"),
+    ("fine2", "what action items did we agree on?"), ("fine2", "how much is an Apple Watch?"),
+]  # fmt: skip
+
+
+def _fi_de(word: str) -> str:
+    """« de » + an article: « du bitcoin », « de l'ether »."""
+    return "du " + word[3:] if word.startswith("le ") else "de " + word
+
+
+def finance(rng):
+    for s in FI_SHARES:
+        m = _m("get_quote", symbols=s)
+        for tid, t in (("fi1", f"cours de l'action {s}"), ("fi2", f"combien vaut l'action {s} ?"),
+                       ("fi3", f"{s} en bourse aujourd'hui")):  # fmt: skip
+            yield tid, "fr", t, None, _lab([m], native=m)
+        for w, r in rng.sample(FI_RANGES, 2):
+            m = _m("get_quote", symbols=s, range=r)
+            yield "fi4", "fr", f"graphique du cours de {s} {w}", None, _lab([m], native=m)
+    for _ in range(10):
+        a, b = rng.sample(FI_SHARES, 2)
+        w, r = rng.choice(FI_RANGES)
+        m = _m("get_quote", symbols=f"{a}, {b}", range=r)
+        yield "fi5", "fr", f"compare {a} et {b} {w}", None, _lab([m], native=m)
+        m = _m("get_quote", symbols=f"{a}, {b}")
+        yield "fi6", "fr", f"{a} ou {b} : lequel a le plus progressé en bourse ?", None, _lab([m], native=m)
+    for s in FI_SHARES_EN:
+        m = _m("get_quote", symbols=s)
+        yield "fie1", "en", f"{s} share price", None, _lab([m], native=m)
+        w, r = rng.choice(FI_RANGES_EN)
+        m = _m("get_quote", symbols=s, range=r)
+        yield "fie2", "en", f"{s} stock {w}", None, _lab([m], native=m)
+    for ix in FI_INDICES:
+        m = _m("get_quote", symbols=ix)
+        yield "fi7", "fr", f"où en est le {ix} ?", None, _lab([m], native=m)
+        for w, r in rng.sample(FI_RANGES, 2):
+            m = _m("get_quote", symbols=ix, range=r)
+            yield "fi8", "fr", f"courbe du {ix} {w}", None, _lab([m], native=m)
+        m = _m("get_quote", symbols=ix, range="1y")
+        yield "fie3", "en", f"the {ix} over the past year", None, _lab([m], native=m)
+    for word, name in FI_CRYPTO:
+        m = _m("get_quote", symbols=name)
+        yield "fi9", "fr", f"cours de {word.split(' ', 1)[-1].lstrip(chr(39))}", None, _lab([m], native=m)
+        yield "fi10", "fr", f"combien vaut {word} en ce moment ?", None, _lab([m], native=m)
+        for w, r in FI_RANGES[:3]:
+            m = _m("get_quote", symbols=name, range=r)
+            yield "fi11", "fr", f"évolution {_fi_de(word)} {w}", None, _lab([m], native=m)
+    m = _m("get_quote", symbols="Bitcoin, Ethereum", range="6m")
+    yield "fi12", "fr", "compare bitcoin et ether sur 6 mois", None, _lab([m], native=m)
+    for word, pair in FI_PAIRS:
+        for w, r in FI_RANGES[1:]:
+            m = _m("get_quote", symbols=pair, range=r)
+            yield "fi13", "fr", f"évolution {_fi_de(word)} {w}", None, _lab([m], native=m)
+    # advice asked: the card, and a neutral line (the tool reads the words); never a recommendation
+    for s in FI_SHARES[:5]:
+        m = _m("get_quote", symbols=s)
+        yield "fi14", "fr", f"faut-il acheter l'action {s} maintenant ?", None, _lab([m], native=m)
+    for word, name in FI_CRYPTO[:2]:
+        m = _m("get_quote", symbols=name)
+        yield "fi15", "fr", f"faut-il investir dans {word} en ce moment ?", None, _lab(
+            [m], native=m)
+    for tid, t in FI_NEG:
+        yield tid, "en" if tid.startswith("fine") else "fr", t, None, _lab([], web=False)
+
+
 FAMILIES = (
     weather,
     places,
@@ -968,6 +1053,7 @@ FAMILIES = (
     false_triggers,
     followups,
     opendata,
+    finance,
 )
 
 
@@ -1013,7 +1099,8 @@ def check(text: str, history, label: dict) -> bool:
             return False
         if m["tool"] == "event" and when.event_ask(text, NOW, detect_lang(text)) is None:
             return False
-        if catalog.BY_NAME[m["tool"]].family == "opendata" and R.veto_reason(R.Call(m["tool"], args), text):
+        if catalog.BY_NAME[m["tool"]].family in ("opendata", "finance") and R.veto_reason(R.Call(m["tool"], args),
+                                                                                        text):  # fmt: skip
             return False  # a label the harness would refuse is never taught
     return True
 
@@ -1049,7 +1136,7 @@ def native_record(text, lang, history, label, rid: str) -> dict | None:
 # share of the positive router records per family (the rest of the budget goes to negatives)
 FAMILY_SHARE = {"weather": 0.09, "places": 0.10, "company": 0.05, "fx": 0.08, "clock_items": 0.07, "events": 0.05,
                 "charts": 0.04, "images": 0.04, "office": 0.06, "followups": 0.06, "cards": 0.05,
-                "opendata": 0.09}  # fmt: skip
+                "opendata": 0.09, "finance": 0.05}  # fmt: skip
 
 
 def _negative(label: dict) -> bool:

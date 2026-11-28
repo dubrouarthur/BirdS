@@ -45,22 +45,22 @@ def test_catalogue_is_small_static_and_lists_only_available_modules():
         t = catalog.text(lang)
         assert t == catalog.text(lang)  # static: the router prompt keeps its cached prefix
         # ~1000 tokens: FR measured at 598 with the Qwen3.5 tokenizer, 665 with the « card » module (small modules),
-        # 985 with the six open-data modules as well (28/11/2026)
-        assert len(t) < 3600
+        # 985 with the six open-data modules as well, 1 049 with the market module (get_quote, 28/11/2026)
+        assert len(t) < 3700
         for m in catalog.MODULES:
             assert (f"- {m.name}(" in t) == m.available
     assert "data_analysis(" in catalog.text("fr", R.available_names(Config(workspace=Path("."), allow_python=True)))
 
 
-def test_catalogue_fits_1000_tokens_with_the_real_tokenizer():
+def test_catalogue_fits_1080_tokens_with_the_real_tokenizer():
     transformers = pytest.importorskip("transformers")
     try:
         tok = transformers.AutoTokenizer.from_pretrained("Qwen/Qwen3.5-4B", local_files_only=True)
     except Exception:
         pytest.skip("tokenizer not cached")
-    # 598 before, 665 with « card », 985 (FR) / 922 (EN) with the open-data modules too: a static prefix, kept in
-    # vLLM's cache
-    assert all(len(tok(catalog.text(lang))["input_ids"]) < 1000 for lang in ("fr", "en"))
+    # 598 before, 665 with « card », 985 (FR) / 922 (EN) with the open-data modules too, 1 049 / 986 with the market
+    # module (get_quote): a static prefix, kept in vLLM's cache
+    assert all(len(tok(catalog.text(lang))["input_ids"]) < 1080 for lang in ("fr", "en"))
 
 
 def test_every_example_is_valid_and_grounded_in_its_own_words():

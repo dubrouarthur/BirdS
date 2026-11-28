@@ -390,11 +390,13 @@ def _flat(args: dict, tool: str, notes: list[str]) -> None:
             args[want] = args.pop(alt)
             notes.append(f"'{alt}' read as '{want}'")
     if tool == "find_places" and isinstance(args.get("query"), str) and not args.get("near"):
-        from birds.harness.intents import split_near
+        from birds.harness.intents import RANKED, split_near
 
         pair = split_near(args["query"])
         if pair:
-            args["query"], args["near"] = pair
+            # « meilleures » stays as the qualifier: find_places tells the model OpenStreetMap does not rank
+            ranked = RANKED.search(args["query"])
+            args["query"], args["near"] = (pair[0] + " les meilleures" if ranked else pair[0]), pair[1]
             notes.append("query 'X near Y' split into query and near")
     if tool == "convert_currency":
         from birds.harness.intents import currency_code, parse_amount

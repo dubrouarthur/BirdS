@@ -1,0 +1,217 @@
+/* Bird local (local.js): the header badge, the settings choice and its connect flow, the « ne répond pas » card.
+   Only the app's tokens (app.css), so light and dark follow; the calm green is the colour of « on your machine ». */
+
+/* settings: the third choice (three cards side by side on a desk, one column on a phone: app.css .modes) */
+.mode-local.is-on {
+  border-color: var(--eco);
+  box-shadow: inset 0 0 0 1px var(--eco);
+}
+.mode-local input {
+  accent-color: var(--eco);
+}
+
+.local-panel {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.local-panel:empty {
+  display: none;
+}
+.local-searching {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.92rem;
+}
+.local-form {
+  display: grid;
+  gap: 14px;
+}
+.local-found,
+.local-ok {
+  display: flex;
+  gap: 10px;
+  margin: 0;
+  align-items: flex-start;
+}
+.local-found {
+  color: var(--eco);
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.local-found .icon {
+  margin-block-start: 2px;
+  flex: none;
+}
+.local-ok strong {
+  display: block;
+  font-size: 1rem;
+}
+.local-ok p {
+  margin: 2px 0 0;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.local-ok-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 30px;
+  block-size: 30px;
+  border-radius: 50%;
+  background: var(--eco-soft);
+  color: var(--eco);
+}
+#local-code,
+#local-pair-code {
+  max-inline-size: 15rem;
+  font-family: var(--mono);
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.local-err {
+  margin: 0;
+  color: var(--danger-ink);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+.local-err:empty {
+  display: none;
+}
+.local-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* « Bird local ne répond pas »: three numbered steps with their commands */
+.local-down {
+  display: grid;
+  gap: 12px;
+}
+.local-down.local-compact {
+  padding: 14px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.local-tok {
+  white-space: nowrap;
+}
+.local-down-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.local-down-head > .icon {
+  flex: none;
+  inline-size: 22px;
+  block-size: 22px;
+  margin-block-start: 1px;
+  color: var(--eco);
+}
+.local-down-head strong {
+  display: block;
+  font-size: 1rem;
+}
+.local-down-head p {
+  margin: 2px 0 0;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.local-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.local-step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.local-step-n {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: 50%;
+  background: var(--eco-soft);
+  color: var(--eco);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.local-step-body {
+  display: grid;
+  gap: 6px;
+  min-inline-size: 0;
+  flex: 1;
+  font-size: 0.92rem;
+}
+.local-cmd {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-inline-size: 0;
+  padding: 4px 4px 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+}
+.local-cmd code {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere; /* the whole command stays visible at 360 px, wrapped between its words */
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+.local-perm {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+/* the page served by Bird local, opened without its code */
+.local-dialog {
+  inline-size: min(26rem, calc(100vw - 32px));
+  padding: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+.local-dialog::backdrop {
+  background: var(--scroll-shade);
+}
+
+/* footprint: energy on the user's machine */
+.local-fp {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-s);
+  background: var(--eco-soft);
+  color: var(--ink);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.local-fp .icon {
+  flex: none;
+  margin-block-start: 3px;
+  color: var(--eco);
+}

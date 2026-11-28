@@ -31,3 +31,4 @@
   banc des déclenchements `.venv/bin/python -I scripts/trigger_bench.py` (ne doit jamais régresser).
 - Dans un worktree au `.venv` en lien symbolique, lancer pytest et les scripts **sans** `-I` (`.venv/bin/python -m pytest -q`,
   `.venv/bin/python scripts/trigger_bench.py`) : avec `-I`, Python importe le paquet `birds` du dépôt principal.
+- Avant tout commit, lire le vrai résultat des tests : `set -o pipefail` dès qu'on pipe une commande (`… | tail -1 && git commit` committe même si les tests échouent).

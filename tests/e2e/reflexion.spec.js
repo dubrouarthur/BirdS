@@ -91,6 +91,14 @@ async function newConv(page) {
     if (!(await page.locator("#rf-menu").isHidden())) problems.push(`${name}: Escape did not close`);
     if ((await page.evaluate(() => document.activeElement?.id)) !== "rf-button") problems.push(`${name}: focus not returned`);
     if ((await pill.getAttribute("data-level")) !== "faucon") problems.push(`${name}: Faucon not picked`);
+    // ---- opened by a click or a tap: focus on the sheet itself, no focus ring drawn around the slider
+    await pill.click();
+    await page.waitForTimeout(250);
+    const tapFocus = await page.evaluate(() => document.activeElement?.id);
+    if (tapFocus !== "rf-menu") problems.push(`${name}: focus on click-open ${tapFocus}`);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(150);
+    if (!(await page.locator("#rf-menu").isHidden())) problems.push(`${name}: Escape after a click did not close`);
     await page.reload({ waitUntil: "networkidle" });
     await page.waitForTimeout(800);
     await page.evaluate(() => document.querySelector("dialog[open]")?.close());

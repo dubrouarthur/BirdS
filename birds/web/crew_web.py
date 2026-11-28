@@ -60,6 +60,29 @@ def decide_for(request: ChatRequest, words: str, n_docs: int, n_images: int, lan
     )
 
 
+def albatros_decision(agent, request: ChatRequest, words: str, n_docs: int, n_images: int, lang: str, history=None):
+    """Albatros (Endurance) with Mode Agent on Auto: the team runs when the request is a team task, never because
+    the level is Albatros. A team task: what crew.decide finds with Mode Agent « on » (a recipe, something to split
+    up), confirmed by the router (the model): it asked no module (a map, the weather: the answer is that card) and did
+    not say « off » (« supermarchés à Saint-Cloud » is a local practical question). When the router is unavailable,
+    its fallback: a deliverable recipe, or an explicit ask for a deep research. None: the single agent answers. The
+    decision is never « forced »: only the user forces the team, in Settings."""
+    from birds.harness import research, router
+    from birds.harness.crew import split_request
+
+    strong = decide_for(request, words, n_docs, n_images, lang, mode="on")
+    if not strong.recipe or strong.no_deliverable:
+        return None
+    plan = router.plan_turn(agent, words, history, attached=bool(n_docs or n_images), lang=lang,
+                            deadline=time.monotonic() + 30.0)  # fmt: skip
+    d = plan.decision
+    if d is not None and d.source in ("model", "hybrid"):  # the model answered (not the parsers' fallback)
+        team = not d.modules and d.agent != "off"
+    else:
+        team = strong.recipe != "deep_research" or bool(research.ask(split_request(words)[0]))
+    return dataclasses.replace(strong, forced=False) if team else None
+
+
 def run_crew(
     agent, decision, request: ChatRequest, ctx: RunContext, *, user_sent, words, system, lang, names, workspace,
     history=None,

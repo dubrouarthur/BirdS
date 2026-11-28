@@ -971,6 +971,10 @@ class Plan:
 def plan_turn(agent, req: str, history, *, attached: bool, lang: str, deadline: float) -> Plan:
     """Called by ``Agent.run`` before the first generation. Never raises; logs metadata only."""
     cfg, llm = agent.cfg, agent.llm
+    key = (req, len(history or []), bool(attached), lang)
+    memo = getattr(agent, "_router_memo", None)
+    if memo is not None and memo[0] == key:  # asked already in this request (Albatros: is it a team task?)
+        return memo[1]
     try:
         left = deadline - time.monotonic() - 5.0
         if left < 1.5:
@@ -991,7 +995,12 @@ def plan_turn(agent, req: str, history, *, attached: bool, lang: str, deadline: 
         agent.audit.log("router", **meta)
     except Exception:
         pass
-    return Plan(d)
+    plan = Plan(d)
+    try:
+        agent._router_memo = (key, plan)
+    except Exception:  # an agent that takes no attribute: asked again
+        pass
+    return plan
 
 
 def available_names(cfg, agent=None) -> set[str]:
