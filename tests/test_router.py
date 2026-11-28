@@ -562,3 +562,20 @@ def test_a_kind_only_lookup_proposed_for_a_near_me_ask_is_vetoed(tmp_path, monke
     a, _ = agent(tmp_path, [j([{"tool": "find_places", "args": {"query": "pharmacie"}}]), "Où êtes-vous ?"])
     run = a.run(text)
     assert any(w.get("type") == "ask_place" for w in run.widgets)
+
+
+# ---------------------------------------------------------------- maps: a list of places stays a list
+
+
+@pytest.mark.parametrize("mode", ["hybrid", "model"])
+def test_a_model_call_naming_one_item_of_a_list_keeps_the_parsers_list(mode):
+    text = "Place sur une carte : Louvre ; Musée d'Orsay ; Centre Pompidou"
+    d = R.decide(FakeClient([j([{"tool": "find_places", "args": {"query": "Louvre"}}])]), TOK, text, mode=mode)
+    assert d.get("find_places").args["query"] == "Louvre ; Musée d'Orsay ; Centre Pompidou"
+    assert R.log_meta(d)["agree"] is False  # the tool names agree, the arguments did not
+
+
+def test_the_list_form_and_its_visit_order_are_in_the_catalogue():
+    args, why = catalog.check_args("find_places", {"query": "Lyon ; Grenoble ; Annecy ; Chambéry", "plan": "order"})
+    assert why == "" and args == {"query": "Lyon ; Grenoble ; Annecy ; Chambéry", "plan": "order"}
+    assert any(";" in a.get("query", "") for _, a in catalog.BY_NAME["find_places"].examples)

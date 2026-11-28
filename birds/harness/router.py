@@ -683,6 +683,32 @@ _TEXT_TASK = re.compile(
 _QUOTED = re.compile(r"«[^»]{12,}»?|“[^”]{12,}”?|\"[^\"]{12,}\"?|```.{12,}?(?:```|$)", re.S)
 
 
+def _items(query: str) -> list[str]:
+    return [fold(x).strip() for x in str(query or "").split(";") if x.strip()]
+
+
+def _keep_list(d: Decision, base: Decision) -> None:
+    """The parsers read a list of places (« a ; b ; c ») and the model's find_places covers fewer of them (one
+    item as the query, another as ``near``): the list call is kept, never a single pin. ``meta['args_agree']``
+    records whether the model's arguments matched the parsers' where both chose the same tool."""
+    agree = True
+    for i, c in enumerate(d.modules):
+        b = base.get(c.tool)
+        if b is None:
+            continue
+        agree = agree and fold(str(sorted(c.args.items()))) == fold(str(sorted(b.args.items())))
+        if c.tool != "find_places" or ";" not in str(b.args.get("query", "")):
+            continue
+        listed = _items(b.args["query"])
+        mine = _items(c.args.get("query", "")) + _items(c.args.get("near", ""))
+        if len(_items(c.args.get("query", ""))) < len(listed) and all(
+            any(m in x or x in m for x in listed) for m in mine
+        ):
+            d.modules[i] = Call(b.tool, dict(b.args))
+            d.meta.setdefault("substituted", []).append("find_places list")
+    d.meta["args_agree"] = agree
+
+
 def own_words(text: str) -> str | None:
     """The user's instruction without the text they hand over, when the request is a task on pasted text
     (« résume ce mail : « … » »); None for any other request."""
@@ -771,6 +797,7 @@ def decide(
             meta.setdefault("substituted", []).append(tool)
     meta.update({"dropped": dropped, "vetoed": [t for t, _ in vetoed], "repaired": not structured})
     d.meta = meta
+    _keep_list(d, base)
     if mode == "hybrid":
         d = merge(d, base, own_decision(text, history=history, attached=attached, lang=lang))
     d.meta.update({"tools": d.tools(), "arg_keys": {c.tool: sorted(c.args) for c in d.modules}, "agent": d.agent,
@@ -795,7 +822,8 @@ def log_meta(d: Decision) -> dict:
         "dropped": [[t, w] for t, w in m.get("dropped", [])],
         "vetoed": m.get("vetoed", []),
         "substituted": m.get("substituted", []),
-        "agree": sorted(d.tools()) == sorted(m.get("hint_tools", [])),
+        # on the tools AND their arguments: « same tool » with one pin instead of a list of three is no agreement
+        "agree": sorted(d.tools()) == sorted(m.get("hint_tools", [])) and m.get("args_agree", True),
     }
 
 

@@ -65,13 +65,18 @@ MODULES: tuple[Module, ...] = (
     ),
     Module(
         "find_places", PREFILL, "maps",
-        "carte : un lieu, une adresse, des lieux d'un type près d'un endroit",
-        "map: a place, an address, or places of a kind near somewhere",
+        "carte : lieu, adresse, liste « a ; b » ou lieux d'un type près d'un endroit",
+        "map: a place, an address, a list « a ; b », or places of a kind near somewhere",
         {"query": Arg("str", True, fr="lieu ou type (restaurant, pharmacie)", en="place or kind (restaurant)"),
-         "near": Arg("str", fr="autour de", en="around")},
+         "near": Arg("str", fr="autour de", en="around"),
+         "plan": Arg("enum", choices=("order", "distances"), fr="ordre de visite ou distances d'une liste",
+                     en="visit order or distances of a list")},
         (("restaurants près de la gare de Lyon", {"query": "restaurant", "near": "gare de Lyon"}),
          ("où est la tour Eiffel ?", {"query": "tour Eiffel"}),
-         ("coffee shops near Times Square", {"query": "cafe", "near": "Times Square"})),
+         ("coffee shops near Times Square", {"query": "cafe", "near": "Times Square"}),
+         ("mets sur une carte : Louvre ; Musée d'Orsay ; Centre Pompidou",
+          {"query": "Louvre ; Musée d'Orsay ; Centre Pompidou"}),
+         ("dans quel ordre visiter Lyon, Grenoble et Annecy ?", {"query": "Lyon ; Grenoble ; Annecy", "plan": "order"})),
     ),
     Module(
         "find_company", PREFILL, "company_fx",
@@ -221,13 +226,16 @@ def _arg_schema(a: Arg) -> dict:
 
 
 def module_schema(m: Module) -> dict:
+    props = {k: _arg_schema(a) for k, a in m.args.items()}
+    if m.name == "find_places":
+        props["query"]["maxLength"] = 6000  # a list « a ; b ; … » of up to 25 places (check_args checks each)
     return {
         "type": "object",
         "properties": {
             "tool": {"type": "string", "enum": [m.name]},
             "args": {
                 "type": "object",
-                "properties": {k: _arg_schema(a) for k, a in m.args.items()},
+                "properties": props,
                 "required": [k for k, a in m.args.items() if a.required],
                 "additionalProperties": False,
             },
@@ -309,6 +317,12 @@ def check_args(name: str, args) -> tuple[dict | None, str]:
             if not clean or len(clean) != len(items) or len(clean) > a.max_items:
                 return None, f"{k} is not a short list of names"
             out[k] = clean
+        elif name == "find_places" and k == "query" and isinstance(v, str) and ";" in v:
+            # a list of places (« Louvre ; Musée d'Orsay ; … », up to 25): each item a short name, 6000 in all
+            items = [_clean_str(x) for x in v.split(";")]
+            if not 2 <= len(items) <= 25 or None in items or len(v) > 6000:
+                return None, f"{k} is not a list of short names"
+            out[k] = " ; ".join(items)
         else:
             c = _clean_str(v)
             if c is None:
