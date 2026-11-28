@@ -7711,3 +7711,335 @@ ol.a4-list > li::before {
 :root[data-theme="dark"] .map-img {
   filter: brightness(0.85) contrast(1.05);
 }
+/* ==================================================================== open data (static/opendata.js) ===
+   calendar, entity, tenders, papers, commune cards and the source line of a statistics chart. Colours come from
+   the theme tokens only, so light and dark follow the rest of the app. */
+.od-head {
+  display: grid;
+  gap: 2px;
+}
+.od-main {
+  margin: 0;
+  font-size: 1.06rem;
+  font-weight: 650;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.od-main::first-letter {
+  text-transform: uppercase;
+}
+.od-sub {
+  margin: 0;
+  font-size: 0.86rem;
+}
+.od-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 0;
+  font-size: 0.86rem;
+}
+.od-pill-hol,
+.od-pill-soon {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+.od-pill-we {
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.od-kpis .kpi {
+  grid-template-rows: auto auto auto;
+}
+.od-kpi-hint {
+  font-size: 0.74rem;
+}
+.od-kv > div {
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  align-items: baseline;
+}
+.od-date {
+  font-size: 0.8rem;
+}
+.od-source a {
+  overflow-wrap: anywhere;
+}
+/* month grid: seven columns, Monday first; holidays and the date asked marked by colour AND by shape */
+.od-month {
+  inline-size: 100%;
+  max-inline-size: 23rem;
+  border-collapse: separate;
+  border-spacing: 3px;
+  table-layout: fixed;
+  font-size: 0.86rem;
+}
+.od-month-cap {
+  caption-side: top;
+  padding-block-end: 4px;
+  text-align: start;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.od-month-cap::first-letter {
+  text-transform: uppercase;
+}
+.od-month th {
+  font-weight: 600;
+  font-size: 0.74rem;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.od-day {
+  position: relative;
+  block-size: 2.1rem;
+  text-align: center;
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--ink);
+}
+.od-day.is-empty {
+  background: none;
+}
+.od-day.is-weekend {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.od-day.is-holiday {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  box-shadow: inset 0 0 0 1px var(--warn-line);
+  font-weight: 700;
+}
+.od-day.is-regional {
+  box-shadow: inset 0 0 0 1px var(--warn-line);
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent 0 4px,
+    var(--warn-bg) 4px 7px
+  );
+}
+.od-day.is-target {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  font-weight: 700;
+}
+.od-day.is-target.is-holiday {
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 3px var(--warn-line);
+}
+.od-day.is-start {
+  box-shadow: inset 0 0 0 1px var(--accent);
+  border: 0;
+  outline: 1px dashed var(--accent);
+  outline-offset: -4px;
+}
+.od-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: -4px 0 0;
+  font-size: 0.76rem;
+}
+.od-swatch {
+  display: inline-block;
+  inline-size: 0.85rem;
+  block-size: 0.85rem;
+  border-radius: 3px;
+}
+.od-swatch + .od-swatch,
+.od-legend .od-swatch:not(:first-child) {
+  margin-inline-start: 8px;
+}
+.od-swatch.is-holiday {
+  background: var(--warn-bg);
+  box-shadow: inset 0 0 0 1px var(--warn-line);
+}
+.od-swatch.is-target {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.od-hol-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+.od-hol-list li {
+  display: grid;
+  grid-template-columns: 7.2rem minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-block-start: 1px solid var(--line);
+}
+.od-hol-list li:first-child {
+  border-block-start: 0;
+}
+.od-hol-date {
+  color: var(--ink-2);
+}
+.od-hol-list .is-regional .od-hol-name {
+  color: var(--ink-2);
+}
+/* entity: picture beside the text on a wide card, above it on a phone */
+.od-ent {
+  display: grid;
+  gap: 12px;
+}
+.od-ent.has-pic {
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  align-items: start;
+}
+.od-ent-pic {
+  margin: 0;
+}
+.od-ent-pic img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  max-block-size: 9rem;
+  object-fit: cover;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.od-ent-text {
+  display: grid;
+  gap: 6px;
+  min-inline-size: 0;
+}
+.od-extract {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.od-more {
+  margin: 0;
+  font-size: 0.86rem;
+}
+/* lists of notices and works */
+.od-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: od;
+}
+.od-item {
+  display: grid;
+  gap: 3px;
+  padding: 9px 0 9px 1.9rem;
+  border-block-start: 1px solid var(--line);
+  position: relative;
+  counter-increment: od;
+}
+.od-item:first-child {
+  border-block-start: 0;
+  padding-block-start: 2px;
+}
+.od-item::before {
+  content: counter(od);
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 10px;
+  inline-size: 1.35rem;
+  block-size: 1.35rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--link);
+  font: 700 0.74rem/1.35rem var(--sans);
+  text-align: center;
+}
+.od-item:first-child::before {
+  inset-block-start: 3px;
+}
+.od-item-title {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.od-item-title .widget-link {
+  color: var(--ink);
+  text-decoration-color: var(--line-strong);
+}
+.od-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  margin: 0;
+  font-size: 0.82rem;
+}
+.od-doi {
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+.od-oa {
+  font-weight: 600;
+}
+/* commune and address */
+.od-address {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  font-style: normal;
+  font-size: 1.04rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.od-table-wrap {
+  overflow-x: auto;
+}
+.od-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+.od-table th,
+.od-table td {
+  padding: 6px 8px 6px 0;
+  border-block-end: 1px solid var(--line);
+  text-align: start;
+  vertical-align: baseline;
+}
+.od-table thead th {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.od-table tbody th {
+  font-weight: 500;
+}
+/* a statistics chart's source (chart.js) */
+.od-chart-src a {
+  color: var(--link);
+}
+@media (max-width: 520px) {
+  .od-ent.has-pic {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .od-ent-pic img {
+    max-block-size: 11rem;
+    inline-size: 100%;
+  }
+  .od-hol-list li {
+    grid-template-columns: 5.8rem minmax(0, 1fr) auto;
+  }
+  .od-kv > div {
+    grid-template-columns: 6.6rem minmax(0, 1fr);
+    gap: 8px;
+  }
+  .od-day {
+    block-size: 1.9rem;
+  }
+}
+/* ==================================================================== end open data ===================== */

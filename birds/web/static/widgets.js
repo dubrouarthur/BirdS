@@ -13,6 +13,7 @@ import {
 } from "./core.js";
 import { safeUrl } from "./markdown.js";
 import { buildIcs, icsName } from "./ics.js";
+import { OPENDATA_RENDER, opendataText, useMapFrame } from "./opendata.js"; // open data
 
 const OSM_COPYRIGHT = "https://www.openstreetmap.org/copyright";
 const MAP_SRC =
@@ -1882,7 +1883,9 @@ const RENDER = {
   weather: renderWeather,
   clock: renderClock,
   event: renderEvent,
+  ...OPENDATA_RENDER, // open data (opendata.js)
 };
+useMapFrame(mapFrame); // open data: the commune card's map is the same frame as the others
 
 export function renderWidgets(turn) {
   const list = (turn.answer?.widgets || []).filter((w) => w && RENDER[w.type]);
@@ -1938,7 +1941,7 @@ export function widgetsText(turn, markdown = false) {
       out.push(
         `${w.title} — ${String(w.start).slice(0, 16).replace("T", " ")}${w.all_day ? "" : `–${String(w.end).slice(11, 16)}`}${w.location ? ` — ${w.location}` : ""}`,
       );
-    }
+    } else out.push(opendataText(w, markdown)); // open data ("" for other types)
   }
   return out.filter(Boolean).join("\n");
 }

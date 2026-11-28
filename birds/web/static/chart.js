@@ -2,6 +2,7 @@
 // No library. Colours are CSS classes (series-1..6) so the theme switches live and the CSP stays strict;
 // the PNG export copies the computed colours into a standalone SVG before drawing it on a canvas.
 import { button, copyText, download, h, icon, t, toast } from "./core.js";
+import { chartSourceLine, chartSourceText } from "./opendata.js"; // open data
 
 const NS = "http://www.w3.org/2000/svg";
 // viewBox width = the plot's real width in CSS px, so 12px text is drawn at 12px on every screen (the chart is
@@ -1053,13 +1054,15 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
       ),
     ),
   );
+  // open data: a series fetched by the harness (get_statistics) carries its own source line
+  const dataSrc = spec.source === "data" && spec.data_source ? spec.data_source : null;
   const source = ["request", "file", "web", "model"].includes(spec.source)
     ? spec.source
-    : "model";
+    : dataSrc ? "data" : "model";
   const meta = [
     t(`chart.type.${type}`),
     spec.unit || "",
-    source !== "model" ? t(`chart.source.${source}`) : "",
+    source !== "model" && source !== "data" ? t(`chart.source.${source}`) : "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -1106,6 +1109,7 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
       ),
     ),
     plot,
+    dataSrc && chartSourceLine(dataSrc), // open data
     h("p", { id: `${uid}-sum`, class: "sr-only", text: summary }),
     legend,
     reshapedNote &&
@@ -1124,7 +1128,7 @@ export function renderChart(spec, { lang = "fr", onXlsx } = {}) {
             legend: legendItems,
             // the honesty label travels with the image: where the numbers come from, or "not verified"
             foot: [
-              [t(`chart.type.${type}`), spec.unit || "", t(`chart.source.${source}`), "Bird"]
+              [t(`chart.type.${type}`), spec.unit || "", dataSrc ? chartSourceText(dataSrc) : t(`chart.source.${source}`), "Bird"]
                 .filter(Boolean)
                 .join(" · "),
               reshapedNote,
