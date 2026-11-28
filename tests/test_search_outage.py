@@ -86,3 +86,27 @@ def test_health_carries_the_search_probe(monkeypatch, tmp_path):
     app = create_app(Settings(rate_limit=0, searxng_url="https://searx.example"))
     h = TestClient(app).get("/api/health").json()
     assert h["search"]["degraded"] is True and calls
+
+
+def test_searxng_then_brave_then_wikipedia_when_a_brave_key_is_set(tmp_path):
+    from birds.harness import Config
+
+    def handler(req):
+        if "api.search.brave.com" in str(req.url):
+            body = {"web": {"results": [{"title": "Carrefour Saint-Cloud", "url": "https://example.org/c",
+                                         "description": "Supermarché"}]}}  # fmt: skip
+        else:
+            body = {"results": [], "unresponsive_engines": DOWN}
+        return httpx.Response(200, headers={"content-type": "application/json"}, content=json.dumps(body).encode())
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    import os
+
+    os.environ["BIRD_SEARXNG_FALLBACK"] = ""  # no spare engine: straight to Brave
+    try:
+        s = S.make_search(Config(workspace=tmp_path, searxng_url="https://searx.example", brave_api_key="k"), http)
+        got = s.search("supermarché Saint-Cloud", 5, lang="fr")
+    finally:
+        del os.environ["BIRD_SEARXNG_FALLBACK"]
+    assert got[0]["title"] == "Carrefour Saint-Cloud"
+    assert s.last["label"] == "Brave Search" and s.last["fallback_from"] == "SearXNG"

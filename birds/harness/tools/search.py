@@ -366,7 +366,7 @@ class FallbackSearch:
         except Exception as e:  # noqa: BLE001 - any failure of the keyed backend: try the free one
             code = e.code if isinstance(e, SearchError) else "search_failed"
             results = self.fallback.search(query, n, lang=lang)
-            inner = getattr(self.fallback, "last", None) or {}  # a chain: the backend that really answered
+            inner = dict(getattr(self.fallback, "last", None) or {})  # a chain (SearXNG → Brave → Wikipedia)
             self.last = {
                 "backend": inner.get("backend") or self.fallback.name,
                 "label": inner.get("label")
