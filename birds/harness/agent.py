@@ -1385,6 +1385,9 @@ class Agent:
                                 {"calc": verdict.calc_wrong[:4], "missing": [p[:80] for p in verdict.missing[:4]]})
                             rinfo["rounds"] = rinfo.get("rounds", 0) + 1
                             rinfo["corrected"] = True
+                            # what was sent back, each on its own: a missing point is never shown as a wrong calc
+                            rinfo["calc_fixed"] = rinfo.get("calc_fixed", False) or bool(verdict.calc_wrong)
+                            rinfo["points_fixed"] = rinfo.get("points_fixed", False) or bool(verdict.missing)
                             if stream is not None and stream.streamed and hooks.on_reset:
                                 hooks.on_reset()
                             messages.append(

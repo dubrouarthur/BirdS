@@ -45,11 +45,12 @@ export function flightFacts(rf) {
   const points = Number(c.points) || 0;
   const missing = Number(c.missing) || 0;
   if (rf.level === "colibri") out.push({ kind: "info", key: "rf.fact.instant" });
-  if (calcs && rf.corrected && !wrong) out.push({ kind: "fixed", key: "rf.fact.calc.fixed", vars: { n: calcs } });
+  // each « fixed » fact from its own flag: a point added after the check never reads as a calculation fixed
+  if (calcs && rf.calc_fixed && !wrong) out.push({ kind: "fixed", key: "rf.fact.calc.fixed", vars: { n: calcs } });
   else if (calcs && wrong) out.push({ kind: "warn", key: "rf.fact.calc.wrong", vars: { n: wrong } });
   else if (calcs) out.push({ kind: "ok", key: calcs > 1 ? "rf.fact.calc.ok.n" : "rf.fact.calc.ok.1", vars: { n: calcs } });
   if (points && missing) out.push({ kind: "warn", key: "rf.fact.points.missing", vars: { n: missing, total: points } });
-  else if (points && rf.corrected && !calcs) out.push({ kind: "fixed", key: "rf.fact.points.fixed", vars: { n: points } });
+  else if (points && rf.points_fixed) out.push({ kind: "fixed", key: "rf.fact.points.fixed", vars: { n: points } });
   else if (points) out.push({ kind: "ok", key: "rf.fact.points.ok", vars: { n: points } });
   if (rf.reviewed) out.push({ kind: rf.review_changed ? "fixed" : "ok", key: rf.review_changed ? "rf.fact.review.fixed" : "rf.fact.review.ok" });
   if (rf.cut === "think_budget") out.push({ kind: "info", key: "rf.fact.cut.budget" });

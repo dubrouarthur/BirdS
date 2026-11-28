@@ -623,6 +623,8 @@ def public(info: dict | None, lang: str = "fr") -> dict | None:
             "missing": int(checks.get("missing") or 0),
         },
         "corrected": bool(info.get("corrected")),
+        "calc_fixed": bool(info.get("calc_fixed")),  # a wrong calculation was sent back to the model
+        "points_fixed": bool(info.get("points_fixed")),  # a point left unanswered was sent back to the model
         "reviewed": bool(info.get("reviewed")),
         "review_changed": bool(info.get("review_changed")),
         "seconds": round(float(info.get("seconds") or 0.0), 2),

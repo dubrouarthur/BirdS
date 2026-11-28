@@ -31,8 +31,14 @@ test("facts say only what the server checked", () => {
   assert.deepEqual(R.flightFacts({ level: "colibri", checks: {} }).map((f) => f.key), ["rf.fact.instant"]);
   const ok = R.flightFacts({ level: "faucon", checks: { calcs: 3, calc_wrong: 0, points: 2, missing: 0 } });
   assert.deepEqual(ok.map((f) => f.key), ["rf.fact.calc.ok.n", "rf.fact.points.ok"]);
-  const fixed = R.flightFacts({ level: "faucon", corrected: true, checks: { calcs: 2, calc_wrong: 0 } });
+  const fixed = R.flightFacts({ level: "faucon", corrected: true, calc_fixed: true, checks: { calcs: 2, calc_wrong: 0 } });
   assert.equal(fixed[0].key, "rf.fact.calc.fixed");
+  // only a missing point was sent back: the calculations were right all along, the point is the fix
+  const point = R.flightFacts({ level: "faucon", corrected: true, calc_fixed: false, points_fixed: true,
+    checks: { calcs: 2, calc_wrong: 0, points: 2, missing: 0 } });
+  assert.deepEqual(point.map((f) => f.key), ["rf.fact.calc.ok.n", "rf.fact.points.fixed"]);
+  const legacy = R.flightFacts({ level: "faucon", corrected: true, checks: { calcs: 1, calc_wrong: 0 } });
+  assert.equal(legacy[0].key, "rf.fact.calc.ok.1");  // no flag: never claims a fix
   const warn = R.flightFacts({ level: "chouette", checks: { calcs: 2, calc_wrong: 1, points: 3, missing: 1 }, reviewed: true, cut: "repetition" });
   assert.deepEqual(warn.map((f) => f.kind), ["warn", "warn", "ok", "info"]);
   assert.equal(R.flightFacts({ level: "hirondelle", checks: {}, cut: "think_budget" })[0].key, "rf.fact.cut.budget");
@@ -49,7 +55,7 @@ test("every string in French and English, every key used exists", () => {
   const fr = Object.keys(REFLEXION_STRINGS.fr).sort();
   assert.deepEqual(Object.keys(REFLEXION_STRINGS.en).sort(), fr);
   for (const k of R.CHOICES) for (const s of ["", ".label", ".hint"]) assert.ok(fr.includes(`rf.level.${k}${s}`), k + s);
-  const rf = { level: "chouette", corrected: true, reviewed: true, review_changed: true, cut: "think_budget",
+  const rf = { level: "chouette", corrected: true, calc_fixed: true, points_fixed: true, reviewed: true, review_changed: true, cut: "think_budget",
     checks: { calcs: 1, calc_wrong: 1, points: 2, missing: 1 } };
   for (const f of [...R.flightFacts(rf), ...R.flightFacts({ ...rf, checks: { calcs: 1 }, corrected: false })])
     assert.ok(fr.includes(f.key), f.key);

@@ -200,6 +200,17 @@ def test_faucon_corrects_a_wrong_calculation_once(tmp_path):
     assert run.answer == "Sur deux ans : 14,90 € × 24 = 357,60 €."
     assert run.reflexion["corrected"] and run.reflexion["checks"]["calc_wrong"] == 0
     assert run.reflexion["checks"]["fixed"] and run.reflexion["rounds"] == 1
+    assert run.reflexion["calc_fixed"] and not run.reflexion["points_fixed"]
+
+
+def test_a_missing_point_fixed_is_never_reported_as_a_calculation_fixed(tmp_path):
+    llm = FakeClient(["<think>.</think>Le total : 120 × 3 = 360 €.",
+                      "<think>.</think>Le total : 120 × 3 = 360 €. La date limite de dépôt est le 15 décembre."])
+    req = "Quel est le total de 120 € × 3 ? Et quelle est la date limite de dépôt ?"
+    run = Agent(llm, Tok(), Config(workspace=tmp_path)).run(req, lang="fr", reflexion="faucon")
+    pub = R.public(run.reflexion)
+    assert len(llm.prompts) == 2 and pub["corrected"]
+    assert pub["points_fixed"] and not pub["calc_fixed"] and pub["checks"]["calc_wrong"] == 0
 
 
 def test_hirondelle_does_not_check(tmp_path):
