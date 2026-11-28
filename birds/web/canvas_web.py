@@ -449,12 +449,17 @@ def adopt_files(run, ctx, lang: str, words: str = "") -> None:
 def _adopt(run, ctx, lang: str, words: str = "") -> None:
     if getattr(run, "canvas", None):
         return
+    docs = []
     for s in getattr(run, "steps", []) or []:
         if s.tool not in turn.FILE_TOOLS or s.error or not isinstance(s.arguments, dict):
             continue
         doc = convert.from_tool(s.tool, s.arguments, lang)
-        if doc is None:
-            continue
+        if doc is not None:
+            docs.append(doc)
+    # « crée un minisite » answered with a prose document, then index.html: the site is the deliverable, not the
+    # draft text around it (code first, then the turn's order)
+    docs.sort(key=lambda d: d["kind"] != "code")
+    for doc in docs[:1]:
         kind = doc["kind"]
         repairs: list[str] = []
         if kind in ("deck", "doc"):

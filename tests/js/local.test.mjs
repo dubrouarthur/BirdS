@@ -208,3 +208,15 @@ test("Safari is told to open Bird local directly; a down model server is told ap
   for (const lang of ["fr", "en"])
     for (const k of ["local.model.title", "local.model.p", "local.safari"]) assert.ok(LOCAL_STRINGS[lang][k], `${lang} ${k}`);
 });
+
+test("the install command follows the visitor's system", async () => {
+  const { osOf, installCommand } = await import("../../birds/web/static/local-data.js");
+  assert.equal(osOf("Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/131"), "windows");
+  assert.equal(osOf("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) Safari/605"), "mac");
+  assert.equal(osOf("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)"), "linux");
+  assert.equal(osOf("Mozilla/5.0 (X11; Linux x86_64)"), "linux");
+  assert.equal(installCommand("windows", "https://bird-s.vercel.app"), "irm https://bird-s.vercel.app/install.ps1 | iex");
+  assert.equal(installCommand("linux", "https://bird-s.vercel.app"), "curl -fsSL https://bird-s.vercel.app/install.sh | sh");
+  // a page on http (Bird local itself) points at the hosted installer, never an http URL piped to a shell
+  assert.equal(installCommand("mac", "http://127.0.0.1:8765"), "curl -fsSL https://bird-s.vercel.app/install.sh | sh");
+});

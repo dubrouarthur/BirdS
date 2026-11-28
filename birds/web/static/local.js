@@ -102,8 +102,8 @@ function commandRow(cmd) {
   );
 }
 
-/** The three steps to start Bird local, never a raw error. */
-export function unreachableCard({ onRetry, onOff, port = localPort(), compact = false } = {}) {
+/** The three developer steps (vLLM, then Bird local, then the code): kept behind « Installation manuelle ». */
+function manualSteps(port) {
   const step = (n, title, extra) =>
     h(
       "li",
@@ -112,14 +112,9 @@ export function unreachableCard({ onRetry, onOff, port = localPort(), compact = 
       h("div", { class: "local-step-body" }, h("strong", { text: title }), extra),
     );
   return h(
-    "div",
-    { class: `local-down${compact ? " local-compact" : ""}`, role: "status", "data-local": "down" },
-    h(
-      "div",
-      { class: "local-down-head" },
-      icon("monitor"),
-      h("div", null, h("strong", { text: t("local.down.title") }), h("p", { text: t("local.down.p") })),
-    ),
+    "details",
+    { class: "local-manual" },
+    h("summary", { text: t("local.inst.manual") }),
     h(
       "ol",
       { class: "local-steps" },
@@ -128,9 +123,54 @@ export function unreachableCard({ onRetry, onOff, port = localPort(), compact = 
       step(3, t("local.step3")),
     ),
     h("p", { class: "local-perm", text: t("local.perm") }),
-    // Safari never reaches the loopback from an https page: say where to go instead of three steps that cannot help
+  );
+}
+
+/** One command for the visitor's system (Windows / Mac / Linux, detected, switchable), never a raw error. */
+function installBlock() {
+  let os = L.osOf(globalThis.navigator?.userAgent);
+  const cmd = h("div");
+  const where = h("p", { class: "local-where" });
+  const tabs = ["windows", "mac", "linux"].map((k) =>
+    h("button", { type: "button", class: "local-os", "data-os": k, text: t(`local.inst.${k}`) }),
+  );
+  const show = () => {
+    for (const b of tabs) b.setAttribute("aria-pressed", String(b.dataset.os === os));
+    cmd.replaceChildren(commandRow(L.installCommand(os, globalThis.location?.origin)));
+    where.replaceChildren(
+      ...[
+        h("span", { text: t(`local.inst.where.${os}`) }),
+        os === "mac" && h("span", { class: "local-note", text: ` ${t("local.inst.note.mac")}` }),
+      ].filter(Boolean),
+    ); // replaceChildren prints false or null as text: only nodes
+  };
+  for (const b of tabs) b.addEventListener("click", () => ((os = b.dataset.os), show()));
+  show();
+  return h("div", { class: "local-install" }, h("div", { class: "local-oses", role: "group", "aria-label": t("local.inst.title") }, tabs), cmd, where);
+}
+
+/** Bird local is not there yet: install or start it with one command; the page keeps looking on its own. */
+export function unreachableCard({ onRetry, onOff, port = localPort(), compact = false, waiting = false } = {}) {
+  return h(
+    "div",
+    { class: `local-down${compact ? " local-compact" : ""}`, role: "status", "data-local": "down" },
+    h(
+      "div",
+      { class: "local-down-head" },
+      icon("monitor"),
+      h(
+        "div",
+        null,
+        h("strong", { text: t(compact ? "local.down.title" : "local.inst.title") }),
+        h("p", { text: t("local.inst.p") }),
+      ),
+    ),
+    installBlock(),
+    waiting && h("p", { class: "local-searching local-waiting" }, h("span", { class: "spinner", "aria-hidden": "true" }), t("local.inst.wait")),
+    // Safari never reaches the loopback from an https page: say where to go instead
     L.isSafari(globalThis.navigator?.userAgent) && h("p", { class: "local-perm", "data-local": "safari", text: t("local.safari") }),
-    localActions(onRetry, onOff),
+    localActions(waiting ? null : onRetry, onOff),
+    manualSteps(port),
   );
 }
 
@@ -274,23 +314,47 @@ export function localPanel({ onPrefs }) {
       toast(t("local.toast.paired"), "ok");
       onPrefs?.();
     });
-    box.replaceChildren(f);
-    if (!input.value) input.focus({ preventScroll: true });
+    const ready = h(
+      "div",
+      { class: "local-ready", "data-local": "found" },
+      h(
+        "div",
+        { class: "local-ok" },
+        h("span", { class: "local-ok-mark", "aria-hidden": "true" }, icon("check")),
+        h("div", null, h("strong", { text: t("local.ready.title") }), h("p", { text: t("local.ready.p") })),
+      ),
+      h(
+        "div",
+        { class: "local-actions" },
+        h("a", { class: "btn btn-primary", href: `${found.base.replace(/\/$/, "")}/`, target: "_blank", rel: "noopener", "data-act": "local-open" },
+          icon("monitor"), h("span", { class: "btn-label", text: t("local.ready.open") })),  // prettier-ignore
+      ),
+      h("details", { class: "local-manual", open: !!localPair.get() || undefined }, h("summary", { text: t("local.ready.code") }), f),
+    );
+    box.replaceChildren(ready);
   };
 
+  // not there yet: show the install card once, then look again quietly every few seconds while it is on screen
+  let shown = false;
   const search = async () => {
-    searching();
+    if (!shown) searching();
     const got = await L.probe(globalThis.fetch, localPort());
-    if (!box.isConnected && got.status !== "found") return;
+    if (shown && !box.isConnected) return;
     if (got.status === "found") {
       found = got;
       form();
-    } else if (got.status === "not_bird") {
+      return;
+    }
+    if (!shown) {
       box.replaceChildren(
-        h("p", { class: "local-err", role: "alert", text: t("local.notbird", { port: localPort() }) }),
-        unreachableCard({ onRetry: search }),
+        ...[
+          got.status === "not_bird" && h("p", { class: "local-err", role: "alert", text: t("local.notbird", { port: localPort() }) }),
+          unreachableCard({ onRetry: search, waiting: true }),
+        ].filter(Boolean),
       );
-    } else box.replaceChildren(unreachableCard({ onRetry: search }));
+      shown = true;
+    }
+    setTimeout(() => box.isConnected && search(), 4000);
   };
 
   if (activeMode() === "local" && localPair.get()) connected();
