@@ -177,6 +177,28 @@ class ChatRequest:
     agent_slice: dict | None = None  # verified state of the next slice of a long task
     agent_notes: list[dict] = field(default_factory=list)  # typed instructions not delivered live
     canvas: dict | None = None  # the artifact open in the canvas, validated (birds.web.canvas_web.canvas_in)
+    # Mode Réflexion (birds.harness.reflexion): "auto" or a bird level; None keeps ``thinking`` as sent (older API)
+    reflexion: str | None = None
+
+
+def reflexion_info(request: ChatRequest, run, lang: str) -> dict | None:
+    """The answer's ``reflexion`` field: the harness's record of this run (level, who chose it, checks, summary),
+    or, for a Mode Agent team run, Albatros; None when no level was asked (older API clients)."""
+    from birds.harness import reflexion
+
+    want = getattr(request, "reflexion", None)
+    if want is None:
+        return None
+    info = getattr(run, "reflexion", None)
+    if not info:
+        crew = "agents" in (getattr(run, "report", None) or {})
+        if crew and want in ("auto", "albatros"):
+            info = {"level": "albatros", "auto": want == "auto", "source": "crew"}
+        elif want in reflexion.LEVELS:
+            info = {"level": want, "auto": False, "source": "user"}
+        else:
+            return None
+    return reflexion.public(info, lang)
 
 
 @dataclass
@@ -457,6 +479,8 @@ def pick_scenario(text: str, has_attachment: bool = False) -> str:
     for name, keys in _DEMO_MARKERS.items():
         if any(k in low for k in keys):
             return name
+    if not has_attachment and re.search(r"par mois.{0,80}par an|a month.{0,80}a year", low):
+        return "calc"  # Mode Réflexion: a calculation and a comparison, checked
     if has_attachment:
         return "attachment"
     # a named format or a document topic wins over a widget: "prépare les slides pour le meeting de lundi" is a deck
@@ -667,7 +691,26 @@ class _DemoRun:
             self.pause(0.7)
             content = self.t(fr, en)
             self.extra_completion += len(content) // 4
+            self.reasoned = getattr(self, "reasoned", "") + content
             self.ctx.emit({"type": "reasoning", "content": content})
+
+    def reflexion(self, content: str) -> dict | None:
+        """Mode Réflexion in the demo: the level as asked, « Auto » read by the fallback cues (no model to ask,
+        labelled « demo »), the summary of the scripted reasoning and the harness's real checks of the answer."""
+        from birds.harness import reflexion
+
+        want = getattr(self.req, "reflexion", None)
+        if want is None:
+            return None
+        last = next((m["content"] for m in reversed(self.req.messages) if m["role"] == "user"), "")
+        key = reflexion.hint_level(last) if want == "auto" else want
+        lv = reflexion.level(key)
+        reasoning = getattr(self, "reasoned", "") if lv.thinking else ""
+        verdict = reflexion.verify(last, content, reasoning, self.lang) if lv.checks else None
+        info = {"level": lv.key, "auto": want == "auto", "source": "demo" if want == "auto" else "user",
+                "think_chars": len(reasoning), "summary": reflexion.summary(reasoning, self.lang) if reasoning else [],
+                "checks": verdict.as_dict() if verdict else {}}  # fmt: skip
+        return reflexion.public(info, self.lang)
 
     def stream(self, content: str) -> None:
         """Send the answer in small pieces, the way a model server streams tokens."""
@@ -699,6 +742,7 @@ class _DemoRun:
                 **({"memo": self._memo()} if self.context else {}),
                 **({"plan": plan} if plan else {}),
                 **({"canvas": self.adopted} if getattr(self, "adopted", None) else {}),  # the file, in the canvas too
+                **({"reflexion": rx} if (rx := self.reflexion(content)) else {}),
             }
         )
         prompt = 60 + sum(len(m["content"]) for m in self.req.messages) // 4 + self.extra_prompt
@@ -786,6 +830,30 @@ class _DemoRun:
                 "This is **demo mode**: this answer is written in advance, no model is running. "
                 "Try one of the examples (email, meeting minutes, slides, web research) to see the agent steps "
                 "and the resource meter.",
+            )
+        )
+
+    def scenario_calc(self) -> None:
+        """A calculation and a comparison: the reasoning, then an answer whose figures the harness recomputes."""
+        self.think(
+            "L'abonnement mensuel coûte 14,90 € × 24 = 357,60 € sur deux ans.\n"
+            "L'abonnement annuel coûte 149 € × 2 = 298 € sur deux ans.\n"
+            "La différence est 357,60 € − 298 € = 59,60 €.\n"
+            "Le paiement annuel est donc le moins cher, de 59,60 €.",
+            "The monthly plan costs 14.90 × 24 = 357.60 over two years.\n"
+            "The yearly plan costs 149 × 2 = 298 over two years.\n"
+            "The difference is 357.60 − 298 = 59.60.\n"
+            "So the yearly plan is cheaper, by 59.60.",
+        )
+        self.pause(0.4)
+        self.finish(
+            self.t(
+                "Sur deux ans, **l'abonnement annuel** est le moins cher :\n\n"
+                "- mensuel : 14,90 € × 24 = 357,60 €\n- annuel : 149 € × 2 = 298 €\n\n"
+                "Vous économisez **59,60 €** en payant à l'année.",
+                "Over two years, **the yearly plan** is cheaper:\n\n"
+                "- monthly: 14.90 × 24 = 357.60\n- yearly: 149 × 2 = 298\n\n"
+                "You save **59.60** by paying yearly.",
             )
         )
 
@@ -2200,6 +2268,7 @@ class HarnessBackend:
                 cancel=ctx.cancel,  # stop closes the endpoint stream and ends the wake-up retries
                 on_agent=crew_web.on_agent(ctx, lang, lambda: offset, self._step_event),
                 on_plan=lambda plan: ctx.emit({"type": "plan", **_plain(plan)}),  # the task plan's live checklist
+                on_reflexion=lambda info: ctx.emit({"type": "reflexion", **info}),  # Mode Réflexion: the bird
             )
             agent = Agent(
                 self.llm,
@@ -2284,6 +2353,11 @@ class HarnessBackend:
                             run = canvas_web.run_canvas(agent, cplan, request, ctx, **canvas_kw)
                         else:
                             decision = crew_web.decide_for(request, words, len(names), len(image_texts), rl)
+                            if request.reflexion == "albatros" and decision.recipe is None and request.agent == "auto":
+                                # Albatros, Endurance: a request the team can take runs as a team (crew « on »)
+                                strong = crew_web.decide_for(request, words, len(names), len(image_texts), rl,
+                                                             mode="on")  # fmt: skip
+                                decision = strong if strong.recipe and not strong.no_deliverable else decision
                             run = crew_web.run_crew(agent, decision, request, ctx, user_sent=user_sent, words=words,
                                                     system=system, lang=rl, names=names, workspace=workspace,
                                                     history=kept)  # fmt: skip
@@ -2299,6 +2373,7 @@ class HarnessBackend:
                                 request_text=words,
                                 attached=bool(names or image_texts),
                                 tz=request.tz,
+                                reflexion=request.reflexion,
                             )
                     except EndpointError:
                         # the model failed after a pre-called tool returned (a plain, crew or canvas turn): answer
@@ -2453,13 +2528,15 @@ class HarnessBackend:
                     "images": [{"name": n, "text": t[:4000]} for n, t in image_texts],
                     "plan": _plain(getattr(run, "plan", None)),  # final checklist (None for a one-thing request)
                     "canvas": canvas_web.ref(run),
+                    **({"reflexion": rinfo} if (rinfo := reflexion_info(request, run, run.lang or lang)) else {}),
                 }
             )
+            rlv = (getattr(run, "reflexion", None) or {}).get("level")
             ctx.emit(
                 crew_web.usage_extra(report)
                 | usage_event(
                     model=self.model,
-                    thinking=request.thinking,
+                    thinking=request.thinking if rlv is None else rlv != "colibri",
                     prompt_tokens=tin,
                     completion_tokens=tout,
                     cached_tokens=cached,

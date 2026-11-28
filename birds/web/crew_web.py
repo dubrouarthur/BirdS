@@ -45,7 +45,7 @@ def on_agent(ctx: RunContext, lang: str, offset, step_end):
     return emit
 
 
-def decide_for(request: ChatRequest, words: str, n_docs: int, n_images: int, lang: str):
+def decide_for(request: ChatRequest, words: str, n_docs: int, n_images: int, lang: str, mode: str | None = None):
     from birds.harness.crew import decide
 
     prior = any(m.get("role") == "assistant" and str(m.get("content") or "").strip() for m in request.messages[:-1])
@@ -53,7 +53,7 @@ def decide_for(request: ChatRequest, words: str, n_docs: int, n_images: int, lan
         words,
         attachments=n_docs,
         images=n_images,
-        mode=getattr(request, "agent", "auto") or "auto",
+        mode=mode or getattr(request, "agent", "auto") or "auto",
         resume=request.resume is not None,
         lang=lang,
         history=prior,

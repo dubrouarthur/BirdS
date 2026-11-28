@@ -6,6 +6,7 @@ import copy
 import inspect
 import json
 import re
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -16,6 +17,7 @@ import httpx
 
 from birds.harness import facts, followup, guard, intents, meter, repair, router
 from birds.harness import plan as taskplan
+from birds.harness import reflexion as reflex
 from birds.harness.config import Config, Context
 from birds.harness.llm import STOP, EndpointError, accepts
 from birds.harness.tools import TOOLS, make_search
@@ -609,6 +611,7 @@ class Hooks:
     cancel: Any = None  # a threading.Event the front end sets on stop: the model call ends at once
     on_agent: Callable[[dict], None] | None = None  # Mode Agent (crew.py): agent_* events and the crew's tool steps
     on_plan: Callable[[dict], None] | None = None  # the task plan's checklist (plan.py), each time it changes
+    on_reflexion: Callable[[dict], None] | None = None  # Mode Réflexion: the level chosen, before the first word
 
 
 @dataclass
@@ -637,6 +640,7 @@ class Run:
     plan: dict | None = None  # the task plan's final checklist, when the request asked for two things or more
     notes: list[str] = field(default_factory=list)  # one short line per tool result (facts.note_of)
     figures: list[list[str]] = field(default_factory=list)  # labelled totals read by the tools ([label, amount])
+    reflexion: dict | None = None  # Mode Réflexion (reflexion.py): level, who chose it, budget, checks, summary
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -870,15 +874,48 @@ class Agent:
             reasons.add("lang")
         return " ".join(parts), reasons
 
-    def _generate(self, prompt: str, thinking: bool, deadline: float) -> tuple[dict, AnswerStream | None]:
+    def _review(self, messages, parsed, content: str, run: Run, rinfo: dict, deadline: float) -> str:
+        """Chouette and Albatros: the model re-reads its draft once (no tools, not streamed) and answers « OK » or
+        the corrected text. A changed answer replaces the one shown; the review never adds a turn to the history."""
+        rinfo["reviewed"] = True
+        draft = [{"role": "assistant", "content": parsed["content"], "reasoning_content": parsed["reasoning"]},
+                 {"role": "tool", "content": reflex.REVIEW}]  # fmt: skip
+        try:
+            out, _ = self._generate(render_prompt(self.tok, [*messages, *draft], [], True), True, deadline, quiet=True)
+        except EndpointError:
+            return content
+        run.usage.append({**{k: out.get(k) for k in ("prompt_tokens", "completion_tokens", "seconds", "busy_seconds",
+                                                    "finish_reason") if k in out}, "kind": "review"})  # fmt: skip
+        text = out.get("text") or ""
+        got = parse_output(text if "</think>" in text else "<think>" + text + "</think>")
+        if got["tool_calls"] or _TOOL_OPEN in got["content"]:
+            return content
+        new, changed = reflex.review_kept(content, guard.redact(got["content"]))
+        rinfo["review_changed"] = changed
+        if changed and self.hooks.on_reset and self.hooks.on_token:
+            self.hooks.on_reset()
+            self.hooks.on_token(new)
+        return new
+
+    _think_chars: int | None = None  # this run's reasoning budget (Mode Réflexion), else cfg.think_chars
+    _extra_tokens = 0  # output tokens added for the reasoning (reflexion.Level.think_tokens)
+
+    def _generate(
+        self, prompt: str, thinking: bool, deadline: float, *, quiet: bool = False, lead: bool = False
+    ) -> tuple[dict, AnswerStream | None]:
+        """One generation. ``quiet``: nothing is streamed (the review of a draft); ``lead``: the prompt already
+        closed the reasoning (budget forcing), the output is answer text from its first character."""
         hooks = self.hooks
-        limit = {"think_limit": self.cfg.think_chars} if thinking and accepts(self.llm.generate, "think_limit") else {}
+        budget = self._think_chars or self.cfg.think_chars
+        can_cut = thinking and not lead and accepts(self.llm.generate, "think_limit")
+        limit = {"think_limit": budget} if can_cut else {}
+        max_tokens = self.cfg.max_tokens + (self._extra_tokens if thinking and not lead else 0)
         if not self._llm_kwargs:
-            return self.llm.generate(prompt, self.cfg.max_tokens, STOP, **limit), None
-        stream = AnswerStream(hooks.on_token, thinking) if hooks.on_token else None
+            return self.llm.generate(prompt, max_tokens, STOP, **limit), None
+        stream = AnswerStream(hooks.on_token, thinking and not lead) if hooks.on_token and not quiet else None
         out = self.llm.generate(
             prompt,
-            self.cfg.max_tokens,
+            max_tokens,
             STOP,
             on_token=stream.feed if stream else None,
             on_status=hooks.on_status,
@@ -902,6 +939,7 @@ class Agent:
         request_text: str | None = None,
         attached: bool = False,
         tz: str | None = None,
+        reflexion: str | None = None,
     ) -> Run:
         """Run one user request, or continue one that stopped on a pending confirmation.
 
@@ -911,12 +949,18 @@ class Agent:
         The caller is responsible for the integrity of ``state`` between the two calls (the web app signs it).
         ``request_text`` is the user's own words when ``user`` also carries attachment text (used to choose the
         tools); ``attached`` says the request comes with a document or an image.
+        ``reflexion`` (Mode Réflexion, ``reflexion.py``): a level key, or « auto » for the model to choose; it sets
+        ``thinking``, the reasoning budget, the self-check rounds and the review. None keeps ``thinking`` as given.
         """
         cfg, t0, hooks = self.cfg, time.monotonic(), self.hooks
         deadline = t0 + cfg.timeout_s
+        self._think_chars, self._extra_tokens = None, 0
+        choice: reflex.Choice | None = None
         if resume is not None:
             st = copy.deepcopy(resume)
             thinking = bool(st["thinking"])
+            if st.get("reflexion") in reflex.LEVELS:
+                choice = reflex.Choice(str(st["reflexion"]), "resume")
             run = Run(lang=st["lang"], flagged=bool(st["flagged"]), reasoning=st.get("reasoning", ""))
             run.steps = [Step(**s) for s in st["steps"]]
             run.usage = list(st["usage"])
@@ -990,7 +1034,25 @@ class Agent:
             # ---- model router (birds/harness/router.py) -------------------------------------------------------
             # Bird decides the modules in one short call; the parsers above become its hints, its fallback (router
             # off, too slow, unusable answer: plan.active is False and nothing below changes) and a veto.
+            # ---- Mode Réflexion « Auto » (reflexion.py): the model chooses its level in one short call, at the same
+            # time as the router's (no extra wall time); a chosen level needs no call
+            box: dict = {}
+            picker = None
+            if reflexion == "auto":
+                picker = threading.Thread(
+                    target=lambda: box.update(c=reflex.decide(self.llm, self.tok, req, lang=run.lang,
+                                                          cache_salt=cfg.cache_salt)),
+                    daemon=True,
+                )  # fmt: skip
+                picker.start()
+            elif reflexion in reflex.LEVELS:
+                choice = reflex.Choice(reflexion, "user")
             plan = router.plan_turn(self, req, history, attached=attached, lang=run.lang, deadline=deadline)
+            if picker is not None:
+                picker.join(timeout=reflex.BUDGET_S * 1.5 + 0.5)
+                choice = box.get("c") or reflex.Choice(reflex.hint_level(req), "hint", reflex.BUDGET_S, None, "join_timeout")
+                if choice.usage:
+                    run.usage.append({**choice.usage, "kind": "reflexion"})
             if plan.decision is not None:
                 run.router = router.log_meta(plan.decision)
                 if plan.decision.meta.get("usage"):
@@ -1078,6 +1140,18 @@ class Agent:
                 )
                 seen.add(repair.canonical(call["name"], call["arguments"]))
                 queue, gen, auto_calls = [call], 1, 1
+        lvl = reflex.LEVELS.get(choice.level) if choice is not None else None
+        rinfo: dict = dict((resume or {}).get("rx") or {}) if resume is not None else {}
+        if lvl is not None:
+            thinking = lvl.thinking
+            self._think_chars, self._extra_tokens = (lvl.think_chars or None), lvl.think_tokens
+            if not rinfo:
+                if hooks.on_reflexion:
+                    hooks.on_reflexion({"level": lvl.key, "auto": choice.source in ("model", "hint")})
+                rinfo = {"level": lvl.key, "auto": choice.source in ("model", "hint"), "source": choice.source,
+                         "decide": choice.meta(), "think_chars": 0, "cut": None, "rounds": 0, "corrected": False,
+                         "reviewed": False, "review_changed": False, "checks": {}}  # fmt: skip
+        reasonings: list[str] = []
         gpu = meter.GpuMeter(enabled=cfg.measure_gpu or getattr(self.llm, "local", False))
         pre_notes: list[list[str]] = []  # argument repairs made before validation, one list per queued call
         self._plan_event(tplan, run, ctx, "", offered_names=self._offered(withdrawn))
@@ -1114,12 +1188,18 @@ class Agent:
                                     if k in out
                                 }
                             )
-                            run.think_cut, step_thinking = True, False
+                            # budget forcing: what was reasoned is kept, the reasoning is closed with a short note
+                            # and the model answers from there (a loop is cut at its start by the client)
+                            run.think_cut = True
+                            reason = out.get("finish_reason") or "think_budget"
+                            if rinfo:
+                                rinfo["cut"] = reason
                             if stream is not None and hooks.on_reset:
                                 hooks.on_reset()
-                            out, stream = self._generate(
-                                render_prompt(self.tok, messages, offered, False), False, deadline
-                            )
+                            closed = reflex.close_text(out.get("text") or "", reason, run.lang)
+                            head = render_prompt(self.tok, messages, offered, True)
+                            out, stream = self._generate(head + closed, True, deadline, lead=True)
+                            out = {**out, "text": closed.replace("\n</think>\n\n", "</think>") + (out.get("text") or "")}
                 except EndpointError as e:
                     if e.kind != "timeout":
                         raise
@@ -1147,6 +1227,8 @@ class Agent:
                     text = "<think>" + text + "</think>"  # ran out of budget while reasoning: there is no answer
                 parsed = parse_output(text)
                 content, run.reasoning = guard.redact(parsed["content"]), parsed["reasoning"]
+                if parsed["reasoning"]:
+                    reasonings.append(parsed["reasoning"])
                 calls = parsed["tool_calls"][: cfg.max_calls_per_step]
                 offered_names = {t["function"]["name"] for t in offered}
                 salvage_note = ""
@@ -1284,6 +1366,42 @@ class Agent:
                             messages.append({"role": "tool", "content": why})
                             gen += 1
                             continue
+                    if (
+                        lvl is not None
+                        and run.stop_reason == "answer"
+                        and rinfo.get("rounds", 0) < lvl.checks
+                        and not content.rstrip().endswith("?")
+                        and gen < cfg.max_steps - 1
+                        and deadline - time.monotonic() > 10
+                    ):
+                        # Mode Réflexion: the harness recomputes the answer's calculations and checks every point
+                        # asked; anything wrong goes back to the model in one reminder that names it
+                        verdict = reflex.verify(ctx.request, content, parsed["reasoning"], run.lang)
+                        if not rinfo.get("checks"):
+                            rinfo["checks"] = verdict.as_dict()
+                        if not verdict.ok:
+                            rinfo["rounds"] = rinfo.get("rounds", 0) + 1
+                            rinfo["corrected"] = True
+                            if stream is not None and stream.streamed and hooks.on_reset:
+                                hooks.on_reset()
+                            messages.append(
+                                {"role": "assistant", "content": parsed["content"],
+                                 "reasoning_content": parsed["reasoning"]}
+                            )  # fmt: skip
+                            messages.append({"role": "tool", "content": reflex.nudge(verdict, run.lang)})
+                            gen += 1
+                            continue
+                        rinfo["rounds"] = lvl.checks  # all right: no more rounds
+                    if (
+                        lvl is not None
+                        and lvl.review
+                        and run.stop_reason == "answer"
+                        and not rinfo.get("reviewed")
+                        and not content.rstrip().endswith("?")
+                        and gen < cfg.max_steps - 1
+                        and deadline - time.monotonic() > 20
+                    ):
+                        content = self._review(messages, parsed, content, run, rinfo, deadline)
                     break
                 if gen == cfg.max_steps - 1:
                     run.stop_reason = "max_steps"  # the last allowed generation still asks for tools: they are not run
@@ -1397,6 +1515,8 @@ class Agent:
                     "checked": checked,
                     "notes": run.notes,
                     "memory": memory,
+                    "reflexion": lvl.key if lvl is not None else None,
+                    "rx": rinfo,
                 }
                 break
             bad_streak = 0 if ok else bad_streak + 1
@@ -1441,6 +1561,15 @@ class Agent:
                 run.plan = None
             elif final is not None:
                 run.plan = taskplan.to_dict(final, run.lang, final=True)
+        if rinfo:
+            if run.stop_reason == "answer" and rinfo.get("checks") and rinfo.get("corrected"):
+                rinfo["checks"] = {**rinfo["checks"], **{k: v for k, v in reflex.verify(
+                    ctx.request, content, "", run.lang).as_dict().items() if k in ("calc_wrong", "missing")}}  # fmt: skip
+                rinfo["checks"]["fixed"] = True
+            all_reasoning = "\n".join(reasonings)
+            rinfo["think_chars"] = rinfo.get("think_chars", 0) + len(all_reasoning)
+            rinfo["summary"] = reflex.summary(all_reasoning, run.lang) if all_reasoning else rinfo.get("summary", [])
+            run.reflexion = rinfo
         if run.stop_reason == "confirm":
             run.answer = ""
         elif run.stop_reason == "answer":
