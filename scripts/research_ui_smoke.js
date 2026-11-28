@@ -137,6 +137,18 @@ async function run(browser, size, theme) {
   await page.locator('.rp-toc a[data-toc="claims"]').click();
   await page.waitForTimeout(600);
   await shot(page, `report-claims-${tag}`);
+  // a narrower scope (« des transports publics ») is a different figure, not a contradiction: confidence kept
+  const scope = page.locator(".rp-claim", { hasText: "transports publics" });
+  const scopeText = (await scope.count()) ? await scope.first().textContent() : "";
+  check(
+    /chiffres différents \(autre périmètre\)/.test(scopeText) && (await scope.first().locator(".rp-conf.is-medium").count()) === 1,
+    `${tag}: different scopes shown as « chiffres différents », confidence kept`,
+  );
+  check(!/\(s\)/.test(await page.locator("dialog.rp").textContent()), `${tag}: no « (s) » plural in the report`);
+  if (await scope.count()) {
+    await scope.first().scrollIntoViewIfNeeded();
+    await scope.first().screenshot({ path: path.join(SHOTS, `report-scope-${tag}.png`) });
+  }
 
   // exports: Word and slides through the office engine; PDF prints the report
   for (const [act, ext] of [["rp-docx", ".docx"], ["rp-pptx", ".pptx"]]) {

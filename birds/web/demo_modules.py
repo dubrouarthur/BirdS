@@ -45,6 +45,8 @@ _PAGES = {
         "Budget régional de l'hydrogène (exemple)",
         "Selon ce budget fictif, la Région Exemple a consacré en 2023 un plan de 45 millions d'euros à l'hydrogène "
         "renouvelable, un montant revu à la hausse.\n"
+        "Sur ce plan, la Région Exemple a consacré en 2023 une enveloppe de 12 millions d'euros à l'hydrogène "
+        "renouvelable des transports publics.\n"
         "Le plan régional de l'hydrogène renouvelable est piloté par l'agence Énergie Exemple depuis 2023.\n"
         "Les stations de Mobilis H2 sont approvisionnées par HydroNord depuis 2023, d'après ce document d'exemple.",
     ),
@@ -98,6 +100,12 @@ def _claims(n: int) -> list[dict]:
             {"source": 4, "claim": "La Région Exemple a consacré en 2023 un plan de 45 millions d'euros à l'hydrogène "
              "renouvelable", "quote": "la Région Exemple a consacré en 2023 un plan de 45 millions d'euros à "
              "l'hydrogène renouvelable", "date": "2023",
+             "entities": [{"name": "Région Exemple", "type": "lieu"}]},
+            # a narrower scope (« des transports publics ») with another figure: two true statements, not a
+            # contradiction (« chiffres différents », confidence kept)
+            {"source": 4, "claim": "La Région Exemple a consacré en 2023 une enveloppe de 12 millions d'euros à "
+             "l'hydrogène renouvelable des transports publics", "quote": "la Région Exemple a consacré en 2023 une "
+             "enveloppe de 12 millions d'euros à l'hydrogène renouvelable des transports publics", "date": "2023",
              "entities": [{"name": "Région Exemple", "type": "lieu"}]},
             # the same fact as page 3 on another site: corroborated
             {"source": 4, "claim": "HydroNord approvisionne les stations de Mobilis H2 depuis 2023",
