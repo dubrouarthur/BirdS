@@ -257,10 +257,11 @@ _STRONG = re.compile(
 )
 
 
-def refers_to_table(f: Frame, text: str) -> bool:
+def refers_to_table(f: Frame, text: str, *, compute: bool = True) -> bool:
     """Whether ``text`` is about the table: it names a column (header, synonym), one of its values, a year or a
-    period of its dates, its rows, or the file itself with a word that asks for a computation. A question with an
-    attachment in the conversation is not about it by default (« Combien font 17 x 23 ? »)."""
+    period of its dates, its rows, or the file itself — with a word that asks for a computation when ``compute``
+    (« résume ce fichier » is about it, but asks for none). A question with an attachment in the conversation is not
+    about it by default (« Combien font 17 x 23 ? »)."""
     if not text:
         return False
     words = set(tokens(text))
@@ -272,7 +273,7 @@ def refers_to_table(f: Frame, text: str) -> bool:
         return True
     if _value_filters(f, text, set()):
         return True
-    return bool(_FILE.search(text) and (_STRONG.search(text) or _SHARE.search(text) or _CORR.search(text)
+    return bool(_FILE.search(text) and (not compute or _STRONG.search(text) or _SHARE.search(text) or _CORR.search(text)
                                         or _DIST.search(text) or _TREND.search(text)))  # fmt: skip
 
 

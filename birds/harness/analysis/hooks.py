@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from birds.harness.analysis import planner
+from birds.harness.analysis.ask import refers_to_table
 from birds.harness.analysis.card import build_card, explain, profile_text, result_text
 from birds.harness.analysis.charts import chart_from_result
 from birds.harness.analysis.profile import Frame, frame_of, profile_table
@@ -65,6 +66,14 @@ def _without_unverified(answer: str, allowed: list[float], request: str) -> tupl
     return " ".join(p.strip() for p in kept if p.strip()), len(parts) - len(kept)
 
 
+def _quotes_file(text: str, allowed: list[float]) -> bool:
+    """Whether ``text`` quotes at least one figure of the file (a small count or a year alone does not count)."""
+    from birds.harness.analysis.verify import numbers_in
+
+    figures = [v for v, raw in numbers_in(text) if not (float(v).is_integer() and (0 <= v <= 12 or 1900 <= v <= 2100))]
+    return any(not check_numbers(f"{v}", allowed) for v in figures)
+
+
 MARKERS = ("\n\n[Bird a analysé « ", "\n\n[Bird analysed '", "\n\n[Bird a lu « ", "\n\n[Bird read '")
 
 
@@ -88,6 +97,7 @@ class Prep:
     lang: str = "fr"
     plan: dict | None = None  # the analysis spec computed this turn (planner.py), written in the memo
     planned: dict = field(default_factory=dict)  # how it was chosen: source (model, hybrid, rules, fallback), meta
+    about: bool = True  # the turn is about the table (a computed result, or a question naming it): numbers checked
 
 
 def _load(workspace: Path, names: list[str], words: str) -> tuple[str, object, str] | None:
@@ -183,8 +193,9 @@ def prepare(workspace: Path, names: list[str], words: str, lang: str = "fr", *, 
             allowed = _profile_numbers(prof)
         if plan is not None:
             plan = {**plan, "version": version}
+        about = result is not None or refers_to_table(f, question or "", compute=False)
         return Prep(name, f, prof, card, note, result, chart, allowed, lang, plan,
-                    {"source": planned.source, **planned.meta})  # fmt: skip
+                    {"source": planned.source, **planned.meta}, about)  # fmt: skip
     except Exception:  # noqa: BLE001 - the analysis must never lose the turn
         log.warning("data analysis failed", exc_info=True)
         return None
@@ -292,7 +303,13 @@ def finish(run, prep: Prep | None, request: str = "") -> None:
     lang = prep.lang
     # the chart of the result is drawn in the data card (with « Modifier le graphique »), not a second time below
     answer = str(getattr(run, "answer", "") or "")
-    bad = check_numbers(answer, prep.allowed + [float(prep.frame.n)], request) if answer else []
+    if prep.result is None and not prep.about:
+        # the table was just attached but the turn is about something else (« écris un mail pour la réunion de
+        # lundi à 14 h 30 ») : its numbers are not the file's, nothing to check
+        run.report = {**(getattr(run, "report", None) or {}), "data_check": {"skipped": "not about the table"}}
+        return
+    allowed = prep.allowed + [float(prep.frame.n)]
+    bad = check_numbers(answer, allowed, request) if answer else []
     if prep.result is not None and (bad or not answer.strip()):
         log.info("answer numbers not in the computed result: %s", bad[:5])
         run.answer = explain(prep.result, lang) + CHECKED[lang].format(name=prep.name)
@@ -300,9 +317,10 @@ def finish(run, prep: Prep | None, request: str = "") -> None:
     elif bad:
         # no computed result (the card only): the sentences carrying a number found nowhere are taken out; when
         # little is left, the harness says what it read and asks for the computation (never an invented figure)
-        kept, dropped = _without_unverified(answer, prep.allowed + [float(prep.frame.n)], request)
+        kept, dropped = _without_unverified(answer, allowed, request)
         if dropped and len(kept.split()) >= 12 and len(kept) >= 0.4 * len(answer):
-            run.answer = kept + CHECKED[lang].format(name=prep.name)
+            # « recomputed by Bird » only over figures that do come from the file
+            run.answer = kept + (CHECKED[lang].format(name=prep.name) if _quotes_file(kept, allowed) else "")
         else:
             run.answer = UNCOMPUTED[lang].format(name=prep.name, rows=prep.frame.n, cols=len(prep.frame.columns))
         run.report = {**(getattr(run, "report", None) or {}),

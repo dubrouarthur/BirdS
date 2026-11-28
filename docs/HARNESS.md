@@ -712,7 +712,10 @@ Code : `birds/harness/analysis/` (lecture `table.py`, profil `profile.py`, moteu
   accessible « Données du graphique », export PNG / SVG / CSV). Un choix qui ne convient pas au résultat (un anneau pour
   une série temporelle) est écarté.
 - **Chiffres** : la réponse ne cite que ceux du moteur ; une réponse avec un chiffre introuvable est remplacée par la
-  phrase exacte du harnais (`verify.check_numbers`, rapport `data_check`).
+  phrase exacte du harnais (`verify.check_numbers`, rapport `data_check`). Le contrôle ne s'applique qu'à un tour qui
+  porte sur le tableau (un résultat calculé, ou une demande qui nomme le fichier ou ses colonnes) : un mail « lundi à
+  14 h 30 en salle 204 » écrit avec un tableau joint reste intact (`data_check: skipped`), et la mention « Chiffres
+  recalculés par Bird » n'est ajoutée qu'à un texte qui cite des chiffres du fichier.
 - **Continuité** : sous le graphique, « Modifier le graphique » propose 2 ou 3 suites concrètes (« Par trimestre »,
   « Avec une moyenne mobile sur 3 mois », « En camembert »…) ; un clic envoie la suite comme message, le serveur écrit
   la spécification dans le mémo (`[Analyse de « ventes.csv » — {…}]`), le planificateur la modifie, et la réponse

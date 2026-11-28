@@ -290,6 +290,30 @@ def test_a_card_only_answer_loses_its_invented_figures():
     assert "15 500" not in run.answer and "Dites-moi le calcul voulu" in run.answer
 
 
+def test_the_number_check_leaves_a_turn_that_is_not_about_the_table_alone():
+    from types import SimpleNamespace
+
+    from birds.harness.analysis.hooks import CHECKED, finish
+
+    # review 28/11/2026: the sentence with the time and the room was taken out, and « Chiffres recalculés » added
+    q = "Écris un mail pour inviter l'équipe à la réunion de lundi"
+    prep = prepare(DATA, ["ventes.csv"], q)
+    mail = ("Bonjour à tous,\n\nJe vous invite à la réunion de lundi à 14 h 30 en salle 204 pour faire le point. "
+            "Merci de confirmer votre présence avant vendredi.\n\nBonne journée,\nMarie")  # fmt: skip
+    run = SimpleNamespace(answer=mail, charts=[], report={})
+    finish(run, prep, q)
+    assert run.answer == mail and run.report["data_check"] == {"skipped": "not about the table"}
+    # about the file, an invented figure taken out: no « recomputed » line over a text that quotes none of its own
+    q = "résume ce fichier en deux phrases"
+    prep = prepare(DATA, ["ventes.csv"], q)
+    run = SimpleNamespace(answer="Le fichier décrit les ventes de l'entreprise sur deux années complètes, par région et "
+                                 "par produit, avec les clients et les commerciaux. La remise moyenne est de 3,9 %.",
+                          charts=[], report={})  # fmt: skip
+    finish(run, prep, q)
+    assert "3,9" not in run.answer and run.report["data_check"]["stripped"] == 1
+    assert CHECKED["fr"].format(name="ventes.csv") not in run.answer
+
+
 # ---------------------------------------------------------------- a table of an earlier message (review 28/11/2026)
 OFF_TOPIC = ["Quelle est la population de Canberra ?", "Combien font 17 x 23 ?", "Quel temps fera-t-il demain à Lyon ?",
              "Combien coûte un abonnement Bird ?", "What is the total population of France?",
