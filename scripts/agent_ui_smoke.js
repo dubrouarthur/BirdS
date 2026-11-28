@@ -58,9 +58,16 @@ async function open(browser, options = {}) {
   return { ctx, page };
 }
 
-async function send(page, text = DECK) {
+/** Send a request. A decided team shows its plan card first (wave 2): it is launched at once unless ``plan`` is
+ * "keep" (the scenarios of the plan card itself), so the older scenarios see the team at work as before. */
+async function send(page, text = DECK, { plan = "launch" } = {}) {
   await page.fill("#composer-input", text);
   await page.press("#composer-input", "Enter");
+  if (plan === "keep") return;
+  const launch = await page
+    .waitForSelector('[data-act="plan-launch"]', { timeout: 8000 })
+    .catch(() => null);
+  if (launch) await launch.click().catch(() => {});
 }
 
 async function idle(page, timeout = 60000) {
@@ -167,6 +174,192 @@ async function desktopAgentOff(browser) {
   await ctx.close();
 }
 
+// ------------------------------------------------------------------ wave 2: plan card, instructions, checks, deliverables
+
+/** The plan card in Activé (waits for « Lancer »), edited (typed fields only), then launched; an instruction
+ * added while the team works is acknowledged; the verification card and « Livrables » at the end. Screenshots at
+ * 360 and 1280 px, light and dark. */
+async function wave2(browser, { width = 1280, scheme = "light" } = {}) {
+  const label = `wave2-${width}-${scheme}`;
+  console.log(label);
+  const out = dir(label);
+  const { ctx, page } = await open(browser, {
+    viewport: { width, height: width < 500 ? 780 : 900 },
+    colorScheme: scheme,
+    ...(width < 500 ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : {}),
+  });
+  await page.selectOption("#agent-mode", "on");
+  const bodies = [];
+  page.on("request", (r) => {
+    if (r.url().endsWith("/api/chat")) bodies.push(JSON.parse(r.postData() || "{}"));
+  });
+  await send(page, DECK, { plan: "keep" });
+  await page.waitForSelector(".crew-plan", { timeout: 15000 });
+  check(bodies[0]?.agent_flow === "plan", "the app asks for the plan card first");
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: path.join(out, "1-plan.png") });
+  check(!(await page.isVisible("[data-plan-countdown]")), "Activé: no countdown, the card waits for « Lancer »");
+  const steps = await page.$$eval(".crew-plan .crew-step", (els) => els.length);
+  check(steps >= 4, `the plan lists its steps (${steps})`);
+  // « Modifier »: typed fields only
+  await page.click('[data-act="plan-edit"]');
+  await page.waitForSelector("[data-plan-editor]");
+  await page.click('.plan-seg-opt:has(input[value="decision"])');
+  await page.click('button[aria-label="Une diapositive de moins"]');
+  await page.fill("[data-plan-section]", "Ce qu'il faut retenir");
+  await page.click('.plan-add button');
+  await page.fill('[data-plan-sites="prefer"]', "insee.fr");
+  await page.dispatchEvent('[data-plan-sites="prefer"]', "change");
+  await page.waitForTimeout(200);
+  await page.screenshot({ path: path.join(out, "2-plan-edit.png") });
+  const sw = await page.evaluate(() => document.documentElement.scrollWidth);
+  check(sw <= width + 1, `${width} px: no horizontal scroll while editing (${sw})`);
+  await page.click('[data-act="plan-edit"]'); // Terminer
+  await page.click('[data-act="plan-launch"]');
+  await page.waitForSelector("[data-crew-now]", { timeout: 15000 });
+  const launch = bodies[bodies.length - 1];
+  check(
+    launch?.agent_plan?.token && launch.agent_plan.edits.audience === "decision" && launch.agent_plan.edits.n_slides === 5,
+    `« Lancer » sends the signed plan and typed edits (${JSON.stringify(launch?.agent_plan?.edits || {})})`,
+  );
+  check(
+    JSON.stringify(launch?.agent_plan?.edits?.sections) === JSON.stringify(["Ce qu'il faut retenir"]) &&
+      JSON.stringify(launch?.agent_plan?.edits?.prefer) === JSON.stringify(["insee.fr"]),
+    "sections and sites are sent as typed lists",
+  );
+  check(await page.isVisible('[data-act="agent-stop"]'), "« Arrêter » is visible while the team works");
+  const line = await page.textContent(".crew-now-text");
+  check(/^(Prépare|Lance|Lit|Relève|Rédige|Vérifie|Corrige|Crée|Passe)/.test(line || ""), `one line in the present tense (« ${line} »)`);
+  // « Ajouter une consigne »
+  await page.click('[data-act="agent-note"]');
+  await page.waitForSelector("[data-note-form]");
+  await page.selectOption("[data-note-kind]", "add_section");
+  await page.fill("[data-note-value]", "Méthode");
+  await page.screenshot({ path: path.join(out, "3-note-form.png") });
+  await page.click('[data-note-form] button[type="submit"]');
+  await page.waitForSelector('.crew-note[data-status="applied"], .crew-note[data-status="late"]', { timeout: 20000 });
+  const noteState = await page.getAttribute(".crew-note", "data-status");
+  check(noteState === "applied", `the instruction is applied between two steps (${noteState})`);
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: path.join(out, "4-running.png") });
+  const current = await page.$$eval('.crew-step[aria-current="step"]', (els) => els.length);
+  check(current === 1, "the plan shows the current step");
+  await idle(page);
+  await page.waitForTimeout(300);
+  const past = await page.textContent(".crew-fold > summary");
+  check(/lues|vérifiés/.test(past || ""), `the folded line is in the past tense (« ${past} »)`);
+  await page.click(".vc-head");
+  await page.waitForTimeout(250);
+  await page.locator(".vc").scrollIntoViewIfNeeded();
+  await page.screenshot({ path: path.join(out, "5-checks.png") });
+  const counts = await page.textContent(".vc-counts");
+  check(/4\s+chiffres vérifiés/.test(counts) && /1\s+retiré/.test(counts), `the verification card counts (« ${counts} »)`);
+  const lines = await page.$$eval(".vc-line", (els) => els.length);
+  check(lines >= 4, `each verified figure shows its source line (${lines})`);
+  await page.click(".crew-fold > summary");
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: path.join(out, "6-did.png"), fullPage: true });
+  check(await page.isVisible("#btn-deliverables"), "« Livrables » appears in the top bar");
+  await page.click("#btn-deliverables");
+  await page.waitForSelector("#deliverables[open] .deliv-item");
+  await page.waitForTimeout(500); // the modal fades in
+  await page.screenshot({ path: path.join(out, "7-deliverables.png") });
+  const n = await page.$$eval("#deliverables .deliv-item", (els) => els.length);
+  check(n === 1, `the conversation lists its deliverable (${n})`);
+  await page.keyboard.press("Escape");
+  const sw2 = await page.evaluate(() => document.documentElement.scrollWidth);
+  check(sw2 <= width + 1, `${width} px: no horizontal scroll (${sw2})`);
+  check(page.errors.length === 0, `no page error (${page.errors.join(" | ")})`);
+  await ctx.close();
+}
+
+/** Auto: the plan card counts down and the team starts by itself; « Modifier » stops the countdown. */
+async function autoStart(browser) {
+  console.log("auto-start (1280, light)");
+  const out = dir("auto-start");
+  const { ctx, page } = await open(browser, { viewport: { width: 1280, height: 900 } });
+  await page.selectOption("#agent-mode", "auto");
+  await send(page, DECK, { plan: "keep" });
+  await page.waitForSelector("[data-plan-countdown]", { timeout: 15000 });
+  await page.screenshot({ path: path.join(out, "1-countdown.png") });
+  const t0 = Date.now();
+  await page.waitForSelector("[data-crew-now]", { timeout: 12000 });
+  const waited = (Date.now() - t0) / 1000;
+  check(waited >= 3 && waited <= 8, `Auto: starts after the countdown (${waited.toFixed(1)} s)`);
+  await idle(page);
+  // a second request: « Modifier » stops the countdown
+  await send(page, DECK, { plan: "keep" });
+  await page.waitForSelector("[data-plan-countdown]", { timeout: 15000 });
+  await page.click('[data-act="plan-edit"]');
+  await page.waitForTimeout(6500);
+  check(await page.isVisible(".crew-plan.is-editing"), "« Modifier » stops the countdown: still the plan after 6 s");
+  check(page.errors.length === 0, `no page error (${page.errors.join(" | ")})`);
+  await ctx.close();
+}
+
+/** « Approfondie »: the research ends in a slice, the writing slice is cut by a reload; « Reprendre la tâche »
+ * continues from the slice's state (the only checkpoint a long task sends). The demo has no slices: the two
+ * requests of the long task are scripted with page.route, the plan card comes from the demo. */
+async function sliceReload(browser) {
+  console.log("slice-reload (1280, light)");
+  const out = dir("slice-reload");
+  const { ctx, page } = await open(browser, { viewport: { width: 1280, height: 900 } });
+  await page.selectOption("#agent-mode", "on");
+  const sent = [];
+  const sse = (evs) => evs.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("");
+  const lanes = [
+    { id: "chercheur", role: "chercheur", label: "Recherche web", group: "research" },
+    { id: "redacteur_a", role: "redacteur", label: "Version A", group: "drafts" },
+  ];
+  await page.route("**/api/chat", async (route) => {
+    const body = JSON.parse(route.request().postData() || "{}");
+    if (!body.agent_plan && !body.agent_slice) return route.continue(); // the demo's plan card
+    sent.push(body);
+    if (body.agent_plan)
+      return route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: sse([
+          { type: "agent_start", recipe: "deck_research", reason: "présentation", mode: "on", forced: true, run: "runslice1", lanes },
+          { type: "agent_step", id: "chercheur", role: "chercheur", phase: "brief", status: "done", label: "Recherche web" },
+          { type: "agent_slice", token: "SLICE-TOKEN-1", auto: true, final: false, slice: 0, run: "runslice1" },
+          { type: "done" },
+        ]),
+      });
+    // the writing slice: the stream stays open (the reload cuts it)
+    return new Promise(() => {});
+  });
+  await send(page, DECK, { plan: "keep" });
+  await page.waitForSelector('[data-act="plan-edit"]', { timeout: 15000 });
+  await page.click('[data-act="plan-edit"]');
+  await page.click('.plan-seg-opt:has(input[value="long"])');
+  await page.click('[data-act="plan-edit"]');
+  await page.click('[data-act="plan-launch"]');
+  for (let i = 0; i < 40 && sent.length < 2; i++) await page.waitForTimeout(150);
+  check(sent[0]?.agent_plan?.edits?.length === "long", "« Approfondie » is sent with the plan");
+  check(sent[1]?.agent_slice === "SLICE-TOKEN-1", "the browser continues the long task with the slice's state");
+  const stored = await page.evaluate(() => {
+    const k = Object.keys(localStorage).find((x) => x.startsWith("bird.conv."));
+    return k ? localStorage.getItem(k) : "";
+  });
+  check(stored.includes("SLICE-TOKEN-1"), "the slice's state is saved with the conversation");
+  await page.reload(); // the writing slice's request is still open: the reload cuts it
+  await page.waitForTimeout(600);
+  const resume = await page.waitForSelector('[data-act="agent-resume"]', { timeout: 8000 }).catch(() => null);
+  check(!!resume, "after a reload during the writing slice: « Reprendre la tâche »");
+  await page.screenshot({ path: path.join(out, "1-resume.png") });
+  let resumed = null;
+  await page.route("**/api/chat", (route) => {
+    resumed = JSON.parse(route.request().postData() || "{}");
+    return route.fulfill({ status: 200, contentType: "text/event-stream", body: sse([{ type: "done" }]) });
+  });
+  if (resume) await resume.click();
+  for (let i = 0; i < 30 && !resumed; i++) await page.waitForTimeout(100);
+  check(resumed?.agent_slice === "SLICE-TOKEN-1", "« Reprendre » continues from the slice's state (no new research)");
+  check(page.errors.length === 0, `no page error (${page.errors.join(" | ")})`);
+  await ctx.close();
+}
+
 // ------------------------------------------------------------------ scripted failures (page.route over the demo stream)
 
 function frames(body) {
@@ -235,8 +428,11 @@ async function scripted(browser, kind, { lang = "fr", scheme = "light" } = {}) {
   });
   await page.route("**/api/chat", async (route) => {
     const resp = await route.fetch();
-    const body =
-      TRANSFORMS[kind](frames(await resp.text())).join("\n\n") + "\n\n";
+    const text = await resp.text();
+    // the plan card's request is left alone: the failure is scripted on the team's own stream
+    const body = text.includes('"agent_plan"')
+      ? text
+      : TRANSFORMS[kind](frames(text)).join("\n\n") + "\n\n";
     await route.fulfill({
       status: 200,
       headers: { "content-type": "text/event-stream" },
@@ -665,6 +861,12 @@ async function smallTouch(browser) {
     smallTouch: () => smallTouch(browsers.chromium),
     stall: () => stall(browsers.chromium),
     firefox: async () => browsers.firefox && desktopRun(browsers.firefox),
+    wave2: async () => {
+      for (const width of [1280, 360])
+        for (const scheme of ["light", "dark"]) await wave2(browsers.chromium, { width, scheme });
+    },
+    autoStart: () => autoStart(browsers.chromium),
+    sliceReload: () => sliceReload(browsers.chromium),
   };
   const only = process.argv.slice(2);
   for (const [name, fn] of Object.entries(all))

@@ -27,6 +27,9 @@ DEMOS = [
     ("find_places", {"query": "tour Eiffel"}),
     ("find_places", {"query": "20 avenue de Ségur Paris"}),
     ("find_places", {"query": "Lyon Part-Dieu ; Lille Europe ; Nantes"}),
+    ("find_places", {"query": "10 rue de Rivoli Paris ; 5 place Bellecour Lyon ; 1 La Canebière Marseille"}),
+    ("find_places", {"query": "Lyon ; Grenoble ; Annecy ; Chambéry"}),
+    ("find_places", {"query": "Paris ; Lyon ; Marseille ; Bordeaux ; Nantes ; Lille ; Strasbourg ; Toulouse ; Nice ; Rennes"}),
     ("find_company", {"name": "Airbus"}),
 ]
 
@@ -45,7 +48,8 @@ def main() -> None:
             max_bytes=200_000,
             user_agent=cfg.geo_user_agent,
             headers=headers,
-        )  # fmt: skip
+        ),  # fmt: skip
+        disk=os.environ.get("BIRD_TILE_CACHE") or None,  # a re-run asks OSM only for the tiles it has not got
     )
     STATIC_DEMO.mkdir(parents=True, exist_ok=True)
     for lang in ("fr",):
@@ -61,8 +65,11 @@ def main() -> None:
                 body, partial, n, _ = mapimg.render_map(
                     m["c"], m["z"], tiles, mapimg.OSM_TILES, mapimg.ATTRIBUTION["osm"]
                 )
+                if partial:  # a tile failed: never kept, run again later
+                    print(out.name, "PARTIAL, not written")
+                    continue
                 out.write_bytes(body)
-                print(out.name, len(body), "bytes", n, "tiles", "PARTIAL" if partial else "")
+                print(out.name, len(body), "bytes", n, "tiles")
 
 
 if __name__ == "__main__":

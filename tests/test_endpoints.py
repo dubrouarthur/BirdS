@@ -445,6 +445,7 @@ def test_endpoint_test_rejections_and_modes(dns, monkeypatch):
 
 
 def test_chat_through_a_user_endpoint_never_logs_or_echoes_the_token(dns, monkeypatch, capsys, caplog):
+    monkeypatch.setenv("BIRD_ROUTER", "regex")  # one request exactly (the router's own call: tests/test_router.py)
     seen = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -478,6 +479,7 @@ def test_chat_through_a_user_endpoint_never_logs_or_echoes_the_token(dns, monkey
 
 
 def test_chat_with_a_sleeping_user_endpoint_is_a_calm_status_then_a_retryable_error(dns, monkeypatch):
+    monkeypatch.setenv("BIRD_ROUTER", "regex")  # the scripted 503s are for the main generation
     calls = []
 
     def handler(request: httpx.Request) -> httpx.Response:

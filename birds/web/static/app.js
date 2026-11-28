@@ -56,10 +56,14 @@ import {
   setViewHooks,
   totals,
 } from "./views.js";
-import { applyAgentEvent } from "./agents.js";
+import { addNote, applyAgentEvent, countdownText, deliverablesOf } from "./agents.js";
+import { cleanPlan, planNews } from "./plan.js"; // task plan checklist (w1-harness)
+import * as canvas from "./canvas.js"; // the canvas beside the chat (decks, documents, code, sheets)
 
 // Mode Agent, per browser: "auto" (default), "on" (Activé), "off" (Désactivé)
 const AGENT_MODES = ["auto", "on", "off"];
+let planTimer = 0; // the plan card's countdown (Auto, high confidence)
+let teamDone = false; // a team finished while the tab was hidden: « ✓ » in the tab title
 // No byte (data or heartbeat) for this long: the stream is dead. Just over 3x the server's heartbeat (10 s).
 const STALL_MS = 35000;
 state.agent = AGENT_MODES.includes(store.get("bird.agent")) ? store.get("bird.agent") : "auto";
@@ -105,8 +109,21 @@ function slim(conv) {
       a.encoding === "base64" ? { ...a, content: null, lost: true } : a,
     ),
     turns: conv.turns
-      .filter((turn) => turn.role === "user" || turn.status !== "running")
+      // a signed state the server no longer accepts is not kept (it holds the pages read: up to ~160 kB)
+      .map((turn) => (turn.crew?.checkpoint && !(turn.crew.checkpointExp > Date.now() / 1000)
+        ? { ...turn, crew: { ...turn.crew, checkpoint: "", next: "", checkpointExp: 0 } }
+        : turn))
+      // a team at work is kept once it sent a checkpoint: after a reload, « Reprendre la tâche » continues it
+      .filter((turn) => turn.role === "user" || turn.status !== "running" || turn.crew?.checkpoint)
       .map((turn) => {
+        // running, or between two slices of a long task: after a reload, the task resumes from its checkpoint
+        if (turn.role === "assistant" && (turn.status === "running" || turn.status === "slice"))
+          turn = {
+            ...turn,
+            status: "error",
+            error: { code: "dropped", message: t("error.dropped") },
+            crew: { ...turn.crew, next: "", done: { ok: false, dropped: true, caveats: [] } },
+          };
         if (turn.role === "user")
           return {
             ...turn,
@@ -500,6 +517,9 @@ function updateTop() {
   });
   $("btn-model").setAttribute("aria-label", label);
   $("btn-model").title = label;
+  const deliv = deliverablesOf(state.conv);
+  $("btn-deliverables").hidden = !deliv.length || state.view !== "chat";
+  $("deliverables-n").textContent = deliv.length ? String(deliv.length) : "";
   const s = totals(convUsages(state.conv));
   $("footprint-total").textContent = s.n
     ? `${fmtInt(s.prompt + s.completion)} tokens`
@@ -512,7 +532,9 @@ function syncTitle() {
   const base = state.conv?.title ? `${state.conv.title} — Bird` : t("app.title");
   const last = state.conv?.turns?.[state.conv.turns.length - 1];
   const waking = state.busy && last?.live?.state === "waking";
-  document.title = waking && document.hidden ? `${t("title.waking")} · ${base}` : base;
+  // a team that finished while the tab was hidden: a mark in the tab title until the user comes back
+  const mark = teamDone && document.hidden ? "✓ " : "";
+  document.title = waking && document.hidden ? `${t("title.waking")} · ${base}` : mark + base;
 }
 
 function applyTheme() {
@@ -605,6 +627,7 @@ function renderEmpty() {
 }
 
 function renderChat() {
+  canvas.setConversation(state.conv); // the canvas follows the conversation shown
   renderEmpty();
   renderConversation();
   renderAttachments();
@@ -1164,6 +1187,7 @@ function httpMessage(status, detail) {
   if (code === "access_code") return t("error.access");
   if (code === "rate_limited") return t("error.rate");
   if (code === "confirm_invalid") return t("confirm.expired");
+  if (code === "agent_state_used") return t("agent.used");
   if (status === 413) return t("error.toolong");
   if (detail?.message) return detail.message;
   // a gateway or a cold start answers 502/503/504 with an HTML page: say it in words; the status goes in the details
@@ -1242,6 +1266,13 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         );
       break;
     }
+    case "widget": {
+      // a pre-called tool's card (map, company, rate, forecast), sent as soon as the tool returns: shown at once and
+      // kept in the turn (saved with it) even if the model then fails; the answer's own list supersedes it
+      const cards = (Array.isArray(event.widgets) ? event.widgets : []).map((w) => ({ ...w, step: event.index }));
+      turn.widgets = [...(turn.widgets || []).filter((w) => w.step !== event.index), ...cards];
+      break;
+    }
     case "confirm":
       turn.confirm = {
         tool: event.tool,
@@ -1269,21 +1300,52 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         web_images: Array.isArray(event.web_images) ? event.web_images : [],
         code_checks: Array.isArray(event.code_checks) ? event.code_checks.slice(0, 50) : [], // syntax badges
         widgets: Array.isArray(event.widgets) ? event.widgets : [],
+        fallback: event.fallback ? String(event.fallback) : "", // written from the results, not by the model
+        canvas: event.canvas?.aid ? { aid: event.canvas.aid, version: event.canvas.version, doc: !!event.canvas.doc } : null,
       };
+      if (event.plan !== undefined) turn.plan = cleanPlan(event.plan); // the final checklist, or none
+      canvas.onAnswer(conv, turn, event.canvas);
       turn.files.push(...(event.files || []));
       turn.text = "";
       announce(t("live.answer"));
       break;
+    case "plan": {
+      // the task plan ticked from what really happened (birds/harness/plan.py); read out when an item is done
+      const next = cleanPlan(event);
+      const news = planNews(turn.plan, next);
+      turn.plan = next;
+      if (news) announce(news);
+      break;
+    }
     case "usage":
       turn.usage = event;
       break;
+    case "agent_plan": {
+      const said = applyAgentEvent(turn, event);
+      if (turn.crewPlan) {
+        turn.ui.planArmed = turn.crewPlan.auto > 0; // the countdown runs in this page only, never after a reload
+        armPlanTimer();
+      }
+      if (said) announce(said);
+      break;
+    }
+    case "canvas":
+    case "canvas_media":
+      if (!canvas.onEvent(conv, turn, event)) return;
+      if (event.type === "canvas" && event.phase === "final") saveConv(conv); // a reload keeps each version
+      break;
     case "agent_start":
     case "agent_step":
-    case "agent_done": {
+    case "agent_done":
+    case "agent_note":
+    case "agent_checks":
+    case "agent_deliverable":
+    case "agent_slice": {
       // the board itself is not a live region (it is redrawn on every event): only the transitions are read out
       const said = applyAgentEvent(turn, event);
-      if (event.type === "agent_start") announce(t("agent.chip"));
+      if (event.type === "agent_start" && !turn.crew?.slice) announce(t("agent.chip"));
       else if (said) announce(said);
+      if (event.type === "agent_slice") saveConv(conv); // the checkpoint survives a reload
       break;
     }
     case "error":
@@ -1339,6 +1401,8 @@ async function runTurn(turn, extra = {}) {
       tz: browserTz(),
       thinking: !!turn.thinking,
       agent: turn.agent || state.agent, // "off" for the resend of « Revenir au mode simple »
+      // a decided team shows its plan card first (agents.js renderPlan); « Lancer » sends agent_plan
+      ...((turn.agent || state.agent) !== "off" ? { agent_flow: "plan" } : {}),
       lang: state.prefs.lang,
       attachments: docs.map(({ name, content, encoding, ocr }) => ({
         name,
@@ -1346,6 +1410,7 @@ async function runTurn(turn, extra = {}) {
         encoding: encoding || "text",
         ...(ocr && encoding === "base64" ? { ocr } : {}),
       })),
+      ...canvas.payload(conv), // the artifact open in the canvas, so « ajoute une slide » changes it
       ...extra,
     };
     const response = await fetch("/api/chat", {
@@ -1405,6 +1470,11 @@ async function runTurn(turn, extra = {}) {
         else handleEvent(turn, event, conv, docs);
       }
     }
+    if (finished && turn.status === "running" && !turn.answer) {
+      // the plan card waits for « Lancer »; a long task's slice ended: the next one starts below
+      if (turn.crewPlan && ["pending", "editing"].includes(turn.crewPlan.status) && !turn.crew) turn.status = "plan";
+      else if (turn.crew?.next && !turn.crew.done) turn.status = "slice";
+    }
     if (!finished && turn.status === "running") {
       turn.status = "error"; // the stream closed without its final event: proxy timeout, function killed, network
       turn.error = { code: "dropped", message: t("error.dropped") };
@@ -1435,7 +1505,8 @@ async function runTurn(turn, extra = {}) {
     window.clearInterval(watchdog);
     document.removeEventListener("visibilitychange", onVisible);
     // the team did not report its end: the user stopped it, the server failed, or the connection was lost
-    if (turn.crew && !turn.crew.done && turn.status !== "confirm")
+    if (turn.status === "stopped" && turn.crew) turn.crew.checkpoint = ""; // Stop frees everything: no resume
+    if (turn.crew && !turn.crew.done && !["confirm", "slice"].includes(turn.status))
       applyAgentEvent(turn, {
         type: "agent_done",
         ok: false,
@@ -1449,7 +1520,7 @@ async function runTurn(turn, extra = {}) {
     if (turn.wakeStart) endWake(turn);
     turn.live = null;
     syncTitle();
-    if (turn.status !== "confirm")
+    if (!["confirm", "slice"].includes(turn.status))
       for (const step of turn.steps)
         if (step.status === "running") {
           if (turn.status === "stopped") turn.stoppedAt = step.tool; // named in the notice
@@ -1478,6 +1549,8 @@ async function runTurn(turn, extra = {}) {
     updateTop();
     saveConv(conv);
     if (shown) scrollToEnd(false);
+    if (turn.status === "slice") window.setTimeout(() => continueSlice(turn, conv), 0);
+    else if (turn.crew?.done?.ok) notifyDone(turn);
     const sheet = document.querySelector("[data-confirm-deny]");
     if (turn.status === "confirm" && sheet) sheet.focus();
     release();
@@ -1497,6 +1570,12 @@ function send(text) {
   )
     return;
   const conv = state.conv;
+  const prev = conv.turns[conv.turns.length - 1];
+  if (prev?.status === "plan" && prev.crewPlan) {
+    prev.crewPlan.status = "declined"; // a new message instead of « Lancer »: the plan is set aside
+    prev.status = "done";
+    prev.crewNote = t("agent.plan.declined");
+  }
   if (state.editing) {
     while (
       conv.turns.length &&
@@ -1755,6 +1834,199 @@ async function agentOff(turn) {
   runTurn(fresh, again);
 }
 
+// ------------------------------------------------------------------ Mode Agent, wave 2: plan, notes, slices
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && teamDone) {
+    teamDone = false;
+    syncTitle();
+  }
+});
+
+/** The plan cards counting down (Auto, high confidence): the text is updated in place, the team starts at 0. */
+function armPlanTimer() {
+  if (planTimer) return;
+  planTimer = window.setInterval(() => {
+    const turn = state.conv?.turns?.[state.conv.turns.length - 1];
+    const cp = turn?.crewPlan;
+    if (!cp || turn.status !== "plan" || cp.status !== "pending" || !turn.ui?.planArmed) {
+      window.clearInterval(planTimer);
+      planTimer = 0;
+      return;
+    }
+    const left = document.querySelector(`[data-turn="${turn.id}"] [data-plan-count]`);
+    if (left) left.textContent = countdownText(cp);
+    if (Date.now() >= cp.deadline) {
+      window.clearInterval(planTimer);
+      planTimer = 0;
+      launchPlan(turn);
+    }
+  }, 250);
+}
+
+/** « Lancer »: the signed plan and the typed fields the user changed (the server validates each one again). */
+function launchPlan(turn) {
+  const cp = turn.crewPlan;
+  if (state.busy || turn.status !== "plan" || !cp || !cp.token) return;
+  cp.status = "launched";
+  turn.ui.planArmed = false;
+  const edits = {};
+  for (const k of ["audience", "length", "n_slides", "sections", "prefer", "exclude", "focus"])
+    if (cp.edits[k] !== undefined) edits[k] = cp.edits[k];
+  cp.plan = { ...cp.plan, ...edits };
+  const token = cp.token;
+  cp.token = null; // one use
+  keepFocus(); // the card and its buttons are gone: the keyboard user lands in the composer, never on <body>
+  runTurn(turn, { agent_plan: { token, edits } });
+}
+
+function editPlan(turn) {
+  const cp = turn.crewPlan;
+  if (!cp || turn.status !== "plan") return;
+  cp.status = cp.status === "editing" ? "pending" : "editing";
+  turn.ui.planArmed = false; // editing stops the countdown: the user launches when ready
+  cp.deadline = 0;
+  updateTurn(turn);
+  const first = document.querySelector(
+    `[data-turn="${turn.id}"] ${cp.status === "editing" ? ".plan-editor input" : '[data-act="plan-edit"]'}`,
+  );
+  first?.focus({ preventScroll: true });
+}
+
+/** « Ajouter une consigne »: sent at once to the team at work, or queued for its next slice. */
+async function sendNote(turn, note) {
+  const crew = turn.crew;
+  if (!crew || crew.done) return;
+  const id = `n${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  let delivered = false;
+  let value = note.value;
+  try {
+    const r = await fetch("/api/agent/note", {
+      method: "POST",
+      headers: requestHeaders(),
+      body: JSON.stringify({ run: crew.run, kind: note.kind, value: note.value, id }),
+    });
+    if (r.status === 422) {
+      toast(t("agent.note.invalid"), "error");
+      return;
+    }
+    if (r.ok) {
+      const got = await r.json();
+      delivered = !!got.delivered;
+      value = String(got.value || value);
+    }
+  } catch {
+    /* offline or another instance: the note goes with the next slice */
+  }
+  addNote(turn, { id, kind: note.kind, value }, delivered);
+  updateTurn(turn);
+  document.querySelector(`[data-turn="${turn.id}"] [data-act="agent-note"]`)?.focus({ preventScroll: true });
+}
+
+/** The next slice of a long task: the signed state the server sent, the notes it has not seen yet. */
+function continueSlice(turn, conv) {
+  if (state.busy || turn.status !== "slice" || !turn.crew?.next || state.conv !== conv) return;
+  const token = turn.crew.next;
+  turn.crew.next = "";
+  const notes = turn.crew.notes.filter((n) => n.status === "queued");
+  for (const n of notes) n.status = "sent";
+  runTurn(turn, { agent_slice: token, agent_notes: notes.map(({ id, kind, value }) => ({ id, kind, value })) });
+}
+
+/** « Reprendre la tâche » after a reload or a lost connection: from the last checkpoint (the research is kept). */
+function resumeTask(turn) {
+  const conv = state.conv;
+  if (state.busy || !turn.crew?.checkpoint || conv.turns[conv.turns.length - 1] !== turn) return;
+  const token = turn.crew.checkpoint;
+  turn.crew.done = null;
+  turn.error = null;
+  turn.crew.next = "";
+  runTurn(turn, { agent_slice: token });
+}
+
+/** The team finished while the tab was hidden: a mark in the tab title, and a notification if allowed. */
+function notifyDone(turn) {
+  if (!document.hidden) return;
+  teamDone = true;
+  syncTitle();
+  try {
+    if (window.Notification?.permission === "granted") {
+      const name = (turn.files || [])[0]?.name || state.conv?.title || "";
+      new Notification(t("agent.notify.title"), { body: t("agent.notify.body", { t: name }), tag: turn.id });
+    }
+  } catch {
+    /* notifications blocked: the title mark is enough */
+  }
+}
+
+function askNotify() {
+  try {
+    window.Notification?.requestPermission?.().then(() => renderConversation());
+  } catch {
+    /* not supported */
+  }
+}
+
+/** « Livrables »: every file of the conversation, newest first, with its turn and a download. */
+function openDeliverables() {
+  const dialog = $("deliverables");
+  const body = $("deliverables-body");
+  body.replaceChildren();
+  const list = deliverablesOf(state.conv);
+  if (!list.length) body.append(Object.assign(document.createElement("p"), { className: "hint", textContent: t("deliv.empty") }));
+  const ul = document.createElement("ul");
+  ul.className = "deliv-list";
+  for (const d of list) {
+    const li = document.createElement("li");
+    li.className = "deliv-item";
+    const ic = document.createElement("span");
+    ic.className = `deliv-ic is-${d.kind}`;
+    ic.textContent = (d.name.match(/\.([a-z0-9]{1,5})$/i) || ["", "?"])[1].toUpperCase();
+    const text = document.createElement("div");
+    text.className = "deliv-text";
+    const title = document.createElement("p");
+    title.className = "deliv-name";
+    title.textContent = d.title;
+    const meta = document.createElement("p");
+    meta.className = "deliv-meta";
+    meta.textContent = [t(`deliv.kind.${d.kind}`), d.team && t("deliv.team"), !d.file.data && t("deliv.lost")]
+      .filter(Boolean)
+      .join(" · ");
+    text.append(title, meta);
+    const acts = document.createElement("div");
+    acts.className = "deliv-acts";
+    const show = document.createElement("button");
+    show.type = "button";
+    show.className = "btn btn-outline btn-small";
+    show.textContent = t("deliv.show");
+    show.addEventListener("click", () => {
+      dialog.close();
+      const el = document.querySelector(`[data-turn="${d.turn}"] .file-card[data-file="${CSS.escape(d.name.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 120))}"]`)
+        || document.querySelector(`[data-turn="${d.turn}"]`);
+      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+      el?.querySelector("button")?.focus({ preventScroll: true });
+    });
+    acts.append(show);
+    if (d.file.data) {
+      const dl = document.createElement("button");
+      dl.type = "button";
+      dl.className = "btn btn-primary btn-small";
+      dl.textContent = t("files.download");
+      dl.addEventListener("click", () =>
+        download(d.name, d.file.mime || "application/octet-stream", new Blob([b64ToBytes(d.file.data)], { type: d.file.mime || "application/octet-stream" })),
+      );
+      acts.append(dl);
+    }
+    li.append(ic, text, acts);
+    ul.append(li);
+  }
+  if (list.length) body.append(ul);
+  if (!dialog.open) {
+    dialog.returnTo = document.activeElement;
+    dialog.showModal();
+  }
+}
+
 function stop() {
   if (!state.abort) return;
   if (document.activeElement?.id === "btn-stop") keepFocus();
@@ -1943,7 +2215,13 @@ function bind() {
     },
     { passive: true },
   );
-  for (const id of ["shortcuts"]) {
+  $("btn-deliverables").addEventListener("click", openDeliverables);
+  $("deliverables").addEventListener("close", () => {
+    const back = $("deliverables").returnTo;
+    $("deliverables").returnTo = null;
+    if (back?.isConnected) back.focus({ preventScroll: true });
+  });
+  for (const id of ["shortcuts", "deliverables"]) {
     $(id).addEventListener(
       "click",
       (e) => e.target === e.currentTarget && e.currentTarget.close(),
@@ -2069,6 +2347,7 @@ function refreshAll() {
   updateTop();
 }
 
+let canvasClosedSide = false; // the canvas closed the sidebar: it opens again when the canvas closes
 async function init() {
   setHandlers({
     onConfirm: answerConfirm,
@@ -2083,6 +2362,51 @@ async function init() {
     onExport: exportAnswer,
     onLightbox: openLightbox,
     onAgentOff: agentOff,
+    onPlanLaunch: launchPlan,
+    onPlanEdit: editPlan,
+    onAgentNote: sendNote,
+    onNoteToggle: (turn) => {
+      turn.ui.noteOpen = !turn.ui.noteOpen;
+      updateTurn(turn);
+      if (turn.ui.noteOpen)
+        document.querySelector(`[data-turn="${turn.id}"] [data-note-form] [data-note-value]`)?.focus({ preventScroll: true });
+    },
+    onCrewToggle: (turn) => {
+      turn.ui.crewCollapsed = !turn.ui.crewCollapsed;
+      updateTurn(turn);
+      document.querySelector(`[data-turn="${turn.id}"] [data-act="agent-toggle"]`)?.focus({ preventScroll: true });
+    },
+    onStop: stop,
+    onResume: resumeTask,
+    onNotify: askNotify,
+  });
+  canvas.setup({
+    send: (text) => send(text),
+    compose: (text) => {
+      input().value = text;
+      autosize();
+      input().focus();
+      input().setSelectionRange(text.length, text.length);
+    },
+    headers: requestHeaders,
+    save: (c) => saveConv(c),
+    busy: () => state.busy || !!pendingConfirm(),
+    mode: activeMode,
+    // on a laptop the canvas takes the sidebar's room while it is open; the saved preference is kept
+    onOpen: () => {
+      if (isNarrow() || window.innerWidth >= 1700 || !document.body.classList.contains("side-open")) return;
+      const keep = store.get("bird.side");
+      setSidebar(false);
+      store.set("bird.side", keep);
+      canvasClosedSide = true;
+    },
+    onClose: () => {
+      if (!canvasClosedSide || isNarrow()) return;
+      canvasClosedSide = false;
+      const keep = store.get("bird.side");
+      setSidebar(true);
+      store.set("bird.side", keep);
+    },
   });
   setViewHooks({
     onPrefs: () => {
