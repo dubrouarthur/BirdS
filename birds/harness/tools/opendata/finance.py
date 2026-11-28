@@ -383,6 +383,17 @@ def get_quote(args: dict, ctx) -> str:
     if len(getattr(ctx, "charts", [])) >= MAX_CHARTS:
         raise ToolError(f"at most {MAX_CHARTS} charts per request: answer the user now")
     insts = instruments_of(args)
+    said = str(getattr(ctx, "request", "") or "")
+    if said:
+        from .markets import fold
+
+        named = {i.key for i in find_all(said)}
+        for i in insts:
+            if i.kind == "crypto" and i.key not in named and any(re.search(rf"(?<!\w){re.escape(a)}(?!\w)", fold(said))
+                                                                 for a in i.aliases):  # fmt: skip
+                # « Bitcoin Cash », « Ethereum Classic »: the user named another asset than the listed coin
+                raise ToolError(f"the user asked for another asset than {i.name} (not in Bird's list): say so, "
+                                "never show the price of a different coin")  # fmt: skip
     rng = str(args.get("range") or "").lower()
     rng = rng if rng in RANGES else (range_of(rng) or DEFAULT_RANGE)
     vs = str(args.get("currency") or "").upper()

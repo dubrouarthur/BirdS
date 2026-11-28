@@ -82,6 +82,8 @@ OTHER_FAMILIES_YES = {"quel est le cours de l'action LVMH"}
 FINANCE_NO = [
     # « cours » as a lesson, a course, a moment
     "cours de piano à Lyon le samedi",
+    # another asset named after a listed coin: never that coin's card (merge-core verification, 28/11/2026)
+    "cours du Bitcoin Cash", "cours de l'Ethereum Classic", "combien vaut le Wrapped Bitcoin", "Bitcoin Gold price",
     "je cherche un cours d'anglais en ligne",
     "prépare un cours sur la bourse pour des lycéens",
     "au cours de la réunion, Paul a parlé d'Airbus",

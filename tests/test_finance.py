@@ -339,3 +339,33 @@ def test_the_scripted_demo_quotes_crypto_and_rates_from_its_recording_never_shar
     text, titles = opendata_demo.answer("get_quote", [info["widget"]], charts, info, "fr")
     assert "**Bitcoin**" in text and "**Ethereum**" in text and "[1]" in text and "base 100" in text
     assert "https://www.coingecko.com/" in titles
+
+
+# ---------------------------------------------------------------- another asset that contains a listed coin's name
+
+
+@pytest.mark.parametrize("q", ["cours du Bitcoin Cash", "cours de l'Ethereum Classic", "combien vaut le Wrapped Bitcoin",
+                               "cours de Bitcoin Gold", "cours du bitcoin ETF"])  # fmt: skip
+def test_another_asset_named_after_a_listed_coin_is_never_that_coin(q):
+    """« Bitcoin Cash » opened a Bitcoin card (wrong instrument, keyless, so shown in production)."""
+    from birds.harness.opendata_route import _ground_quote
+
+    assert quote(q) is None and markets.find_all(q) == []
+    assert _ground_quote({"symbols": "Bitcoin"}, q) and _ground_quote({"symbols": "Ethereum"}, q)
+    with pytest.raises(ToolError, match="another asset"):
+        _run({"symbols": "Ethereum" if "Ethereum" in q else "Bitcoin"}, request=q)
+    with pytest.raises(ToolError):
+        finance.instruments_of({"symbols": q.split(" ", 2)[-1]})
+
+
+def test_the_listed_coin_still_quotes_beside_its_namesakes():
+    assert [i.key for i in markets.find_all("compare bitcoin et ethereum")] == ["bitcoin", "ethereum"]
+    text, ctx = _run({"symbols": "bitcoin"}, request="cours des bitcoins")
+    assert ctx.step_info["widget"]["items"][0]["kind"] == "crypto"
+
+
+def test_gold_is_never_l_oreal():
+    """« l'or » (gold) resolved to L'Oréal through its ticker OR: a ticker word counts only in capitals."""
+    assert markets.resolve("or") is None and markets.resolve("l'or") is None
+    assert markets.resolve("OR").key == "loreal" and markets.resolve("OR.PA").key == "loreal"
+    assert markets.resolve("L'Oréal").key == "loreal"

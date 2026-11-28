@@ -104,7 +104,8 @@ def _ground_quote(a: dict, src: str) -> str:
             words = markets.fx_pair(_fx_words(src))
             if not (words and {words.base, words.currency} >= {i.base, i.currency} - {"EUR"}):
                 return "currency not in the user's words"
-        elif i.key not in named and not _grounded(i.name, src):
+        elif i.key not in named and (i.kind == "crypto" or not _grounded(i.name, src)):
+            # a coin is named only as find_all reads it: « Bitcoin Cash » is not Bitcoin
             return "instrument not in the user's words"
     return ""
 

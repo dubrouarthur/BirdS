@@ -178,12 +178,19 @@ def resolve(text: str) -> Instrument | None:
                "", t).strip(" .")  # fmt: skip
     if not t:
         return None
-    if t in _TICKERS:
+    if t in _TICKERS and (t.upper() not in _TICKER_WORDS or t.upper() in str(text)):
+        # « or » (gold), « air », « cap »: a word, a ticker only typed in capitals (« OR », « OR.PA »)
         return INSTRUMENTS[_TICKERS[t]]
     for a, k in _ALIAS:
         if t == a:
             return INSTRUMENTS[k]
     return fx_pair(t)
+
+
+# a listed coin's name inside another asset's name: never that coin (a Bitcoin card for « Bitcoin Cash » is wrong)
+_OTHER_COIN_AFTER = re.compile(r"\s+(?:cash|classic|gold|sv|satoshi|diamond|private|etf|etfs|trust|futures?|token|"
+                               r"inu|pow|fair|2|ii|nova|vision|plus)\b")  # fmt: skip
+_OTHER_COIN_BEFORE = re.compile(r"\b(?:wrapped|staked|lido|synthetic|tokenized|tokenise|tokenis[ée]|w|st)\s+$")
 
 
 def find_all(text: str) -> list[Instrument]:
@@ -196,6 +203,10 @@ def find_all(text: str) -> list[Instrument]:
     for a, k in _ALIAS:
         for m in re.finditer(rf"(?<![\w]){re.escape(a)}(?![\w])", t):
             span = (m.start(), m.end())
+            if INSTRUMENTS[k].kind == "crypto" and (_OTHER_COIN_AFTER.match(t, m.end())
+                                                    or _OTHER_COIN_BEFORE.search(t[: m.start()])):
+                taken.append(span)  # « Bitcoin Cash », « Ethereum Classic », « wrapped bitcoin »: another asset
+                continue
             if any(s < span[1] and span[0] < e for s, e in taken):
                 continue
             taken.append(span)

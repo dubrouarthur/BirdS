@@ -121,3 +121,19 @@ contacté, aucune erreur CSP.
   (358,54 USD, clôture du 27/11). Les indices américains (S&P 500, Nasdaq, Dow Jones) ne figurent pas dans la liste
   des indices de Twelve Data accessible sans clé : ils sont absents de la liste validée.
 - La phrase du modèle sous la fiche (citation [n], sens d'une tendance) n'est pas contrôlée par le harnais.
+
+## Vérification avant fusion (28/11/2026)
+
+Noms ambigus rejoués sur l'analyseur, l'ancrage et l'outil (Total, Orange, Apple, Air Liquide, LVMH, bitcoin,
+CAC 40, S&P 500, l'or, Bitcoin Cash, Ethereum Classic…), puis 12 demandes en réel sur l'endpoint (`serve.py`, sans
+clé Twelve Data). Défauts trouvés et corrigés :
+
+| demande | avant | après |
+| --- | --- | --- |
+| « cours du Bitcoin Cash », « Ethereum Classic », « Wrapped Bitcoin », « Bitcoin Gold », « bitcoin ETF » | fiche **Bitcoin** (ou Ethereum) : mauvais instrument, affiché sans clé | aucune fiche : `find_all` ne lit plus une pièce listée dans le nom d'un autre actif, l'ancrage exige que la pièce soit lue telle quelle, et l'outil refuse une pièce que la demande nomme autrement |
+| « l'or », « or » écrits par le modèle | L'Oréal (ticker `OR`) | non reconnu ; `OR` et `OR.PA` en capitales restent L'Oréal |
+
+Réel après correctifs : bitcoin, « dois-je acheter du bitcoin » (fiche + ligne neutre), euro dollar sur 6 mois et
+« l'or et le bitcoin » (fiche bitcoin, l'or dit absent) : bons instruments, chiffres de la fiche repris ; Bitcoin Cash,
+Total, Orange, Apple, Air Liquide, LVMH, CAC 40, S&P 500 sans clé : aucune fiche, le tour part en recherche web
+(comportement prévu). Banc : `finance` 98/98 (+4 négatifs), total 2 715/2 715.
