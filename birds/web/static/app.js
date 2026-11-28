@@ -1312,7 +1312,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
         code_checks: Array.isArray(event.code_checks) ? event.code_checks.slice(0, 50) : [], // syntax badges
         widgets: Array.isArray(event.widgets) ? event.widgets : [],
         fallback: event.fallback ? String(event.fallback) : "", // written from the results, not by the model
-        canvas: event.canvas?.aid ? { aid: event.canvas.aid, version: event.canvas.version, doc: !!event.canvas.doc } : null,
+        canvas: event.canvas?.aid ? canvasRef(event.canvas) : null,
         reflexion: event.reflexion && typeof event.reflexion === "object" ? event.reflexion : null, // checked when drawn
       };
       if (event.plan !== undefined) turn.plan = cleanPlan(event.plan); // the final checklist, or none
@@ -2500,3 +2500,16 @@ async function init() {
 }
 
 init();
+
+/** The answer's link to its canvas artifact; a code page also says what it has (for its next-step chips). */
+function canvasRef(c) {
+  const out = { aid: c.aid, version: c.version, doc: !!c.doc };
+  if (c.kind === "code" && c.hints && typeof c.hints === "object") {
+    out.kind = "code";
+    out.hints = Object.fromEntries(
+      ["web", "dark", "mobile", "js"].map((k) => [k, c.hints[k] === true]),
+    );
+    out.hints.lang = typeof c.hints.lang === "string" ? c.hints.lang.slice(0, 12) : "";
+  }
+  return out;
+}

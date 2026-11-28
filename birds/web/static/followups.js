@@ -24,6 +24,46 @@ export function suggestions(answer) {
     if (out.length < 3 && !out.some((x) => x.prompt === prompt))
       out.push({ label, prompt, kind });
   };
+  const code = answer.canvas?.kind === "code" ? answer.canvas.hints : null;
+  if (code?.web) {
+    // the next steps of a page, from what its files already have (canvas_web.ref: code.hints)
+    if (!code.mobile)
+      add(
+        L("Version mobile", "Mobile layout"),
+        L("Améliore l'affichage de la page sur mobile.", "Improve the page's layout on mobile."),
+        "canvas",
+      );
+    if (!code.dark)
+      add(
+        L("Mode sombre", "Dark mode"),
+        L("Ajoute un mode sombre automatique à la page.", "Add an automatic dark mode to the page."),
+        "canvas",
+      );
+    add(
+      code.js ? L("Accessible au clavier", "Keyboard accessible") : L("Un peu d'interaction", "Some interaction"),
+      code.js
+        ? L("Rends la page accessible au clavier et aux lecteurs d'écran.",
+            "Make the page accessible with the keyboard and screen readers.")
+        : L("Ajoute un peu d'interaction en JavaScript à la page.", "Add some JavaScript interaction to the page."),
+      "canvas",
+    );
+    add(
+      L("Animations douces", "Subtle animations"),
+      L("Ajoute des animations douces à la page.", "Add subtle animations to the page."),
+      "canvas",
+    );
+  } else if (code && code.lang === "python") {
+    add(
+      L("Gérer les erreurs", "Handle errors"),
+      L("Ajoute la gestion des erreurs au script.", "Add error handling to the script."),
+      "canvas",
+    );
+    add(
+      L("Ajouter des tests", "Add tests"),
+      L("Ajoute des tests unitaires au script.", "Add unit tests to the script."),
+      "canvas",
+    );
+  }
   const widgets = answer.widgets || [];
   for (const w of widgets) {
     if (w.type === "weather") {

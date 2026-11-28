@@ -77,6 +77,11 @@ def ref(run) -> dict | None:
     if not c:
         return None
     out = {"aid": c["aid"], "version": c["version"]}
+    doc = c.get("doc") or {}
+    if doc.get("kind") == "code":  # what the page already has, for the next-step chips (followups.js)
+        from birds.canvas import code as codefiles
+
+        out.update(kind="code", hints=codefiles.hints(codefiles.files_of(doc)))
     if c.get("adopted"):
         out.update(doc=public(c["doc"]), kind=c["doc"].get("kind"), open=False)
     return out
@@ -91,12 +96,27 @@ def public(doc: dict) -> dict:
     return out
 
 
-def emit_doc(ctx, p: turn.Plan, doc: dict | None, phase: str, lang: str, open_: bool = True, label: str = "") -> None:
+def emit_doc(ctx, p: turn.Plan, doc: dict | None, phase: str, lang: str, open_: bool = True, label: str = "",
+             changes: list[dict] | None = None) -> None:  # fmt: skip
     ev = {"type": "canvas", "phase": phase, "aid": p.aid, "base": p.version if p.mode != "create" else None,
           "kind": "code" if p.kind == "diagram" else p.kind, "label": label, "open": open_}  # fmt: skip
     if doc is not None:
         ev["doc"] = public(doc)
+    if changes is not None:
+        ev["changes"] = changes[:MAX_FILES_DIFF]
     ctx.emit(ev)
+
+
+MAX_FILES_DIFF = 12
+
+
+def code_changes(p: turn.Plan, doc: dict) -> list[dict] | None:
+    """Per-file change of a code patch turn (None on a creation or for another kind)."""
+    if p.mode == "create" or doc.get("kind") != "code" or (p.base or {}).get("kind") != "code":
+        return None
+    from birds.canvas import code as codefiles
+
+    return codefiles.diff(codefiles.files_of(p.base), codefiles.files_of(doc))
 
 
 def _finder(mode: str, agent, doc: dict, lang: str):
@@ -206,10 +226,14 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
         repairs.append(f"model called {captured[-1]['tool']}: its arguments became the document")
     elif text:
         if p.kind in ("code", "diagram") or (p.base or {}).get("kind") == "code":
-            found = dsl.parse_code(text, "mermaid" if p.kind == "diagram" else None)
-            doc = turn.code_doc(found, lang, (p.base or {}).get("title") or convert.subject(words))
+            from birds.canvas import code as codefiles
+
+            found = codefiles.parse_files(text, "mermaid" if p.kind == "diagram" else None)
+            doc = turn.compute_for(p, words, lang)(text)
             if found:
                 before, after = found["before"], found["after"]
+            if doc is not None and doc["code"].pop("open", None):
+                repairs.append("unclosed code fence closed at the end")
         elif p.mode == "create":
             doc = convert.from_json_text(text, lang)  # the tool's arguments written as text (a 4B habit)
             if doc is not None:
@@ -242,9 +266,18 @@ def run_canvas(agent, p: turn.Plan, request, ctx, *, user_sent: str, words: str,
 
         cv.enrich(doc)
     illustrate(ctx, p, doc, mode, agent, lang)
-    emit_doc(ctx, p, doc, "final", lang, label=_t(lang, "Création", "Created") if p.mode == "create" else words[:80])
+    changes = code_changes(p, doc)
+    if changes == []:  # the model rewrote the files exactly as they were: no new version
+        if stream.doc is not None:
+            emit_doc(ctx, p, None, "abort", lang)
+        run.answer = _t(lang, "Le code est resté identique : précisez le changement voulu (fichier, élément, effet).",
+                        "The code stayed the same: say what to change (file, element, effect).")  # fmt: skip
+        return run
+    emit_doc(ctx, p, doc, "final", lang, label=_t(lang, "Création", "Created") if p.mode == "create" else words[:80],
+             changes=changes)  # fmt: skip
     run.answer = turn.chat_text("code" if p.kind == "diagram" else kind, doc, lang, before, after,
-                                cut=run.stop_reason == "length", verb="create" if p.mode == "create" else "patch")  # fmt: skip
+                                cut=run.stop_reason == "length", verb="create" if p.mode == "create" else "patch",
+                                changes=changes)  # fmt: skip
     run.stop_reason = "answer"
     run.canvas = {"aid": p.aid, "version": (p.version + 1) if p.mode != "create" else 1, "doc": doc,
                   "repairs": repairs, "raw": text[:8000]}  # fmt: skip  # raw: for evaluations, never sent
@@ -327,22 +360,45 @@ def _body_size(request: Request) -> None:
 FRAME_CSP = (
     "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; "
     "font-src data:; media-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'; "
-    "frame-ancestors 'self'; sandbox allow-scripts"
+    "frame-src 'none'; child-src 'none'; worker-src 'none'; manifest-src 'none'; frame-ancestors 'self'; "
+    "sandbox allow-scripts allow-forms"
 )
-# The preview frame: loaded with sandbox="allow-scripts" (no allow-same-origin: an opaque origin, no access to the
-# app, its storage or its cookies), its own CSP (no network at all: connect-src, img-src and font-src allow only
-# data:/blob:), and the app's CSP allows only same-origin frames, so a navigation of the frame elsewhere is
-# blocked too. The code arrives by postMessage; console errors go back the same way.
+FRAME_SANDBOX = "allow-scripts allow-forms"  # = the iframe's sandbox attribute (canvas.js)
+# The preview frame: loaded with sandbox="allow-scripts allow-forms" (no allow-same-origin: an opaque origin, no
+# access to the app, its storage or its cookies; no popups, no top navigation, no modals), its own CSP (no network at
+# all: connect-src 'none', images and fonts only data:/blob:, no nested frame or worker; form-action 'none': a form's
+# submit event runs, its sending never leaves), and the app's CSP allows only same-origin frames. The server also
+# refuses any other path asked as a frame (Sec-Fetch-Dest: iframe), so a page that navigates itself to a same-origin
+# URL gets nothing. The code arrives by postMessage; console messages go back the same way (the parent checks the
+# source window). Shims keep the usual small-app calls working without a hole: alert / confirm / prompt show a note
+# inside the frame, localStorage / sessionStorage are kept in memory, WebRTC (which CSP does not cover) is removed.
 FRAME_HTML = """<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,
 initial-scale=1"><title>Aperçu</title></head><body><script>
 (function () {
   var CAP = "<scr" + "ipt>(function(){var P=parent;function s(k,a){try{P.postMessage({bird:'console',level:k,"
     + "text:String(a).slice(0,600)},'*')}catch(e){}}"
-    + "addEventListener('error',function(e){s('error',(e.message||'Error')+(e.lineno?' (l. '+e.lineno+')':''))});"
+    + "addEventListener('error',function(e){var f=String(e.filename||'').split('/').pop();"
+    + "s('error',(e.message||'Error')+(e.lineno?' ('+f+', l. '+e.lineno+')':''))});"
     + "addEventListener('unhandledrejection',function(e){var r=e.reason;s('error','Promise: '+(r&&r.message||r))});"
-    + "['error','warn','log'].forEach(function(k){var o=console[k];console[k]=function(){s(k,[].map.call(arguments,"
+    + "['error','warn','log','info'].forEach(function(k){var o=console[k];console[k]=function(){s(k,[].map.call(arguments,"
     + "function(x){try{return typeof x==='object'?JSON.stringify(x):String(x)}catch(e){return String(x)}}).join(' '));"
     + "if(o)o.apply(console,arguments)}});"
+    + "function M(){var d={};return{getItem:function(k){k=String(k);return k in d?d[k]:null},"
+    + "setItem:function(k,v){d[String(k)]=String(v)},removeItem:function(k){delete d[String(k)]},"
+    + "clear:function(){d={}},key:function(i){return Object.keys(d)[i]||null},get length(){return Object.keys(d).length}}}"
+    + "['localStorage','sessionStorage'].forEach(function(n){try{Object.defineProperty(window,n,{value:M(),configurable:true})}"
+    + "catch(e){}});"
+    + "['RTCPeerConnection','webkitRTCPeerConnection','RTCDataChannel'].forEach(function(n){try{Object.defineProperty("
+    + "window,n,{value:undefined,configurable:false,writable:false})}catch(e){}});"
+    + "try{navigator.sendBeacon=function(){return false}}catch(e){}"
+    + "function note(t){var b=document.body||document.documentElement;if(!b)return;var d=document.createElement('div');"
+    + "d.setAttribute('role','status');d.textContent=String(t).slice(0,300);d.style.cssText='position:fixed;left:50%;"
+    + "bottom:16px;transform:translateX(-50%);max-width:90%;padding:10px 14px;border-radius:10px;background:#1f2937;"
+    + "color:#fff;font:14px/1.4 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.25);z-index:2147483647';"
+    + "b.appendChild(d);setTimeout(function(){d.remove()},3200)}"
+    + "window.alert=function(t){s('info','alert: '+t);note(t)};"
+    + "window.confirm=function(t){s('info','confirm: '+t);note(t);return true};"
+    + "window.prompt=function(t,v){s('info','prompt: '+t);note(t);return v==null?'':String(v)};"
     + "document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[href]');"
     + "if(a&&a.getAttribute('href').charAt(0)!=='#'){e.preventDefault();s('info','link: '+a.getAttribute('href'))}},true);"
     + "addEventListener('load',function(){s('ready','')});"
@@ -431,8 +487,21 @@ def make_router(settings, guard_request, check_access, resolve_mode, fetch_clien
     return router
 
 
+def frame_request_refused(request) -> bool:
+    """A request the browser makes as a frame for anything but the preview frame: refused (403). The sandboxed page
+    may navigate itself; it never reaches another same-origin URL that way (an endpoint that fetches a remote
+    picture would otherwise be a way out)."""
+    dest = request.headers.get("sec-fetch-dest", "")
+    return dest in ("iframe", "frame", "embed", "object", "fencedframe") and request.url.path != "/canvas/frame"
+
+
 def frame_headers(response) -> None:
     """The preview frame's own headers (set by the app's security middleware after the common ones)."""
     response.headers["Content-Security-Policy"] = FRAME_CSP
+    response.headers["X-DNS-Prefetch-Control"] = "off"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=(), display-capture=(), usb=(), serial=(), hid=(), bluetooth=(), "
+        "payment=(), publickey-credentials-get=(), clipboard-read=(), screen-wake-lock=()"
+    )
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Cross-Origin-Resource-Policy"] = "same-origin"

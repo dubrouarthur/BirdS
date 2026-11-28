@@ -42,7 +42,10 @@ _WEB = (r"(?:page (?:web|html|d['’]accueil)|landing(?: page)?|site (?:web|vitr
         r"formulaire html|maquette (?:html|web)|prototype (?:html|web)|composant (?:html|web|react)|"
         r"svg|logo svg|ic[ôo]ne svg|animation css|mini[- ]jeu|jeu (?:en|html|javascript|js)|calculatrice|"
         r"compte [àa] rebours|countdown|horloge (?:en|html|js)|widget (?:html|web)|"
-        r"visualisation interactive|tableau de bord html|dashboard html|javascript|\bjs\b)")  # fmt: skip
+        r"visualisation interactive|tableau de bord html|dashboard html|javascript|\bjs\b|"
+        r"(?:petite |mini[- ])?(?:application|appli|app) (?:web|html|javascript|js)|web ?app)")  # fmt: skip
+# « une todo list en HTML », « un convertisseur d'unités en JavaScript »: a thing, then the web language it is made in
+_IN_WEB = re.compile(r"^.{0,80}?\b(?:en|in|avec|with)\s+(?:html|css|javascript|js|html\s*/\s*css)\b", re.I)
 _DIAGRAM = (r"(?:sch[ée]ma(?:\s+(?:de|du|des)\s+(?:processus|fonctionnement|flux|d[ée]cision|architecture|"
             r"principe))?|organigramme|logigramme|diagramme (?:de flux|de processus|de d[ée]cision|d['’]activit[ée]|"
             r"de s[ée]quence)|flow ?chart|flowchart|mind ?map|carte mentale|arbre de d[ée]cision|mermaid|"
@@ -125,7 +128,7 @@ def ask(words: str, attached: bool = False) -> str | None:
         return "diagram"
     if _near(head, _WEB) or (
         _MAKE_RX.search(head) and re.search(r"\b(?:page|site)\b.{0,30}\b(?:html|css|javascript)\b", head, re.I)
-    ):
+    ) or (_LEADS.search(head[:80]) and _IN_WEB.search(head) and not _NOT.search(head)):
         return "code"
     if re.search(_PY, head, re.I) and _MAKE_RX.search(head):
         return "code"
