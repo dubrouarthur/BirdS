@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import bench_opendata as OD  # noqa: E402
 import trigger_bench as B  # noqa: E402
 
 from birds.harness import catalog, clock, followup  # noqa: E402
@@ -119,6 +120,10 @@ def items() -> list[dict]:
     out += [_item("realistic", q, "no", RICH) for q in B.OFFICE_NO]
     out += [_item("pasted", q, "yes", [t], {"tool": t, "args": {}}) for q, t in PASTED_YES]
     out += [_item("pasted", q, "no", RICH) for q in PASTED_NO]
+    od = [m.name for m in catalog.MODULES if m.family == "opendata"]
+    out += [_item("opendata", q, "yes", od, {"tool": t, "args": a}) for q, t, a in OD.OPENDATA_YES]
+    out += [_item("opendata", q, "no", od) for q in OD.OPENDATA_NO]
+    out += [_item("opendata_router", q, "yes", od, {"tool": t, "args": a}) for q, t, a in OD.OPENDATA_ROUTER_YES]
     for fam, yes, no in (("agent", B.AGENT_YES, B.AGENT_NO), ("office_agent", B.OFFICE_AGENT_YES, B.OFFICE_AGENT_NO),
                          ("agent_study", B.STUDY_YES, B.STUDY_NO)):  # fmt: skip
         out += [_item(fam, q, "yes", [], None, agent=True) for q in yes]
@@ -142,6 +147,24 @@ def _cities(call) -> list[str]:
 
 def args_ok(call, expect: dict) -> bool:
     want = expect.get("args") or {}
+    if call.tool == "get_statistics" and want.get("indicator"):  # the parser's key or the model's word, same series
+        from birds.harness.tools.opendata.stats import indicator_of
+
+        if indicator_of(str(call.args.get("indicator", "")), loose=True) != want["indicator"]:
+            return False
+        want = {k: v for k, v in want.items() if k != "indicator"}
+    if call.tool == "work_calendar" and "zone" in want:
+        from birds.harness.tools.opendata.calendar import zone_of
+
+        if zone_of(str(call.args.get("zone") or "metropole")) != zone_of(want["zone"]):
+            return False
+        want = {k: v for k, v in want.items() if k != "zone"}
+    if call.tool == "find_tenders" and "where" in want:
+        from birds.harness.tools.opendata.places_fr import where
+
+        if where(str(call.args.get("where", "")))[1] != where(want["where"])[1]:
+            return False
+        want = {k: v for k, v in want.items() if k != "where"}
     if call.tool == "clock" and "cities" in want:
         return _cities(call) == want["cities"]
     if call.tool == "find_places" and want:
@@ -160,7 +183,10 @@ def judge(decision, item) -> dict:
     if item["label"] == "no":
         return {"pred": bool(fired), "ok": not fired, "args": True}
     exp = item["expect"]
-    hit = [c for c in fired if not exp["tool"] or c.tool == exp["tool"]]
+    if exp["tool"] == "make_chart":  # a trend of official figures drawn from the source itself is that chart
+        fired += [c for c in decision.modules if c.tool == "get_statistics"]
+    hit = [c for c in fired if not exp["tool"] or c.tool == exp["tool"] or (exp["tool"], c.tool) == ("make_chart",
+                                                                                                    "get_statistics")]
     good = bool(hit) and args_ok(hit[0], exp)
     return {"pred": bool(hit), "ok": good, "args": good or not hit}
 
@@ -258,6 +284,10 @@ class Imitator:
             args = {"get_weather": {"place": it["text"].split()[-1]}, "find_places": {"query": it["text"].split()[-1]},
                     "clock": {"cities": [it["text"].split()[-1]]}, "images": {"subject": it["text"].split()[-1]},
                     "make_chart": {}, "event": {}, "find_company": {"name": it["text"].split()[-1]},
-                    "convert_currency": {"from": "USD", "to": "EUR"}}.get(tool, {})  # fmt: skip
+                    "convert_currency": {"from": "USD", "to": "EUR"},
+                    "work_calendar": {"period": "2027"}, "lookup_entity": {"name": it["text"].split()[-1]},
+                    "get_statistics": {"indicator": "gdp"}, "find_tenders": {"query": it["text"].split()[-1]},
+                    "find_papers": {"query": it["text"].split()[-1]},
+                    "find_commune": {"name": it["text"].split()[-1]}}.get(tool, {})  # fmt: skip
             return json.dumps({"modules": [{"tool": tool, "args": args}], "agent": "auto", "needs_web": False})
         return json.dumps({"modules": [], "agent": "auto", "needs_web": False})  # a missed module

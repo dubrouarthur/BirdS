@@ -31,7 +31,7 @@ OPENDATA_YES = [
     ("quels sont les jours fériés en Belgique cette année ?", "work_calendar", {"zone": "BE"}),
     ("jours fériés en Espagne 2027", "work_calendar", {"zone": "ES", "period": "2027"}),
     ("public holidays in Germany in 2027", "work_calendar", {"zone": "DE", "period": "2027"}),
-    ("bank holidays in the UK in 2027", "work_calendar", {"zone": "GB"}),
+    ("bank holidays in the UK in 2027", "work_calendar", {"zone": "GB", "period": "2027"}),
     ("is May 1st 2027 a public holiday?", "work_calendar", {"period": "2027-05-01"}),
     ("how many working days in June 2027?", "work_calendar", {"period": "2027-06"}),
     # entity cards (Wikipedia, Wikidata)
@@ -128,14 +128,16 @@ OPENDATA_NO = [
 
 # clear asks the parsers miss: router-only (router_data family "opendata_router"), never on the regex bench
 OPENDATA_ROUTER_YES = [
-    ("quand tombe l'Ascension en 2027 ?", "work_calendar", {}),
+    ("quand tombe l'Ascension en 2027 ?", "work_calendar", {"period": "2027"}),
     ("fiche Wikipédia du Portugal", "lookup_entity", {"name": "Portugal"}),
     ("présente-moi l'Unesco en quelques lignes avec sa fiche", "lookup_entity", {"name": "Unesco"}),
-    ("tell me about the Eiffel Tower", "lookup_entity", {}),
-    ("prix de l'électricité pour les entreprises en France depuis 2018", "get_statistics", {}),
-    ("créations d'entreprises en France ces deux dernières années", "get_statistics", {}),
-    ("y a-t-il des marchés publics de formation bureautique en ce moment ?", "find_tenders", {}),
-    ("quelles recherches récentes sur la pompe à chaleur ?", "find_papers", {}),
+    ("tell me about the Eiffel Tower", "lookup_entity", {"name": "Eiffel Tower"}),
+    ("prix de l'électricité pour les entreprises en France depuis 2018", "get_statistics",
+     {"indicator": "electricity", "places": "France", "since": "2018"}),
+    ("créations d'entreprises en France ces deux dernières années", "get_statistics", {"indicator": "creations"}),
+    ("y a-t-il des marchés publics de formation bureautique en ce moment ?", "find_tenders",
+     {"query": "formation bureautique"}),
+    ("quelles recherches récentes sur la pompe à chaleur ?", "find_papers", {"query": "pompe à chaleur"}),
     ("dans quel département est Vierzon ?", "find_commune", {"name": "Vierzon"}),
 ]  # fmt: skip
 

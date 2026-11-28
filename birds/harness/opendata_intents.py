@@ -487,6 +487,7 @@ def merge(found: list[Intent], text: str, attached: bool = False, lang: str = "f
     mine = detect(text, attached, lang)
     if not mine:
         return found
-    if mine[0].args and (mine[0].mode == "address" or not any(i.args for i in found)):
+    # « bank holidays in the UK »: holiday words are unambiguous, the map's « bank » is not
+    if mine[0].args and (mine[0].mode == "address" or mine[0].tool == "work_calendar" or not any(i.args for i in found)):
         return mine + [i for i in found if not i.args][:1]
     return found + [Intent(mine[0].tool, None)]
