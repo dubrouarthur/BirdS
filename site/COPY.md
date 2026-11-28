@@ -334,8 +334,10 @@ Si vous avez une meilleure méthode, écrivez-nous. Nous la préférerons à la 
 
 Une question, une idée, une méthode plus juste ? Écrivez-nous.
 
-**contact@birdmodels.example**
-`[À REMPLACER : adresse de contact provisoire]`
+**Nous écrire →** (ouvre un mail vers `CONTACT_EMAIL` de `config.js`)
+Tant qu’aucune adresse n’est renseignée, cette section, le lien « Contact » des menus et les boutons « Nous écrire » /
+« Parler de votre projet » / « Parler de votre installation » restent cachés : aucun lien ne promet d’écrire sans le
+permettre.
 
 ---
 
@@ -658,8 +660,9 @@ If you have a better method, write to us. We'll prefer it to ours.
 
 A question, an idea, a better method? Write to us.
 
-**contact@birdmodels.example**
-`[TO BE REPLACED: placeholder contact address]`
+**Write to us →** (opens an email to `CONTACT_EMAIL` in `config.js`)
+Until an address is set, this section, the menu “Contact” links and the “Write to us” / “Tell us about your project” /
+“Talk about your setup” buttons stay hidden: no link promises a way to write that it cannot open.
 
 ---
 
@@ -683,6 +686,81 @@ Textes en ligne (accueil FR/EN, juste après le héros ; repris sur Sobriété /
 - RSE · Sobriété — « La sobriété, par conception. » (EN « Frugal by design. ») + « Moins de calcul, moins d’énergie, autant d’efficacité. » (EN « Less compute, less energy, just as effective. »). Le credo reste dans le hero seulement. Illustration à l’échelle : surface des disques proportionnelle aux paramètres (≈ 400 Md / 4 Md).
 - Chiffres en grand : plus de 4× (électricité, 0,34 → ≈ 0,07 Wh), environ 30× (eau, 0,32 → ≈ 0,011 mL), environ 100× (taille, ≈ 400 Md → 4 Md ; calcul par mot « en théorie »).
 - Trois idées : « Moins de calcul, à chaque mot. » · « Léger, par conception. » (veille) · « Chaque réponse montre son empreinte. » (compteur, écran Empreinte).
-- Un avantage pour votre entreprise — « Sobre, et efficace. » : Coût (entraînement pour un coût bien inférieur), Vitesse (répond vite), Conçu en France (EN « Designed in France » ; données sous votre contrôle ; ne pas écrire « souveraineté », lu comme une promesse d’hébergement), Mesurable (énergie estimée par réponse, total des conversations).
+- Un avantage pour votre entreprise — « Sobre, et efficace. » (EN « Frugal, and effective. » ; **déplacé : sur
+  Sobriété / Frugality seulement depuis novembre 2026, retiré de l’accueil**, où « Installez Bird où vous voulez »
+  vient après le héros) : Coût (entraînement pour un coût bien inférieur), Vitesse (répond vite), Conçu en France (EN « Designed in France » ; données sous votre contrôle ; ne pas écrire « souveraineté », lu comme une promesse d’hébergement), Mesurable (énergie estimée par réponse, total des conversations).
 - Nos engagements — « Ce à quoi nous nous engageons. » (EN « What we commit to. »), uniquement des engagements déjà vrais et déjà formulés sur le site : Rester petit · Afficher l’empreinte · Publier nos chiffres · Garder vos données sous contrôle (conversations dans le navigateur) · Vous laisser décider (Bird n’envoie jamais vos mails à votre place) · Montrer ses sources. Le 100&#8239;% renouvelable reste un objectif 2030, dans « Nos objectifs » seulement. Typo : FR « 100&#8239;% », EN « 100% ».
 - Navigation : « RSE & sobriété » / « CSR & frugality ».
+
+## Marque — blocs publiés (novembre 2026) / Brand — published blocks (November 2026)
+
+La marque d’abord : la légèreté, la liberté d’installer nos modèles où l’on veut (sources d’énergie variées), conçu en
+France. Le credo ouvre l’accueil ; la section « Installez Bird où vous voulez » vient juste après le héros.
+
+### Accueil — héros (FR)
+
+Surtitre : Conçu en France · Bird S 4B
+
+# Des petits modèles pour de *vrais* usages.
+
+Bird, c’est d’abord la légèreté. Et la liberté d’installer nos modèles où vous voulez.
+
+Chez vous ou dans le centre de votre choix, sur des sources d’énergie variées, au plus près d’une énergie propre. Conçu
+en France, Bird rédige vos mails, prépare vos présentations, lit vos documents et cherche sur le web pour vous.
+
+[Essayer Bird →]  ·  Où installer Bird →
+
+Preuves : « Léger · plus de 4× moins d’électricité par requête courte » / « Où vous voulez · chez vous ou dans le
+centre de votre choix » / « Conçu en France · vos données sous contrôle ».
+
+### Accueil — « Installez Bird où vous voulez » (FR)
+
+Surtitre : Liberté d’installation
+
+## Installez Bird *où vous voulez*.
+
+Un modèle léger se déplace facilement. Installez Bird chez vous ou dans le centre de votre choix, au plus près d’une
+énergie propre.
+
+- **Solaire** — Au plus près d’une production solaire.
+- **Hydraulique** — Près d’une centrale hydraulique.
+- **Éolien** — Au plus près d’un parc éolien.
+- **Chez vous** — Sur vos propres serveurs, sur site.
+- **Le cloud de votre choix** — Le centre de données que vous choisissez.
+
+Conçu en France, léger par nature : Bird s’installe là où l’énergie vous convient.
+Parler de votre installation → (affiché seulement si `CONTACT_EMAIL` est renseignée)
+
+### Home — hero (EN)
+
+Eyebrow: Designed in France · Bird S 4B
+
+# Small models for *real* work.
+
+Bird is lightness, first. And the freedom to install our models wherever you want.
+
+On your premises or in the data centre of your choice, on varied energy sources, as close as possible to clean energy.
+Designed in France, Bird drafts your emails, builds your decks, reads your documents and searches the web for you.
+
+[Try Bird →]  ·  Where to install Bird →
+
+Proof points: “Light · over 4× less electricity per short request” / “Wherever you want · your premises or the data
+centre you choose” / “Designed in France · your data under your control”.
+
+### Home — “Install Bird wherever you want” (EN)
+
+Eyebrow: Freedom to install
+
+## Install Bird *wherever you want*.
+
+A light model travels easily. Install Bird on your premises or in the data centre of your choice, as close as possible
+to clean energy.
+
+- **Solar** — Close to solar generation.
+- **Hydro** — Next to a hydroelectric plant.
+- **Wind** — Close to a wind farm.
+- **On your premises** — On your own servers, on site.
+- **Your choice of cloud** — The data centre you pick.
+
+Designed in France, light by nature: Bird goes where the energy suits you.
+Talk about your setup → (shown only when `CONTACT_EMAIL` is set)

@@ -190,7 +190,8 @@ def test_an_excluded_site_is_never_read(tmp_path):
 # ------------------------------------------------------------------ 3. smarter search planning
 
 
-def test_the_search_plan_comes_from_the_model_and_is_checked_in_code(tmp_path):
+def test_the_search_plan_comes_from_the_model_and_is_checked_in_code(tmp_path, monkeypatch):
+    monkeypatch.setattr(crew_mod, "MAX_CONCURRENT", 1)  # searches start in the planned order (threads would race)
     base = deck_script()
 
     def respond(tools, user, deadline):
@@ -213,7 +214,8 @@ def test_the_search_plan_comes_from_the_model_and_is_checked_in_code(tmp_path):
     assert planned["questions"][0] == "Quelle part des salariés télétravaille ?"
 
 
-def test_official_sources_are_read_first_and_duplicates_count_once(tmp_path):
+def test_official_sources_are_read_first_and_duplicates_count_once(tmp_path, monkeypatch):
+    monkeypatch.setattr(crew_mod, "MAX_CONCURRENT", 1)  # pages start in the ranked order (threads would race)
     search = StaticBackend(
         [{"title": "Forum", "url": "https://www.reddit.com/r/x/tt1", "snippet": "t"},
          {"title": "Blog", "url": "https://blog.test/tt2", "snippet": "t"},

@@ -39,6 +39,10 @@
         ? cfg.CONTACT_EMAIL
         : "";
     if (mail) {
+      // Sans adresse, la section Contact et les boutons qui y mènent restent cachés (aucun lien « Nous écrire »
+      // qui ne permette pas d'écrire). Avec une adresse, ils apparaissent et ouvrent un mail.
+      var only = document.querySelectorAll("[data-contact-only]");
+      for (var o = 0; o < only.length; o++) only[o].removeAttribute("hidden");
       // [data-contact-href] : boutons « Nous écrire », seul le lien change.
       var ch = document.querySelectorAll("[data-contact-href]");
       for (var h = 0; h < ch.length; h++)
@@ -49,7 +53,7 @@
       var cs = document.querySelectorAll("[data-contact]");
       for (var c = 0; c < cs.length; c++) {
         cs[c].setAttribute("href", "mailto:" + mail);
-        cs[c].textContent = mail;
+        cs[c].setAttribute("title", mail);
       }
     }
 
@@ -108,6 +112,25 @@
       });
     }
 
+    // Galerie : un arrêt de tabulation seulement quand elle défile (carrousel sous 900 px), pour qu'on la
+    // fasse défiler au clavier ; sur bureau elle tient en entier et ne doit pas ajouter un arrêt vide.
+    var bentos = document.querySelectorAll(".bento");
+    if (bentos.length) {
+      var syncBento = function () {
+        for (var b = 0; b < bentos.length; b++) {
+          var el = bentos[b];
+          if (el.scrollWidth > el.clientWidth + 1) el.setAttribute("tabindex", "0");
+          else {
+            el.removeAttribute("tabindex");
+            if (document.activeElement === el) el.blur();
+          }
+        }
+      };
+      syncBento();
+      window.addEventListener("resize", syncBento, { passive: true });
+      window.addEventListener("load", syncBento);
+    }
+
     // En-tête : filet au défilement.
     var header = document.querySelector(".site-header");
     if (header) {
@@ -120,22 +143,26 @@
 
     scenes();
 
-    // Apparitions discrètes (désactivées si mouvement réduit : voir CSS).
+    // Apparitions discrètes : le contenu est visible par défaut (CSS). L'animation ne se joue que pour un
+    // élément encore sous l'écran, quand il s'apprête à entrer ; déjà visible ou dépassé, il ne bouge pas.
     var items = document.querySelectorAll(".reveal");
-    if (!("IntersectionObserver" in window)) {
-      for (var j = 0; j < items.length; j++) items[j].classList.add("is-in");
+    if (
+      !items.length ||
+      !("IntersectionObserver" in window) ||
+      !window.matchMedia ||
+      matchMedia("(prefers-reduced-motion: reduce)").matches
+    )
       return;
-    }
     var io = new IntersectionObserver(
       function (entries) {
         entries.forEach(function (en) {
-          if (en.isIntersecting) {
+          if (!en.isIntersecting) return;
+          if (en.boundingClientRect.top >= window.innerHeight - 1)
             en.target.classList.add("is-in");
-            io.unobserve(en.target);
-          }
+          io.unobserve(en.target);
         });
       },
-      { rootMargin: "0px 0px -8% 0px", threshold: 0.05 },
+      { rootMargin: "0px 0px 25% 0px", threshold: 0 },
     );
     for (var k = 0; k < items.length; k++) io.observe(items[k]);
   }
@@ -190,6 +217,15 @@
           }, i * step);
         });
       }
+      // Hors de l'écran, la scène revient à son état final : on ne retrouve jamais une carte vide.
+      function rest() {
+        stop();
+        scene.classList.remove("is-live");
+        items.forEach(function (el) {
+          el.classList.remove("is-on", "is-off");
+          if (el._full != null) el.textContent = el._full;
+        });
+      }
       function play() {
         stop();
         playing = true;
@@ -227,12 +263,13 @@
           entries.forEach(function (en) {
             if (en.isIntersecting && !playing) {
               if (shownFirst) {
-                shownFirst = false;
                 playing = true;
                 later(play, hold);
               } else play();
+            } else if (!en.isIntersecting && playing) {
+              rest();
+              shownFirst = true; // de retour à l'écran : l'échange complet d'abord, la reprise ensuite
             }
-            else if (!en.isIntersecting && playing) stop();
           });
         },
         { threshold: 0.35 },

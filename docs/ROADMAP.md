@@ -56,6 +56,11 @@ Objectif : le niveau d'OpenAI dans les usages de bureau, porté par un petit mod
    Détails initiaux : retouche d'une sélection avec variantes, versions et restauration, ✦ par diapositive, thèmes,
    mises en page suggérées par le contenu, panneau « Livrables », « Transformer en… », tableau interactif sur CSV/XLSX.
 
+6. Marque dans le modèle : réécrire les fiches d'identité d'entraînement pour que Bird se présente par la légèreté,
+   la liberté d'installer nos modèles où l'on veut (sources d'énergie variées) et « conçu en France », sans
+   auto-dénigrement ni modèle de base ; l'invite seule ne suffit pas (mesure : `docs/measures/brand-2026-11-28.md`,
+   banc `scripts/brand_eval.py`).
+
 ## Plus tard
 
 - Ultra recherche (bêta, comptes autorisés) : des centaines d'itérations par tranches reprises, journal forensique,

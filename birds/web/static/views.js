@@ -1259,6 +1259,7 @@ export function renderAbout() {
     ),
     block(t("about.what"), h("p", { text: t("about.what.p") })),
     block(t("about.deal"), h("p", { text: t("about.deal.p") })),
+    block(t("about.where"), h("p", { text: t("about.where.p") })),
     block(t("about.built"), h("p", { text: t("about.built.p") })),
     block(
       t("about.data"),
@@ -1412,7 +1413,7 @@ export function openWelcome({ focusLang } = {}) {
         "ul",
         { class: "w-values", "aria-label": t("welcome.values") },
         value("leaf", "welcome.light"),
-        value("spark", "welcome.fast"),
+        value("find_places", "welcome.where"),
         value("eye", "welcome.clear"),
       ),
       h(
