@@ -985,8 +985,12 @@ def test_deck_runs_in_parallel_within_the_limits(tmp_path):
 
 def test_the_generation_budget_is_never_exceeded(tmp_path, monkeypatch):
     monkeypatch.setattr(crew_mod, "MAX_CALLS", 4)
+    # one worker: the two drafts start in order (a, then b). With threads, b (not a valid call) could take the last
+    # slot first, a would be skipped, and the single-agent fallback would add a 5th, non-crew generation.
+    monkeypatch.setattr(crew_mod, "MAX_CONCURRENT", 1)
     run, llm, events = run_deck(tmp_path, deck_script(draft_b="pas un appel"), delay=0.01)
     assert len(llm.prompts) == 4  # search plan, 2 readers, 1 version: the 2nd is over budget
+    assert next(e for e in events if e.get("type") == "agent_done")["calls"] == 4  # the crew's own count
     assert any(e.get("status") == "skipped" and e.get("detail") == "budget" for e in events)
 
 
