@@ -21,9 +21,11 @@ import {
   toast,
   uid,
   modelLabel,
+  localPair,
 } from "./core.js";
 import { wire as wireRich } from "./richcode.js";
 import {
+  editUser,
   exportMarkdown,
   forgetRendered,
   renderConversation,
@@ -63,7 +65,11 @@ import { setModuleHooks } from "./modules.js";
 import { applyResearchEvent } from "./research.js";
 import { mountPicker, updatePicker } from "./reflexion.js"; // Mode Réflexion: the bird picker
 import { normalizeChoice, thinks } from "./reflexion-data.js";
+import * as cx from "./conversation.js"; // versions, inline edit, documents in context, dialogs, back button
+import * as kept from "./keep.js"; // PDFs, office files and image thumbnails kept across a reload (IndexedDB)
+import { cleanTitle, contextDocs, convText, findIn, fork, switchVersion, validGroup } from "./conversation-data.js";
 
+import { installRouting, localizeEvent, openPairDialog, refreshLocal } from "./local.js"; // Bird local (docs/LOCAL.md)
 import { loadAgentMode } from "./agent-mode.js"; // Mode Agent: Auto by default; Activé for this session only
 let planTimer = 0; // the plan card's countdown (Auto, high confidence)
 let teamDone = false; // a team finished while the tab was hidden: « ✓ » in the tab title
@@ -82,6 +88,15 @@ const PASTE_AS_FILE = 3000; // characters: longer pasted text becomes an attache
 const KEEP_FILE_B64 = 400_000; // larger generated files are not kept in localStorage
 
 // ------------------------------------------------------------------ conversations (localStorage)
+
+// The answers being written, by conversation id: {conv, turn, controller}. Each conversation has its own; the
+// composer's busy state and Stop follow the conversation on screen.
+const running = new Map();
+function syncBusy() {
+  const r = state.conv && running.get(state.conv.id);
+  state.busy = !!r;
+  state.abort = r ? r.controller : null;
+}
 
 const randomId = () =>
   globalThis.crypto?.randomUUID
@@ -118,41 +133,54 @@ function slim(conv) {
     attachments: (conv.attachments || []).map((a) =>
       a.encoding === "base64" ? { ...a, content: null, lost: true } : a,
     ),
-    turns: conv.turns
-      // a signed state the server no longer accepts is not kept (it holds the pages read: up to ~160 kB)
-      .map((turn) => (turn.crew?.checkpoint && !(turn.crew.checkpointExp > Date.now() / 1000)
-        ? { ...turn, crew: { ...turn.crew, checkpoint: "", next: "", checkpointExp: 0 } }
-        : turn))
-      // a team at work is kept once it sent a checkpoint: after a reload, « Reprendre la tâche » continues it
-      .filter((turn) => turn.role === "user" || turn.status !== "running" || turn.crew?.checkpoint)
-      .map((turn) => {
-        // running, or between two slices of a long task: after a reload, the task resumes from its checkpoint
-        if (turn.role === "assistant" && (turn.status === "running" || turn.status === "slice"))
-          turn = {
-            ...turn,
-            status: "error",
-            error: { code: "dropped", message: t("error.dropped") },
-            crew: { ...turn.crew, next: "", done: { ok: false, dropped: true, caveats: [] } },
-          };
-        if (turn.role === "user")
-          return {
-            ...turn,
-            // images are never stored: only their name and size survive a reload
-            images: (turn.images || []).map(({ name, w, h: hh, sent }) => ({
-              name,
-              w,
-              h: hh,
-              sent,
-            })),
-          };
-        const { ui, live, text, ...rest } = turn;
-        return {
-          ...rest,
-          files: (rest.files || []).map((f) =>
-            f.data && f.data.length > KEEP_FILE_B64 ? { ...f, data: null } : f,
-          ),
-        };
-      }),
+    turns: slimTurns(conv.turns),
+  };
+}
+
+/** The turns as stored, the hidden versions (« ‹ 1/2 › ») included. */
+function slimTurns(list) {
+  return list
+    // a signed state the server no longer accepts is not kept (it holds the pages read: up to ~160 kB)
+    .map((turn) => (turn.crew?.checkpoint && !(turn.crew.checkpointExp > Date.now() / 1000)
+      ? { ...turn, crew: { ...turn.crew, checkpoint: "", next: "", checkpointExp: 0 } }
+      : turn))
+    // a team at work is kept once it sent a checkpoint: after a reload, « Reprendre la tâche » continues it; an
+    // answer that heads versions is kept too (as interrupted), so the earlier versions survive a reload
+    .filter((turn) => turn.role === "user" || turn.status !== "running" || turn.crew?.checkpoint || turn.alts)
+    .map((turn) => {
+      const out = slimTurn(turn);
+      if (turn.alts && Array.isArray(turn.alts.list))
+        out.alts = { at: turn.alts.at, list: turn.alts.list.map((tail) => (Array.isArray(tail) ? slimTurns(tail) : null)) };
+      return out;
+    });
+}
+
+function slimTurn(turn) {
+  // running, or between two slices of a long task: after a reload, the task resumes from its checkpoint
+  if (turn.role === "assistant" && (turn.status === "running" || turn.status === "slice"))
+    turn = {
+      ...turn,
+      status: "error",
+      error: { code: "dropped", message: t("error.dropped") },
+      crew: { ...turn.crew, next: "", done: { ok: false, dropped: true, caveats: [] } },
+    };
+  if (turn.role === "user")
+    return {
+      ...turn,
+      // images are never stored: only their name and size survive a reload
+      images: (turn.images || []).map(({ name, w, h: hh, sent }) => ({
+        name,
+        w,
+        h: hh,
+        sent,
+      })),
+    };
+  const { ui, live, text, ...rest } = turn;
+  return {
+    ...rest,
+    files: (rest.files || []).map((f) =>
+      f.data && f.data.length > KEEP_FILE_B64 ? { ...f, data: null } : f,
+    ),
   };
 }
 
@@ -195,35 +223,54 @@ function loadConv(id) {
   const raw = store.json(`bird.conv.${id}`, null);
   if (!raw || !Array.isArray(raw.turns)) return null;
   raw.attachments = Array.isArray(raw.attachments) ? raw.attachments : [];
-  raw.turns = raw.turns
-    .filter((x) => x && (x.role === "user" || x.role === "assistant"))
-    .map((x) =>
-      x.role === "user"
-        ? {
-            role: "user",
-            content: String(x.content ?? ""),
-            // the exact text the model got (image and scan transcriptions included): keep it for the history
-            sent: typeof x.sent === "string" ? x.sent : undefined,
-            attachments: (x.attachments || []).map((a) =>
-              typeof a === "string" ? { name: a } : a,
-            ),
-            images: Array.isArray(x.images) ? x.images : [],
-          }
-        : { steps: [], files: [], ...x, ui: {} },
-    );
+  raw.turns = loadTurns(raw.turns);
   return raw;
 }
 
+/** Stored turns back in memory, their hidden versions included (a broken group is dropped, never half-shown). */
+function loadTurns(list) {
+  return (Array.isArray(list) ? list : [])
+    .filter((x) => x && (x.role === "user" || x.role === "assistant"))
+    .map((x) => {
+      const out =
+        x.role === "user"
+          ? {
+              role: "user",
+              ...(typeof x.id === "string" ? { id: x.id } : {}),
+              content: String(x.content ?? ""),
+              // the exact text the model got (image and scan transcriptions included): keep it for the history
+              sent: typeof x.sent === "string" ? x.sent : undefined,
+              attachments: (x.attachments || []).map((a) =>
+                typeof a === "string" ? { name: a } : a,
+              ),
+              images: Array.isArray(x.images) ? x.images : [],
+              ...(x.hidden ? { hidden: true } : {}),
+            }
+          : { steps: [], files: [], ...x, ui: {} };
+      delete out.alts;
+      if (validGroup(x.alts, x.role))
+        out.alts = { at: x.alts.at, list: x.alts.list.map((tail) => (Array.isArray(tail) ? loadTurns(tail) : null)) };
+      return out;
+    });
+}
+
 function openConv(id) {
+  if (menuFor !== null) {
+    menuFor = null;
+    document.removeEventListener("pointerdown", convMenuOutside, true);
+  }
   if (id && id === state.conv?.id) {
     // the conversation already open (maybe still streaming): just come back to it
     showView("chat");
     closeDrawer();
     return;
   }
-  stop(); // the aborted answer is saved as "stopped" in its own conversation (runTurn keeps a reference to it)
-  const conv = (id && loadConv(id)) || newConv();
+  // an answer being written keeps going in the background and lands in its own conversation (runTurn keeps a
+  // reference to it); that conversation is opened from memory, never from its saved copy
+  const conv = (id && running.get(id)?.conv) || (id && loadConv(id)) || newConv();
   state.conv = conv;
+  syncBusy();
+  restoreKept(conv);
   state.editing = false;
   forgetRendered();
   showView("chat");
@@ -231,6 +278,82 @@ function openConv(id) {
   renderSidebar();
   scrollToEnd(true);
   closeDrawer();
+}
+
+/** The thumbnails of a question's images, kept in this browser so a reload shows them (never sent anywhere). */
+function keepThumbs(conv, user) {
+  for (const img of user?.images || []) {
+    const blob = img.thumb && kept.blobs.get(img.thumb);
+    if (blob) kept.keep(conv.id, "img", `${user.id}:${img.name}`, { blob });
+  }
+}
+
+/** What this browser kept of the conversation's files (IndexedDB): the PDFs and office files come back, and the
+ * images of earlier messages get their thumbnails back; what is gone stays « à joindre de nouveau ». */
+async function restoreKept(conv) {
+  const lost = (conv.attachments || []).filter((a) => a.lost);
+  const ghosts = [];
+  const walk = (list) => {
+    for (const turn of list || []) {
+      if (turn.role === "user" && turn.id) for (const img of turn.images || []) if (!img.thumb) ghosts.push([turn, img]);
+      for (const tail of turn.alts?.list || []) if (Array.isArray(tail)) walk(tail);
+    }
+  };
+  walk(conv.turns);
+  if (!lost.length && !ghosts.length) return;
+  const map = await kept.load(conv.id);
+  let changed = false;
+  for (const doc of lost) {
+    const got = map.get(`doc/${doc.name}`);
+    if (got?.content) {
+      Object.assign(doc, { content: got.content, encoding: got.encoding || "base64", size: got.size || doc.size, lost: false });
+      changed = true;
+    }
+  }
+  for (const [turn, img] of ghosts) {
+    const blob = map.get(`img/${turn.id}:${img.name}`)?.blob;
+    if (blob instanceof Blob) {
+      img.thumb = URL.createObjectURL(blob);
+      kept.blobs.set(img.thumb, blob);
+      changed = true;
+    }
+  }
+  if (!changed || state.conv !== conv) return;
+  renderAttachments();
+  updateComposer();
+  renderConversation();
+}
+
+/** After the first answer: a short title summarised by the model (or a mail's subject), checked here too; the
+ * start of the question stays when nothing usable comes back, or when the user renamed it meanwhile. */
+async function proposeTitle(conv, turn) {
+  const users = conv.turns.filter((x) => x.role === "user" && !x.hidden);
+  if (users.length !== 1 || !turn.answer?.content) return;
+  conv.titled = true;
+  const before = conv.title;
+  try {
+    const response = await fetch("/api/title", {
+      method: "POST",
+      headers: requestHeaders(),
+      body: JSON.stringify({
+        question: users[0].content.slice(0, 4000),
+        answer: String(turn.answer.content).slice(0, 1500),
+        lang: conv.lang === "en" ? "en" : "fr",
+        subject: String(turn.answer.draft_email?.subject || "").slice(0, 300),
+      }),
+    });
+    if (!response.ok) return;
+    const title = cleanTitle((await response.json())?.title, "");
+    if (!title || conv.title !== before || title === before) return;
+    conv.title = title;
+    if (state.convs.some((c) => c.id === conv.id)) saveConv(conv);
+    if (state.conv === conv) {
+      updateTop();
+      syncTitle();
+    }
+  } catch {
+    /* the start of the question stays */
+  }
 }
 
 function autoTitle(text) {
@@ -245,13 +368,55 @@ function autoTitle(text) {
 let search = "";
 let menuFor = null;
 let renaming = null;
+let sideFocus = null; // {id, what: "more" | "open" | "menu"}: where focus goes once the list is drawn again
+
+/** Close a row's menu (Escape, outside click, navigation); `refocus` puts focus back on its « … » button. */
+function closeConvMenu(refocus = false) {
+  if (menuFor === null) return;
+  const id = menuFor;
+  menuFor = null;
+  document.removeEventListener("pointerdown", convMenuOutside, true);
+  if (refocus) sideFocus = { id, what: "more" };
+  renderSidebar();
+}
+function convMenuOutside(e) {
+  if (!e.target.closest?.(`[data-conv="${CSS.escape(menuFor || "")}"]`)) closeConvMenu(false);
+}
+function convMenuKeys(e) {
+  const items = [...e.currentTarget.querySelectorAll("[role=menuitem]")];
+  const i = items.indexOf(document.activeElement);
+  const go = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: items.length - 1 }[e.key];
+  if (go !== undefined) {
+    e.preventDefault();
+    items[(go + items.length) % items.length]?.focus();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    e.stopPropagation();
+    closeConvMenu(true);
+  } else if (e.key === "Tab") closeConvMenu(false);
+}
+
+const textCache = new Map(); // conversation id -> {updated, text}: what the sidebar search reads
+function searchText(c) {
+  const hit = textCache.get(c.id);
+  if (hit && hit.updated === c.updated) return hit.text;
+  const conv = state.conv?.id === c.id ? state.conv : running.get(c.id)?.conv || loadConv(c.id);
+  const text = conv ? convText(conv) : "";
+  textCache.set(c.id, { updated: c.updated, text });
+  return text;
+}
 
 function renderSidebar() {
   const list = $("conv-list");
-  const q = search.trim().toLowerCase();
-  const items = state.convs.filter(
-    (c) => !q || (c.title || "").toLowerCase().includes(q),
-  );
+  const q = search.trim();
+  // the title first, then the questions and answers (accents and case ignored); a match in the text shows its snippet
+  const snippets = new Map();
+  const items = state.convs.filter((c) => {
+    if (!q || findIn(c.title || "", q)) return true;
+    const hit = findIn(searchText(c), q, 12);
+    if (hit) snippets.set(c.id, hit);
+    return !!hit;
+  });
   if (!items.length) {
     list.replaceChildren(
       h("p", {
@@ -286,12 +451,14 @@ function renderSidebar() {
       const done = (save) => {
         if (renaming !== c.id) return;
         renaming = null;
+        sideFocus = { id: c.id, what: save ? "open" : "more" }; // back to the row, never to <body>
         const value = input.value.trim();
         if (save && value) {
           c.title = value;
           const conv = current ? state.conv : loadConv(c.id);
           if (conv) {
             conv.title = value;
+            conv.titled = true; // the user's own title: never replaced by a proposed one
             store.set(`bird.conv.${c.id}`, JSON.stringify(slim(conv)));
           }
           store.set("bird.convs", JSON.stringify(state.convs));
@@ -300,7 +467,10 @@ function renderSidebar() {
         renderSidebar();
       };
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") done(true);
+        if (e.key === "Enter") {
+          e.preventDefault(); // focus moves to the row: the same Enter must not open it (and close the drawer)
+          done(true);
+        }
         if (e.key === "Escape") {
           e.stopPropagation();
           done(false);
@@ -326,7 +496,22 @@ function renderSidebar() {
           title: `${title} — ${fmtDate(c.updated)}`,
           onclick: () => openConv(c.id),
         },
-        h("span", { class: "conv-title", text: title }),
+        snippets.has(c.id)
+          ? h(
+              "span",
+              { class: "cx-hit" },
+              h("span", { class: "conv-title", text: title }),
+              h(
+                "span",
+                { class: "cx-snippet", title: t("cx.search.in") },
+                snippets.get(c.id).before,
+                h("mark", { text: snippets.get(c.id).match }),
+                snippets.get(c.id).after,
+              ),
+            )
+          : h("span", { class: "conv-title", text: title }),
+        running.has(c.id) &&
+          h("span", { class: "cx-live", role: "img", "aria-label": t("cx.live.side"), title: t("cx.live.side") }),
         c.att &&
           h(
             "span",
@@ -347,8 +532,22 @@ function renderSidebar() {
           class: "btn btn-quiet btn-icon btn-small conv-more",
           type: "button",
           "aria-label": t("side.more", { title }),
+          "aria-haspopup": "menu",
           "aria-expanded": String(open),
-          onclick: () => ((menuFor = open ? null : c.id), renderSidebar()),
+          "data-conv-more": c.id,
+          onclick: () => {
+            if (open) return closeConvMenu(true);
+            menuFor = c.id;
+            sideFocus = { id: c.id, what: "menu" };
+            document.addEventListener("pointerdown", convMenuOutside, true);
+            renderSidebar();
+          },
+          onkeydown: (e) => {
+            if (e.key === "ArrowDown" && !open) {
+              e.preventDefault();
+              e.currentTarget.click();
+            }
+          },
         },
         icon("more"),
       ),
@@ -356,30 +555,36 @@ function renderSidebar() {
         h(
           "div",
           {
-            class: "conv-menu",
-            role: "group",
+            class: "conv-menu cx-menu",
+            role: "menu",
             "aria-label": t("side.more", { title }),
+            onkeydown: convMenuKeys,
           },
           button(
             "btn-quiet btn-small",
             "edit",
             t("side.rename"),
-            () => ((renaming = c.id), (menuFor = null), renderSidebar()),
-            { "data-conv-act": "rename" },
+            () => {
+              document.removeEventListener("pointerdown", convMenuOutside, true);
+              renaming = c.id;
+              menuFor = null;
+              renderSidebar();
+            },
+            { "data-conv-act": "rename", role: "menuitem", tabindex: "-1" },
           ),
           button(
             "btn-quiet btn-small",
             "download",
             t("side.export"),
             () => exportConv(c.id),
-            { "data-conv-act": "export" },
+            { "data-conv-act": "export", role: "menuitem", tabindex: "-1" },
           ),
           button(
             "btn-quiet btn-small btn-danger",
             "trash",
             t("side.delete"),
             () => deleteConv(c.id, title),
-            { "data-conv-act": "delete" },
+            { "data-conv-act": "delete", role: "menuitem", tabindex: "-1" },
           ),
         ),
     );
@@ -397,6 +602,18 @@ function renderSidebar() {
       ),
   );
   $("btn-clear").hidden = false;
+  if (sideFocus) {
+    const { id, what } = sideFocus;
+    sideFocus = null;
+    const row = list.querySelector(`[data-conv="${CSS.escape(id)}"]`);
+    const el =
+      what === "menu"
+        ? row?.querySelector("[role=menuitem]")
+        : what === "open"
+          ? row?.querySelector(".conv-open")
+          : row?.querySelector(".conv-more");
+    el?.focus({ preventScroll: true });
+  }
 }
 
 function exportConv(id) {
@@ -412,25 +629,59 @@ function exportConv(id) {
       .slice(0, 40) || "bird"
   }.md`;
   download(name, "text/markdown;charset=utf-8", exportMarkdown(conv));
-  menuFor = null;
-  renderSidebar();
+  closeConvMenu(true);
   toast(t("toast.exported"), "ok");
 }
 
+/** Delete at once, with « Annuler » in the toast for a few seconds (no blocking confirm()). */
 function deleteConv(id, title) {
-  if (!window.confirm(t("side.delete.confirm", { title }))) return;
+  running.get(id)?.controller.abort(); // an answer still being written there stops with it
+  const wasOpen = state.conv?.id === id;
+  const raw = wasOpen && state.conv.turns.length ? JSON.stringify(slim(state.conv)) : store.get(`bird.conv.${id}`);
+  const at = state.convs.findIndex((c) => c.id === id);
+  const entry = state.convs[at];
   store.set(`bird.conv.${id}`, null);
   state.convs = state.convs.filter((c) => c.id !== id);
   store.set("bird.convs", JSON.stringify(state.convs));
-  menuFor = null;
-  if (state.conv?.id === id) openConv(null);
+  if (menuFor !== null) {
+    menuFor = null;
+    document.removeEventListener("pointerdown", convMenuOutside, true);
+  }
+  if (wasOpen) openConv(null);
   else renderSidebar();
-  toast(t("toast.deleted"), "ok");
+  if (!$("sidebar").contains(document.activeElement) || document.activeElement === document.body) $("conv-search").focus({ preventScroll: true });
+  window.setTimeout(() => !state.convs.some((c) => c.id === id) && kept.drop(id), 9000); // after « Annuler »
+  toast(t("cx.side.deleted", { title }), "ok", {
+    ms: 8000,
+    action: {
+      label: t("act.undo"),
+      run: () => {
+        if (!raw || !entry || state.convs.some((c) => c.id === id)) return;
+        store.set(`bird.conv.${id}`, raw);
+        state.convs.splice(Math.min(Math.max(at, 0), state.convs.length), 0, entry);
+        store.set("bird.convs", JSON.stringify(state.convs));
+        if (wasOpen && !state.conv?.turns.length) openConv(id);
+        else renderSidebar();
+        sideFocus = null;
+        announce(t("cx.side.restored"));
+        document.querySelector(`[data-conv="${CSS.escape(id)}"] .conv-open`)?.focus({ preventScroll: true });
+      },
+    },
+  });
 }
 
-function clearAll() {
-  if (!window.confirm(t("side.clear.confirm"))) return;
+/** « Tout effacer »: a styled dialog (light and dark, the app's tone), the safe answer focused. */
+async function clearAll() {
+  const ok = await cx.confirmDialog({
+    title: t("cx.clear.title"),
+    text: t("cx.clear.text"),
+    ok: t("cx.clear.ok"),
+    cancel: t("cx.clear.cancel"),
+  });
+  if (!ok) return;
+  for (const r of running.values()) r.controller.abort();
   for (const key of store.keys("bird.conv.")) store.set(key, null);
+  kept.dropAll();
   state.convs = [];
   store.set("bird.convs", null);
   store.set("bird.current", null);
@@ -445,6 +696,8 @@ function setPhotoMenu(open, refocus = false) {
   $("photo-scrim").hidden = !open;
   $("btn-photo").setAttribute("aria-expanded", String(open));
   if (!open && refocus) $("btn-photo").focus();
+  if (open) cx.openLayer("photo", () => setPhotoMenu(false, true));
+  else cx.closedLayer("photo");
 }
 
 const isNarrow = () => window.matchMedia("(max-width: 900px)").matches;
@@ -462,6 +715,9 @@ function setSidebar(open) {
   side.inert = !open;
   if (!isNarrow()) store.set("bird.side", open ? "1" : "0");
   if (modal) $("btn-new").focus();
+  // the open drawer on a phone is closed by the back button, not the app
+  if (modal) cx.openLayer("drawer", () => setSidebar(false));
+  else cx.closedLayer("drawer");
 }
 /** Tab and Shift+Tab wrap inside the open drawer on narrow screens, so focus never leaves the modal. */
 function trapDrawer(e) {
@@ -506,6 +762,9 @@ function showView(view) {
     closeDrawer();
     $(`view-${view}`).querySelector("h2").focus();
   }
+  // the back button (or swipe-back) brings Settings, Empreinte and À propos back to the chat, never out of the app
+  if (view !== "chat") cx.openLayer("view", () => (showView("chat"), input().focus({ preventScroll: true })));
+  else cx.closedLayer("view");
   updateJump();
 }
 
@@ -522,12 +781,13 @@ function updateTop() {
     : modelLabel();
   $("model-name").textContent = model;
   $("btn-model").classList.toggle("is-demo", isDemo());
+  $("btn-model").classList.toggle("is-local", activeMode() === "local" || !!state.health?.bird_local);
   const label = t("nav.model", {
     model: isDemo() ? model : `${model} (${activeModel()})`,
   });
   $("btn-model").setAttribute("aria-label", label);
   $("btn-model").title = label;
-  const deliv = deliverablesOf(state.conv);
+  const deliv = allDeliverables(state.conv);
   $("btn-deliverables").hidden = !deliv.length || state.view !== "chat";
   $("deliverables-n").textContent = deliv.length ? String(deliv.length) : "";
   const s = totals(convUsages(state.conv));
@@ -708,6 +968,7 @@ function updateJump() {
     label.dataset.i18n = key;
     label.textContent = t(key);
   }
+  btn.title = t(key); // a round arrow, as in other chat apps: its words on hover and for screen readers
 }
 
 // ------------------------------------------------------------------ composer
@@ -790,6 +1051,9 @@ function updateComposer() {
   const send = $("btn-send");
   const awaiting = pendingConfirm();
   const images = readyImages().length;
+  // a document of the conversation whose content this browser lost: attach it again (or remove it) first, never
+  // a question about it answered « je n'ai pas accès à vos fichiers »
+  const lostDoc = (state.conv?.attachments || []).find((a) => a.lost);
   const reason = !state.online
     ? "composer.send.offline"
     : state.busy
@@ -798,7 +1062,9 @@ function updateComposer() {
         ? "composer.send.pending"
         : busyImages()
           ? "att.reading"
-          : !text.trim() && !images
+          : lostDoc
+            ? "cx.ctx.lost.block"
+            : !text.trim() && !images
             ? "composer.send.empty"
             : "";
   const nAtt =
@@ -809,7 +1075,7 @@ function updateComposer() {
   const label = nAtt
     ? t(nAtt === 1 ? "att.send.one" : "att.send.many", { n: nAtt })
     : t("composer.send");
-  send.title = reason ? t(reason) : label;
+  send.title = reason ? t(reason, { name: lostDoc?.name || "" }) : label;
   send.setAttribute("aria-label", label);
   const photo = $("btn-photo");
   const canImages = imagesAvailable();
@@ -819,15 +1085,17 @@ function updateComposer() {
   $("photo-note").textContent = canImages
     ? t("att.photo.note")
     : t("att.img.unsupported");
-  const nDocs = nAtt - images;
+  // the paperclip counts the images too where it is the only button (no photo button on a large screen)
+  const photoShown = photo.offsetParent !== null && getComputedStyle(photo).display !== "none";
+  const nDocs = photoShown ? nAtt - images : nAtt;
   $("btn-attach").dataset.count = nDocs ? String(nDocs) : "";
-  $("btn-photo").dataset.count = images ? String(images) : "";
+  $("btn-photo").dataset.count = images && photoShown ? String(images) : "";
   // most reasons stay for screen readers only; a pending approval is shown, with a way to reach the request
   const why = $("send-why");
-  const shown = reason === "composer.send.pending" || reason === "composer.send.offline";
+  const shown = reason === "composer.send.pending" || reason === "composer.send.offline" || reason === "cx.ctx.lost.block";
   why.className = shown ? "send-why" : "sr-only";
   why.replaceChildren(
-    reason ? h("span", { text: t(reason) }) : "",
+    reason ? h("span", { text: t(reason, { name: lostDoc?.name || "" }) }) : "",
     reason === "composer.send.pending"
       ? h("button", {
           class: "link",
@@ -873,22 +1141,27 @@ function renderAttachments() {
   keepTrayFocus(box, () => drawAttachments(box));
 }
 function drawAttachments(box) {
-  const docs = state.conv?.attachments || [];
+  const all = state.conv?.attachments || [];
+  // the composer holds only what the next message brings; the files of earlier messages sit in their message, and
+  // a small « 2 documents en contexte » pill lists them (read only when a question is about them)
+  const { pending: docs, context, lost } = contextDocs(all);
   const imgs = pending.images;
-  box.hidden = !docs.length && !imgs.length;
+  box.hidden = !docs.length && !imgs.length && !context.length && !lost.length;
   if (box.hidden) return box.replaceChildren();
   const rerender = () => (renderAttachments(), updateComposer());
-  const removeDoc = (i) => () => {
-    announce(t("att.removed", { name: docs[i].name }));
-    docs.splice(i, 1);
+  const dropDoc = (doc, said) => {
+    const i = all.indexOf(doc);
+    if (i < 0) return;
+    announce(t(said, { name: doc.name }));
+    all.splice(i, 1);
     rerender();
     renderEmpty();
     saveIfStarted();
   };
-  box.replaceChildren(
+  const tray = (docs.length || imgs.length) && [
     h(
       "ul",
-      { class: "att-tray", "aria-label": t("att.tray") },
+      { class: "att-tray cx-tray", "aria-label": t("att.tray") },
       imgs.map((img) =>
         h(
           "li",
@@ -900,7 +1173,7 @@ function drawAttachments(box) {
           }),
         ),
       ),
-      docs.map((doc, i) =>
+      docs.map((doc) =>
         h(
           "li",
           { class: `att-in${isNew(doc.name) ? " att-new" : ""}` },
@@ -910,12 +1183,9 @@ function drawAttachments(box) {
               size: doc.size || (doc.content ? doc.content.length : 0),
             },
             {
-              onRemove: removeDoc(i),
-              status: doc.lost
-                ? { kind: "err", text: t("att.doc.lost") }
-                : doc.sent
-                  ? { kind: "ok", text: t("att.doc.inconv") }
-                  : { kind: "ok", text: t("att.ready") },
+              onRemove: () => dropDoc(doc, "att.removed"),
+              onOpen: () => cx.previewDialog(doc),
+              status: { kind: "ok", text: t("att.ready") },
             },
           ),
         ),
@@ -927,6 +1197,14 @@ function drawAttachments(box) {
       icon("info"),
       t(imgs.length ? "att.note.images" : "composer.attach.note"),
     ),
+  ];
+  box.replaceChildren(
+    ...(tray || []),
+    cx.contextPill(context, lost, {
+      onRemove: (doc) => dropDoc(doc, "cx.ctx.removed"),
+      onPreview: (doc) => cx.previewDialog(doc),
+      onReattach: () => $("file-input").click(),
+    }) || [],
   );
 }
 const saveIfStarted = () => state.conv.turns.length && saveConv();
@@ -936,7 +1214,7 @@ function addAttachment(name, content, encoding = "text", size = 0) {
   const maxChars = limits.max_attachment_chars || 60_000;
   const maxCount = limits.max_attachments || 4;
   const list = state.conv.attachments;
-  if (list.length >= maxCount)
+  if (list.filter((a) => !a.lost).length >= maxCount && !list.some((a) => a.lost))
     return toast(t("composer.attach.toomany", { max: maxCount }), "error");
   if (encoding === "text" && content.length > maxChars)
     return toast(
@@ -957,9 +1235,15 @@ function addAttachment(name, content, encoding = "text", size = 0) {
   if (!/\.[A-Za-z0-9]{1,8}$/.test(safe)) safe += ".txt";
   const stem = safe.replace(/(\.[^.]+)$/, "");
   const ext = safe.slice(stem.length);
-  for (let n = 2; list.some((a) => a.name === safe); n++)
-    safe = `${stem}-${n}${ext}`;
-  list.push({ name: safe, content, encoding, size: size || content.length });
+  // the same file attached again after a reload took its content away: it takes its place back (same name)
+  const lost = list.find((a) => a.lost && a.name === safe);
+  if (lost) Object.assign(lost, { content, encoding, size: size || content.length, lost: false });
+  else {
+    for (let n = 2; list.some((a) => a.name === safe); n++)
+      safe = `${stem}-${n}${ext}`;
+    list.push({ name: safe, content, encoding, size: size || content.length });
+  }
+  if (encoding === "base64") kept.keep(state.conv.id, "doc", safe, { content, encoding, size: size || content.length });
   announce(t("att.added", { name: safe }));
   renderAttachments();
   updateComposer();
@@ -1195,6 +1479,8 @@ function httpMessage(status, detail) {
   if (code === "rate_limited") return t("error.rate");
   if (code === "confirm_invalid") return t("confirm.expired");
   if (code === "agent_state_used") return t("agent.used");
+  if (code === "pair_required" || code === "pair_invalid") return t("local.err.pair");
+  if (code === "pair_locked") return t("local.err.locked");
   if (status === 413) return t("error.toolong");
   if (detail?.message) return detail.message;
   // a gateway or a cold start answers 502/503/504 with an HTML page: say it in words; the status goes in the details
@@ -1203,12 +1489,13 @@ function httpMessage(status, detail) {
   return `HTTP ${status}`;
 }
 
-let painting = false;
+const painting = new Set(); // one frame per streaming turn (two conversations can stream at once)
 function paintSoon(turn) {
-  if (painting) return;
-  painting = true;
+  if (painting.has(turn)) return;
+  painting.add(turn);
   requestAnimationFrame(() => {
-    painting = false;
+    painting.delete(turn);
+    if (!state.conv?.turns.includes(turn)) return; // written in the background: drawn when its conversation opens
     updateStream(turn);
     scrollToEnd(false);
   });
@@ -1228,11 +1515,13 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
   if (turn.wakeStart && event.type !== "status") endWake(turn);
   switch (event.type) {
     case "delta":
+      if (turn.cont && turn.text === turn.cont) turn.text += joinCont(turn.cont, String(event.content ?? ""));
       turn.text += String(event.content ?? "");
       if (turn.live) endWake(turn);
       turn.live = null;
       return paintSoon(turn);
     case "user": {
+      if (turn.cont) return; // « Continuer »: the question stays as it was
       // the exact user text the model got: stored on the user turn and sent back as history from now on
       const turns = conv.turns;
       const userTurn = turns[turns.indexOf(turn) - 1];
@@ -1241,7 +1530,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
       return;
     }
     case "delta_reset":
-      turn.text = "";
+      turn.text = turn.cont || "";
       break;
     case "attachment_text": {
       // what the server read on the scanned pages of a PDF: kept with the attachment and sent back, so the
@@ -1263,6 +1552,7 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
       syncTitle();
       break;
     case "step": {
+      if (turn.stepBase) event = { ...event, index: event.index + turn.stepBase }; // « Continuer »: after the first steps
       const i = turn.steps.findIndex((s) => s.index === event.index);
       if (i >= 0) turn.steps[i] = event;
       else turn.steps.push(event);
@@ -1300,7 +1590,9 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
       break;
     case "answer":
       turn.answer = {
-        content: String(event.content ?? ""),
+        content: turn.cont
+          ? turn.cont + joinCont(turn.cont, String(event.content ?? "")) + String(event.content ?? "")
+          : String(event.content ?? ""),
         sources: event.sources || [],
         draft_email: event.draft_email || null,
         stop_reason: event.stop_reason || "answer",
@@ -1384,10 +1676,11 @@ function handleEvent(turn, event, conv = state.conv, docs = []) {
 async function runTurn(turn, extra = {}) {
   const conv = state.conv; // the conversation this answer belongs to, even if the user opens another one
   const controller = new AbortController();
-  state.abort = controller;
+  running.set(conv.id, { conv, turn, controller });
+  syncBusy();
+  renderSidebar(); // the row shows that an answer is being written
   let release;
   state.runDone = new Promise((resolve) => (release = resolve)); // awaited by « Revenir au mode simple »
-  state.busy = true;
   turn.status = "running";
   turn.error = null;
   updateComposer();
@@ -1491,7 +1784,7 @@ async function runTurn(turn, extra = {}) {
           continue;
         }
         if (event.type === "done") finished = true;
-        else handleEvent(turn, event, conv, docs);
+        else handleEvent(turn, turn.mode === "local" ? localizeEvent(event) : event, conv, docs);
       }
     }
     if (finished && turn.status === "running" && !turn.answer) {
@@ -1511,7 +1804,10 @@ async function runTurn(turn, extra = {}) {
       turn.status = "error"; // not the user's Stop: the « Réessayer » card
       turn.error = { code: "dropped", message: t("error.dropped") };
     } else if (controller.signal.aborted) turn.status = "stopped";
-    else {
+    else if (turn.mode === "local" && !finished && state.online) {
+      turn.status = "error"; // the user's machine did not answer: the three steps to start Bird local
+      turn.error = { code: "local_unreachable", message: t("local.down.title") };
+    } else {
       turn.status = "error";
       turn.error = {
         code: state.online ? "network" : "offline",
@@ -1539,8 +1835,8 @@ async function runTurn(turn, extra = {}) {
         dropped: turn.status === "error" && ["dropped", "network", "offline"].includes(turn.error?.code),
         caveats: [],
       });
-    state.abort = null;
-    state.busy = false;
+    if (running.get(conv.id)?.controller === controller) running.delete(conv.id);
+    syncBusy();
     if (turn.wakeStart) endWake(turn);
     turn.live = null;
     syncTitle();
@@ -1557,20 +1853,30 @@ async function runTurn(turn, extra = {}) {
         draft_email: null,
         stop_reason: "stopped",
       };
+    if (turn.cont) {
+      delete turn.cont; // « Continuer » is over: the answer is one text again
+      delete turn.stepBase;
+    }
+    if (turn.status === "done" && !conv.titled) proposeTitle(conv, turn);
     if (turn.usage && turn.status === "done" && !turn.counted) {
       turn.counted = true;
       ledgerAdd(turn.usage, conv.id);
     }
     const shown = state.conv === conv;
     if (shown) renderConversation(); // the last-turn actions (regenerate, edit) depend on the busy state
+    else if (turn.status === "done") toast(t("cx.live.done", { title: conv.title || t("side.untitled") }), "ok", {
+      action: { label: t("deliv.show"), run: () => openConv(conv.id) },
+    });
     if (shown && turn.status === "stopped") announce(t("turn.stopped"));
     else if (shown && turn.status === "error" && turn.error) {
       // the sentence the error notice shows (a raw internal message is never read out)
       const shownText = document.querySelector(`[data-turn="${turn.id}"] .notice-text p`)?.textContent;
       announce(shownText || turn.error.message);
     }
-    updateComposer();
-    updateTop();
+    if (shown) {
+      updateComposer();
+      updateTop();
+    }
     saveConv(conv);
     if (shown) scrollToEnd(false);
     if (turn.status === "slice") window.setTimeout(() => continueSlice(turn, conv), 0);
@@ -1590,7 +1896,8 @@ function send(text) {
     state.busy ||
     pendingConfirm() ||
     !state.online ||
-    busyImages()
+    busyImages() ||
+    (state.conv.attachments || []).some((a) => a.lost) // attach it again or remove it first (the pill says so)
   )
     return;
   const conv = state.conv;
@@ -1615,6 +1922,7 @@ function send(text) {
   conv.turns.push(
     {
       role: "user",
+      id: uid("u"),
       content,
       attachments: newDocs.map(({ name, size, encoding, content: c }) => ({
         name,
@@ -1633,9 +1941,10 @@ function send(text) {
     turn,
   );
   for (const a of newDocs) a.sent = true;
+  keepThumbs(conv, conv.turns[conv.turns.length - 2]);
   saveConv(conv); // the question is stored before the answer starts: a reload or a switch never loses it
   const payload = images.map(({ name, url }) => ({ name, url }));
-  lastImages = payload; // kept in memory only, so "regenerate" can send them again
+  sentImages.set(conv.turns[conv.turns.length - 2], payload);
   pending.images = [];
   input().value = "";
   autosize();
@@ -1646,45 +1955,74 @@ function send(text) {
   runTurn(turn, payload.length ? { images: payload } : {});
 }
 
-let lastImages = [];
-function regenerate() {
+const sentImages = new WeakMap(); // user turn -> the images it sent (in memory only), for a regenerate or an edit
+
+/** The request part that sends the question of `user` again: its images while this page still has them, else the
+ * exact text the model got (transcriptions included). */
+function againFor(user) {
+  const imgs = (user && sentImages.get(user)) || [];
+  if ((user?.images || []).length && imgs.length) {
+    user.sent = undefined; // the images are still here: read them again
+    return { images: imgs };
+  }
+  return user?.sent ? { resend: true } : {};
+}
+
+/** A new answer to the question before turns[at] (the last answer by default). The answer it replaces stays one
+ * click away: the « ‹ 1/2 › » pager under the answer. */
+function regenerate(at) {
   if (state.busy) return;
-  const turns = state.conv.turns;
-  if (!turns.length || turns[turns.length - 1].role !== "assistant") return;
   const conv = state.conv;
-  const previous = turns[turns.length - 1];
+  const turns = conv.turns;
+  const i = Number.isInteger(at) ? at : turns.length - 1;
+  if (turns[i]?.role !== "assistant" || turns[i - 1]?.role !== "user") return;
+  const failed = turns[i].status === "error";
   const turn = newAssistantTurn();
-  turns[turns.length - 1] = turn;
+  fork(turns, i, [turn]);
   if ($("scroll").contains(document.activeElement)) keepFocus(); // the Regenerate button is about to be redrawn
   renderChat();
   scrollToEnd(true);
-  const user = turns[turns.length - 2];
-  let again = {};
-  if ((user?.images || []).length && lastImages.length) {
-    user.sent = undefined; // the images are still here: read them again
-    again = { images: lastImages };
-  } else if (user?.sent) again = { resend: true }; // reuse the exact text, transcriptions included
-  const running = runTurn(turn, again);
-  // the replaced answer (text, files, receipt) can come back for 8 s; what the new run cost stays counted
-  toast(t("toast.regenerated"), "info", {
-    ms: 8000,
-    action: {
-      label: t("act.undo"),
-      run: async () => {
-        if (state.conv !== conv || conv.turns[conv.turns.length - 1] !== turn) return;
-        if (state.abort && state.busy) state.abort.abort();
-        await running;
-        if (state.conv !== conv || conv.turns[conv.turns.length - 1] !== turn) return;
-        conv.turns[conv.turns.length - 1] = previous;
-        forgetRendered();
-        renderChat();
-        saveConv();
-        updateComposer();
-        announce(t("toast.restored"));
-        input().focus();
-      },
-    },
-  });
+  announce(t(failed ? "cx.retry.note" : "toast.regenerated"));
+  runTurn(turn, againFor(turns[i - 1]));
+}
+
+/** What goes between the words written before Stop and the ones « Continuer » adds. */
+function joinCont(before, next) {
+  return !before || /\s$/.test(before) || /^[\s.,;:!?)\]»]/.test(next) ? "" : " ";
+}
+
+/** « Continuer »: the stopped answer is picked up where it stopped, in the same turn (no new question shown). */
+function continueAnswer(turn) {
+  const conv = state.conv;
+  const turns = conv.turns;
+  if (state.busy || turns[turns.length - 1] !== turn || !turn.answer?.content || !state.online) return;
+  const partial = turn.answer.content;
+  const messages = [
+    ...apiMessages(true), // up to the question (its exact text)
+    { role: "assistant", content: partial, interrupted: true },
+    { role: "user", content: t("cx.continue.prompt") },
+  ];
+  turn.cont = partial;
+  turn.text = partial;
+  turn.answer = null;
+  turn.stepBase = turn.steps.length;
+  turn.counted = false;
+  keepFocus();
+  runTurn(turn, { messages });
+}
+
+/** Show version j of the group headed by turns[i] (an answer regenerated, a question edited). */
+function showVersion(i, j) {
+  if (state.busy) return;
+  const turns = state.conv.turns;
+  if (!switchVersion(turns, i, j)) return;
+  const g = turns[i].alts;
+  renderChat();
+  saveConv();
+  updateComposer();
+  announce(t("cx.ver.shown", { at: g.at + 1, n: g.list.length }));
+  const at = document.querySelectorAll("#conversation > .turn")[i];
+  at?.querySelector(`[data-act="${j < g.list.length - 1 ? "ver-prev" : "ver-next"}"]:not(:disabled), [data-act^="ver-"]:not(:disabled)`)?.focus({ preventScroll: true });
 }
 
 // ------------------------------------------------------------------ helpers that need no model
@@ -1801,17 +2139,39 @@ async function exportAnswer(turn, format) {
   }
 }
 
+/** « Modifier » on the last question (shortcut): it opens in place, like any other. */
 function editLast() {
   if (state.busy) return;
-  const lastUser = [...state.conv.turns]
-    .reverse()
-    .find((x) => x.role === "user");
-  if (!lastUser) return;
-  state.editing = true;
-  input().value = lastUser.content;
-  autosize();
-  updateComposer();
-  input().focus();
+  editUser([...state.conv.turns].reverse().find((x) => x.role === "user" && !x.hidden));
+}
+
+/** A question edited in place: a new version of the conversation from there, its files and images kept. */
+function editSend(i, text) {
+  const conv = state.conv;
+  const turns = conv.turns;
+  const old = turns[i];
+  if (state.busy || old?.role !== "user" || !state.online) return renderChat();
+  // the text the model got for it, with the new words in front: image transcriptions and file notes stay
+  const sent = old.sent && old.sent.startsWith(old.content) ? text + old.sent.slice(old.content.length) : undefined;
+  const user = {
+    role: "user",
+    id: uid("u"),
+    content: text,
+    attachments: (old.attachments || []).map((a) => ({ ...a })),
+    images: (old.images || []).map((img) => ({ ...img })),
+    ...(sent ? { sent } : {}),
+  };
+  const imgs = sentImages.get(old);
+  if (imgs) sentImages.set(user, imgs);
+  const turn = newAssistantTurn();
+  fork(turns, i, [user, turn]);
+  keepThumbs(conv, user);
+  if (i === 0) conv.title = autoTitle(text);
+  saveConv(conv);
+  renderChat();
+  scrollToEnd(true);
+  announce(t("live.sent"));
+  runTurn(turn, againFor(user));
 }
 
 function answerConfirm(turn, allow, { refine = false } = {}) {
@@ -1849,13 +2209,7 @@ async function agentOff(turn) {
   renderChat();
   keepFocus(); // the button pressed is gone with the team: the keyboard user lands in the composer, not on <body>
   scrollToEnd(true);
-  const user = conv.turns[conv.turns.length - 2];
-  let again = {};
-  if ((user?.images || []).length && lastImages.length) {
-    user.sent = undefined;
-    again = { images: lastImages };
-  } else if (user?.sent) again = { resend: true };
-  runTurn(fresh, again);
+  runTurn(fresh, againFor(conv.turns[conv.turns.length - 2]));
 }
 
 // ------------------------------------------------------------------ Mode Agent, wave 2: plan, notes, slices
@@ -1992,57 +2346,82 @@ function askNotify() {
 }
 
 /** « Livrables »: every file of the conversation, newest first, with its turn and a download. */
+/** What the conversation made, newest first: the canvas's decks, documents, pages and sheets (with their versions),
+ * the mails drafted in the chat, and the other files. A file shown by a canvas card is listed once, as the canvas. */
+function allDeliverables(conv) {
+  if (!conv) return [];
+  const turns = conv.turns || [];
+  const inCanvas = new Set(turns.flatMap((x) => x.answer?.canvas?.files || []));
+  const out = [];
+  for (const a of Object.values(conv.canvas?.list || {})) {
+    const last = a?.versions?.at(-1);
+    if (!last) continue;
+    const doc = a.versions[a.cur]?.doc || last.doc;
+    out.push({ type: "canvas", aid: a.aid, kind: a.kind, title: doc?.title || t(`cv.kind.${a.kind}`), n: a.versions.length, at: last.at || 0 });
+  }
+  turns.forEach((turn, i) => {
+    const mail = turn.role === "assistant" && turn.answer?.draft_email;
+    if (mail?.subject)
+      out.push({ type: "mail", turn: turn.id, title: String(mail.subject), to: [].concat(mail.to || []).join(", "), at: turn.ts || i });
+  });
+  for (const d of deliverablesOf(conv)) if (!inCanvas.has(d.name)) out.push({ type: "file", ...d, at: 0 });
+  return out.sort((x, y) => (y.at || 0) - (x.at || 0));
+}
+
 function openDeliverables() {
   const dialog = $("deliverables");
   const body = $("deliverables-body");
   body.replaceChildren();
-  const list = deliverablesOf(state.conv);
-  if (!list.length) body.append(Object.assign(document.createElement("p"), { className: "hint", textContent: t("deliv.empty") }));
-  const ul = document.createElement("ul");
-  ul.className = "deliv-list";
+  const list = allDeliverables(state.conv);
+  if (!list.length) body.append(h("p", { class: "hint", text: t("deliv.empty") }));
+  const showTurn = (turnId, sel) => {
+    dialog.close();
+    const el = (sel && document.querySelector(`[data-turn="${turnId}"] ${sel}`)) || document.querySelector(`[data-turn="${turnId}"]`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    el?.querySelector("button")?.focus({ preventScroll: true });
+  };
+  const item = (badge, cls, title, meta, ...acts) =>
+    h(
+      "li",
+      { class: "deliv-item" },
+      h("span", { class: `deliv-ic ${cls}`, "aria-hidden": "true", text: badge }),
+      h("div", { class: "deliv-text" }, h("p", { class: "deliv-name", text: title }), h("p", { class: "deliv-meta", text: meta })),
+      h("div", { class: "deliv-acts" }, ...acts),
+    );
+  const ul = h("ul", { class: "deliv-list" });
   for (const d of list) {
-    const li = document.createElement("li");
-    li.className = "deliv-item";
-    const ic = document.createElement("span");
-    ic.className = `deliv-ic is-${d.kind}`;
-    ic.textContent = (d.name.match(/\.([a-z0-9]{1,5})$/i) || ["", "?"])[1].toUpperCase();
-    const text = document.createElement("div");
-    text.className = "deliv-text";
-    const title = document.createElement("p");
-    title.className = "deliv-name";
-    title.textContent = d.title;
-    const meta = document.createElement("p");
-    meta.className = "deliv-meta";
-    meta.textContent = [t(`deliv.kind.${d.kind}`), d.team && t("deliv.team"), !d.file.data && t("deliv.lost")]
-      .filter(Boolean)
-      .join(" · ");
-    text.append(title, meta);
-    const acts = document.createElement("div");
-    acts.className = "deliv-acts";
-    const show = document.createElement("button");
-    show.type = "button";
-    show.className = "btn btn-outline btn-small";
-    show.textContent = t("deliv.show");
-    show.addEventListener("click", () => {
-      dialog.close();
-      const el = document.querySelector(`[data-turn="${d.turn}"] .file-card[data-file="${CSS.escape(d.name.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 120))}"]`)
-        || document.querySelector(`[data-turn="${d.turn}"]`);
-      el?.scrollIntoView({ block: "center", behavior: "smooth" });
-      el?.querySelector("button")?.focus({ preventScroll: true });
-    });
-    acts.append(show);
-    if (d.file.data) {
-      const dl = document.createElement("button");
-      dl.type = "button";
-      dl.className = "btn btn-primary btn-small";
-      dl.textContent = t("files.download");
-      dl.addEventListener("click", () =>
-        download(d.name, d.file.mime || "application/octet-stream", new Blob([b64ToBytes(d.file.data)], { type: d.file.mime || "application/octet-stream" })),
+    if (d.type === "canvas") {
+      const kind = t(`cx.deliv.kind.${d.kind}`) === `cx.deliv.kind.${d.kind}` ? t("deliv.kind.file") : t(`cx.deliv.kind.${d.kind}`);
+      const badge = { deck: "PPT", doc: "DOC", code: "</>", sheet: "XLS", page: "WEB" }[d.kind] || "•";
+      const cls = { deck: "is-slides", doc: "is-document", sheet: "is-sheet" }[d.kind] || "is-file";
+      ul.append(
+        item(badge, cls, d.title, [kind, d.n > 1 ? t("cx.deliv.versions", { n: d.n }) : "v1"].join(" · "),
+          h("button", { class: "btn btn-primary btn-small", type: "button", "data-deliv": "open", text: t("cx.deliv.open"),
+            onclick: () => (dialog.close(), canvas.open(d.aid)) }),
+        ),
       );
-      acts.append(dl);
+    } else if (d.type === "mail") {
+      ul.append(
+        item("@", "cx-deliv-mail", d.title, [t("cx.deliv.kind.mail"), d.to && t("cx.deliv.mail.to", { to: d.to })].filter(Boolean).join(" · "),
+          h("button", { class: "btn btn-outline btn-small", type: "button", "data-deliv": "show", text: t("deliv.show"),
+            onclick: () => showTurn(d.turn, ".email-card") }),
+        ),
+      );
+    } else {
+      const acts = [
+        h("button", { class: "btn btn-outline btn-small", type: "button", text: t("deliv.show"),
+          onclick: () => showTurn(d.turn, `.file-card[data-file="${CSS.escape(d.name.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 120))}"]`) }),
+      ];
+      if (d.file.data)
+        acts.push(
+          h("button", { class: "btn btn-primary btn-small", type: "button", text: t("files.download"),
+            onclick: () => download(d.name, d.file.mime || "application/octet-stream", new Blob([b64ToBytes(d.file.data)], { type: d.file.mime || "application/octet-stream" })) }),
+        );
+      ul.append(
+        item((d.name.match(/\.([a-z0-9]{1,5})$/i) || ["", "?"])[1].toUpperCase(), `is-${d.kind}`, d.title,
+          [t(`deliv.kind.${d.kind}`), d.team && t("deliv.team"), !d.file.data && t("deliv.lost")].filter(Boolean).join(" · "), ...acts),
+      );
     }
-    li.append(ic, text, acts);
-    ul.append(li);
   }
   if (list.length) body.append(ul);
   if (!dialog.open) {
@@ -2052,6 +2431,7 @@ function openDeliverables() {
 }
 
 function stop() {
+  syncBusy();
   if (!state.abort) return;
   if (document.activeElement?.id === "btn-stop") keepFocus();
   state.abort.abort();
@@ -2220,7 +2600,10 @@ function bind() {
     renderSidebar();
   });
   $("btn-back").addEventListener("click", () => showView("chat") || el.focus());
-  $("btn-model").addEventListener("click", () => showView("settings"));
+  $("btn-model").addEventListener("click", () => {
+    showView("settings"); // the model pill opens the model choice (Bird local included)
+    $("settings-model")?.scrollIntoView({ block: "start" });
+  });
   $("btn-footprint").addEventListener("click", () => showView("footprint"));
   for (const [id, view] of [
     ["nav-footprint", "footprint"],
@@ -2384,14 +2767,26 @@ function refreshAll() {
 
 let canvasClosedSide = false; // the canvas closed the sidebar: it opens again when the canvas closes
 async function init() {
+  cx.ensureStyles();
+  cx.bindLayers(); // back closes the open layer (drawer, canvas, sheet, Settings, a dialog)
+  cx.watchLayer("canvas", document.documentElement, () => document.documentElement.classList.contains("cv-open"), () => canvas.close());
+  installRouting(); // Bird local: in its mode, the page's /api/ calls go to the user's machine
   setHandlers({
     onConfirm: answerConfirm,
-    onRegenerate: regenerate,
-    onRetry: regenerate,
+    onRegenerate: (turn) => regenerate(state.conv.turns.indexOf(turn)),
+    onRetry: (turn) => regenerate(state.conv.turns.indexOf(turn)),
+    onVersion: showVersion,
     onEdit: editLast,
+    onEditSend: editSend,
+    onContinue: continueAnswer,
     onChange: (turn) => (updateTurn(turn), saveConv()),
     onOpenFootprint: () => showView("footprint"),
     onOpenSettings: () => showView("settings"),
+    onLocalOff: () => {
+      state.prefs.mode = "";
+      savePrefs();
+      refreshAll();
+    },
     onRetryStep: retryStep,
     onChartXlsx: chartXlsx,
     onExport: exportAnswer,
@@ -2494,6 +2889,7 @@ async function init() {
   state.convs = store.json("bird.convs", []).filter((c) => c && c.id);
   const current = store.get("bird.current");
   state.conv = (current && loadConv(current)) || newConv();
+  restoreKept(state.conv);
   bind();
   trackViewport();
   trackTyping();
@@ -2504,6 +2900,15 @@ async function init() {
   renderChat();
   await loadHealth();
   renderChat();
+  // the page served by Bird local, opened without its code: ask for it once; the hosted page in Bird local mode:
+  // what the local Bird says about itself (model, measured energy), for the header and the footprint
+  if (state.health?.bird_local && !state.health.bird_local.paired && localPair.get()) {
+    await loadHealth(); // the first health call went without the code (the page did not know it was Bird local yet)
+    refreshAll();
+  }
+  if (state.health?.bird_local && !state.health.bird_local.paired)
+    openPairDialog(() => loadHealth().then(refreshAll));
+  else if (activeMode() === "local") refreshLocal().then(() => updateTop());
   autosize();
   scrollToEnd(true);
   document.body.classList.add("ready");

@@ -1,6 +1,7 @@
 // Shared pieces: state, storage, i18n, DOM helpers, icons, formatting, toasts.
 import { normalizeChoice, thinks } from "./reflexion-data.js";
 import { STRINGS, makeT } from "./i18n.js";
+import { DEFAULT_PORT, isLoopback, localBases, pairStore } from "./local-data.js";
 import { ANSWER_STRINGS } from "./answers-i18n.js";
 
 // the answer-content strings (tool labels, math, citations, copy, feedback) join the dictionary at load
@@ -54,6 +55,7 @@ const DEFAULT_PREFS = {
   token: "",
   model: "",
   access: "",
+  localBase: "", // Bird local: the loopback origin that answered (127.0.0.1 or localhost)
   welcomed: false,
 };
 
@@ -106,8 +108,31 @@ if (storedPrefs && storedPrefs.thinkingV !== 2) savePrefs();
 export const resetPrefs = () =>
   (state.prefs = { ...DEFAULT_PREFS, lang: state.prefs.lang, welcomed: true });
 
+const webStorage = (name) => {
+  try {
+    return globalThis[name] || null;
+  } catch {
+    return null;
+  }
+};
+/** Bird local's pairing code (sessionStorage; localStorage only with « Se souvenir »). */
+export const localPair = pairStore(webStorage("sessionStorage"), webStorage("localStorage"));
+/** This page is served by Bird local itself (http://127.0.0.1:8765): it is the local machine already. Known from
+ * its health only (a hosted copy may also run on 127.0.0.1 while developing): the code never goes elsewhere. */
+export const onLocalOrigin = () =>
+  !!state.health?.bird_local && typeof location !== "undefined" && isLoopback(location.hostname);
+export const localBase = () => {
+  // only one of the two exact loopback origins of the port (a stored or imported value is never trusted as a host)
+  const bases = localBases(state.health?.local_bird?.port || DEFAULT_PORT);
+  return bases.includes(state.prefs.localBase) ? state.prefs.localBase : bases[0];
+};
+
 /** The mode actually used for requests: the saved choice if this server offers it, else the server default. */
 export function activeMode() {
+  // Bird local, chosen by the user: it holds even before health answers and even when this tab has no code yet (a
+  // new tab, the code kept for one tab only): never a silent fall back to the hosted model, which would send a
+  // conversation meant for the user's machine to the host. Without the code, Bird local asks for it (pair_required).
+  if (state.prefs.mode === "local" && !onLocalOrigin() && state.health?.local_bird !== null) return "local";
   // no health yet (cold start, slow network): the real model, never the demo; a failed send then says so plainly
   if (!state.health) return "server";
   const modes = state.health.modes || {};
@@ -119,9 +144,11 @@ export function activeMode() {
 }
 export const isDemo = () => activeMode() === "demo";
 /** The product name shown to people (the technical name served by the endpoint stays in the details). */
-export const modelLabel = () => state.health?.model_label || "Bird S 4B";
+export const modelLabel = () =>
+  activeMode() === "local" ? "Bird local" : state.health?.model_label || "Bird S 4B";
 export function activeModel() {
   const mode = activeMode();
+  if (mode === "local") return state.localHealth?.model || "Bird local";
   if (mode === "demo") return state.health?.demo_model || "bird-demo";
   if (mode === "user") return state.prefs.model || "adubrou/Bird-S-4B";
   return state.health?.model || "adubrou/Bird-S-4B";

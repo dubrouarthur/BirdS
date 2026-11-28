@@ -79,6 +79,42 @@ Objectif : le niveau d'OpenAI dans les usages de bureau, porté par un petit mod
    reste : la phrase finale d'Entraîner (« Parlez-nous de vos tâches ») tant que l'adresse de contact n'est pas
    décidée, et la réponse par défaut de la démo qui cite un nombre de paramètres.
 
+## Outils à développer (audit du 28/11)
+
+Classés par valeur et faisabilité ; chaque outil suit la règle « gold » (entrée de catalogue `birds/harness/catalog.py`,
+exemples `scripts/build_tools_mix.py`, cas `scripts/router_data.py`, fiche soignée, tests, captures, egress côté serveur).
+Format : nom — pourquoi — source — effort.
+
+1. **(en cours)** `route_travel` : itinéraire, durée et distance (voiture, piéton, vélo) tracés sur la carte — `find_places` ne donne que des liens OSM, sans temps de trajet (« Paris-Lyon en voiture ») — Itinéraire IGN Géoplateforme `data.geopf.fr/navigation/itineraire` (bdtopo-osrm, sans clé, Licence Ouverte, 200 vérifié ; démo OSRM écartée, usage interdit en service) — S.
+2. **(en cours)** Vacances scolaires (zones A, B, C, Corse, DOM) dans `work_calendar` — très demandé (« vacances de février zone B ») — data.education.gouv.fr, `fr-en-calendrier-scolaire` (Opendatasoft, sans clé, Licence Ouverte 2.0, réponse gzip) — S.
+3. **(en cours)** `check_identifier` : IBAN, SIREN/SIRET, TVA intracommunautaire avec contrôle VIES — calcul exact que le modèle seul ne fait pas fiablement — calcul local (mod 97, Luhn, clé TVA FR) + API REST VIES de la Commission (sans clé ; si indisponible, « validité de format seule ») — S.
+4. **(en cours)** Bac à sable Python dans le navigateur (Pyodide auto-hébergé) — tous les concurrents l'offrent, débloque `data_analysis` et le Canevas code — Pyodide (MPL-2.0) servi par Bird, CSP `'wasm-unsafe-eval'`, résultat rendu au harnais comme résultat d'outil — M.
+5. Simulateur salaire brut/net, coût employeur, impôt sur le revenu — question RH fréquente où le modèle se trompe — OpenFisca France (API sans clé, moteur AGPL-3.0 à auto-héberger ; avertissement « simulation ») — M.
+6. Annonces BODACC dans `find_company` — savoir si un fournisseur est en redressement — bodacc-datadila.opendatasoft.com, `annonces-commerciales` (DILA, Licence Ouverte 2.0 ; RGPD : personnes morales) — S.
+7. Agenda .ics : lire un fichier joint, plusieurs événements, créneaux libres — la fiche event ne fait qu'écrire — calcul local RFC 5545 (icalendar BSD, dateutil.rrule) — S.
+8. Prix des carburants autour d'un lieu — question française courante — data.economie.gouv.fr, `prix-des-carburants-en-france-flux-instantane-v2` (Licence Ouverte) — S.
+9. Traduction de documents avec mise en page conservée (.docx, .pptx, .xlsx, PDF texte) — DeepL, Copilot, Le Chat le font — calcul local (python-docx, python-pptx, openpyxl) + modèle Bird par segment, banc de qualité fixe — M.
+10. Vigilance et alertes météo dans `get_weather` — attente de sécurité pour les déplacements — MeteoAlarm Atom CAP France (sans clé, conditions à valider ; Météo-France demande une clé) — S.
+11. `diagram` : module Mermaid (organigramme, séquence, Gantt, carte mentale) — rendu en ligne chez les concurrents — mermaid (MIT) déjà servi par Bird, code validé par le harnais comme résultat d'outil, SVG + PNG — S.
+12. Extraction de tableaux PDF et OCR des scans — point faible pour factures et relevés — pdfplumber (MIT), pypdfium2, tesseract fra (Apache-2.0) sur l'hôte du modèle, sortie vers `analyze_table` — M.
+13. Annuaire de l'administration (mairies, préfectures, CAF) — « horaires de la mairie de Cergy » — api-lannuaire.service-public.fr (DILA, Licence Ouverte, cache et réessai) — S.
+14. Trains SNCF : horaires, départs, retards — besoin quotidien des déplacements — transport.data.gouv.fr GTFS + GTFS-RT (ODbL), gares data.sncf.com ; index local à construire — L.
+15. Textes juridiques : codes, lois, JORF, droit de l'UE — demande quotidienne des juristes et RH — Légifrance API PISTE (clé gratuite) ou dumps DILA LEGI ; Cellar SPARQL et EUR-Lex pour l'UE — L.
+16. Risques d'une commune (Géorisques) — immobilier, implantation — georisques.gouv.fr/api/v1/gaspar/risques (sans clé, Licence Ouverte) — S.
+17. Convertisseur d'inflation — calcul exact et sourcé — Insee IPC via Melodi ou HICP BCE (Licence Ouverte, mention BCE) — S.
+18. Génération de QR code (URL, vCard, Wi-Fi, IBAN EPC) — petit outil de bureau local — segno (BSD), SVG ou PNG — S.
+19. Calculs de dates (écart, âge, semaine ISO, date + N mois) — à confirmer dans `calc.py`, ajouter si absent — dateutil — S.
+20. Actualité : dépêches récentes avec sources — vue « actualités » chez Perplexity, Copilot, Gemini — catégorie news de SearXNG (titre, extrait court, lien ; droits voisins) — M.
+21. Dictée vocale et lecture à voix haute — la voix est partout chez les concurrents ; Web Speech interdit (CSP) — faster-whisper et Piper (MIT) côté serveur Bird, rien conservé — M.
+22. Nutrition et recettes (Nutri-Score) — usage grand public secondaire — Open Food Facts v2 (ODbL), table Ciqual (Licence Ouverte) — M.
+23. Prix de l'immobilier (DVF) — question française fréquente — fichiers geo-dvf d'Etalab indexés en local (agrégés) — M.
+24. Rappels de produits (RappelConso) — utile et officiel — data.economie.gouv.fr, `rappelconso-v2-gtin-espaces` (Licence Ouverte) — S.
+25. Connecteurs mail et agenda (Microsoft 365, Gmail) — écart majeur face à Copilot et Gemini — Graph et Gmail API (OAuth), `docs/research/connectors-design-2026-11.md` ; sécurité d'abord (voir « Plus tard ») — L.
+26. Qualité de l'eau potable (Hub'Eau) — déjà prévue au prochain lot de données ouvertes — hubeau.eaufrance.fr (Licence Ouverte) — S.
+27. Génération d'images — offerte par les concurrents — FLUX.1-schnell (Apache-2.0) sur l'hôte du modèle ; sécurité des contenus et transparence AI Act — L.
+28. Dictionnaire et synonymes (Wiktionnaire) — plus mineur, le modèle couvre l'essentiel — fr.wiktionary.org REST (CC BY-SA, quotas) — S.
+29. Scores et calendriers sportifs — peu de valeur pour le bureau — OpenLigaDB ou TheSportsDB (licences restrictives) — M.
+
 ## Plus tard
 
 - Ultra recherche (bêta, comptes autorisés) : des centaines d'itérations par tranches reprises, journal forensique,

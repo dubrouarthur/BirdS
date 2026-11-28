@@ -304,14 +304,16 @@ class Fetcher:
         _, raw = guard.fetch_image(self.http, self.cfg, url, max_bytes=4_000_000, timeout=8.0)
         return raw
 
-    def json(self, url: str) -> dict:
+    def json(self, url: str, headers: dict | None = None) -> dict:
         import json
 
         from birds.harness import guard
 
         status, _, body, _ = guard.fetch_bytes(
             self.http, self.cfg, url, accept="application/json", types=("application/json",), max_bytes=400_000,
-            user_agent=guard.IMAGE_USER_AGENT, timeout=8.0,
+            user_agent=guard.IMAGE_USER_AGENT, timeout=8.0, headers=headers,
+            # a key in the headers never follows a redirect to another host (the hops re-send the headers)
+            redirect_ok=(lambda nxt: urlsplit(nxt).hostname == urlsplit(url).hostname) if headers else None,
         )  # fmt: skip
         if status != 200:
             raise ValueError(f"HTTP {status}")

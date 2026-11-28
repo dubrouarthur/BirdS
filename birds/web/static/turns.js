@@ -27,6 +27,8 @@ import { wrapPref } from "./richcode.js";
 import { docCard, imageCard, kindOf, middle } from "./attach.js";
 import { deckPreview, docPreview, sheetPreview } from "./previews.js";
 import { openEditor } from "./editor.js";
+import { modelDownCard, unreachableCard } from "./local.js";
+import { MODEL_DOWN } from "./local-data.js";
 import { chartMarkdown, renderChart } from "./chart.js";
 import { moveFull, renderWidgets, widgetsText } from "./widgets.js";
 import { renderAgents, renderChecks } from "./agents.js";
@@ -35,7 +37,8 @@ import { renderPlan } from "./plan.js"; // task plan checklist (w1-harness)
 import { canvasCard } from "./canvas.js";
 import { enhanceAnswer } from "./modules.js";
 import { renderChips, transforms } from "./followups.js";
-import { flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
+import { inlineEditor, versionPager } from "./conversation.js"; // « ‹ 1/2 › », editing a question in place
+import { birdIcon, flyingBird, flyingText, renderFlight } from "./reflexion.js"; // Mode Réflexion
 import { REWRITE_GLYPHS, copyAnswer, feedbackPanel, feedbackThanks, glyph, serialize, setSourcesOpen, treeOf, typeset } from "./answers.js"; // math, citations, rich copy, feedback (chat audit C2)
 
 const cache = new Map(); // turn id -> { md, blocks }
@@ -81,16 +84,12 @@ function liveLine(turn) {
   let text;
   let sub = "";
   let calm = false;
-  let retry = null;
   if (turn.live?.state === "waking") {
+    // the model was asleep (scaled to zero): one calm line, no attempt counter nor retry countdown; Bird retries
+    // on its own and the thin bar below fills slowly while the wait lasts
     text = t("live.waking");
-    sub = t("live.waking.sub", { n: turn.live.attempt || 1 });
+    sub = t("live.waking.sub");
     calm = true;
-    const wait = Number(turn.live.retry_in);
-    if (wait >= 0) {
-      const at = String((turn.live.at || Date.now()) + wait * 1000);
-      retry = h("span", { class: "num", "data-retry-at": at, text: retryText(Number(at)) });
-    }
   } else if (running) {
     const key = `live.${running.tool}`;
     const label = t(key) === key ? t("live.tool") : t(key);
@@ -116,38 +115,52 @@ function liveLine(turn) {
   return h(
     "div",
     { class: `live${calm ? " live-calm" : ""}` },
-    bird || h("span", { class: calm ? "pulse" : "spinner", "aria-hidden": "true" }),
+    bird || (calm ? birdIcon("hirondelle", "rf-flap live-wake-bird") : h("span", { class: "spinner", "aria-hidden": "true" })),
     h(
       "div",
-      null,
+      { class: "live-body" },
       h(
         "p",
         { class: "live-text" },
         h("span", { text }),
         h("span", { class: "live-time num", "data-since": String(since), "aria-hidden": "true", text: elapsed(since) }),
       ),
-      sub ? h("p", { class: "live-sub" }, retry && [retry, " · "], sub) : auto,
+      sub ? h("p", { class: "live-sub", text: sub }) : auto,
+      calm && wakeBar(since),
     ),
   );
 }
 
-function retryText(at) {
-  const left = Math.max(0, Math.ceil((at - Date.now()) / 1000));
-  return left > 0 ? t("live.retry.in", { n: left }) : t("live.retry.now");
+function wakeBar(since) {
+  const fill = h("span", { "data-wake-since": String(since) });
+  fill.style.inlineSize = `${wakeShare(since)}%`; // CSSOM, not a style attribute: the CSP allows no inline styles
+  return h("div", { class: "wake-bar", "aria-hidden": "true" }, fill);
 }
+
+// A wake-up lasts from a few tens of seconds to a few minutes: the bar fills fast at first, then ever more slowly
+// (time constant 60 s), and never reaches the end before the first word does.
+function wakeShare(since) {
+  const s = Math.max(0, (Date.now() - Number(since)) / 1000);
+  return Math.round(6 + 86 * (1 - Math.exp(-s / 60)));
+}
+
+// Nothing to say in the first seconds of a normal answer (Bird may be reasoning): a quiet line from 25 s,
+// the Stop hint from 60 s only.
+const SLOW_AFTER_S = 25;
+const SLOWER_AFTER_S = 60;
 
 function autoSub(started, first) {
   const s = (Date.now() - started) / 1000;
   if (s < 3) return first ? t("live.first") : "";
-  if (s < 8) return "";
-  return t(s < 20 ? "live.slow" : "live.slower");
+  if (s < SLOW_AFTER_S) return "";
+  return t(s < SLOWER_AFTER_S ? "live.slow" : "live.slower");
 }
 
 
 /** Called every second while a request runs: only the small timers change, nothing else is redrawn. */
 export function tick() {
   for (const el of document.querySelectorAll("[data-since]")) el.textContent = elapsed(el.dataset.since);
-  for (const el of document.querySelectorAll("[data-retry-at]")) el.textContent = retryText(Number(el.dataset.retryAt));
+  for (const el of document.querySelectorAll("[data-wake-since]")) el.style.inlineSize = `${wakeShare(el.dataset.wakeSince)}%`;
   for (const el of document.querySelectorAll("[data-auto-sub]")) {
     const line = autoSub(Number(el.dataset.started), el.dataset.autoSub);
     if (el.textContent !== line) el.textContent = line;
@@ -251,9 +264,9 @@ function renderSteps(turn) {
           injection &&
             h(
               "span",
-              { class: "badge badge-warn" },
+              { class: "badge badge-warn badge-flag", title: t("steps.flagged") },
               icon("alert"),
-              t("steps.flagged"),
+              h("span", { class: "badge-flag-text", text: t("steps.flagged") }),
             ),
           h(
             "span",
@@ -747,6 +760,16 @@ function renderFiles(turn) {
   );
 }
 
+// « [Prénom] », « [date] »: the blanks the draft leaves to the user, marked so they are not sent as they are
+function fillMarks(text) {
+  return text
+    .split(/(\[[^[\]\n]{1,40}\])/)
+    .map((part, i) => (i % 2 ? h("mark", { class: "email-fill", title: t("email.fill"), text: part }) : part));
+}
+
+// a quiet dashed pill: what is still to add before the mail can leave
+const missingPill = (key) => h("span", { class: "email-missing" }, icon("plus"), h("span", { text: t(key) }));
+
 function renderEmail(turn) {
   const draft = turn.answer?.draft_email;
   if (!draft || typeof draft !== "object") return null;
@@ -763,9 +786,14 @@ function renderEmail(turn) {
     .map((s) => s.trim())
     .map((s) => (s.match(/<([^<>\s]+@[^<>\s]+)>$/) || [null, s])[1])
     .filter(Boolean);
-  const hint = [String(draft.to_hint ?? "").trim(), ...parts.filter((s) => !isAddress(s))]
-    .filter(Boolean)
-    .join(", ");
+  // a placeholder the model wrote in place of a recipient (« [destinataires] », « <nom> », « à compléter ») is not
+  // a name: the card says plainly that a recipient is to add
+  const isPlaceholder = (s) =>
+    /^[[<{(].*[\]>})]$/.test(s) || /^(destinataires?|recipients?|à compléter|to complete|tbd|\?+|…|\.\.\.)$/i.test(s);
+  const names = [String(draft.to_hint ?? ""), ...parts.filter((s) => !isAddress(s))]
+    .flatMap((s) => s.split(","))
+    .map((s) => s.trim())
+    .filter((s) => s && !isPlaceholder(s));
   const addresses = parts.filter(isAddress);
   // A mailto: link the user chooses to click. It only opens their own mail app with the draft: nothing is sent.
   const mailto = `mailto:${addresses
@@ -784,21 +812,28 @@ function renderEmail(turn) {
         "div",
         { class: "card-title" },
         h("p", { class: "card-name", text: subject || t("email.title") }),
-        // never an address nobody gave (the server drops them, actions.py): an empty « À » says what to add
         h(
           "p",
-          { class: "card-meta", "data-email-to": addresses.length ? "set" : "missing" },
-          addresses.length
-            ? `${t("email.to")} ${addresses.join(", ")}`
-            : [
-                h("span", { text: `${t("email.to")} ` }),
-                h("span", { class: "email-missing", text: t("email.to.missing") }),
-              ],
-          hint ? ` · ${t("email.tohint")} ${hint}` : "",
+          { class: "card-meta email-to", "data-email-to": addresses.length ? "set" : "missing" },
+          h("span", { text: `${t("email.to")} ` }),
+          // the addresses, then each name with its own « adresse à ajouter »: a name never reads as a real recipient
+          // (it is not in the mailto: link); nobody at all reads « destinataire à ajouter »
+          addresses.length || names.length
+            ? [...addresses, ...names].flatMap((who, i, all) => {
+                // the comma stays with the recipient before it: a line never starts with « , »
+                const sep = i < all.length - 1 ? "," : "";
+                return [
+                  i ? " " : null,
+                  i < addresses.length
+                    ? h("span", { class: "email-addr" }, who + sep)
+                    : h("span", { class: "email-name" }, who, " ", missingPill("email.to.noaddr"), sep),
+                ];
+              })
+            : missingPill("email.to.missing"),
         ),
       ),
     ),
-    h("div", { class: "email-body", text: body }),
+    h("div", { class: "email-body" }, fillMarks(body)),
     h(
       "div",
       { class: "card-actions" },
@@ -1190,9 +1225,15 @@ function renderActions(turn, isLast) {
     if (turn.feedback === "up") toast(t("toast.feedback"), "ok");
     if (turn.ui.fbOpen) requestAnimationFrame(() => document.querySelector(`#fb-${CSS.escape(turn.id)}-t`)?.closest(".fb-panel")?.querySelector(".fb-chip")?.focus());
   };
+  const turns = state.conv?.turns || [];
+  const at = turns.indexOf(turn);
+  // the answers to this question (regenerated): « ‹ 1/2 › »
+  const pager = at >= 0 && versionPager(turns, at, (j) => handlers.onVersion(at, j), state.busy);
   return h(
     "div",
     { class: "actions-row", role: "group", "aria-label": t("turn.bird") },
+    pager,
+    pager && h("span", { class: "actions-sep", "aria-hidden": "true" }),
     button(
       "btn-quiet btn-icon btn-small",
       "copy",
@@ -1206,7 +1247,7 @@ function renderActions(turn, isLast) {
         "btn-quiet btn-icon btn-small",
         "retry",
         t("act.regenerate"),
-        () => handlers.onRegenerate(),
+        () => handlers.onRegenerate(turn),
         { "data-act": "regenerate" },
       ),
     h("span", { class: "actions-sep", "aria-hidden": "true" }),
@@ -1249,6 +1290,14 @@ function renderActions(turn, isLast) {
         : []),
     ]),
   );
+}
+
+/** The versions of a turn that has no actions row (failed, stopped before any word), or null. */
+function pagerRow(turn) {
+  const turns = state.conv?.turns || [];
+  const at = turns.indexOf(turn);
+  const pager = at >= 0 && versionPager(turns, at, (j) => handlers.onVersion(at, j), state.busy);
+  return pager ? h("div", { class: "actions-row" }, pager) : null;
 }
 
 /** "Plus": a menu button (arrow keys, Home/End, Escape back to the button, closes on outside click). */
@@ -1364,21 +1413,43 @@ const FRIENDLY_ERRORS = new Set(
     "unknown_model blocked disabled not_configured host_not_allowed https_only invalid_url address bad_request " +
     "demo invalid_model invalid_token port server timeout unreachable attachment_invalid attachment_too_long " +
     "attachment_type cross_origin image_invalid image_too_large image_too_small image_type invalid_mode " +
-    "invalid_request message_too_long request_too_large too_large too_many_attachments too_many_messages"
+    "invalid_request message_too_long request_too_large too_large too_many_attachments too_many_messages " +
+    "pair_required pair_invalid pair_locked"
   ).split(" "),
 );
 
 function renderError(turn, isLast) {
   if (!turn.error) return null;
   const code = turn.error.code;
-  const calm = code === "waking";
+  if (code === "local_unreachable")
+    // Bird local did not answer: the three steps to start it, never a raw network error
+    return unreachableCard({
+      compact: true,
+      onRetry: isLast && !state.busy ? () => handlers.onRetry() : null,
+      onOff: isLast && handlers.onLocalOff ? () => handlers.onLocalOff() : null,
+    });
+  if (turn.mode === "local" && MODEL_DOWN.has(code))
+    // Bird local answered, its model server (vLLM) did not: the command to start it, not a hosted-endpoint sentence
+    return modelDownCard({
+      onRetry: isLast && !state.busy ? () => handlers.onRetry() : null,
+      onOff: isLast && handlers.onLocalOff ? () => handlers.onLocalOff() : null,
+    });
+  // the model asleep or paused is not the user's doing: a calm card (moon, no red), in words for people. The
+  // server's sentence for a paused endpoint speaks to its administrator: folded away, and only for someone who
+  // set their own endpoint in Settings.
+  const down = code === "endpoint_down";
+  const calm = code === "waking" || down;
   const friendly = FRIENDLY_ERRORS.has(code) || /^http_\d+$/.test(code);
   // an HTTP status without a sentence (a gateway page) gets a plain message; its number stays in the details
-  const raw = friendly
-    ? /^http_\d+$/.test(code)
-      ? turn.error.detail || ""
+  const raw = down
+    ? state.prefs.endpoint
+      ? turn.error.message || ""
       : ""
-    : turn.error.detail || turn.error.message;
+    : friendly
+      ? /^http_\d+$/.test(code)
+        ? turn.error.detail || ""
+        : ""
+      : turn.error.detail || turn.error.message;
   const done = turn.steps.filter((s) => s.status === "done").length;
   const before =
     !calm && done
@@ -1395,6 +1466,8 @@ function renderError(turn, isLast) {
     "host_not_allowed",
     "https_only",
     "invalid_url",
+    "pair_required",
+    "pair_invalid",
   ].includes(code);
   return h(
     "div",
@@ -1406,8 +1479,10 @@ function renderError(turn, isLast) {
     h(
       "div",
       { class: "notice-text" },
-      h("strong", { text: calm ? t("error.waking.title") : t("turn.error") }),
-      h("p", { text: calm ? t("error.waking") : friendly ? turn.error.message : t("error.internal") }),
+      h("strong", { text: down ? t("error.down.title") : calm ? t("error.waking.title") : t("turn.error") }),
+      h("p", {
+        text: down ? t("error.down") : calm ? t("error.waking") : friendly ? turn.error.message : t("error.internal"),
+      }),
       before,
       raw &&
         h(
@@ -1424,13 +1499,13 @@ function renderError(turn, isLast) {
         button("btn-outline btn-small", "gear", t("error.settings"), () =>
           handlers.onOpenSettings(),
         ),
-      isLast &&
-        !state.busy &&
+      // any failed turn can be tried again, even after later messages: a new version from there (« ‹ 1/2 › »)
+      !state.busy &&
         button(
           "btn-outline btn-small",
           "retry",
           t("turn.retry"),
-          () => handlers.onRetry(),
+          () => handlers.onRetry(turn),
           { "data-act": "retry" },
         ),
     ),
@@ -1750,7 +1825,7 @@ function fillAssistant(el, turn, isLast) {
         h("span", { text: t("turn.looped") }),
         isLast &&
           !state.busy &&
-          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(), { "data-act": "restart" }),
+          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(turn), { "data-act": "restart" }),
       ),
     turn.status === "stopped" &&
       h(
@@ -1758,9 +1833,12 @@ function fillAssistant(el, turn, isLast) {
         { class: "stopped" },
         icon("pause"),
         h("span", { text: turn.stoppedAt ? t("turn.stopped.at", { step: toolLabel(turn.stoppedAt) }) : t("turn.stopped") }),
+        // words already written: « Continuer » picks up from there (Régénérer stays in the actions row); none: Relancer
         isLast &&
           !state.busy &&
-          button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(), { "data-act": "restart" }),
+          (turn.answer?.content
+            ? button("btn-outline btn-small", "send", t("cx.continue"), () => handlers.onContinue(turn), { "data-act": "continue" })
+            : button("btn-outline btn-small", "retry", t("turn.restart"), () => handlers.onRetry(turn), { "data-act": "restart" })),
       ),
     renderActions(turn, isLast),
     turn.ui?.fbOpen &&
@@ -1783,6 +1861,8 @@ function fillAssistant(el, turn, isLast) {
         },
       }),
     turn.ui?.fbThanks && turn.feedback === "down" && feedbackThanks(),
+    // a failed or stopped turn without text still shows its versions (it was a retry)
+    !turn.answer && turn.status !== "running" && pagerRow(turn),
     isLast && handlers.onSuggest && renderChips(turn, handlers.onSuggest, state.busy),
     renderReceipt(turn, isLast),
   ];
@@ -1843,23 +1923,47 @@ function birdMark() {
   return svg;
 }
 
-function renderUser(turn, isLastUser) {
+let editingTurn = null; // the question being edited in place, if any
+
+/** Edit the question turns[i] in place (the last one by default): the bubble becomes an editor. */
+export function editUser(turn) {
+  if (state.busy || !turn || turn.role !== "user") return;
+  editingTurn = turn;
+  renderConversation();
+}
+
+function renderUser(turn, i) {
+  const turns = state.conv?.turns || [];
+  const files = (turn.attachments || []).length > 0 || (turn.images || []).length > 0;
+  if (editingTurn === turn && !state.busy) {
+    const done = () => {
+      editingTurn = null;
+      renderConversation();
+      document.querySelectorAll("#conversation > .turn")[i]?.querySelector('[data-act="edit"]')?.focus({ preventScroll: true });
+    };
+    return h(
+      "article",
+      { class: "turn turn-user is-editing" },
+      h("h2", { class: "sr-only", text: t("turn.you") }),
+      inlineEditor(turn.content, {
+        keeps: files,
+        onCancel: done,
+        onSend: (text) => {
+          editingTurn = null;
+          handlers.onEditSend(i, text);
+        },
+      }),
+    );
+  }
+  if (editingTurn === turn) editingTurn = null;
+  const pager = versionPager(turns, i, (j) => handlers.onVersion(i, j), state.busy);
   return h(
     "article",
-    { class: "turn turn-user" },
+    { class: "turn turn-user cx-has-acts" },
     h("h2", { class: "sr-only", text: t("turn.you") }),
     h(
       "div",
       { class: "bubble-wrap" },
-      isLastUser &&
-        !state.busy &&
-        button(
-          "btn-quiet btn-icon btn-small bubble-edit",
-          "edit",
-          t("act.edit"),
-          () => handlers.onEdit(),
-          { "data-act": "edit" },
-        ),
       h(
         "div",
         { class: "bubble" },
@@ -1867,13 +1971,13 @@ function renderUser(turn, isLastUser) {
           h(
             "div",
             { class: "bubble-gallery", role: "list", "aria-label": t("att.gallery") },
-            turn.images.map((img, i) =>
+            turn.images.map((img, k) =>
               h(
                 "div",
                 { role: "listitem", "data-att": img.name },
                 imageCard(img, {
                   compact: true,
-                  onOpen: () => handlers.onLightbox(turn.images, i),
+                  onOpen: () => handlers.onLightbox(turn.images, k),
                 }),
               ),
             ),
@@ -1892,6 +1996,17 @@ function renderUser(turn, isLastUser) {
           ),
       ),
     ),
+    // every question can be copied, edited in place (a new version from there) and shows its versions
+    h(
+      "div",
+      { class: "cx-user-acts", role: "group", "aria-label": t("turn.you") },
+      pager,
+      button("btn-quiet btn-icon btn-small", "copy", t("cx.copy.user"), () => copyText(turn.content, t("cx.copied.user")), {
+        "data-act": "copy-user",
+      }),
+      !state.busy &&
+        button("btn-quiet btn-icon btn-small", "edit", t("cx.edit"), () => editUser(turn), { "data-act": "edit" }),
+    ),
   );
 }
 
@@ -1902,11 +2017,10 @@ export function renderConversation() {
     turns.filter((x) => x.role === "assistant").map((x) => x.id),
   );
   for (const id of cache.keys()) if (!keep.has(id)) cache.delete(id);
-  const lastUser = turns.map((x) => x.role).lastIndexOf("user");
   root.replaceChildren(
     ...turns.map((turn, i) => {
       if (turn.role === "user")
-        return renderUser(turn, i === lastUser && i >= turns.length - 2);
+        return turn.hidden ? h("div", { class: "turn turn-hidden", hidden: true }) : renderUser(turn, i);
       turn.ui = turn.ui || {};
       const el = h("article", {
         class: "turn turn-bird",

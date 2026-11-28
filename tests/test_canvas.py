@@ -1188,3 +1188,28 @@ def test_a_photo_placeholder_written_as_a_bullet_becomes_an_image_search():
     assert images == ["chaton dans un foyer stable", "happy kitten", "un refuge"]
     assert {"t": "list", "items": ["Un vrai point"], "ordered": False} in parts
     assert not any("[Photo" in str(p) for p in parts) and len(repairs) == 3
+
+
+def test_image_queries_lose_the_model_notation_and_pexels_needs_a_key(monkeypatch):
+    """« [Paris bike cargo 1] » found nothing: brackets and numbering are notation, not picture words. Pexels is a
+    keyed backup source, never called without the operator's key, and its key never follows a redirect elsewhere."""
+    from birds.canvas import images
+
+    assert images.clean_query("[Paris bike cargo 1]") == "Paris bike cargo"
+    assert images.clean_query("Photo : chaton heureux") == "chaton heureux"
+    assert images.clean_query("vélos cargo en 2024") == "vélos cargo en 2024"
+    calls = []
+
+    class F:
+        def json(self, url, headers=None):
+            calls.append((url, headers))
+            return {"photos": []}
+
+        def image(self, url):
+            raise AssertionError("no image fetched")
+
+    monkeypatch.delenv("BIRD_PEXELS_API_KEY", raising=False)
+    assert images.search_pexels("cargo bike", F()) is None and calls == []
+    monkeypatch.setenv("BIRD_PEXELS_API_KEY", "k")
+    assert images.search_pexels("[cargo bike 2]", F()) is None
+    assert calls and "query=cargo%20bike" in calls[0][0] and calls[0][1] == {"Authorization": "k"}

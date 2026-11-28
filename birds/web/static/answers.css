@@ -1,17 +1,6 @@
-/* Answer content (answers.js, cluster C2 of the chat audit): the mail card's missing recipient, typeset math,
+/* Answer content (answers.js, cluster C2 of the chat audit): typeset math,
    citation bubbles and the sources pill, the thumbs-down panel, the work line. Colours come from the app.css
    tokens (light and dark follow them); nothing here is loaded from a third party. */
-
-/* ---------------------------------------------------------------- mail card: an « À » nobody filled */
-.email-missing {
-  display: inline-block;
-  padding: 0 0.45em;
-  border: 1px dashed var(--line-strong);
-  border-radius: 999px;
-  color: var(--ink-2);
-  font-style: italic;
-  line-height: 1.5;
-}
 
 /* ---------------------------------------------------------------- math (KaTeX, self-hosted) */
 /* until KaTeX is there (first formula, offline), the source shows as written, quietly */
