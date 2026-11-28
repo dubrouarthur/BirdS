@@ -687,3 +687,91 @@ et la signature reçoivent un refus prudent. Un passage par tâche, modèle éch
 `ocr_table_totals_mail` (TVA 50,00 € absente avant) peut tenir du tirage. Pour les témoins, la rubrique « contient »
 est générale (« welcom », « SOMME.SI | SUMIF », « linkedin.com/in/test ») ; la base a été re-notée sur ses réponses
 enregistrées après cet assouplissement (aucune génération de plus).
+
+## 14. Mode Réflexion : cinq oiseaux, un vrai budget, une vérification avant réponse
+
+Code : `birds/harness/reflexion.py` (branché dans `agent.py`), `birds/web/static/reflexion*.js|css` · tests :
+`tests/test_reflexion.py`, `tests/js/reflexion.test.mjs`, `tests/e2e/reflexion.spec.js` · mesure réelle :
+`scripts/reflexion_eval.py` · cas : `scripts/router_data.py` (`REFLEXION_LEVELS`, `REFLEXION_CALC`) · exemples
+d'entraînement : `scripts/build_tools_mix.py` (tâche `reflexion`).
+
+| Oiseau | Réflexion | Budget (caractères ; jetons ajoutés à `max_tokens`) | Vérification | Relecture |
+| --- | --- | --- | --- | --- |
+| **Colibri** · Instantané | non | 0 | non | non |
+| **Hirondelle** · Rapide | oui | 1 500 (≈ 690) | non | non |
+| **Faucon** · Précis | oui | 4 000 (≈ 1 730) | 1 tour | non |
+| **Chouette** · Approfondi | oui | 9 000 (≈ 3 820) | 2 tours | oui |
+| **Albatros** · Endurance | oui | 12 000 (≈ 5 070) | 2 tours | oui, et l'équipe du Mode Agent quand la demande en est une (`crew.decide` en « on ») |
+
+**Ce que l'endpoint permet (mesuré le 28/11/2026, vLLM, Bird S 4B).** La réflexion passe par le gabarit
+(`<think>` ouvert dans l'invite) ; aucun budget de jetons de réflexion côté serveur n'est utilisé : le budget est
+tenu par le client, qui lit le flux et coupe (`_LoopGuard.think_limit`), donc il marche sur tout moteur compatible.
+Mesure : 144 jetons de sortie pour 349 caractères (≈ 2,4 caractères par jeton), ≈ 51 jetons/s après un premier jeton
+à 0,6 s. Sur les 8 calculs du jeu fixe, la réflexion spontanée de Bird va de 143 à 520 caractères : **le budget ne
+mord jamais sur ces demandes**, il sert de plafond (boucles, demandes ouvertes).
+
+**Reprise propre** (tous niveaux, et le chemin `thinking=True` d'avant) : une réflexion qui dépasse son budget, ou qui
+tourne en rond (coupée au début de la boucle par le client), n'est plus jetée ni refaite sans réflexion : le
+harnais garde ce qui a été établi (jusqu'à la dernière phrase complète), écrit « (Budget de réflexion atteint : je
+m'arrête là et je réponds avec ce que j'ai établi.) » ou « (Je tourne en rond : …) », ferme `</think>` et le modèle
+répond à partir de là (budget forcing). Une génération de plus, comme avant, mais elle part du raisonnement.
+
+**Auto : le modèle décide.** Un appel court (≤ 16 jetons, température 0, schéma `{"level": colibri | hirondelle |
+faucon | chouette}` imposé quand l'endpoint le permet, même détection que le routeur ; invite statique en préfixe,
+réutilisée par le cache), lancé **en même temps** que l'appel du routeur : pas d'attente de plus. Albatros n'est
+jamais deviné : c'est le niveau d'un tour pris par l'équipe du Mode Agent. `hint_level` (quelques indices écrits à la
+main) n'est que le repli : client local, endpoint trop lent, réponse illisible. L'événement `reflexion` part avant le
+premier mot (l'oiseau bat des ailes dans la ligne d'état), le champ `answer.reflexion` porte niveau, qui l'a choisi,
+budget, coupure, résumé, vérifications.
+
+**Vérification avant réponse** (Faucon et au-delà, aucun appel tant que tout est juste) : chaque « a op b … = c »
+de la réponse est recalculé par le harnais (priorités, parenthèses, pourcentages « 20 % de 1 200 », un ratio écrit
+en % ; « ≈ » jamais jugé ; « 3 + 4 × 2 = 14 » écrit de gauche à droite n'est pas une faute ; une étape
+intermédiaire « = 1 200 + 900 = 2 100 » n'est pas un résultat ; tolérance : l'arrondi affiché) ; un calcul faux de la
+réflexion compte seulement si son résultat faux est arrivé dans la réponse ; une demande à plusieurs points (liste
+numérotée, ou au moins deux questions) est vérifiée point par point. Ce qui ne va pas part en **un** rappel qui le
+nomme (« 14,90 € × 24 = 357,60 (not 375,60) »), le modèle réécrit. **Relecture** (Chouette, Albatros) : une
+génération sans outils ni flux relit le brouillon et répond « OK » ou le texte corrigé (un « OK » ou une réponse
+trop courte garde le brouillon). **Résumé lisible** : trois ou quatre phrases de la réflexion du modèle lui-même
+(celles qui portent des chiffres ou une conclusion, dans leur ordre), jamais réécrites.
+
+**Interface.** Le bouton « Réflexion » devient un sélecteur : Auto et les cinq oiseaux, chacun son dessin SVG maison,
+son nom, son niveau et une ligne (clavier : Entrée, flèches, Début/Fin, Échap rend le focus ; feuille en bas
+d'écran sur téléphone ; choix gardé dans le navigateur ; l'ancien réglage « sans réflexion » devient Colibri). La
+réponse s'ouvre sur « Bird a pris son vol en Faucon · Précis · choisi par Bird » : résumé de la réflexion,
+vérifications (« 2 calculs refaits par Bird : tous justes », « Un calcul faux a été corrigé avant de répondre »,
+« Budget de réflexion atteint… »), réflexion complète repliée. L'oiseau arrive en vol une fois, bat des ailes pendant
+la réflexion, rien avec `prefers-reduced-motion`. Démo : « Auto » y est décidé par les indices (aucun modèle) et
+dit « choix de la démo ». Vu à 360 px et 1 440 px, clair et sombre (`tests/e2e/reflexion.spec.js`) : aucune requête
+vers un tiers, aucune erreur CSP, pas de défilement horizontal. Deux défauts trouvés dans le navigateur et corrigés :
+un rafraîchissement entre l'appui et le relâchement faisait perdre le clic ; le focus donné au dock le déplaçait à
+360 px et le relâchement tombait sur la zone de texte.
+
+**Mesure réelle (28/11/2026, endpoint vLLM, Bird S 4B, température 0, un passage, `BIRD_ROUTER` par défaut).**
+Jeu fixe `REFLEXION_CALC` : 8 calculs et comparaisons (abonnement, remise + TVA, devis, carburant, salaire en deux
+points, offres, intérêts composés, taux de conversion). Note : chaque chiffre attendu dans la réponse, et pour une
+comparaison, jamais le mauvais gagnant. « Avant » = branche de base (60572e5) comme l'appelait l'application
+(`thinking=True`) ; « après » = `reflexion="auto"`. Résumés : `docs/measures/reflexion-eval-2026-11-28.json`.
+
+| bras | justes | secondes moy. | p50 | générations moy. | jetons de sortie moy. |
+| --- | --- | --- | --- | --- | --- |
+| avant (base, réflexion binaire) | 7/8 | 4,30 | 4,03 | 1,25 | 170 |
+| après (Auto) | 7/8 | 4,70 | 4,41 | 1,38 | 191 |
+
+Lecture franche. **Aucun gain de justesse sur ce jeu** : Bird S 4B y est déjà juste 7 fois sur 8 avec sa réflexion
+spontanée, et à température 0 les 8 réponses finales d'après sont identiques, mot pour mot, à celles d'avant (le
+budget de Faucon ne mord pas ; `calc_salary` et `calc_compound` font 2 générations dans les deux bras, rappel du plan
+de tâche).
+La seule erreur, identique dans les deux bras, n'est pas un calcul : « Février a le meilleur taux : 3 % contre
+2,6 % » (le gagnant inversé, chiffres justes) ; la vérification recalcule les deux taux, justes, et ne juge pas une
+phrase de comparaison. Coût : +0,4 s en moyenne (une génération de plus sur `cmp_offers`, où la vérification a
+demandé une correction : le brouillon n'était pas enregistré, la cause probable, une étape intermédiaire
+« 1 200 + 900 = 2 100 » de la réflexion lue comme un résultat faux, est corrigée et testée depuis, **non remesurée en
+réel**). Décision Auto : Faucon 8 fois sur 8 sur ce jeu (choix du modèle chaque fois) ; sur 8 des 12 cas
+`REFLEXION_LEVELS` (budget d'appels), **7/8** justes, p50 **0,32 s** par appel (l'erreur : une requête SQL prise
+pour Hirondelle au lieu de Faucon). À faire : un jeu plus dur où le 4B se trompe en calcul (pour mesurer la
+correction), la relecture de Chouette en réel, l'échantillonnage (plusieurs passages), et les 12 cas de niveaux.
+
+**Entraînement.** `build_tools_mix.py` ajoute la tâche `reflexion` : l'invite exacte de `reflexion.messages` et
+`{"level": …}` comme seul tour à apprendre, 9 gabarits FR/EN (≈ 95 enregistrements en train, gabarits retenus
+entiers pour l'évaluation ; les phrases de `REFLEXION_LEVELS` n'entrent jamais en train).
