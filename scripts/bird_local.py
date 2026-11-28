@@ -46,6 +46,10 @@ FR_EN = {
         "The model server answers oddly ({detail}).",
     ),
     "ok": ("Modèle servi : {model}", "Model served: {model}"),
+    "other_model": (
+        "Ce n'est pas un modèle Bird : les modules et le routage sont réglés pour Bird ({bird}). Pour un autre, passez --model.",
+        "This is not a Bird model: the modules and routing are tuned for Bird ({bird}). For another one, pass --model.",
+    ),
     "structured": ("Sorties structurées : {kind}", "Structured outputs: {kind}"),
     "no_structured": (
         "Sorties structurées : non détectées (le routage reste fiable, avec un filet de réparation).",
@@ -58,10 +62,10 @@ FR_EN = {
     "ready": ("Bird local est prêt", "Bird local is ready"),
     "open": ("Sur cette machine   {url}", "On this machine     {url}"),
     "hosted": (
-        "Depuis le chat      {origin} → Réglages → Modèle → Bird local",
-        "From the chat       {origin} → Settings → Model → Bird local",
+        "Depuis {origin}     ouvrez ce lien (déjà appairé) :\n                      {link}",
+        "From {origin}       open this link (already paired):\n                      {link}",
     ),  # fmt: skip
-    "code": ("Code d'appairage    {code}", "Pairing code        {code}"),
+    "code": ("Code (si besoin)    {code}", "Code (if asked)     {code}"),
     "stop": (
         "Ctrl+C pour arrêter. Vos conversations restent sur cette machine.",
         "Ctrl+C to stop. Your conversations stay on this machine.",
@@ -148,7 +152,17 @@ def build(args: argparse.Namespace, status: local.VllmStatus, code: str):
     return app
 
 
+def safe_console(*streams) -> None:
+    """A Windows console or a redirected output in cp1252 cannot print « ─ » or « → »: replace, never crash."""
+    for stream in streams or (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    safe_console()
     args = parse_args(argv)
     lang = args.lang
     print(say("checking", lang, url=args.vllm_url), flush=True)
@@ -171,6 +185,8 @@ def main(argv: list[str] | None = None) -> int:
             print(say(status.status, lang, detail=status.detail, models=", ".join(status.models) or "-"))
         return 2
     print(say("ok", lang, model=status.model))
+    if not args.model and "bird" not in (status.model or "").lower():
+        print(say("other_model", lang, bird=local.DEFAULT_MODEL))
     print(say("structured", lang, kind=status.structured) if status.structured else say("no_structured", lang))
     if not port_free(args.port):
         print(say("port", lang, port=args.port))
@@ -181,11 +197,12 @@ def main(argv: list[str] | None = None) -> int:
     bar = "─" * 64
     print(f"\n{bar}\n  {say('ready', lang)}\n\n  {say('open', lang, url=url)}")
     for origin in args.origins:
-        print("  " + say("hosted", lang, origin=origin))
+        # the code rides in the fragment of a ready-made link: never sent to a server, nothing to type
+        print("  " + say("hosted", lang, origin=origin, link=f"{origin}/#bird-local={args.port}:{code}"))
     print(f"  {say('code', lang, code=code)}\n\n  {say('stop', lang)}\n{bar}\n", flush=True)
     if not args.no_browser:
-        # the code rides in the fragment: never sent to any server, removed from the address bar by the page
-        threading.Timer(1.0, lambda: webbrowser.open(f"{url}#pair={code}")).start()
+        # the app served here needs no code: open it as is
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     import uvicorn
 
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")  # loopback only, never 0.0.0.0

@@ -698,7 +698,11 @@ def test_static_payload_budget():
     # the pre-rendered maps of the scripted demo (static/demo/) are only loaded by demo answers: not app payload
     files = [p for p in STATIC_DIR.rglob("*") if p.is_file() and "demo" not in p.relative_to(STATIC_DIR).parts]
     fonts = STATIC_DIR / "fonts"
-    total = sum(p.stat().st_size for p in files if fonts not in p.parents)
+    vendor = STATIC_DIR / "vendor"
+    total = sum(p.stat().st_size for p in files if fonts not in p.parents and vendor not in p.parents)
+    # the self-hosted KaTeX (vendor/katex: script, stylesheet, woff2 fonts, licence) loads only when an answer holds a
+    # formula, then stays cached: its own budget, outside the page's
+    assert sum(p.stat().st_size for p in vendor.rglob("*") if p.is_file()) < 600_000
     # Carlito (regular + bold, unmodified woff2) is fetched only when a file preview is drawn, then cached: its own
     # budget, outside the page's
     assert sum(p.stat().st_size for p in fonts.iterdir()) < 400_000
@@ -718,10 +722,14 @@ def test_static_payload_budget():
     # then the canvas code mode (several files, preview by device, console with file:line, per-file versions, zip:
     # +37 kB raw, +11 kB gzipped)
     # and the quote card (finance.js/.css: +17 kB raw, ~4 kB gzipped)
+    # then the answer content of the chat audit (math placeholders and the KaTeX loader, citation bubbles, rich copy,
+    # thumbs-down reasons, the work line: answers.js/.css/-i18n.js; KaTeX itself has its own budget below)
+    # then the conversation engine (versions, inline edit, documents in context, dialogs, back button: conversation*.js
+    # and conversation.css)
     # and the UX pass (calm wake-up line and bar, mail card recipient hints and blanks, lighter phone top bar)
     # and Bird local (settings choice, connect flow, « ne répond pas » card, request routing: +34 kB raw, +9 kB gz)
     # and the late events of a turn (Bird's next steps after « final », readLate: +2 kB raw)
-    assert total < 1_585_000, f"static payload is {total} bytes"  # measured 1 578 907 (+ Bird local, + late next steps)
+    assert total < 1_710_000, f"static payload is {total} bytes"  # measured 1 690 691 (+ late next steps)
     demo = sum(p.stat().st_size for p in (STATIC_DIR / "demo").glob("*.webp"))
     # + the maps of the scripted lists of places, + the open-data commune card (Roubaix, 70 kB)
     assert demo < 580_000, f"demo maps weigh {demo} bytes"
@@ -736,11 +744,18 @@ def test_i18n_dictionaries_have_the_same_keys_and_cover_the_code():
     # Mode Réflexion keeps its strings apart (reflexion-i18n.js, merged at load; parity in tests/js/reflexion.test.mjs)
     rf = (STATIC_DIR / "reflexion-i18n.js").read_text().split("\n  en: {", 1)[0]
     fr |= set(re.findall(r'^\s+"(rf\.[\w.]+)":', rf, re.M))
+    # the answer-content strings (answers-i18n.js, merged at load in core.js; parity in tests/test_answers.py)
+    ans = (STATIC_DIR / "answers-i18n.js").read_text().split("\n  en: {", 1)[0]
+    fr |= set(re.findall(r'^\s+"([a-z][\w.]*)":', ans, re.M))
+    # the conversation engine too (conversation-i18n.js, cx.* keys; parity in tests/js/conversation.test.mjs)
+    cxs = (STATIC_DIR / "conversation-i18n.js").read_text().split("\n  en: {", 1)[0]
+    fr |= set(re.findall(r'^\s+"(cx\.[\w.]+)":', cxs, re.M))
     # Bird local too (local-i18n.js, merged at load; parity in tests/js/local.test.mjs)
     lc = (STATIC_DIR / "local-i18n.js").read_text().split("\n  en: {", 1)[0]
     fr |= set(re.findall(r'^\s+"(local\.[\w.]+)":', lc, re.M))
     used = set()
-    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js"]:
+    for name in ["app.js", "turns.js", "views.js", "core.js", "previews.js", "chart.js", "widgets.js", "editor.js",
+                 "conversation.js", "answers.js"]:
         used |= set(re.findall(r'\bt\(\s*"([\w.]+)"', (STATIC_DIR / name).read_text()))
     used |= set(re.findall(r'data-i18n(?:-aria|-placeholder)?="([\w.]+)"', (STATIC_DIR / "index.html").read_text()))
     assert not used - fr, sorted(used - fr)
@@ -920,7 +935,7 @@ def test_rich_renderer_is_inert_on_hostile_input_and_live_answers(rich_rendered)
     out = rich_rendered["out"]
     assert "&lt;img src=x onerror=alert(1)&gt;" in out["callout_xss"] and "md-callout--warn" in out["callout_xss"]
     assert "&lt;script&gt;" in out["code_xss"] and "<script" not in out["code_xss"]
-    assert 'title="Vérification de la syntaxe uniquement' in out["py_err"] and "&lt;img" in out["py_err"]
+    assert 'title="Syntaxe analysée sans exécuter le code' in out["py_err"] and "&lt;img" in out["py_err"]
     assert "md-chip" in out["chip_xss"] and "&lt;b&gt;" in out["chip_xss"]
 
 
@@ -1049,7 +1064,7 @@ def test_harness_steps_files_and_draft_from_a_temporary_workspace(tmp_path, monk
     ]
     app, _ = harness_app(outputs)
     with TestClient(app) as client:
-        events = chat(client, "Prépare le plan et un mail")
+        events = chat(client, "Prépare le plan et un mail pour camille@example.org")  # an address the user gave
     assert types(events) == ["step", "step", "step", "step", "answer", "usage", "final", "done"]
     assert [(s["index"], s["tool"], s["status"]) for s in events if s["type"] == "step"] == [
         (0, "make_slides", "running"),
@@ -1313,6 +1328,7 @@ def test_draft_email_result_says_bird_cannot_send_and_keeps_names_apart():
     r = draft_email({"to": ["Marc Petit"], "subject": "Point", "body": "Bonjour Marc"}, c)
     assert "cannot send" in r and "Draft saved" in r and "Marc Petit" in r
     assert c.drafts[0]["to"] == [] and c.drafts[0]["to_hint"] == "Marc Petit"
+    c.request = "Écris à Marc (marc@example.org) et à a@example.org"  # addresses the user gave are kept
     draft_email({"to": ["Marc <marc@example.org>", "a@example.org"], "subject": "s", "body": "b"}, c)
     assert c.drafts[1]["to"] == ["marc@example.org", "a@example.org"] and "to_hint" not in c.drafts[1]
 
@@ -1459,4 +1475,16 @@ def test_install_script_is_served_as_plain_text_and_binds_locally():
     body = r.text
     assert body.startswith("#!/bin/sh") and "set -eu" in body
     assert "--host 127.0.0.1" in body and "0.0.0.0" not in body
+    # the logs hold the pairing code printed by scripts/bird_local.py: other users of the machine cannot read them
+    assert 'chmod 700 "$LOGS"' in body
     assert "HF_TOKEN=" not in body.replace("HF_TOKEN        jeton", "")
+
+
+def test_windows_installer_is_served_and_keeps_secrets_off_command_lines():
+    """« irm …/install.ps1 | iex »: served as text; HF_TOKEN reaches WSL through WSLENV only; Bird on 127.0.0.1."""
+    with TestClient(create_app(settings())) as client:
+        r = client.get("/install.ps1")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    body = r.text
+    assert "WSLENV" in body and "HF_TOKEN/u" in body and "HF_TOKEN='" not in body
+    assert "127.0.0.1" in body and "0.0.0.0" not in body and "--no-browser" in body

@@ -196,7 +196,7 @@ test("syntax badges: server verdicts by index and line count, JSON checked local
   const py = `${FENCE}python\ndef f(:\n    pass\n${FENCE}`;
   const bad = [{ i: 0, n: 2, lang: "python", ok: false, kind: "error", line: 1, msg: "invalid syntax" }];
   const out = md(py, { codeChecks: bad });
-  assert.match(out, /code-check--err[^>]*title="Vérification[^"]*invalid syntax"[\s\S]*Syntaxe à vérifier, ligne 1/);
+  assert.match(out, /code-check--err[^>]*title="Syntaxe analysée[^"]*invalid syntax"[\s\S]*Syntaxe à vérifier, ligne 1/);
   assert.match(out, /<span class="ln ln--err">/);
   assert.doesNotMatch(md(py, { codeChecks: [{ ...bad[0], n: 5 }] }), /code-check/); // another block's verdict
   assert.doesNotMatch(md(py, { codeChecks: bad, final: false }), /code-check/);

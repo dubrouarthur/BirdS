@@ -51,3 +51,15 @@ test("a final partial plan keeps what is missing", () => {
   assert.equal(p.partial, true);
   assert.deepEqual(p.missing, ["mail"]);
 });
+
+test("the head is ticked only when every item is done (« 0 sur 2 faites » after an error is not)", async () => {
+  const { planHead } = await import("../../birds/web/static/plan.js");
+  const two = (a, b, extra = {}) => cleanPlan({ items: [{ label: "tableau", status: a }, { label: "mail", status: b }], ...extra });
+  assert.equal(planHead(two("todo", "todo"), "running").icon, null);
+  assert.equal(planHead(two("todo", "todo"), "error").icon, "alert");
+  assert.equal(planHead(two("todo", "todo"), "error").partial, true);
+  assert.equal(planHead(two("done", "todo"), "done").icon, "alert");
+  assert.equal(planHead(two("done", "done", { final: true }), "done").icon, "check");
+  assert.equal(planHead(two("done", "todo"), "stopped").icon, null);
+  assert.equal(planHead(two("done", "done", { final: true, partial: true }), "done").icon, "alert");
+});

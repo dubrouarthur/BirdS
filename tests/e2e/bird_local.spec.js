@@ -240,17 +240,61 @@ async function send(page, text) {
       if (apiCalls.some((u) => !u.startsWith(LOCAL))) problems.push("local page: a call left the machine");
       await shot(page, `local-app-${cfg.name}.png`);
       await ctx.close();
-      // opened by hand, without the code: the pairing dialog
+      // opened by hand, without any code: the page Bird local serves works at once (no pairing dialog, a full turn)
       const b = await newPage(browser, cfg, { script: setStorage, arg: [prefs(), null] });
       await b.page.goto(LOCAL, { waitUntil: "networkidle" });
-      if (!(await b.page.locator("#local-pair[open]").count())) problems.push("local page without code: no pairing dialog");
-      else {
-        await shot(b.page, `local-app-pair-${cfg.name}.png`);
-        await b.page.fill("#local-pair-code", CODE);
-        await b.page.press("#local-pair-code", "Enter");
-        await b.page.waitForSelector("#local-pair", { state: "detached", timeout: 5000 }).catch(() => problems.push("local page: dialog stays"));
-      }
+      if (await b.page.locator("#local-pair[open]").count()) problems.push("local page without code: asks for a code");
+      await send(b.page, "Bonjour sans code");
+      const own = await b.page.locator(".turn-bird").last().innerText();
+      if (!/votre machine/.test(own)) problems.push(`local page without code: answer « ${own.slice(0, 80)} »`);
+      await shot(b.page, `local-app-nocode-${cfg.name}.png`);
       await b.ctx.close();
+    }
+
+    // ---- B1b. the ready-made link the command prints (#bird-local=PORT:CODE): connected at once, nothing typed
+    {
+      const cfg = CONFIGS[0];
+      const { ctx, page, apiCalls } = await newPage(browser, cfg, { script: setStorage, arg: [prefs(), null] });
+      await page.goto(`${HOSTED}/#bird-local=8765:${CODE}`, { waitUntil: "networkidle" });
+      if (page.url().includes("bird-local=")) problems.push("hosted link: the code stays in the address bar");
+      await send(page, "Bonjour par le lien");
+      const t = await page.locator(".turn-bird").last().innerText();
+      if (!/votre machine/.test(t)) problems.push(`hosted link: answer « ${t.slice(0, 80)} »`);
+      if (!apiCalls.some((u) => u.startsWith(LOCAL) && u.includes("/api/chat"))) problems.push("hosted link: the turn did not go to the machine");
+      await ctx.close();
+    }
+
+    // ---- B2. a new tab where the code was kept for one tab only: still the machine, never the hosted server
+    for (const cfg of CONFIGS) {
+      const { ctx, page, apiCalls } = await newPage(browser, cfg, { script: setStorage, arg: [prefs({ mode: "local" }), null] });
+      await page.goto(HOSTED, { waitUntil: "networkidle" });
+      await send(page, "Bonjour, sans code");
+      const leaked = apiCalls.filter((u) => u.startsWith(HOSTED) && !u.includes("/api/health"));
+      if (leaked.length) problems.push(`${cfg.name}: no code, the hosted server saw ${leaked.join(", ")}`);
+      const text = await page.locator(".turn-bird").last().innerText();
+      if (!/code d'appairage/.test(text)) problems.push(`${cfg.name}: no code, turn says « ${text.slice(0, 120)} »`);
+      await ctx.close();
+    }
+
+    // ---- B3. the model server (vLLM) stopped while Bird local runs: the vllm command, never a hosted sentence
+    stop(fake);
+    await waitDown("http://127.0.0.1:8399/v1/models");
+    for (const cfg of CONFIGS) {
+      const { ctx, page } = await newPage(browser, cfg, { script: setStorage, arg: [prefs({ mode: "local" }), CODE] });
+      await page.goto(HOSTED, { waitUntil: "networkidle" });
+      await send(page, "Bonjour");
+      const card = page.locator('.turn-bird [data-local="model-down"]').last();
+      if (!(await card.count())) {
+        problems.push(`${cfg.name}: no « le modèle ne répond pas » card`);
+        await shot(page, `FAIL-local-model-down-${cfg.name}.png`);
+      } else {
+        const text = await card.innerText();
+        if (!/vllm serve adubrou\/Bird-S-4B/.test(text) || /Vérifiez l'adresse|HTTP \d/.test(text))
+          problems.push(`${cfg.name}: model-down card « ${text.slice(0, 160)} »`);
+        await noHScroll(page, cfg.name, "model-down card");
+        await shot(page, `local-model-down-${cfg.name}.png`, card);
+      }
+      await ctx.close();
     }
 
     // ---- C. Bird local stopped mid-conversation: the card in the turn, never a raw error
